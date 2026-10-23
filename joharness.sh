@@ -125,6 +125,8 @@ JOHARNESS_CLERK_STALE_HOURS|24|dispatch|An unmerged clerk branch older than this
 JOHARNESS_SCOUT_READS|12|dispatch|Outside reads one scout pass makes before it proposes from what it has.
 JOHARNESS_CONDUCT_HOURS|168|dispatch|Hours since the conduct ledger last landed before a reviewer is due; 0 = off.
 JOHARNESS_CONDUCT_SAMPLE|3|dispatch|Retired branches one conduct run samples; 0 = off.
+JOHARNESS_DEFECT_PLAN_HOURS|48|dispatch|Hours after a defect: block with no plan naming its issue = PARKED UNPLANNED; 0 lifts it.
+JOHARNESS_DEFECT_FIX_HOURS|72|dispatch|Hours after a defect: block with no RESUME = PARKED STUCK; 0 lifts it.
 JOHARNESS_SCOUT_REVIEWER||base-conf|GitHub login whose approved comment gates a scout proposal; empty = none. Read from the base branch conf.
 JOHARNESS_SCOUT_RESEARCH|off|base-conf|Exactly on = a scout pass may read outside the repository. Read from the base branch conf.
 JOHARNESS_CANONICAL||session|Conf line JOHARNESS_CANONICAL=1 marks the canonical checkout; never in a consumer.
@@ -2416,6 +2418,16 @@ analysis_one() {
     # stall mark on it is a clock nobody is watching.
     out="${out}condition : none — this claim was RELEASED (status: abandoned). Its"$'\n'
     out="${out}            plan is free; the branch is the human's to delete"$'\n'
+  elif [ "$status" = "blocked" ] &&
+       case "${next#[\"\']}" in defect:*) true ;; *) false ;; esac; then
+    # A defect's, not a human's: dispatch reads the fix from git and resumes it.
+    local dn
+    dn="$(printf '%s\n' "$doc" | gr_field_raw next)"
+    dn="${dn#[\"\']}"; dn="${dn#defect:}"; dn="${dn#"${dn%%[! ]*}"}"; dn="${dn%%:*}"
+    case "$(issue_verdict "$dn")" in "ok "*) dn="#${dn#\#}" ;; *) dn="" ;; esac
+    cond="PARKED${dn:+ ${dn}}"
+    out="${out}condition : ${cond} — a defect's, not a human's. dispatch resumes it once a"$'\n'
+    out="${out}            plan naming the issue retires on ${base_branch}"$'\n'
   elif [ "$status" = "blocked" ]; then
     cond="BLOCKED"
     out="${out}condition : BLOCKED — a human's. dispatch relays this row every pass and"$'\n'
@@ -4662,6 +4674,16 @@ gr_fields() {
     END { for (i = 1; i <= n; i++) { if (i in v) print v[i]; else print "" } }'
 }
 
+# One field with its ` #…` kept: `next: defect: #<n>: …` (manage.md §3) is
+# no comment, and gr_fields reads it as `defect:`.
+gr_field_raw() {
+  awk -v key="$1" '
+    NR == 1 && $0 != "---" { exit }
+    NR > 1  && $0 == "---" { exit }
+    match($0, "^" key ":[[:space:]]*") {
+      s = substr($0, RLENGTH + 1); sub(/[[:space:]]+$/, "", s); print s; exit }'
+}
+
 # One field, the common case. A wrapper and not a second parser: two readers
 # of the same frontmatter is one of them drifting.
 gr_field() { gr_fields "$1"; }
@@ -5345,6 +5367,116 @@ dispatch_block_age_min() {
   [ -n "$ts" ] || return 0
   now="$(date +%s)"
   printf '%s' "$(( (now - ts) / 60 ))"
+}
+# Does a plan file's frontmatter at <rev>:<path> name issue <n>? Its reader is
+# issue_verdict, the one `ci` lints with.
+plan_names_issue() {
+  local iss
+  iss="$(git -C "$ROOT" show "${1}:${2}" </dev/null 2>/dev/null | gr_field issue)"
+  [ "$(issue_verdict "$iss")" = "ok $3" ]
+}
+# A `defect: #<n>: …` block (manage.md §3), read from git alone — never an
+# issue's state. One line, tab-separated:
+#   <state> <n> <retired plan stem or -> <minutes since the block commit or ->
+# state, first that holds:
+#   UNREADABLE  no number after `defect:`, or the commit that wrote this
+#               next: line is not in this clone (fails closed: no RESUME);
+#   RESUME      a plan naming #<n> left the base's first parent after the
+#               block commit (renames are not a retire), and no plan on the
+#               base nor on a `live` branch row names #<n> now;
+#   STUCK       no RESUME, JOHARNESS_DEFECT_FIX_HOURS since the block commit;
+#   UNPLANNED   no plan names #<n> anywhere, JOHARNESS_DEFECT_PLAN_HOURS
+#               since the block commit;
+#   PARKED      otherwise.
+# args: <branch> <workstream path> <merge base> <next:> <branch-plan rows>
+dispatch_defect_state() {
+  local branch="$1" ws="$2" base="$3" next="$4" bprows="$5"
+  local ref n h cur prev bh="" bt now age phours fhours retired="" named=0
+  local line rh rt p kind b st
+  ref="refs/remotes/origin/${branch}"
+  # The caller's next: went through gr_fields, which cut ` #<n>…` as a comment.
+  next="$(git -C "$ROOT" show "${ref}:${ws}" </dev/null 2>/dev/null | gr_field_raw next)"
+  n="${next#[\"\']}"; n="${n#defect:}"; n="${n#"${n%%[! ]*}"}"; n="${n%%:*}"
+  n="${n%"${n##*[! ]}"}"
+  case "$(issue_verdict "$n")" in
+    "ok "*) n="${n#\#}" ;;
+    *) printf 'UNREADABLE\t?\t-\t-\n'; return 0 ;;
+  esac
+  # The block commit: the oldest commit of the unbroken run, back from the
+  # tip, whose file reads this next:. Its first parent must be readable and
+  # read otherwise; a shallow boundary or a missing object proves nothing.
+  cur="$next"
+  while IFS= read -r h; do
+    [ -n "$h" ] || continue
+    [ "$(git -C "$ROOT" show "${h}:${ws}" </dev/null 2>/dev/null | gr_field_raw next)" = "$cur" ] ||
+      break
+    bh="$h"
+  done < <(git -C "$ROOT" log --first-parent --format=%H \
+    "${base:+${base}..}${ref}" -- "$ws" </dev/null 2>/dev/null)
+  if [ -n "$bh" ]; then
+    if git -C "$ROOT" cat-file -e "${bh}^1^{commit}" </dev/null 2>/dev/null; then
+      prev="$(git -C "$ROOT" show "${bh}^1:${ws}" </dev/null 2>/dev/null | gr_field_raw next)"
+      [ "$prev" != "$cur" ] || bh=""
+    else
+      bh=""
+    fi
+  fi
+  if [ -z "$bh" ]; then
+    printf 'UNREADABLE\t%s\t-\t-\n' "$n"; return 0
+  fi
+  bt="$(git -C "$ROOT" log -1 --format=%ct "$bh" </dev/null 2>/dev/null)"
+  case "$bt" in '' | *[!0-9]*) printf 'UNREADABLE\t%s\t-\t-\n' "$n"; return 0 ;; esac
+  now="$(date +%s)"
+  age=$(( (now - bt) / 60 ))
+  [ "$age" -ge 0 ] || age=0
+  # A retire after the block: a plan file DELETED on the base's first parent,
+  # renames detected over the whole tree (a pathspec would cut a rename out of
+  # docs/plans into a delete), at or after the block commit's time. The walk
+  # stops at the block commit's history: no `--since`, which stops at the
+  # first older-dated commit and skips what lies behind it.
+  while IFS= read -r line; do
+    case "$line" in
+      '') continue ;;
+      'C '*) read -r rh rt <<<"${line#C }"; continue ;;
+      docs/plans/*.md) ;;
+      *) continue ;;
+    esac
+    [ "${rt:-0}" -ge "$bt" ] || continue
+    plan_names_issue "${rh}^1" "$line" "$n" || continue
+    p="${line##*/}"; retired="${p%.md}"
+    break
+  done < <(git -c core.quotePath=false -C "$ROOT" log --first-parent \
+    --diff-merges=first-parent -M --diff-filter=D --name-only \
+    --format='C %H %ct' "refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" \
+    "^${bh}" </dev/null 2>/dev/null)
+  # Named now: on the base, or on a `live` branch row.
+  while IFS= read -r p; do
+    [ -n "$p" ] || continue
+    plan_names_issue "refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" "$p" "$n" &&
+      { named=1; break; }
+  done < <(git -c core.quotePath=false -C "$ROOT" ls-tree --name-only \
+    "refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" docs/plans/ </dev/null 2>/dev/null |
+    gr_docs)
+  if [ "$named" -eq 0 ]; then
+    while IFS=$'\t' read -r kind b st _; do
+      [ "$kind" = live ] || continue
+      plan_names_issue "refs/remotes/origin/${b}" "docs/plans/${st}.md" "$n" &&
+        { named=1; break; }
+    done <<<"$bprows"
+  fi
+  if [ -n "$retired" ] && [ "$named" -eq 0 ]; then
+    printf 'RESUME\t%s\t%s\t%s\n' "$n" "$retired" "$age"; return 0
+  fi
+  fhours="$(num_knob JOHARNESS_DEFECT_FIX_HOURS)"
+  phours="$(num_knob JOHARNESS_DEFECT_PLAN_HOURS)"
+  if [ "$fhours" -gt 0 ] && [ "$age" -ge $((fhours * 60)) ]; then
+    printf 'STUCK\t%s\t%s\t%s\n' "$n" "${retired:--}" "$age"
+  elif [ "$phours" -gt 0 ] && [ -z "$retired" ] && [ "$named" -eq 0 ] &&
+       [ "$age" -ge $((phours * 60)) ]; then
+    printf 'UNPLANNED\t%s\t-\t%s\n' "$n" "$age"
+  else
+    printf 'PARKED\t%s\t%s\t%s\n' "$n" "${retired:--}" "$age"
+  fi
 }
 dispatch_claim_age_min() {
   local ts now
@@ -6587,6 +6719,7 @@ cmd_dispatch() {
   local bprows freeable="" fkind fb fn fage n_freeable=0
   local DISPATCH_WITHHELD=
   local inflight="" free="" questions=""
+  local n_parked=0 n_fixed=0 n_resume=0 parked_lines="" resume_rows="" dst dn dplan dage di ri rtext rline
 
   cap="$(num_knob JOHARNESS_MAX_MANAGERS)"
   stall="$(num_knob JOHARNESS_STALL_MINUTES)"
@@ -6925,16 +7058,48 @@ cmd_dispatch() {
       # and a blocked claim on one must not speak for a live claim on the
       # other.
       blocked_claims="${blocked_claims} $(basename "$path" .md)@${branch} "
-      flag="  BLOCKED: the human's, holds no slot"
-      block_reason_ok "$next" ||
-        flag="${flag}  INVALID BLOCK? next: opens with no reason word (manage.md §3): ask, order nothing"
-      # How long it has stood.
-      bage="$(dispatch_block_age_min "$branch" "$ws" "$base")"
-      if [ -n "$bage" ]; then
-        flag="${flag}, parked $(dispatch_age_text "$bage") ago"
-      else
-        flag="${flag}, parked for an unknown time: the commit that parked it is not in this clone's history"
-      fi
+      case "${next#[\"\']}" in
+        defect:*)
+          # A defect's, not the human's: parked until the fix retires.
+          n_parked=$((n_parked + 1))
+          IFS=$'\t' read -r dst dn dplan dage \
+            <<<"$(dispatch_defect_state "$branch" "$ws" "$base" "$next" "$bprows")"
+          di="$(basename "$path" .md) (${branch})"
+          case "$dst" in
+            RESUME)
+              # Which RESUME rows get a slot is known only once every row is
+              # counted: a token, replaced below the loop.
+              n_fixed=$((n_fixed + 1))
+              flag="  @@RESUME${n_fixed}@@"
+              parked_lines="${parked_lines}@@RESUMELINE${n_fixed}@@"$'\n' ;;
+            UNREADABLE)
+              flag="  PARKED UNREADABLE: the commit that wrote next: is not in this clone's history, or next: names no issue number — no RESUME, holds no slot: notify the human once"
+              parked_lines="${parked_lines}            PARKED UNREADABLE ${di}: notify the human once"$'\n' ;;
+            STUCK)
+              flag="  PARKED #${dn} STUCK: no fix retired in $(dispatch_age_text "$dage") (>= JOHARNESS_DEFECT_FIX_HOURS), holds no slot: notify the human once"
+              parked_lines="${parked_lines}            PARKED #${dn} STUCK ${di}: no fix retired in $(dispatch_age_text "$dage"): notify the human once"$'\n' ;;
+            UNPLANNED)
+              flag="  PARKED #${dn} UNPLANNED: no plan names #${dn} $(dispatch_age_text "$dage") after the block (>= JOHARNESS_DEFECT_PLAN_HOURS), holds no slot: notify the human once"
+              parked_lines="${parked_lines}            PARKED #${dn} UNPLANNED ${di}: no plan names #${dn}: notify the human once"$'\n' ;;
+            *)
+              flag="  PARKED #${dn}: a defect's, holds no slot, parked $(dispatch_age_text "$dage") ago: waits for a plan naming #${dn} to retire"
+              parked_lines="${parked_lines}            PARKED #${dn} ${di}: waits for the fix, report only"$'\n' ;;
+          esac
+          [ "$dst" != RESUME ] || resume_rows="${resume_rows}${n_fixed}"$'\t'"${dn}"$'\t'"${dplan}"$'\t'"${di}"$'\n'
+          ;;
+        *)
+          flag="  BLOCKED: the human's, holds no slot"
+          block_reason_ok "$next" ||
+            flag="${flag}  INVALID BLOCK? next: opens with no reason word (manage.md §3): ask, order nothing"
+          # How long it has stood.
+          bage="$(dispatch_block_age_min "$branch" "$ws" "$base")"
+          if [ -n "$bage" ]; then
+            flag="${flag}, parked $(dispatch_age_text "$bage") ago"
+          else
+            flag="${flag}, parked for an unknown time: the commit that parked it is not in this clone's history"
+          fi
+          ;;
+      esac
     elif [ -z "$age" ]; then
       flag="  push age unknown: ref not here — fetch, then cross-check"
     elif [ "$age" -ge "$stall" ]; then
@@ -7027,6 +7192,40 @@ cmd_dispatch() {
     [ -z "$rnext" ] || inflight="${inflight}    next: ${rnext}"$'\n'
   done < <(dispatch_rescope_branches free-)
 
+  pending="${JOHARNESS_PENDING_SPAWNS:-0}"
+  case "$pending" in '' | *[!0-9]*) pending=0 ;; esac
+  # Leading zeros off.
+  pending="${pending#"${pending%%[!0]*}"}"
+  [ -n "$pending" ] || pending=0
+  # What the subtraction may safely take, kept apart from what the caller said
+  # so the line below can still report the caller's own number.
+  pending_used="$pending"
+  [ "${#pending_used}" -le "${#cap}" ] || pending_used="$cap"
+  [ "$pending_used" -le "$cap" ] || pending_used="$cap"
+  # Subtracted here and nowhere else: every verdict below reads n_slots, so the
+  # spawn count, the OVERLAP-BOUND gate and the DRAINED reading follow.
+  n_roles=$((n_curate_inflight + n_clerk))
+  n_slots=$((cap - (n_inflight - n_blocked) - pending_used - n_roles))
+  [ "$n_slots" -ge 0 ] || n_slots=0
+  # A RESUME is a spawn of this pass: it takes a slot ahead of every free
+  # item, and only as many print as there are slots.
+  n_resume=$n_fixed
+  [ "$n_resume" -le "$n_slots" ] || n_resume=$n_slots
+  n_slots=$((n_slots - n_resume))
+  while IFS=$'\t' read -r ri dn dplan di; do
+    [ -n "$ri" ] || continue
+    if [ "$ri" -le "$n_resume" ]; then
+      rtext="PARKED #${dn} RESUME — the fix retired (${dplan}): write the resume next:, then nudge or respawn (orchestrate.md), one slot"
+      rline="            PARKED #${dn} RESUME ${di}: the fix retired (${dplan}), resume it this pass"
+    else
+      rtext="PARKED #${dn}: the fix retired (${dplan}), resume waits for a slot"
+      rline="            PARKED #${dn} ${di}: the fix retired (${dplan}), resume waits for a slot"
+    fi
+    # Quoted replacements: bash 5.2 reads an unquoted `&` as the match.
+    inflight="${inflight//"@@RESUME${ri}@@"/"$rtext"}"
+    parked_lines="${parked_lines//"@@RESUMELINE${ri}@@"/"$rline"}"
+  done <<<"$resume_rows"
+
   printf 'managers in flight (git view; liveness is the control plane'"'"'s — read both):\n'
   if [ -n "${inflight}${edge_rows}" ]; then
     printf '%s%s' "$inflight" "$edge_rows"
@@ -7052,22 +7251,10 @@ cmd_dispatch() {
     printf '  %s\n' "$edge"
   fi
 
-  pending="${JOHARNESS_PENDING_SPAWNS:-0}"
-  case "$pending" in '' | *[!0-9]*) pending=0 ;; esac
-  # Leading zeros off.
-  pending="${pending#"${pending%%[!0]*}"}"
-  [ -n "$pending" ] || pending=0
-  # What the subtraction may safely take, kept apart from what the caller said
-  # so the line below can still report the caller's own number.
-  pending_used="$pending"
-  [ "${#pending_used}" -le "${#cap}" ] || pending_used="$cap"
-  [ "$pending_used" -le "$cap" ] || pending_used="$cap"
-  # Subtracted here and nowhere else: every verdict below reads n_slots, so the
-  # spawn count, the OVERLAP-BOUND gate and the DRAINED reading follow.
-  n_roles=$((n_curate_inflight + n_clerk))
-  n_slots=$((cap - (n_inflight - n_blocked) - pending_used - n_roles))
-  [ "$n_slots" -ge 0 ] || n_slots=0
-  if [ "$n_roles" -gt 0 ]; then
+  if [ "$n_resume" -gt 0 ]; then
+    printf 'slots     : %s of %s free after %s RESUME row(s), each one spawn of this pass\n\n' \
+      "$n_slots" "$cap" "$n_resume"
+  elif [ "$n_roles" -gt 0 ]; then
     printf 'slots     : %s of %s free (%s role session(s) in flight count against JOHARNESS_MAX_MANAGERS)\n\n' \
       "$n_slots" "$cap" "$n_roles"
   elif [ "$pending" != 0 ]; then
@@ -7271,6 +7458,12 @@ cmd_dispatch() {
       "$pending"
   elif [ "$cap" -eq 0 ]; then
     printf 'verdict   : PAUSED — JOHARNESS_MAX_MANAGERS=0: spawn nothing, exit; the human unpauses\n'
+  elif [ "$n_resume" -gt 0 ]; then
+    # A RESUME is work: never a DRAINED line, whatever else the pass holds.
+    printf 'verdict   : NOT DRAINED — %s RESUME row(s) first, then %s free item(s), %s slot(s) left: resume them, then spawn up to %s\n' \
+      "$n_resume" "$n_free" "$n_slots" "$([ "$n_free" -lt "$n_slots" ] && printf '%s' "$n_free" || printf '%s' "$n_slots")"
+  elif [ "$n_fixed" -gt 0 ]; then
+    printf 'verdict   : NOT DRAINED — %s parked item(s) fixed, 0 slots: resume each once a slot frees\n' "$n_fixed"
   elif [ "$n_free" -gt 0 ] && [ "$n_slots" -gt 0 ]; then
     printf 'verdict   : NOT DRAINED — %s free item(s) now%s, %s slot(s): spawn up to %s now\n' \
       "$n_free" "$([ "$n_wait" -eq 0 ] || printf ' (+%s waiting behind them)' "$n_wait")" \
@@ -7347,6 +7540,8 @@ EOF_CW
     printf '            %s plan(s) wait on a human core edit (oldest %sd): %s\n' \
       "$cw_n" "$cw_d" "$cw_stems"
   fi
+  # Parked on a defect: listed apart from the human's blocks, never in n_wait.
+  [ -z "$parked_lines" ] || printf '%s' "$parked_lines"
   # ONE number, and a sentence true of every row it counts.
   if [ "$n_stall" -gt 0 ]; then
     printf '            %s manager(s) past the stall window: health pass FIRST, spawn second' "$n_stall"
@@ -7359,8 +7554,8 @@ EOF_CW
     printf '            %s manager(s) rewriting one file past the churn threshold: health pass FIRST\n' "$n_loop"
   [ "$n_ceiling" -eq 0 ] ||
     printf '            %s manager(s) past the ceiling with no pr: in the claim file: report, never kill on this alone\n' "$n_ceiling"
-  [ "$n_blocked" -eq 0 ] ||
-    printf '            %s manager(s) blocked: report to the human, never respawn\n' "$n_blocked"
+  [ $((n_blocked - n_parked)) -eq 0 ] ||
+    printf '            %s manager(s) blocked: report to the human, never respawn\n' "$((n_blocked - n_parked))"
   [ "$n_hold" -eq 0 ] ||
     printf '            %s plan(s) on HOLD behind work in flight: not counted as free\n' "$n_hold"
   role_slots=$((n_slots - (n_free < n_slots ? n_free : n_slots)))

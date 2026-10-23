@@ -1057,3 +1057,233 @@ if [ -z "$(git -C "$dspwork" status --porcelain -- .agents/harness)" ]; then
 else
   fail "the fixture's hooks are restored"
 fi
+
+# --- a defect: block is PARKED, and RESUMEd once its fix retires ------------
+# Its own repo: every case reads the whole queue, and the dates are the
+# question (block commit against retire commit, and against the two knobs).
+dfwork="${TMP}/dfxwork"
+dforigin="${TMP}/dfxorigin.git"
+git init -q --bare "$dforigin"
+git init -q "$dfwork"
+git -C "$dfwork" symbolic-ref HEAD refs/heads/main
+mkdir -p "${dfwork}/docs/plans" "${dfwork}/docs/handover" \
+  "${dfwork}/.agents/harness" "${dfwork}/.agents/env/none"
+cp "${ROOT}/joharness.sh" "${dfwork}/joharness.sh"
+cp "${ROOT}/.agents/harness/queue-context.sh" \
+   "${ROOT}/.agents/harness/handover-context.sh" "${dfwork}/.agents/harness/"
+printf '# none\n' >"${dfwork}/.agents/env/none/AGENTS.md"
+dfconf="${dfwork}/joharness.conf"
+printf 'JOHARNESS_ENV=none\n' >"$dfconf"
+dfnow="$(date +%s)"
+# <hours ago> <message>: a commit dated in the past, both dates.
+dfcommit() {
+  git -C "$dfwork" add -A
+  GIT_AUTHOR_DATE="@$((dfnow - $1 * 3600)) +0000" \
+    GIT_COMMITTER_DATE="@$((dfnow - $1 * 3600)) +0000" \
+    git -C "$dfwork" commit -qm "$2"
+}
+# <stem> <issue|none> [scope]: a plan long enough that a one-line edit is
+# still a rename to git.
+dfplan() {
+  mkdir -p "${dfwork}/docs/plans"
+  { printf -- '---\nplan: %s\nurgency: normal\nagent: sonnet\neffort: high\nissue: %s\nscope: %s\n---\n\n' \
+      "$1" "$2" "${3:-src/$1}"
+    printf '## Goal\nFixture line one.\nFixture line two.\nFixture line three.\nFixture line four.\n'
+  } >"${dfwork}/docs/plans/${1}.md"
+}
+dfcommit 200 "base"
+git -C "$dfwork" remote add origin "$dforigin"
+git -C "$dfwork" push -qu origin main
+# A twin branch cut before the fix plan exists, carrying the same plan: once
+# the base adds and retires it, its row reads `leftover`, never `live`.
+git -C "$dfwork" checkout -qb twin-c main
+dfplan fix21 21 src/twin
+mkdir -p "${dfwork}/src"; printf 'code\n' >"${dfwork}/src/twin.txt"
+dfcommit 199 "a twin carries fix21"
+git -C "$dfwork" push -qu origin twin-c
+git -C "$dfwork" checkout -q main
+# <branch> <own plan> <next:> <hours ago>: claim, then park.
+dfpark() {
+  git -C "$dfwork" checkout -qb "$1" origin/main
+  mkdir -p "${dfwork}/docs/handover"
+  printf -- '---\nworkstream: %s\nstatus: in-progress\nbranch: %s\nplan: %s\nsession: https://example.invalid/session_%s\nagent: sonnet\nupdated: 2026-01-02\nnext: Build it\n---\n\n## Goal\nFixture.\n' \
+    "$2" "$1" "$2" "$2" >"${dfwork}/docs/handover/${2}.md"
+  dfcommit "$(($4 + 1))" "claim $2"
+  sed -i "s/^status: in-progress\$/status: blocked/; s/^next: Build it\$/next: $3/" \
+    "${dfwork}/docs/handover/${2}.md"
+  dfcommit "$4" "park $2"
+  git -C "$dfwork" push -qu origin "$1"
+  git -C "$dfwork" checkout -q main
+}
+dfpush() { dfcommit "$1" "$2"; git -C "$dfwork" push -q origin main; }
+dfx() { ( cd "$dfwork" && JOHARNESS_CONF="$dfconf" DRAIN_FETCH=0 \
+  DISPATCH_FETCH=0 "$@" ./joharness.sh dispatch 2>&1 ); }
+
+dfplan fix21 21; dfplan own-a none; dfplan own-a2 none
+dfpush 3 "fix21, own-a, own-a2"
+dfpark park-a own-a 'defect: #21: the build breaks' 2
+dfpark park-a2 own-a2 'defect: #21: the build breaks too' 2
+out="$(dfx)"
+expect "a defect: block is PARKED with its issue, holding no slot" \
+  "PARKED #21: a defect's, holds no slot" "$out"
+refute "never the human's" "BLOCKED: the human's" "$out"
+refute "nor counted among the human's blocks" "blocked: report to the human" "$out"
+expect "PARKED is not counted in n_wait: the verdict reads the free plan alone" \
+  "verdict   : NOT DRAINED — 1 free item(s) now, 4 slot(s): spawn up to 1 now" "$out"
+refute "and nothing is said to be waiting" "waiting behind" "$out"
+expect "the parked item is listed on its own line under the verdict" \
+  "            PARKED #21 own-a (park-a): waits for the fix, report only" "$out"
+
+# The fix retires; a clerk's branch still carries a live plan naming #21.
+git -C "$dfwork" rm -q docs/plans/fix21.md
+dfpush 1 "retire fix21"
+mkdir -p "${dfwork}/docs/plans"
+git -C "$dfwork" checkout -qb clerk-b main
+dfplan fix21b 21
+dfcommit 1 "a second plan naming #21"
+git -C "$dfwork" push -qu origin clerk-b
+git -C "$dfwork" checkout -q main
+out="$(dfx)"
+refute "no RESUME while a live branch plan still names the issue" \
+  "PARKED #21 RESUME" "$out"
+expect "it stays parked" "PARKED #21: a defect's" "$out"
+
+git -C "$dfwork" push -q origin --delete clerk-b
+git -C "$dfwork" branch -qD clerk-b
+git -C "$dfwork" update-ref -d refs/remotes/origin/clerk-b
+out="$(dfx)"
+expect "RESUME despite a stale (leftover) branch naming the issue" \
+  "PARKED #21 RESUME — the fix retired (fix21)" "$out"
+expect "each RESUME takes a slot ahead of free items" \
+  "slots     : 2 of 4 free after 2 RESUME row(s)" "$out"
+expect "a pass with a RESUME row says so on the verdict" \
+  "verdict   : NOT DRAINED — 2 RESUME row(s) first" "$out"
+refute "and never prints DRAINED" "verdict   : DRAINED" "$out"
+expect "and lists it under the verdict" \
+  "            PARKED #21 RESUME own-a (park-a): the fix retired (fix21), resume it this pass" "$out"
+
+# Two fixed items, one slot: one RESUME, the other waits.
+out="$(dfx env JOHARNESS_MAX_MANAGERS=1)"
+if [ "$(printf '%s\n' "$out" | grep -c 'PARKED #21 RESUME —')" = 1 ]; then
+  pass "RESUME rows are capped by the slots"
+else
+  fail "RESUME rows are capped by the slots"; printf '%s\n' "$out" | indent
+fi
+expect "the other waits for a slot" "resume waits for a slot" "$out"
+expect "and the slot is spent" "slots     : 0 of 1 free after 1 RESUME row(s)" "$out"
+out="$(dfx env JOHARNESS_MAX_MANAGERS=4 JOHARNESS_PENDING_SPAWNS=3)"
+if [ "$(printf '%s\n' "$out" | grep -c 'PARKED #21 RESUME —')" = 1 ]; then
+  pass "a slot a pending spawn holds is no RESUME's"
+else
+  fail "a slot a pending spawn holds is no RESUME's"; printf '%s\n' "$out" | indent
+fi
+for b in park-a park-a2 twin-c; do
+  git -C "$dfwork" push -q origin --delete "$b"
+  git -C "$dfwork" branch -qD "$b"
+done
+
+# A rename is not a retire: the plan moved and now names another issue.
+dfplan fix31 31; dfplan own-d none
+dfpush 3 "fix31 and own-d"
+dfpark park-d own-d 'defect: #31: the parser breaks' 2
+git -C "$dfwork" mv docs/plans/fix31.md docs/plans/fix31-moved.md
+sed -i 's/^issue: 31$/issue: 32/' "${dfwork}/docs/plans/fix31-moved.md"
+dfpush 1 "move fix31 onto #32"
+out="$(dfx)"
+refute "no RESUME for a rename" "PARKED #31 RESUME" "$out"
+expect "it stays parked" "PARKED #31: a defect's" "$out"
+
+# A retire OLDER than the block commit is an earlier fix that did not hold.
+dfplan fix41 41; dfplan own-e none
+dfpush 4 "fix41 and own-e"
+git -C "$dfwork" rm -q docs/plans/fix41.md
+dfpush 3 "retire fix41"
+mkdir -p "${dfwork}/docs/plans"
+dfpark park-e own-e 'defect: #41: still breaks' 1
+out="$(dfx)"
+refute "no RESUME for a retirement older than the block commit" \
+  "PARKED #41 RESUME" "$out"
+expect "it stays parked" "PARKED #41: a defect's" "$out"
+
+# A fresh retire, merged the way GitHub merges: on the first parent.
+dfplan fix51 51; dfplan own-f none
+dfpush 4 "fix51 and own-f"
+dfpark park-f own-f 'defect: #51: the build breaks' 2
+git -C "$dfwork" checkout -qb fixer-51 main
+git -C "$dfwork" rm -q docs/plans/fix51.md
+dfcommit 1 "retire fix51"
+git -C "$dfwork" checkout -q main
+mkdir -p "${dfwork}/docs/plans"
+GIT_AUTHOR_DATE="@${dfnow} +0000" GIT_COMMITTER_DATE="@${dfnow} +0000" \
+  git -C "$dfwork" merge -q --no-ff -m "Merge fixer-51" fixer-51
+git -C "$dfwork" push -q origin main
+out="$(dfx)"
+expect "RESUME after a fresh retirement" \
+  "PARKED #51 RESUME — the fix retired (fix51)" "$out"
+refute "and never DRAINED" "verdict   : DRAINED" "$out"
+for b in park-d park-e park-f; do
+  git -C "$dfwork" push -q origin --delete "$b"
+  git -C "$dfwork" branch -qD "$b"
+done
+
+# The two clocks, at their knob hours.
+dfplan own-g none; dfplan fix71 71; dfplan own-h none
+dfpush 80 "own-g, fix71, own-h"
+dfpark park-g own-g 'defect: #61: nobody planned this' 49
+dfpark park-h own-h 'defect: #71: planned, never fixed' 73
+out="$(dfx)"
+expect "UNPLANNED at JOHARNESS_DEFECT_PLAN_HOURS" "PARKED #61 UNPLANNED" "$out"
+expect "STUCK at JOHARNESS_DEFECT_FIX_HOURS" "PARKED #71 STUCK" "$out"
+out="$(dfx env JOHARNESS_DEFECT_PLAN_HOURS=50 JOHARNESS_DEFECT_FIX_HOURS=74)"
+refute "not UNPLANNED under the knob" "UNPLANNED" "$out"
+refute "not STUCK under the knob" "STUCK" "$out"
+for b in park-g park-h; do
+  git -C "$dfwork" push -q origin --delete "$b"
+  git -C "$dfwork" branch -qD "$b"
+done
+# STUCK also when the fix retired but a stale live branch still names #81.
+dfplan fix81 81; dfplan own-i none
+dfpush 80 "fix81 and own-i"
+dfpark park-i own-i 'defect: #81: the build breaks' 73
+git -C "$dfwork" checkout -qb clerk-i main
+dfplan fix81b 81
+dfcommit 75 "a twin clerk's plan naming #81"
+git -C "$dfwork" push -qu origin clerk-i
+git -C "$dfwork" checkout -q main
+git -C "$dfwork" rm -q docs/plans/fix81.md
+dfpush 0 "retire fix81"
+mkdir -p "${dfwork}/docs/plans"
+out="$(dfx)"
+refute "no RESUME while a stale live branch names the issue" "PARKED #81 RESUME" "$out"
+expect "STUCK at its hours instead" "PARKED #81 STUCK" "$out"
+for b in park-i clerk-i; do
+  git -C "$dfwork" push -q origin --delete "$b"
+  git -C "$dfwork" branch -qD "$b"
+done
+
+# UNREADABLE fails closed: a next: with no issue number, and a clone whose
+# history ends before the block commit's parent.
+dfplan own-j none; dfplan own-k none
+dfpush 3 "own-j and own-k"
+dfpark park-j own-j 'defect: the build breaks' 2
+out="$(dfx)"
+expect "a defect: with no issue number is UNREADABLE" "PARKED UNREADABLE" "$out"
+git -C "$dfwork" push -q origin --delete park-j
+git -C "$dfwork" branch -qD park-j
+dfpark park-k own-k 'defect: #91: the build breaks' 2
+git -C "$dfwork" checkout -qb fixer-91 main
+dfplan fix91 91
+dfcommit 3 "a plan naming #91"
+git -C "$dfwork" checkout -q main
+git -C "$dfwork" merge -q --no-ff -m "Merge fixer-91" fixer-91
+git -C "$dfwork" rm -q docs/plans/fix91.md
+dfpush 0 "retire fix91"
+mkdir -p "${dfwork}/docs/plans"
+out="$(dfx)"
+expect "the full clone resumes it" "PARKED #91 RESUME" "$out"
+dfshallow="${TMP}/dfxshallow"
+git clone -q --depth 1 --no-single-branch -b main "file://${dforigin}" "$dfshallow" 2>/dev/null
+out="$( cd "$dfshallow" && JOHARNESS_CONF="${dfshallow}/joharness.conf" DRAIN_FETCH=0 \
+  DISPATCH_FETCH=0 ./joharness.sh dispatch 2>&1 )"
+expect "a block commit this clone cannot read is UNREADABLE" "PARKED UNREADABLE" "$out"
+refute "and never RESUMEs" "PARKED #91 RESUME" "$out"
