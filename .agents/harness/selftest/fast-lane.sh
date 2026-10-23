@@ -279,3 +279,37 @@ expect "cleanup, a merged retired fast branch, a retired symlink: no claim" \
   "no plan: fast workstream file on this branch" "$(fast_section "$(fj ci -v)")"
 git -C "$fwork" checkout -q main
 
+# A claim that arrives intact from a merged side branch and is retired here
+# binds, whatever the caller's log.diffMerges says.
+git -C "$fwork" checkout -qb side2
+fast_ws arrived fast
+for _f in a b c d; do printf '%s\n' "$_f" >"${fwork}/${_f}.txt"; done
+commit_all "$fwork" "side2: claim and four files"
+git -C "$fwork" checkout -q main
+git -C "$fwork" checkout -qb takes-side
+printf 'z\n' >"${fwork}/z.txt"
+commit_all "$fwork" "own commit"
+git -C "$fwork" merge -q --no-ff -m "merge side2" side2
+git -C "$fwork" rm -q docs/handover/arrived.md
+commit_all "$fwork" "retire the claim"
+git -C "$fwork" config log.diffMerges combined
+expect "a merged-in claim retired here binds under log.diffMerges=combined" \
+  "5 files touched besides docs/handover/arrived.md" "$(fast_section "$(fj ci)")"
+git -C "$fwork" config --unset log.diffMerges
+
+# Planned work that edits a stale fast file, reverts it to the base's
+# content and deletes it: the last write equals the base, so no claim.
+git -C "$fwork" checkout -q main
+git -C "$fwork" checkout -qb revert
+fast_ws revert none
+for _f in a b c; do printf '%s\n' "$_f" >"${fwork}/${_f}.txt"; done
+printf 'edit\n' >>"${fwork}/docs/handover/stale.md"
+commit_all "$fwork" "planned: three files, edit the stale claim"
+git -C "$fwork" checkout -q main -- docs/handover/stale.md
+commit_all "$fwork" "planned: revert it to main"
+git -C "$fwork" rm -q docs/handover/stale.md
+commit_all "$fwork" "planned: delete it"
+expect "a stale fast file reverted to the base, then deleted, is no claim" \
+  "no plan: fast workstream file on this branch" "$(fast_section "$(fj ci -v)")"
+git -C "$fwork" checkout -q main
+

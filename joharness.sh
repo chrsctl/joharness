@@ -6437,7 +6437,10 @@ fast_lane_ws() {
       printf '%s\n' "$tok"
       return 0
     fi
-  done < <(git -C "$ROOT" log --first-parent -m --no-renames --diff-filter=AM -z \
+  # The config pins what `-m` means: a caller's log.diffMerges of combined or
+  # remerge would hide a merge's first-parent adds.
+  done < <(git -C "$ROOT" -c log.diffMerges=first-parent log --first-parent -m \
+    --no-renames --diff-filter=AM -z \
     --format=%x01%H --name-only "${base}..HEAD" -- docs/handover/ 2>/dev/null)
 }
 

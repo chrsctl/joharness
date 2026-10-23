@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01PoyAytHA6a4PwcFm6XW6qK
 agent: opus
 updated: 2026-10-23
-next: ci and verify on this head, third verifier pass, then retire and PR
+next: Retire workstream and plan file, PR, finish, merge
 ---
 
 ## Goal
@@ -76,6 +76,10 @@ file and keeps workstream file, verifier, ci, verify and finish.
 - r26: (verifier) one ls-tree fork per commit: 4.4s at 1501 commits, paid on every branch (fixed: one log, a rev-parse per candidate path only)
 - r27: (verifier) "first entry = last version" held on linear history only (fixed: first-parent order is the branch's own line, newest first)
 - r28: (verifier) the retired-symlink check had no test (fixed: mode read by exact path; selftest case retires a symlink whose target string carries plan: fast)
+- r29: (verifier) a bare `-m` follows the caller's log.diffMerges: under `combined` or `remerge` a claim that arrived intact from a merged side branch and was retired here bound nothing (fixed: `-c log.diffMerges=first-parent` on the call; selftest case runs under `combined`)
+- r30: (verifier) the base-blob comparison had no test (fixed: a stale fast file edited, reverted to base, then deleted on planned work; the mutant reds it)
+- r31: (verifier) a claim added and retired wholly on a merged side branch binds nothing here (no change: by design, a merged branch's commits are not this branch's; that branch's own ci bound it, and dropping a claim is r7's accepted escape)
+- r32: (verifier) git before 2.31 ignores log.diffMerges and gives per-parent diffs to `-m` (no change: unverified here, no old git in the container; reasoned verdicts unchanged, each path is judged at the merge commit's own blob)
 - r17: (verifier) r4's record said one reader used by both while review kept its own tree read, and Decisions still named plans_in_diff (fixed: review_report now takes the set from fast_lane_ws; Decisions rewritten)
 
 ## Research: claim set (review churn, r4 then r12)
