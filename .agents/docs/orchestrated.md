@@ -636,8 +636,9 @@ pending `/orchestrate pass` wake with its `persistent_session_id` and
 pending wake, so the keeper also counts the one it last started, and its
 own `parent_session_id`, while that reads `RUNNING` or `PENDING` (one
 `get_session` each). The parent is the orchestrator whose REGISTER or
-replace made the keeper: the keeper's first turn runs at `create_session`,
-inside that orchestrator's first start, before it arms a wake. A
+replace made the keeper: an hourly wake can land inside that
+orchestrator's first start, before it arms a wake (the keeper's own first
+turn, `/keeper register`, checks nothing). A
 human-started orchestrator that is not the parent is missed only when an
 hourly wake lands in its first start: the keeper starts a second, and "##
 0. Start" step 3 lets the older proceed and the newer exit. A DRAINED

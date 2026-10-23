@@ -38,6 +38,13 @@ hourly wake does the LIVE check.
 
 ## Review
 
+- r1: (verifier) keeper.md LIVE clause still said "your first turn runs inside it", false since the register turn stops at step 1 (fixed: clause dropped, refute pin)
+- r2: (verifier) orchestrated.md keeper-liveness paragraph said the keeper's first turn runs the check inside the parent's first start (fixed: an hourly wake lands there; the register turn checks nothing; refute pin)
+- r3: (verifier) `keeper registered: parent <id>` had no spelling for an absent parent (fixed: `none` if absent)
+- r4: (verifier) AGENTS.md, start.md, orchestrate.md, joharness.sh say "Prompt is /keeper"; `/keeper register` still routes there (the slash command is /keeper; keeper title guards) (no change)
+- r5: keeper.md 5650 bytes over its 5647 reading-budget bound after the Register paragraph (fixed: r1's dropped clause, now 5633)
+- r6: edge review: new pins fail on origin/main docs (selftest on a main worktree with only orchestrated.sh swapped: 5 FAIL, each a new pin) (no change)
+
 ## Blockers
 
 None.

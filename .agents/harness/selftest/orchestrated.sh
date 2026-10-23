@@ -516,7 +516,7 @@ for needle in 'Titled exactly `🔑 keeper: <owner/repo>` (glossary, role title:
   'No `get_session` = report and `PushNotification` once `role unreadable: no get_session`, end the turn.' \
   'A call REFUSED or erroring is named in that wake'"'"'s one-line report, never retried.' \
   'Register: this turn'"'"'s prompt is `/keeper register`' \
-  '= run step 1 only, report `keeper registered: parent <parent_session_id>`, end the turn. No LIVE check, no start, no SWAP' \
+  '= run step 1 only, report `keeper registered: parent <parent_session_id>` (`none` if absent), end the turn. No LIVE check, no start, no SWAP' \
   'swap deferred' \
   'swap skipped' \
   'swap failed' \
@@ -598,6 +598,10 @@ done
 # shellcheck disable=SC2016 # literal backticks in the needles
 refute "REGISTER no longer starts its keeper on the hourly prompt" \
   '`title` = `🔑 keeper: <owner/repo>`, `prompt` = `/keeper`.' "$reffold"
+refute "keeper.md no longer says its first turn runs the LIVE check" \
+  "your first turn runs inside it" "$keepfold"
+refute "orchestrated.md no longer says the keeper's first turn runs the check" \
+  "the keeper's first turn runs at" "$orcdocfold"
 refute "orchestrate.md no longer skips only two checks without list_triggers" \
   "skip the superseded and duplicate checks" "$orcfold"
 refute "orchestrate.md Start heading no longer says never per pass" \
