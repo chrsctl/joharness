@@ -1,6 +1,6 @@
 ---
 workstream: manage-file-diet
-status: in-progress
+status: done
 branch: claude/manage-file-diet
 pr: none
 plan: manage-file-diet
@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01Vgabenkn9wouDYWpydWeNe
 agent: opus
 updated: 2026-10-23
-next: Run ci and verify, retire, PR, merge
+next: PR open, merge after finish
 ---
 
 ## Goal
@@ -43,7 +43,7 @@ behind pointer lines, as role-file-diet did for `orchestrate.md`.
 - r4: (verifier) bound 9248 + a tenth allows 10,172 bytes, past the plan's 10,000 (wontfix: the plan's Scope sets the bound at counted size plus a tenth)
 - r5: (verifier) `## Lead` says "the next paragraph" for the defect route, now the next section (no change: `## Defect` follows `## Lead`, and the pointer for it sits right below in manage.md)
 - r6: moved sections and pointers: Carried plan (§0 item 2, plan on another branch), Free (§0 item 3, `free <branch>`), Human remainder (§2, a core-path remainder), Surveyor (§R), Carried plan at retire (§4), Plan issue (§4, `issue: N`), Link the issue (§4, body names Closes/Refs), Lead (§4), Defect (§4, a failure not the item's) (no change)
-- r7: sizes, `wc -c` 2026-10-23: manage.md 16234 -> 9248; plus reference 7743 = 16991 (+4.7%). INFO manager reading set: 71237 bytes on origin/main (summed by hand, same six files), 64195 after the first cut, re-read at ci below (no change)
+- r7: sizes, `wc -c` 2026-10-23: manage.md 16234 -> 9248; plus reference 7743 = 16991 (+4.7%). INFO manager reading set: 71237 bytes on origin/main (summed by hand, same six files), 64251 after (`wc -c` sum of the same six files on this branch, 2026-10-23); ci pass and verify 6 passed, 0 failed on the branch head before the base merge (no change)
 
 ## Blockers
 
