@@ -159,5 +159,6 @@ exit — no retry, no second transport. Run no queue command.
    `.agents/docs/feedback.md` §4) nor core-path edits (the human-remainder
    paragraph, §2).
 
-For a non-blocking defect the label holds the issue from the clerk until the
-owner removes it; no session removes it.
+For a non-blocking defect the
+label holds the issue from the clerk until the owner removes it; no session
+removes it.

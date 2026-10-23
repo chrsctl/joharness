@@ -105,7 +105,8 @@ Your `$ARGUMENTS` carries the `rescope` block. ref § Surveyor.
   conflict that does not resolve clean): re-read this list and name the
   reason (`money:` `credentials:` `product:` `interface:` `core path:`
   `conflict:`); a BLOCKING defect outside your item blocks `defect: #<n>:
-  <one line>`, the one reason that is not a human's (ref § Defect); none applies = the work is yours, do it. `status: blocked`,
+  <one line>`, the one reason that is not a human's (ref § Defect.); none
+  applies = the work is yours, do it. `status: blocked`,
   `next:` = `<reason>: <question>`, push, exit. A blocked item is never
   respawned; dispatch flags a `next:` with no reason as `INVALID BLOCK?`.
   Before pushing `status: blocked` (not a `defect:` block: no label), apply `human-review` (label:
