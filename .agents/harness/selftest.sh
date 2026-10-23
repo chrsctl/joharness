@@ -571,6 +571,7 @@ SELFTEST_TOPICS=(
   queue-context-fanout
   session-start
   ci-churn
+  broken-windows
   ci-output
   ci-selftest-scope
   checks
