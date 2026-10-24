@@ -21,6 +21,14 @@ Compact queue and handover docs to <= 900 lines, behaviour unchanged (plan compa
 
 ## Review
 
+- r1: plans/TEMPLATE lost `scope: none` joins no wave (verifier) (fixed: plans README scope bullet)
+- r2: Fast lane lost consumer renames `fast` at sync (verifier) (fixed)
+- r3: rescope rank lost "all four" (verifier) (fixed)
+- r4: clean-pass line form dropped (verifier) (fixed)
+- r5: Layout tree and human-remainder worktree detail dropped (verifier) (wontfix: plan authorises the cut; manage.md §2 owns the worktree rule)
+- r6: Entry bullet name clashes with Escape Entry (verifier) (fixed: renamed Intake)
+- r7: edge review of own diff, headings and pinned research sentences intact (no change)
+
 ## Blockers
 
 None.
