@@ -20,16 +20,16 @@ Behaviour does not change.
 ## Scope
 
 Files: the nine in `scope:`. Together 1413 lines on origin/main 5adc5d0c.
-Target: 1150 lines or fewer, with AGENTS.md at 85 lines or fewer.
+Target: 1150 lines or fewer, with AGENTS.md at 90 lines or fewer.
 
-- `.agents/harness/AGENTS.md` (108 → 85 or fewer):
+- `.agents/harness/AGENTS.md` (108 → 90 or fewer):
   - Intro: point at caveman.md Status quo instead of restating it.
   - Step 2: shrink the tier-binds clause to a pointer at agent-selection.md.
   - Step 3: "(`--force-with-lease` only in orchestrate GUARD, janitor, halt)" becomes a pointer, or is dropped if the orchestrator docs state it.
   - Step 5: shrink the review-record form to one line plus a pointer.
   - Step 5: drop the background/`pgrep -f` clause ONLY IF `pretool-bash-guard.sh` and `pretool-self-kill-guard.sh` refuse both cases. Record the check in `## Decisions`.
   - Step 7: compress the `JOHARNESS_CHECKS=local` paragraph to about 3 lines.
-  - Decide alone: the block `human-review` labelling becomes a pointer at manage.md §3.
+  - Decide alone: compress the block rule, but keep it here. It binds every role, and manage.md §3 points to it.
   - `## Handover`: one line.
 - `.agents/docs/caveman.md`:
   - Shrink "Controlled vocabulary: built, not invented…" to 2 lines.
@@ -53,12 +53,12 @@ Target: 1150 lines or fewer, with AGENTS.md at 85 lines or fewer.
   - Drop "measured 2026-08-25". Make "Standing in for session fan-out" a pointer.
   - Shrink "Moving the tree under a live reviewer" to about 5 lines and drop its meta line about Loop step 5.
   - Fix the "route 2" pointer if the Pick route table says row 3.
-- `.claude/agents/verifier.md`: drop the 14-finding incident, "Said plainly because…" and the "Where the rules live" list. Compress the "formally indistinguishable" passage.
+- `.claude/agents/verifier.md`: drop the 14-finding incident and the clause "Said plainly because the alternative was worse" (only that clause: the Bash edit ban after it stays). Compress the "formally indistinguishable" passage. Keep "Where the rules live": it is the verifier's read order.
 - `.claude/agents/plan-checker.md`: tighten only.
 
 ## Assumptions
 
-- A1: The quotes above are on origin/main 5adc5d0c — evidence: `git grep -n 'Controlled vocabulary\|Unenforced on purpose\|Said plainly' .agents/docs .claude/agents` — confidence: high.
+- A1: The quotes above are on origin/main 5adc5d0c — evidence: `git grep -n 'Controlled vocabulary\|Unenforced on purpose\|Said' .agents/docs .claude/agents` — confidence: high.
 - A2: The two pretool guards refuse an unbounded background command and a self-matching `pgrep -f` — evidence: `.agents/harness/pretool-bash-guard.sh`, `.agents/harness/pretool-self-kill-guard.sh` — confidence: low. Read them before dropping the clause.
 - A3: AGENTS.md single-line `grep -q` pins exist — evidence: `git grep -n 'never green\|never call the GitHub API\|no commit to a core path' .agents/harness/selftest` — confidence: high.
 
@@ -72,7 +72,7 @@ Target: 1150 lines or fewer, with AGENTS.md at 85 lines or fewer.
 ## Acceptance
 
 ```bash
-wc -l < .agents/harness/AGENTS.md   # <= 85
+wc -l < .agents/harness/AGENTS.md   # <= 90
 cat .agents/harness/AGENTS.md .agents/docs/{consumer-repos,feedback,agent-selection,caveman,subagents,glossary}.md .claude/agents/{verifier,plan-checker}.md | wc -l   # <= 1150
 ./joharness.sh ci       # ci: pass
 ./joharness.sh verify   # 0 failed
@@ -80,7 +80,7 @@ git diff --name-only origin/main...HEAD | grep -v '\.md$'   # empty
 ```
 
 - The pull request body lists each deleted duplicate and the home that still states it.
-- Consumer side (SHIPS): after its next sync a consumer runs `./joharness.sh ci` → `ci: pass`; the files carry no canonical-only text.
+- Consumer side (SHIPS): after its next sync a consumer runs `./joharness.sh ci` → `ci: pass`.
 
 ## Where to look
 
@@ -99,7 +99,7 @@ git diff --name-only origin/main...HEAD | grep -v '\.md$'   # empty
 - glossary.md stays a table. Its role-title row strings are pinned.
 - Cited headings stay word for word:
   - caveman: "Status quo", "Never touch". glossary: "One meaning, or nothing".
-  - consumer-repos: "Local checks", "Direction rule", "What a consumer carries", "drive it to merged", "When the consumer is the detector".
+  - consumer-repos: "Local checks", "Direction rule", "What a consumer carries", "drive it to merged". feedback: "When the consumer is the detector".
   - agent-selection: Lineup, "Review churn", "Review depth", "Cost levers". verifier: "What you cannot see".
   - The consumer-repos internal `#anchor` links.
 - Loop step numbers 1-7 stay.

@@ -23,8 +23,8 @@ README and TEMPLATE, research README and TEMPLATE, graph.md. Together 1305
 lines on origin/main 5adc5d0c. Target: 900 lines or fewer.
 
 - `.agents/docs/handover/README.md` (368 → about 190):
-  - Replace "What a workstream file looks like", a second filled-in TEMPLATE, with one line pointing at TEMPLATE.md.
-  - Merge "How a session finds this", "Coverage" and "Overlap matters" into "Concurrent sessions".
+  - Replace "What a workstream file looks like", a second filled-in TEMPLATE, with two lines. The first points at TEMPLATE.md. The second keeps the `status` values: in-progress | blocked | review | done | abandoned (their only doc home).
+  - Merge "Coverage" and "Overlap matters" into "Concurrent sessions". "How a session finds this without being told" stays its own section: root CLAUDE.md cites it.
   - Cut the liveness mechanics (`session_status`, `ToolSearch("+list_sessions")`) to a pointer at `.claude/commands/who.md`.
   - "Pull requests: link, never duplicate": keep only the recovery-command rule.
   - Delete the Review-form restatement. Loop step 5 and TEMPLATE own the form.
@@ -37,10 +37,10 @@ lines on origin/main 5adc5d0c. Target: 900 lines or fewer.
   - Halve the `shared:` and core-path paragraphs. Keep the strings `CORE ONLY` and `OVERLAP-BOUND`.
   - Compress "What identifies a plan" to the rule.
   - Keep "A human remainder" as about 3 lines. The procedure lives in manage-reference.md.
-- `.agents/docs/plans/TEMPLATE.md` (81 → about 55): one comment line per frontmatter key. The README owns the explanations.
+- `.agents/docs/plans/TEMPLATE.md` (81 → about 55): one comment line per frontmatter key. plans/README.md Shape owns the explanations.
 - `.agents/docs/product/README.md` (195 → about 110):
   - Shrink "Orchestration" to a pointer at orchestrated.md, dropping the "one merge in four" story and its git block.
-  - Shrink "Reconciliation" to a pointer at consumer-repos.md.
+  - Compress "Reconciliation" in place. It stays the home: consumer-repos.md points to it, and it alone states "A raw joharness clone is never a new consumer".
   - Fold "A deleted requirement does not say WHICH" into the Retired unsatisfied bullet.
   - Compress "Claiming a requirement" to about 8 lines. Compress Held and Intake facts.
   - Cut "An epic branch buys…" and "Squash breakage…", plus the Branch flow lines AGENTS.md step 3/7 already state. Keep "Conflict at finish".
@@ -48,7 +48,8 @@ lines on origin/main 5adc5d0c. Target: 900 lines or fewer.
   - Merge "What makes a file a node" into "Which files are nodes".
   - Diamond rule: point at graph.md.
   - Shape: one line per section.
-  - Status quo cuts: "A consumer synced before this protocol…"; "Both names are in use…"; "Three words, not two…"; "Known limits: a rename…"; "The failure the section exists to catch…".
+  - Status quo cuts: "A consumer synced before this protocol…"; "Both names are in use…"; "Three words, not two…".
+  - Keep and compress the "Known limits: a rename…" limit, and the rule that an echoed search result corroborates nothing. Both are current rules with no other home.
 - `.agents/docs/research/TEMPLATE.md`: drop the comment lines that repeat README Edges.
 - `.agents/docs/graph.md` (79 → about 60): shrink the "No datastore" and "A harness that lives in the repo" rationale to one line each.
 - `.agents/docs/handover/TEMPLATE.md`: drop "Highest-value section: …", which the README already says.
@@ -75,7 +76,7 @@ git diff --name-only origin/main...HEAD | grep -v '\.md$'   # empty
 ```
 
 - The pull request body lists each deleted duplicate and the home that still states it.
-- Consumer side (SHIPS): after its next sync a consumer runs `./joharness.sh ci` → `ci: pass`; the files carry no canonical-only text.
+- Consumer side (SHIPS): after its next sync a consumer runs `./joharness.sh ci` → `ci: pass`.
 
 ## Where to look
 
@@ -90,7 +91,8 @@ git diff --name-only origin/main...HEAD | grep -v '\.md$'   # empty
   - handover README: Reviewing, "When NOT to write one", Graduation, "Survives PR", "Compaction: task state survives, the rules decay", "Claiming an issue", Staleness.
   - plans README: "Fast lane", Shape, Lifecycle, "A human remainder".
   - product README: "Branch flow", "Conflict at finish", "Claiming a requirement", "A requirement no plan can serve", Reconciliation, "The scout's brief" (and its 4 headings).
-  - research README: "Which files are nodes". graph.md: Rules.
+  - research README: "Which files are nodes". handover README: "How a session finds this without being told" (root CLAUDE.md).
+  - The phrase "A core path in `scope:`" stays (orchestrated.md Bounds cites it). graph.md: Rules.
 - Template headings and frontmatter keys are parsed. Keep every one.
 - Glossary lint bans `handover file`, `model tier`, `env layer`, `rescope manager`, `bare role title`.
 - Never skip, disable or quarantine a test to get green.
