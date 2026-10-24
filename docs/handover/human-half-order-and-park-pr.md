@@ -20,6 +20,10 @@ Widen the `merge after <your branch> lands on main` lead so a rename or move of 
 - A1: confirmed — step 2 gates the lead on `ci` red only (manage-reference.md line 36-37).
 - A2: confirmed — manage.md §2 delegates to § Human remainder (manage.md line 92).
 
+## Review
+
+- r1: verifier found no defect; style note on wrapped width only (verifier) (no change)
+
 ## Blockers
 
 None.
