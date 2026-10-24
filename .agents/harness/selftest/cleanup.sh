@@ -19,7 +19,7 @@ clwork="${TMP}/cleanupwork"
 mkdir -p "${clwork}/.agents/harness" "${clwork}/.agents/env/none" \
   "${clwork}/docs/handover" "${clwork}/docs/plans"
 cp "${ROOT}/joharness.sh" "${clwork}/joharness.sh"
-printf '#!/usr/bin/env bash\nexit 0\n' >"${clwork}/.agents/harness/selftest.sh"
+printf '#!/usr/bin/env bash\nprintf "1 passed, 0 failed\\n"\nexit 0\n' >"${clwork}/.agents/harness/selftest.sh"
 chmod +x "${clwork}/.agents/harness/selftest.sh" "${clwork}/joharness.sh"
 git init -q "$clwork"
 git -C "$clwork" symbolic-ref HEAD refs/heads/main

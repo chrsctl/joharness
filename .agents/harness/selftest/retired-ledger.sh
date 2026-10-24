@@ -18,7 +18,7 @@ mkdir -p "${rlwork}/docs/plans" "${rlwork}/docs/handover" \
 cp "${ROOT}/joharness.sh" "${rlwork}/joharness.sh"
 cp "${ROOT}/.agents/harness/queue-context.sh" \
    "${ROOT}/.agents/harness/handover-context.sh" "${rlwork}/.agents/harness/"
-printf '#!/usr/bin/env bash\nexit 0\n' >"${rlwork}/.agents/harness/selftest.sh"
+printf '#!/usr/bin/env bash\nprintf "1 passed, 0 failed\\n"\nexit 0\n' >"${rlwork}/.agents/harness/selftest.sh"
 chmod +x "${rlwork}/.agents/harness/selftest.sh"
 printf '# none\n' >"${rlwork}/.agents/env/none/AGENTS.md"
 printf 'x\n' >"${rlwork}/src/a.py"

@@ -22,7 +22,7 @@ mkdir -p "${kcwork}/.agents/harness" "${kcwork}/.agents/env/none" \
   "${kcwork}/docs/handover"
 cp "${ROOT}/joharness.sh" "${kcwork}/joharness.sh"
 # The suite is this script; a fixture that ran it would re-enter the suite.
-printf '#!/usr/bin/env bash\nexit 0\n' >"${kcwork}/.agents/harness/selftest.sh"
+printf '#!/usr/bin/env bash\nprintf "1 passed, 0 failed\\n"\nexit 0\n' >"${kcwork}/.agents/harness/selftest.sh"
 chmod +x "${kcwork}/.agents/harness/selftest.sh" "${kcwork}/joharness.sh"
 git init -q "$kcwork"
 git -C "$kcwork" symbolic-ref HEAD refs/heads/main
@@ -140,7 +140,7 @@ fi
 # nothing.
 git -C "$kcwork" checkout -qb kcharness main
 mkdir -p "${kcwork}/.agents/scripts"
-printf '#!/usr/bin/env bash\nexit 0\n' >"${kcwork}/.agents/scripts/thing.sh"
+printf '#!/usr/bin/env bash\nprintf "1 passed, 0 failed\\n"\nexit 0\n' >"${kcwork}/.agents/scripts/thing.sh"
 chmod +x "${kcwork}/.agents/scripts/thing.sh"
 commit_all "$kcwork" "a non-md file under a gated path"
 git -C "$kcwork" push -qu origin kcharness 2>/dev/null
@@ -168,7 +168,7 @@ expect "markdown under a gated path does not ask for verify" \
 # one that silently skipped it. -z is what makes the answer about the file.
 if [ "$HAVE_ODD_NAMES" = 1 ]; then
   git -C "$kcwork" checkout -qb kcodd main
-  printf '#!/usr/bin/env bash\nexit 0\n' >"${kcwork}/.agents/harness/wéird.sh"
+  printf '#!/usr/bin/env bash\nprintf "1 passed, 0 failed\\n"\nexit 0\n' >"${kcwork}/.agents/harness/wéird.sh"
   chmod +x "${kcwork}/.agents/harness/wéird.sh"
   commit_all "$kcwork" "a non-ASCII path under a gated path"
   git -C "$kcwork" push -qu origin kcodd 2>/dev/null

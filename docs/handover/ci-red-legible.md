@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_018LP1zJBU9VzCGCFeWbLinc
 agent: sonnet
 updated: 2026-10-24
-next: Research anchors, then build the four scope edits myself (single file joharness.sh, sequential)
+next: Retire plan and workstream file, open PR, merge
 ---
 
 ## Goal
@@ -18,6 +18,10 @@ Plan docs/plans/ci-red-legible.md: ci verdict names failing stages; run immune t
 ## Decisions
 
 ## Review
+
+- r1: (verifier) branch 13 behind origin/main, selftest_counted conflict (fixed: merged, kept main's per-case rate and the new last lines)
+- r2: (verifier) no test for the selftest last lines (fixed: three cases in ci-selftest-scope.sh)
+- r3: (verifier) selftest output no longer streams (fixed: main's tee form kept in the merge)
 
 ## Blockers
 

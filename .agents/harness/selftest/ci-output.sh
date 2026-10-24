@@ -12,7 +12,7 @@ git -C "$cowork" symbolic-ref HEAD refs/heads/main
 mkdir -p "${cowork}/.agents/harness" "${cowork}/.agents/env/none" \
   "${cowork}/docs/plans" "${cowork}/docs/handover"
 cp "${ROOT}/joharness.sh" "${cowork}/joharness.sh"
-printf '#!/usr/bin/env bash\nprintf "STUB SUITE RAN\\n"\nexit 0\n' >"${cowork}/.agents/harness/selftest.sh"
+printf '#!/usr/bin/env bash\nprintf "STUB SUITE RAN\\n1 passed, 0 failed\\n"\nexit 0\n' >"${cowork}/.agents/harness/selftest.sh"
 chmod +x "${cowork}/.agents/harness/selftest.sh" "${cowork}/joharness.sh"
 printf '# none\n' >"${cowork}/.agents/env/none/AGENTS.md"
 coconf="${cowork}/joharness.conf"
