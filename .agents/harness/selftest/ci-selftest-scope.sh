@@ -144,9 +144,9 @@ refute "a harness diff prints no skip line" "skipped: nothing outside" "$out"
 # execs git exactly twice and prints its own pass count, so the number is known
 # without trusting the suite to report itself. Uncommitted, which also runs the
 # suite (case above).
-stub_suite() { # <pass-line>
-  printf '#!/usr/bin/env bash\ngit --version >/dev/null\ngit --version >/dev/null\nprintf "STUB SUITE RAN\\n%s\\n"\nexit 0\n' \
-    "$1" >"${swork}/.agents/harness/selftest.sh"
+stub_suite() { # <pass-line> [exit status]
+  printf '#!/usr/bin/env bash\ngit --version >/dev/null\ngit --version >/dev/null\nprintf "STUB SUITE RAN\\n%s\\n"\nexit %s\n' \
+    "$1" "${2:-0}" >"${swork}/.agents/harness/selftest.sh"
 }
 stub_suite '2 passed, 0 failed'
 out="$(JOHARNESS_SELFTEST_GIT_PER_CASE=1 ci_scope)"
@@ -158,6 +158,15 @@ out="$(JOHARNESS_SELFTEST_GIT_PER_CASE=1 ci_scope)"
 expect "one exec past the budget reds the stage" "Over budget" "$out"
 expect "and the red names the count and the budget" \
   "selftest git execs: 2 for 1 cases (2.0 per case, budget 1)" "$out"
+# Both reds at once: the last lines name each, so a reader of the tail sees
+# the failed case AND the budget, not whichever printed first.
+stub_suite '1 passed, 3 failed' 1
+out="$(JOHARNESS_SELFTEST_GIT_PER_CASE=1 ci_scope)"
+expect "a red suite says how many cases failed" "selftest: 3 case(s) failed" "$out"
+expect "and an over-budget count says so too" "selftest: git execs over budget" "$out"
+out="$(JOHARNESS_SELFTEST_GIT_PER_CASE=99 ci_scope)"
+expect "a failed case alone still says so" "selftest: 3 case(s) failed" "$out"
+refute "without claiming the budget" "selftest: git execs over budget" "$out"
 stub_suite 'no count here'
 out="$(JOHARNESS_SELFTEST_GIT_PER_CASE=99 ci_scope)"
 expect "a suite printing no count line reds the stage" \
