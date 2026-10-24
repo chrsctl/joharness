@@ -6,7 +6,7 @@ effort: high
 needs: none
 requirement: halt-and-hold
 issue: none
-scope: shared:joharness.sh, .agents/harness/queue-context.sh, .agents/harness/selftest/dispatch-order.sh, .agents/harness/selftest/queue-context.sh, .agents/harness/selftest/ci-graph-lint.sh, .agents/docs/product/README.md, .agents/docs/product/TEMPLATE.md, .agents/docs/graph.md
+scope: shared:joharness.sh, .agents/harness/queue-context.sh, .agents/harness/selftest/dispatch-order.sh, .agents/harness/selftest/queue-context.sh, .agents/harness/selftest/ci-graph-lint.sh, .agents/docs/product/README.md, .agents/docs/product/TEMPLATE.md, .agents/docs/graph.md, shared:.agents/docs/orchestrated.md
 ---
 
 ## Goal
@@ -38,20 +38,28 @@ Satisfied when, clauses 2 to 4).
   how a claim was forged once: verifier r6 comment between `rprio=` and
   its `case` guard). Rank
   `+4` when blocked or held, as a blocked plan ranks. `unplanned_free`
-  excludes rows carrying `blocked by:` or `held` as it excludes `claimed on`,
-  so every sentence that sends a session to planning skips them.
-- `joharness.sh` — `drain_requirement`: skip lines carrying `blocked by:`
+  excludes rows carrying `, blocked by:` or `, held` (the comma-led token,
+  never the bare word: a stem such as `upheld` must survive the filter) as
+  it excludes `claimed on`, so every sentence that sends a session to
+  planning skips them.
+- `joharness.sh` — `drain_requirement`: skip lines carrying `, blocked by:`
   or `, held` as it skips `claimed on`. `cmd_dispatch`: after the spawn
   list and before the `NOT YOURS — CORE ONLY` block, when the hook listed a
-  withheld requirement, print `withheld  : <path> — held: <reason>` or
-  `withheld  : <path> — blocked by: <stems>` (both when both), one line per
+  held or deferred requirement, print `deferred  : <path> — hold: <reason>`
+  or `deferred  : <path> — needs: <stems>` (both when both), one line per
   requirement; `<reason>` = `gr_field hold` of
   `refs/remotes/origin/<base>:<path>`, passed through
   `tr -cd 'A-Za-z0-9 ._:#/()-'` and cut at 80 characters; `<stems>` from the
-  label. Silent when none. The verdict word is unchanged: a queue holding
-  only withheld requirements is `DRAINED`, the line beneath it says what
-  waits. `lint_graph`, the `docs/product` loop: `needs:` stems resolve as the
-  plan loop's do, against all three directories — exists = fine;
+  label. The word is `deferred`, never `withheld`: `withheld`,
+  `QUEUE_WITHHELD` and the local `DISPATCH_WITHHELD` already mean an item at
+  the edge (past retire, no workstream file) in this reader and the hook;
+  reuse neither the word nor the variable. Silent when none. The verdict
+  word is unchanged: a queue holding only deferred requirements is
+  `DRAINED`, the line beneath it says what waits. `lint_graph`, the
+  `docs/product` loop: `needs:` stems resolve as the plan loop's do,
+  against all three directories — the file's own stem =
+  `lint_red "${rel}: needs '<n>' — names itself; a requirement cannot wait
+  on its own file"`; exists = fine;
   `lint_existed` on any of the three = fine (the edge cleared);
   `lint_shallow` = `lint_warn … unknown here (shallow history)`; else
   `lint_red "${rel}: needs '<n>' — no such plan, question or requirement,
@@ -68,30 +76,37 @@ Satisfied when, clauses 2 to 4).
   that never existed reds `ci`; one that existed and is gone holds nothing.
   TEMPLATE frontmatter gains `needs: none` and `hold: none` with one
   comment line each inside the existing HTML comment.
-- `.agents/docs/graph.md` — the `needs` edge row: `plan → plan;
-  requirement → plan, research or requirement`, same open-target rule.
+- `.agents/docs/graph.md` and `.agents/docs/orchestrated.md` — graph: the
+  `needs` edge row reads `plan → plan; requirement → plan, research or
+  requirement`, same open-target rule. orchestrated: the "How the harness
+  runs" table's `./joharness.sh dispatch` row names the `deferred :` line
+  in its list of what dispatch prints, one clause; `shared:` because
+  `halt-claim` adds a row to the same table.
 - `.agents/harness/selftest/dispatch-order.sh` — cases after the
   `claimedreq` block, each requirement written with a `qoreq`-style helper
   that takes extra frontmatter lines:
   1. `hold: until the gx migration lands` alone on main: `dispatch` prints
      no `— UNPLANNED:` spawn line, `verdict   : DRAINED`, `slots     : 4 of
-     4 free`, and `withheld  : docs/product/<r>.md — held: until the gx
+     4 free`, and `deferred  : docs/product/<r>.md — hold: until the gx
      migration lands`. Remove the line, push: offered again.
-  2. `needs: gate` with `docs/plans/gate.md` on main: not offered, `withheld
-     … blocked by: gate`; `fixture_rm` the plan, push, no edit to the
+  2. `needs: gate` with `docs/plans/gate.md` on main: not offered, `deferred
+     … needs: gate`; `fixture_rm` the plan, push, no edit to the
      requirement: offered (`— UNPLANNED: one planning manager`).
+  6. A requirement whose stem contains `held` (`upheld`, no `hold:`, no
+     `needs:`) is offered: `docs/product/upheld.md — UNPLANNED` on the
+     spawn list (the comma-led token, not the bare word, is the filter).
   3. `needs: gatereq` naming another requirement: held while
      `docs/product/gatereq.md` exists, offered once it is deleted.
   4. Composition (clause 2 of the requirement): a held requirement whose
      planning branch reads `status: abandoned` (reuse `qoreqclaim <stem>
      abandoned`): still not offered, `4 of 4 free`, no in-flight row.
-  5. A held requirement that a plan names in `requirement:`: no `withheld`
+  5. A held requirement that a plan names in `requirement:`: no `deferred`
      line for it (not UNPLANNED, the hold is moot), the plan offered.
 - `.agents/harness/selftest/queue-context.sh` — one `priority: normal`
   requirement with `hold:` and one with `needs:` naming an existing plan,
   beside `unplanned-req`: rows read `[normal, UNPLANNED — decompose into
   plans, held]` and `[…, blocked by: <stem>]`; with `unplanned-req`
-  removed so every unplanned requirement is withheld, the output carries
+  removed so every unplanned requirement is held or deferred, the output carries
   neither `Plus one planning session for the UNPLANNED requirements above`
   nor `then UNPLANNED requirements above` (the fixture holds plans, so
   `plan the requirements above` never prints there: refuting it proves
@@ -100,6 +115,7 @@ Satisfied when, clauses 2 to 4).
   restore `unplanned-req` after.
 - `.agents/harness/selftest/ci-graph-lint.sh` — `needs: nosuch` on a
   requirement reds with `no such plan, question or requirement`; `needs:
+  <its own stem>` reds with `names itself`; `needs:
   <an existing plan>` and `hold: any words here` pass; `needs:` naming a
   plan that existed and was deleted (the `gone-req` fixture pattern) does
   not red; a held requirement an open plan names draws the
@@ -119,10 +135,15 @@ Satisfied when, clauses 2 to 4).
 
 - A hold on a plan. Plans have `needs:`; a human hold on a plan is a
   different requirement.
+- A `needs:` naming an item that exists only on an unmerged branch (a
+  plan inside its pull-request window). As for a plan's `needs:` today, the
+  edge resolves on the base and `ci` reds a stem whose file never existed
+  there; the human writes the edge once the item lands, or writes `hold:`
+  with the reason until then.
 - A plan's `needs:` naming a requirement or research file. The plan `needs`
   edge stays plan to plan (`lint_graph` plan loop untouched).
 - Printing the `hold:` reason inside the hook's row label (A3). The reason
-  prints on dispatch's `withheld` line, read from the base branch by
+  prints on dispatch's `deferred` line, read from the base branch by
   dispatch itself.
 - A new `priority` value. `priority` stays `normal | urgent`.
 - Halting a live claim (`docs/plans/halt-claim.md`). Case 4 writes
@@ -136,16 +157,16 @@ Satisfied when, clauses 2 to 4).
 
 - `./joharness.sh ci` — last line `ci: pass`.
 - `./joharness.sh verify` — the layer prints `0 failed`.
-- `JOHARNESS_SELFTEST_JOBS=1 .agents/harness/selftest.sh 2>&1 | sed -n '/^== joharness.sh dispatch: order$/,/^== /p' | grep -c 'withheld'` — at least `5` (one PASS label, `and its requirement stays withheld`, exists today; the new cases add at least four whose labels name `withheld`), and the range's `grep -c '^  FAIL'` is `0`.
+- `JOHARNESS_SELFTEST_JOBS=1 .agents/harness/selftest.sh 2>&1 | sed -n '/^== joharness.sh dispatch: order$/,/^== /p' | grep -c 'deferred'` — at least `4` (no PASS label names `deferred` today; cases 1 to 3 and 5 name it), and the range's `grep -c '^  FAIL'` is `0`.
 - `JOHARNESS_SELFTEST_JOBS=1 .agents/harness/selftest.sh 2>&1 | grep -c '^  FAIL'` — `0`.
 - On a scratch checkout of this branch: write `docs/product/x.md` with `needs: nosuch` beside `requirement: x` and `priority: normal`; `./joharness.sh ci 2>&1 | grep -c "needs 'nosuch' — no such plan, question or requirement"` — `1`.
-- SHIPS (`joharness.sh`, `.agents/harness/queue-context.sh` and the three `.agents/docs/` files reach every consumer; the selftest files do not): in a consumer checkout with one requirement carrying `hold: paused`, `./joharness.sh dispatch 2>&1 | grep -c 'withheld  : docs/product/'` — `1`, and the same output `grep -c 'UNPLANNED: one planning manager'` — `0`.
+- SHIPS (`joharness.sh`, `.agents/harness/queue-context.sh` and the four `.agents/docs/` files reach every consumer; the selftest files do not): in a consumer checkout with one requirement carrying `hold: paused`, `./joharness.sh dispatch 2>&1 | grep -c 'deferred  : docs/product/'` — `1`, and the same output `grep -c 'UNPLANNED: one planning manager'` — `0`.
 
 ## Where to look
 
 - `.agents/harness/queue-context.sh` — the `unplanned=` block (`rprio`, `rqclaimed`, the label `printf`) and `unplanned_free=`; the plan rows' `blockers` loop above it is the shape the `needs` loop copies.
 - `joharness.sh:drain_requirement` — the one offering reader; the `grep -v 'claimed on '` line is where the two new tokens join.
-- `joharness.sh:cmd_dispatch` — `req="$(drain_requirement …)"`, the `spawn, in this order` block, `drain_core_only` and the `NOT YOURS` block the `withheld` lines precede.
+- `joharness.sh:cmd_dispatch` — `req="$(drain_requirement …)"`, the `spawn, in this order` block, `drain_core_only` and the `NOT YOURS` block the `deferred` lines precede; the local `DISPATCH_WITHHELD` whose name and meaning stay the edge's.
 - `joharness.sh:lint_graph` — the plan loop's `needs` arm (the resolution to copy) and the `docs/product` loop (where it lands).
 - `joharness.sh:lint_existed` — history test for a cleared edge.
 - `.agents/harness/selftest/dispatch-order.sh` — `qoreq`, `qoreqclaim`, `qo`, `qofirst`, `fixture_rm`; the `claimedreq` cases the new ones follow.
@@ -157,7 +178,8 @@ Satisfied when, clauses 2 to 4).
 
 - Never a core path: `joharness.conf`, `.claude/settings.json`, `.github` stay untouched.
 - Never skip, disable or quarantine a test.
-- Label tokens are vocabulary: `blocked by:` and `held` only; never the `hold:` text, never a stem that fails `stem`'s charset.
+- Label tokens are vocabulary: `, blocked by:` and `, held` only; never the `hold:` text, never a stem outside `A-Za-z0-9._-` (apply `tr -cd` after `stem`, as `cmd_janitor` does to a `plan:`).
+- One meaning per word (glossary, "One meaning, or nothing"): `withheld` is the edge's; this plan's line and labels say `deferred`, `held`, `blocked by:`.
 - Caveman and status quo in the docs: the rule and the mechanism, no gx story (it lives in the requirement and git log). Glossary (`ci` reds banned spellings): "workstream file", never "handover file".
 - `ci` reds a plan or requirement whose frontmatter breaks an enum; `priority` keeps its two values.
 - The selftest `queue-context` topic shares a chain (`SELFTEST_CHAINS`): a case sets every precondition it turns on (`selftest/dispatch.sh` header).

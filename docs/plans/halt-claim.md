@@ -20,8 +20,10 @@ adds `./joharness.sh halt <branch>...`: the human's order, written by the
 harness, at any age, with or without a pull request. After it the item
 holds no slot, the branch is not offered for respawn, and the item is back
 in the queue (`docs/product/halt-and-hold.md`, Satisfied when, clauses 1
-and 2). `status: abandoned` already does all three downstream (A1 to A3);
-the gap is who may write it, and under which guard.
+and 2; clause 2's "unless it is also held" is `hold-requirement`'s, which
+tests the pair with a fixture and reads nothing of this plan). `status:
+abandoned` already does all three downstream (A1 to A3); the gap is who may
+write it, and under which guard.
 
 ## Scope
 
@@ -32,8 +34,10 @@ the gap is who may write it, and under which guard.
   `git rev-parse -q --verify refs/remotes/origin/<b>^{commit}`, unresolved =
   `skip      : <b> — no such branch on origin`, rc 1 (the `janitor_apply`
   step before its guard); then `cmd_guard halt <b> --expect <tip>`; exit 2 =
-  `skip : <b> — gone on origin`, any other non-zero = `skip : <b> — guard
-  refused; nothing released`, rc 1. Then the write, two shapes:
+  `skip : <b> — gone on origin` and `git update-ref -d
+  refs/remotes/origin/<b>` (as `janitor_apply` does, or every dispatch names
+  the branch again), any other non-zero = `skip : <b> — guard refused;
+  nothing released`, rc 1. Then the write, two shapes:
   1. The branch writes a workstream file (`guard_workstreams "$tip"` is
      non-empty): every such file gets `status: abandoned` and `next: Halted
      by a human <date>: the claim is released; pick this up from the plan;
@@ -49,8 +53,10 @@ the gap is who may write it, and under which guard.
      `dispatch_retired_edges` computes `items`, filtered against its `own`
      list (files this first-parent line both ADDED and deleted), take the
      newest, content from `<commit>^:<path>`, write it back at `<path>`
-     with the same two fields rewritten. No such record = `skip : <b> — no
-     workstream file to release; nothing written`, rc 1.
+     with the same two fields rewritten. None, and the branch deleted a
+     record the base carries (`dispatch_retired_edges`'s `swept`): restore
+     `<base>:<swept>` the same way. Neither = `skip : <b> — no workstream
+     file to release; nothing written`, rc 1.
   Commit via `commit-tree` on the tip with subject `halt: a human released
   the claim (<date>)`; push `--force-with-lease=refs/heads/<b>:<tip>`;
   print `release : <b>  <path>` per file, `pushed : <b> <sha12>` or
@@ -93,7 +99,8 @@ the gap is who may write it, and under which guard.
      branch sha unchanged.
   6. A branch deleted on origin between fetch and halt (`git push --delete`
      after the branch is fetched once, then `halt <b>`): `live      :
-     REFUSED` surfaces, nothing pushed.
+     REFUSED` surfaces, nothing pushed, and `git rev-parse -q --verify
+     refs/remotes/origin/<b>` then fails (the stale ref is dropped).
 - `.agents/harness/selftest/guard.sh` — two cases: `guard halt <b>` on a
   claim with `pr:` set passes (`guard     : pass — halt may push`) and never
   prints `names pr:`; `guard halt main` refused at `protected`.
@@ -125,8 +132,8 @@ the gap is who may write it, and under which guard.
 - A3: a branch dispatch no longer lists is dropped by the orchestrator, never respawned — evidence: `.claude/commands/orchestrate.md` health table first row "branch merged (dispatch no longer lists it) … done: drop the ledger entry"; `joharness.sh:dispatch_freeable` and `dispatch_branch_plans` hide an `abandoned` branch — confidence: high
 - A4: an edge branch is one whose diff against the base adds or modifies no workstream file; adding one back makes it a claim row — evidence: `joharness.sh:dispatch_retired_edges`, the `git diff … --diff-filter=ACMRT … -- docs/handover | gr_docs | grep -q . && continue` line — confidence: high
 - A5: `cmd_guard`'s `pr:` refusal is janitor-only; `kill` and `loop` skip it — evidence: `joharness.sh:cmd_guard`, `if [ "$verb" = janitor ]` — confidence: high
-- A6: the janitor's release text is asserted by its selftest and must not change — evidence: `grep -n 'the claim was released' .agents/harness/selftest/janitor.sh` — confidence: medium (run the grep; absent = no constraint, keep the helper anyway)
-- A7: the retro cycle samples an `abandoned` claim as a session that did not come back clean — evidence: `joharness.sh:retro_candidates` header comment "status: blocked or abandoned"; `.agents/docs/orchestrated.md` retro row — confidence: high (accepted: a human stop is such a session)
+- A6: the janitor's release text is asserted by its selftest and must not change — evidence: `grep -n 'the claim was released' .agents/harness/selftest/janitor.sh` (one `expect`) — confidence: high
+- A7: the retro cycle samples an `abandoned` claim as a session that did not come back clean — evidence: `joharness.sh:retro_candidates` header comment "status: blocked or abandoned"; `.agents/docs/orchestrated.md` retro row; a human stop is such a session — confidence: high
 
 ## Out of scope
 
@@ -171,6 +178,7 @@ the gap is who may write it, and under which guard.
 ## Traps
 
 - Never `push -f`; the lease at the guard's read sha is the only force (Loop step 3). Plain `git push` onto a branch deleted in the window re-creates it.
+- `halt` is a human's order and cannot prove one: git has no actor. Nothing in the harness runs it unprompted; a manager never runs it (a peer's claim is not yours to release: `/who`, then the orchestrator). The word added to `.agents/harness/AGENTS.md` widens the lease allowance to this command, not to a session's judgement; the docs say so in one clause.
 - Never a core path: `joharness.conf`, `.claude/settings.json`, `.github` stay untouched.
 - Never skip, disable or quarantine a test; the janitor topic's assertions on its own text must keep passing unchanged.
 - Caveman: `.agents/harness/AGENTS.md` gains one word, nothing else; the docs state the current rule, no incident text (the gx story stays in the requirement and git log).
