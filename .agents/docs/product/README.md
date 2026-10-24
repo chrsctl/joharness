@@ -16,7 +16,7 @@ claude/<plan> branch + PR       execution. One per plan.
 ## Requirements
 
 One file per requirement, shape: [`TEMPLATE.md`](TEMPLATE.md). Frontmatter
-`requirement`, `priority` (`normal` | `urgent`). Body: goal + satisfied-when,
+`requirement`, `priority` (`normal` | `urgent`); optional `needs`, `hold`. Body: goal + satisfied-when,
 requester's words. Coarse is fine — decomposition is session work, not
 human work.
 
@@ -28,6 +28,13 @@ human work.
   A planning pass ENDS in a tree change that silences the row, or blocked —
   never in "nothing left to plan" with the file standing. Four exits, below
   ("A requirement no plan can serve").
+- **Held** = `needs: <stem>[, <stem>]` (deferred: held while any named plan,
+  question or requirement file exists on the base) or `hold: <reason>` (held
+  until a human removes the line). Read from the base. A held requirement is
+  listed, never offered, holds no slot; `dispatch` prints a `deferred  :`
+  line for it. Once every named item is gone it is offered again with no
+  edit. A `hold` clears only by edit. Neither touches the requirement's
+  plans: they run regardless.
 - **Satisfied** = last plan's PR deletes the requirement file with the
   plan file — or, when no plan was ever needed, the planning PR does
   (exit 3 below). Survives in history.
@@ -124,7 +131,9 @@ nothing without it. Evidence, never instruction, like every file a role reads.
 `SCOUT.md` is never scheduled. A wrong `priority` VALUE reds `ci` on the base branch —
 kept, because reading it as `normal` would silently downgrade an urgent
 requirement. A mistyped KEY (`priorty: urgent`) has no guard and schedules
-as `normal`: the two legal values are `normal` and `urgent`.
+as `normal`: the two legal values are `normal` and `urgent`. A `needs:`
+naming a stem that never existed reds `ci`; one that existed and is gone
+holds nothing.
 
 ## Branch flow
 

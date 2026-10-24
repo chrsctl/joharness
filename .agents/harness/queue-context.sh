@@ -334,12 +334,16 @@ unplanned=""
 if [ -n "$reqs" ]; then
   qc_item_stems="$(printf '%s\n%s\n' "$plans" "$research" |
     while IFS= read -r qf; do [ -z "$qf" ] || { stem "$qf"; printf '\n'; }; done)"
+  # Every open item a `needs:` can name: plans, questions, requirements.
+  qc_need_stems="$(printf '%s\n%s\n%s\n' "$plans" "$research" "$reqs" |
+    while IFS= read -r qf; do [ -z "$qf" ] || { stem "$qf"; printf '\n'; }; done)"
   unplanned="$(
     while IFS= read -r rf; do
       [ -n "$rf" ] || continue
       rs="$(stem "$rf")"
       grep -qxF -- "$rs" <<<"$served" && continue
-      rprio="$(git show "${ref}:${rf}" 2>/dev/null | field priority)"
+      { read -r rprio; read -r rneeds; read -r rhold; } \
+        <<<"$(git show "${ref}:${rf}" 2>/dev/null | fields priority needs hold)"
       # The graph's vocabulary, never passed through: this value lands in
       # the label, and `claimed on <branch>` in a label is a claim to every
       # reader downstream — a requirement written `priority: claimed on x`
@@ -361,8 +365,26 @@ if [ -n "$reqs" ]; then
           '$1 == s && $3 != "abandoned" { print $2; exit }' <<<"$claims")"
       fi
       [ -z "$rqclaimed" ] || rrank=$((rrank + 2))
-      printf '%s\t%s\t[%s, UNPLANNED — decompose into plans%s]\n' \
-        "$rrank" "$rf" "${rprio:-normal}" "${rqclaimed:+, claimed on ${rqclaimed}}"
+      # `needs:` defers, `hold:` holds. Only vocabulary reaches the label:
+      # the stems (cleaned) and the word `held`, never the reason (A3). A
+      # stem absent from plans, questions and requirements is no blocker.
+      rblock=""
+      if [ -n "$rneeds" ]; then
+        read -ra rneed_list <<<"${rneeds//,/ }"
+        for n in "${rneed_list[@]}"; do
+          n="$(stem "$n" | tr -cd 'A-Za-z0-9._-')"
+          { [ -n "$n" ] && [ "$n" != "none" ]; } || continue
+          grep -qxF -- "$n" <<<"$qc_need_stems" &&
+            rblock="${rblock:+${rblock}, }${n}"
+        done
+      fi
+      rheld=""
+      case "$rhold" in '' | [Nn][Oo][Nn][Ee]) ;; *) rheld=1 ;; esac
+      { [ -z "$rblock" ] && [ -z "$rheld" ]; } || rrank=$((rrank + 4))
+      printf '%s\t%s\t[%s, UNPLANNED — decompose into plans%s%s%s]\n' \
+        "$rrank" "$rf" "${rprio:-normal}" \
+        "${rheld:+, held}" "${rblock:+, blocked by: ${rblock}}" \
+        "${rqclaimed:+, claimed on ${rqclaimed}}"
     done <<<"$reqs" | sort -t$'\t' -k1,1n -k2,2
   )"
 fi
@@ -370,7 +392,8 @@ fi
 # row is where `dispatch` finds the planner in flight — but every sentence
 # below that SENDS a session to planning reads this, or a second planner is
 # told to start on a requirement the first one holds (verifier r4).
-unplanned_free="$(grep -v 'claimed on ' <<<"$unplanned" || :)"
+unplanned_free="$(grep -v -e 'claimed on ' -e ', blocked by:' -e ', held' \
+  <<<"$unplanned" || :)"
 if [ -n "$unplanned" ]; then
   printf 'Requirements without plans — planning outranks the plan queue:\n'
   rtotal=0

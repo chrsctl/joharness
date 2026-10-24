@@ -302,6 +302,28 @@ out="$(lint_section "$(lint_ci)")"
 refute "a claim naming a requirement is not dead" "plan 'claim-goal'" "$out"
 rm -f "${lwork}/docs/product/claim-goal.md" "${lwork}/docs/handover/plan-goal.md"
 
+# A requirement's `needs:` resolves as a plan's does, against plans, questions
+# and requirements; `hold:` is any text.
+printf -- '---\nplan: np\nurgency: normal\nagent: sonnet\neffort: high\nrequirement: planned-hold\n---\n\n## Goal\nFixture.\n' \
+  >"${lwork}/docs/plans/np.md"
+printf -- '---\nrequirement: nr-bad\npriority: normal\nneeds: nosuch\n---\n' >"${lwork}/docs/product/nr-bad.md"
+printf -- '---\nrequirement: nr-self\npriority: normal\nneeds: nr-self\n---\n' >"${lwork}/docs/product/nr-self.md"
+printf -- '---\nrequirement: nr-ok\npriority: normal\nneeds: np\nhold: any words here\n---\n' >"${lwork}/docs/product/nr-ok.md"
+printf -- '---\nrequirement: planned-hold\npriority: normal\nhold: paused\n---\n' >"${lwork}/docs/product/planned-hold.md"
+out="$(lint_section "$(lint_ci)")"
+expect "a requirement needing nothing real is red" \
+  "nr-bad.md: needs 'nosuch' — no such plan, question or requirement" "$out"
+expect "a requirement needing itself is red" \
+  "nr-self.md: needs 'nr-self' — names itself" "$out"
+refute "a requirement needing an open plan is fine" "nr-ok.md: needs" "$out"
+refute "and a hold with any words" "nr-ok.md: hold" "$out"
+expect "a held requirement an open plan names warns" \
+  "planned-hold.md: held, but planned" "$out"
+refute "an unplanned hold does not" "nr-ok.md: held, but planned" "$out"
+rm -f "${lwork}/docs/plans/np.md" "${lwork}/docs/product/nr-bad.md" \
+  "${lwork}/docs/product/nr-self.md" "${lwork}/docs/product/nr-ok.md" \
+  "${lwork}/docs/product/planned-hold.md"
+
 # Never-existed names and a bad enum: hard facts, red, ci fails.
 cat >"${lwork}/docs/plans/bad.md" <<'EOF'
 ---
@@ -315,6 +337,8 @@ needs: never-was
 ## Goal
 Fixture.
 EOF
+printf -- '---\nrequirement: needs-gone\npriority: normal\nneeds: dep, gone-req\n---\n' \
+  >"${lwork}/docs/product/needs-gone.md"
 cat >"${lwork}/docs/handover/lost-ws.md" <<'EOF'
 ---
 workstream: lost-ws
@@ -385,6 +409,9 @@ expect "claim on a merged plan warns" \
   "claims plan 'dep' gone from tree" "$out"
 expect "serving a vanished requirement warns" \
   "requirement 'gone-req' gone from tree" "$out"
+refute "a requirement needing items that existed and are gone is fine" \
+  "needs-gone.md: needs" "$out"
+rm -f "${lwork}/docs/product/needs-gone.md"
 expect "stale anchor warns" \
   "anchor 'missing/file.sh' not in tree" "$out"
 refute "URL anchor is not warned" "anchor 'https'" "$out"

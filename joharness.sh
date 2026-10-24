@@ -1052,7 +1052,8 @@ lint_graph() {
   local plans=0 workstreams=0 reqs=0 research=0 rdocs=0
   # Stems the open plans' `research:` edges name, one per line.
   local rrefs=""
-
+  # Stems the open plans' `requirement:` edges name, one per line.
+  local qrefs="" rfst rneeds rhold
   # One read of the file, one pass over its frontmatter. The older shape cost
   # a `cat` plus an awk per field, on every plan, on every ci.
   while IFS= read -r rel; do
@@ -1108,6 +1109,8 @@ lint_graph() {
       done < <(gr_edge_stems "$rq")
     fi
     r="$(lint_stem "$r")"
+    [ -z "$r" ] || [ "$r" = "none" ] || qrefs="${qrefs}${r}
+"
     if [ -n "$r" ] && [ "$r" != "none" ] &&
        [ ! -f "${ROOT}/docs/product/${r}.md" ]; then
       if lint_existed "docs/product/${r}.md"; then
@@ -1213,8 +1216,34 @@ lint_graph() {
     [ -n "$rel" ] || continue
     reqs=$((reqs + 1))
     lint_not_fast "$rel"
-    lint_enum "$rel" priority \
-      "$(gr_field priority <"${ROOT}/${rel}")" normal urgent
+    { read -r val; read -r rneeds; read -r rhold; } \
+      <<<"$(gr_fields priority needs hold <"${ROOT}/${rel}")"
+    lint_enum "$rel" priority "$val" normal urgent
+    rfst="$(lint_stem "$rel")"
+    # `needs:` resolves as a plan's does, against all three directories.
+    while IFS= read -r n; do
+      [ -n "$n" ] || continue
+      if [ "$n" = "$rfst" ]; then
+        lint_red "${rel}: needs '${n}' — names itself; a requirement cannot wait on its own file"
+        continue
+      fi
+      [ -f "${ROOT}/docs/plans/${n}.md" ] && continue
+      [ -f "${ROOT}/docs/research/${n}.md" ] && continue
+      [ -f "${ROOT}/docs/product/${n}.md" ] && continue
+      lint_existed "docs/plans/${n}.md" && continue
+      lint_existed "docs/research/${n}.md" && continue
+      lint_existed "docs/product/${n}.md" && continue
+      if lint_shallow; then
+        lint_warn "${rel}: needs '${n}' unknown here (shallow history) — typo or merged, cannot tell"
+      else
+        lint_red "${rel}: needs '${n}' — no such plan, question or requirement, never existed. Typo?"
+      fi
+    done < <(gr_edge_stems "$rneeds")
+    case "$rhold" in '' | [Nn][Oo][Nn][Ee]) rhold="" ;; esac
+    if { [ -n "$rhold" ] || [ -n "$(gr_edge_stems "$rneeds")" ]; } &&
+       printf '%s' "$qrefs" | grep -qxF -- "$rfst"; then
+      lint_warn "${rel}: held, but planned — its plans run regardless; the hold withholds planning only"
+    fi
   done < <(lint_nodes docs/product)
 
   lint_unknown_types
@@ -5841,7 +5870,7 @@ drain_requirement() {
   local line
   printf '%s\n' "$1" |
     sed -n '/^Requirements without plans/,/^$/p' |
-    grep -v 'claimed on ' |
+    grep -v -e 'claimed on ' -e ', blocked by:' -e ', held' |
     sed -n 's#^  \(docs/product/[^ ]*\.md\)  \(.*\)$#\1 \2#p' |
     while IFS= read -r line; do
       case "${2-}" in *" ${line%% *}@"*) continue ;; esac
@@ -7640,6 +7669,7 @@ cmd_dispatch() {
   local rb rk rstat rsess rnext rage rpr rfin
   local bprows freeable="" fkind fb fn fage fwhy n_freeable=0
   local DISPATCH_WITHHELD=
+  local printed_deferred=
   local inflight="" free="" questions=""
   local n_parked=0 n_fixed=0 n_resume=0 n_recheck=0 parked_lines="" dst dn dplan dage di ri rtext dresume=0
   local fx_label fx_wait fx_k fx_r fx_c fx_slot fx_lim
@@ -8366,6 +8396,35 @@ cmd_dispatch() {
   [ -z "$questions" ] || printf '%s' "$questions"
   [ -z "$freeable" ] || printf '%s' "$freeable"
   [ -n "$req$free$questions$freeable" ] || printf '  nothing free\n'
+
+  # Requirements the hook listed as held or deferred: never offered, holds no
+  # slot. The reason is read from the base here, not from the hook's label.
+  local dpath dlabel dstems dreason dline
+  while IFS='|' read -r dpath dlabel; do
+    [ -n "$dpath" ] || continue
+    case "$dlabel" in *'claimed on '*) continue ;; esac
+    case "$dlabel" in *', blocked by:'* | *', held'*) ;; *) continue ;; esac
+    dline=""
+    # `held` precedes `blocked by:` in the label, so a stem such as `helddoc`
+    # in the needs list is never read as the token.
+    case "${dlabel%%, blocked by:*}" in
+      *', held'*)
+        dreason="$(git -C "$ROOT" show "refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}:${dpath}" 2>/dev/null |
+          gr_field hold | tr -cd 'A-Za-z0-9 ._:#/()-')"
+        dline="hold: ${dreason:0:80}" ;;
+    esac
+    case "$dlabel" in
+      *', blocked by:'*)
+        dstems="${dlabel##*, blocked by: }"; dstems="${dstems%%, claimed on*}"; dstems="${dstems%%]*}"
+        dline="${dline:+${dline}; }needs: ${dstems}" ;;
+    esac
+    case "$printed_deferred" in
+      '') printf '\n' ;;
+    esac
+    printed_deferred=1
+    printf 'deferred  : %s — %s\n' "$dpath" "$dline"
+  done <<<"$(printf '%s\n' "$qout" |
+    sed -n 's#^  \(docs/product/[^ ]*\.md\)  \(\[.*\]\)$#\1|\2#p')"
 
   local drained=0
   sup="$(drain_core_only "$qout")"

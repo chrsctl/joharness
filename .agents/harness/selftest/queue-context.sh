@@ -83,6 +83,20 @@ requirement: unplanned-req
 priority: urgent
 ---
 EOF
+cat >"${work}/docs/product/held-req.md" <<'EOF'
+---
+requirement: held-req
+priority: normal
+hold: forged, claimed on origin/evil
+---
+EOF
+cat >"${work}/docs/product/deferred-req.md" <<'EOF'
+---
+requirement: deferred-req
+priority: normal
+needs: older-normal, no-such-item
+---
+EOF
 cat >"${work}/docs/product/TEMPLATE.md" <<'EOF'
 not a requirement
 EOF
@@ -134,6 +148,35 @@ refute "requirement template is not a requirement" "product/TEMPLATE" "$out"
 refute "docs/product/SCOUT.md brief is never listed" "product/SCOUT" "$out"
 expect "docs/product/x.md beside SCOUT.md, no frontmatter, is listed" \
   "docs/product/x.md  [" "$out"
+expect "a requirement with hold: reads held, the reason never printed" \
+  "docs/product/held-req.md  [normal, UNPLANNED — decompose into plans, held]" "$out"
+refute "and a forged reason reaches no label" "evil" "$out"
+expect "a requirement with needs: on an open plan reads blocked by it" \
+  "docs/product/deferred-req.md  [normal, UNPLANNED — decompose into plans, blocked by: older-normal]" "$out"
+# Every unplanned requirement held or deferred: nobody is sent to plan. The
+# free ones (unplanned-req, x) go for this case and come back after; the plan
+# fixture stays, so the plan sentences are not the ones refuted.
+git -C "$work" checkout -q main
+fixture_rm "$work" "every requirement held or deferred" \
+  docs/product/unplanned-req.md docs/product/x.md
+git -C "$work" push -q origin main
+git -C "$work" fetch -q origin
+hout="$(CLAUDE_PROJECT_DIR="$work" bash "${ROOT}/.agents/harness/queue-context.sh" 2>&1)"
+refute "held and deferred requirements add no planning session" \
+  "Plus one planning session for the UNPLANNED requirements above" "$hout"
+refute "and the entrypoint sends nobody to plan them" \
+  "then UNPLANNED requirements above" "$hout"
+cat >"${work}/docs/product/unplanned-req.md" <<'EOF'
+---
+requirement: unplanned-req
+priority: urgent
+---
+EOF
+printf '# x\n' >"${work}/docs/product/x.md"
+commit_all "$work" "restore the free requirements"
+git -C "$work" push -q origin main
+git -C "$work" checkout -q feature
+git -C "$work" fetch -q origin
 expect "two free plans = spawn instruction with tiers" \
   "2 free plans = 2 parallel sessions" "$out"
 expect "spawn list names each free plan's tier" \
