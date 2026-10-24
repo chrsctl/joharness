@@ -7119,6 +7119,23 @@ block_reason_ok() {
   return 1
 }
 
+# The pull request number a `core path: waiting on #<n>: ...` next: names
+# (manage.md §3), or nothing. Branch-written text: digits only, bounded.
+awaited_pr() {
+  local t="${1#[\"\']}"
+  [[ "$t" =~ ^core\ path:\ waiting\ on\ \#([0-9]{1,7})(:|$) ]] || return 0
+  printf '%s' "${BASH_REMATCH[1]#"${BASH_REMATCH[1]%%[!0]*}"}"
+}
+
+# True when the base's first parent carries GitHub's merge commit for pull
+# request #<n>. Read from git; a clone too shallow to hold it reads false.
+awaited_pr_merged() {
+  [ -n "$1" ] || return 1
+  [ -n "$(git -C "$ROOT" log --first-parent --merges -1 --format=%H \
+    --grep="^Merge pull request #${1} from " \
+    "refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" </dev/null 2>/dev/null)" ]
+}
+
 cmd_dispatch() {
   local cap stall health passes respawn churnt churnl hout qout rows wavemap edge req sup
   local path label branch ws doc status session next age agetext flag tier
@@ -7524,16 +7541,29 @@ cmd_dispatch() {
           esac
           ;;
         *)
-          blocked_claims="${blocked_claims} $(basename "$path" .md)@${branch} "
-          flag="  BLOCKED: the human's, holds no slot"
-          block_reason_ok "$next" ||
-            flag="${flag}  INVALID BLOCK? next: opens with no reason word (manage.md §3): ask, order nothing"
-          # How long it has stood.
-          bage="$(dispatch_block_age_min "$branch" "$ws" "$base")"
-          if [ -n "$bage" ]; then
-            flag="${flag}, parked $(dispatch_age_text "$bage") ago"
+          # A `core path:` block naming the human pull request it waits on
+          # (manage.md §3) comes back once the base's first parent carries
+          # that PR's merge commit: a RESUME row, as a retired fix's, and
+          # its scope stays held.
+          # The raw line: the parsed one stops at ` #`, a YAML comment.
+          dn="$(awaited_pr "$(printf '%s\n' "$doc" | gr_field_raw next)")"
+          if [ -n "$dn" ] && awaited_pr_merged "$dn"; then
+            n_parked=$((n_parked + 1)); n_fixed=$((n_fixed + 1)); dresume=1
+            di="$(basename "$path" .md) (${branch})"
+            fx_lines+=("$parked_lines"); parked_lines=""
+            fx_n+=("$dn"); fx_plan+=("-"); fx_di+=("$di"); fx_kind+=(MERGED)
           else
-            flag="${flag}, parked for an unknown time: the commit that parked it is not in this clone's history"
+            blocked_claims="${blocked_claims} $(basename "$path" .md)@${branch} "
+            flag="  BLOCKED: the human's, holds no slot"
+            block_reason_ok "$next" ||
+              flag="${flag}  INVALID BLOCK? next: opens with no reason word (manage.md §3): ask, order nothing"
+            # How long it has stood.
+            bage="$(dispatch_block_age_min "$branch" "$ws" "$base")"
+            if [ -n "$bage" ]; then
+              flag="${flag}, parked $(dispatch_age_text "$bage") ago"
+            else
+              flag="${flag}, parked for an unknown time: the commit that parked it is not in this clone's history"
+            fi
           fi
           ;;
       esac
@@ -7685,7 +7715,15 @@ cmd_dispatch() {
       fx_k=$fx_r; fx_r=$((fx_r + 1))
     fi
     dn="${fx_n[$ri]}"; dplan="${fx_plan[$ri]}"; di="${fx_di[$ri]}"
-    if [ "${fx_kind[$ri]}" = RECHECK ]; then
+    if [ "${fx_kind[$ri]}" = MERGED ]; then
+      if [ "$fx_k" -lt "$n_resume" ]; then
+        rtext="${rtext}${fx_rows[$ri]}  PARKED #${dn} RESUME — #${dn} merged, the human pull request its core path: block waits on: write the resume next:, then nudge or respawn (orchestrate.md), one slot"
+        dst="${dst}${fx_lines[$ri]}            PARKED #${dn} RESUME ${di}: #${dn} merged, resume it this pass"$'\n'
+      else
+        rtext="${rtext}${fx_rows[$ri]}  PARKED #${dn}: #${dn} merged, resume waits for a slot"
+        dst="${dst}${fx_lines[$ri]}            PARKED #${dn} ${di}: #${dn} merged, resume waits for a slot"$'\n'
+      fi
+    elif [ "${fx_kind[$ri]}" = RECHECK ]; then
       if [ "$fx_k" -lt "$n_resume" ]; then
         rtext="${rtext}${fx_rows[$ri]}  PARKED #${dn} RECHECK — the base moved since the block, no plan names #${dn}: write the recheck next:, then nudge or respawn (orchestrate.md), one slot"
         dst="${dst}${fx_lines[$ri]}            PARKED #${dn} RECHECK ${di}: the base moved since the block, recheck it this pass"$'\n'

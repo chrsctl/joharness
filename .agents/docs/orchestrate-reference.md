@@ -231,6 +231,14 @@ workstream file, continue", no `kill`. FAILED, ARCHIVED or not found: GUARD
 `JOHARNESS_RESPAWN_LIMIT`. `PARKED #<n>: … resume waits for a slot` is no
 RESUME: next pass.
 
+A `PARKED #<n> RESUME — #<n> merged` row: a `core path: waiting on #<n>`
+block (manage.md §3), and the base's first parent carries `Merge pull
+request #<n> from`. The same mechanics, `next:` = `Resume: awaited PR #<n>
+merged; merge origin/main, continue`, commit "Orchestrator resumes a parked
+item". This wording is no defect resume: STUCK and UNPLANNED never count
+it. `PARKED #<n>: #<n> merged, resume waits for a slot` is no RESUME: next
+pass.
+
 A `PARKED #<n> RECHECK` row: no plan on the base or a live branch names #<n>,
 the block is `JOHARNESS_DEFECT_RECHECK_HOURS` old, and the base's first
 parent moved since it: the defect may be fixed with no plan. The same

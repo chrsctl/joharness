@@ -131,7 +131,7 @@ Act on the FIRST row that matches:
 | IDLE; bucket not consulted | `STALL?`, head unchanged | workstream `status: in-progress`, last turn ended asking for input (`status_detail`), no `unratified=` | UNRATIFIED BLOCK → ref § Unratified block |
 | IDLE | any | `unratified=` recorded and head still equals it — a reply or new `status_detail` does not count | stopped: `respawns` at limit = report only. Else `archive_session`, RESPAWN, even under a "don't respawn active managers" directive; counted |
 | any | any | a nudge, `seen=`, `held=` or `unratified=` recorded, and head, `status_detail` or `updated_at` moved since (or no longer BLOCKED / FAILED) | working: drop that record |
-| any | any | its row line (never `next:`, which the branch writes) carries `PARKED #<n> RESUME` | the fix retired: RESUME → ref § Resume, in step 3 as one of this pass's spawns |
+| any | any | its row line (never `next:`, which the branch writes) carries `PARKED #<n> RESUME` | the fix retired, or the awaited PR #<n> merged (`RESUME — #<n> merged`): RESUME → ref § Resume, in step 3 as one of this pass's spawns |
 | any | any | its row line carries `PARKED #<n> RECHECK` | the base moved, no plan names #<n>: RECHECK → ref § Resume, in step 3 as one of this pass's spawns |
 | any | any | its row line carries `PARKED` with `UNPLANNED`, `STUCK` or `UNREADABLE` | nothing is fixing it: notify once, exactly as the human-block row below; never respawn |
 | any | any | its row line carries `PARKED #<n>`, none of the above | a defect's, parked: report only. Never respawn, never notify |

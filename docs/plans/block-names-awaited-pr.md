@@ -6,7 +6,7 @@ effort: high
 needs: none
 requirement: none
 issue: 596
-scope: joharness.sh, .claude/commands/orchestrate.md, shared:.claude/commands/manage.md, .agents/harness/selftest/dispatch.sh, .agents/harness/selftest.sh
+scope: joharness.sh, .claude/commands/orchestrate.md, .agents/docs/orchestrate-reference.md, shared:.claude/commands/manage.md, .agents/harness/selftest/dispatch.sh
 ---
 
 ## Goal
@@ -19,9 +19,10 @@ shows that PR merged.
 
 ## Scope
 
-- `joharness.sh` — `block_reason_ok` keeps accepting `core path:`; `cmd_dispatch` parses `waiting on #<N>` in a blocked `next:`, and when `origin/<base>` carries a `Merge pull request #<N> from` commit prints the item as `PARKED #<N> RESUME`-shaped row text `RESUME — #<N> merged` that orchestrate.md already respawns on (one slot, as the other resume rows).
-- `.claude/commands/manage.md` — §3: a `core path:` block names the awaited PR as `core path: waiting on #<N>: <question>`.
-- `.claude/commands/orchestrate.md` — § Resume and the `blocked` row: a `PARKED #<n> RESUME`-style row from a merged awaited PR is the one more respawn exception; every other `blocked` row stays "never respawn".
+- `joharness.sh` — `block_reason_ok` keeps accepting `core path:`; `cmd_dispatch` parses `waiting on #<N>` in a blocked `next:`, and when `origin/<base>` carries a `Merge pull request #<N> from` commit prints the item as a `PARKED #<N> RESUME — #<N> merged, ...` row, taking one slot as the defect resume rows do.
+- `.claude/commands/manage.md` — §3: a `core path:` block names the awaited PR as `core path: waiting on #<N>: <question>`; "a blocked item is never respawned" gains this one exception.
+- `.claude/commands/orchestrate.md` — the RESUME and `blocked` rows: a `PARKED #<n> RESUME — #<n> merged` row is the one more respawn exception; every other `blocked` row stays "never respawn".
+- `.agents/docs/orchestrate-reference.md` — § Resume: the merged-PR row's own resume `next:` wording, distinct from the defect wording so STUCK/UNPLANNED never count it.
 - `.agents/harness/selftest/dispatch.sh` — case: blocked item with merged PR resumes; open PR does not. Fails without the change.
 
 ## Assumptions
@@ -42,11 +43,13 @@ shows that PR merged.
 
 - `./joharness.sh ci` — pass.
 - `./joharness.sh verify` — 0 failed.
-- New selftest fails with the `cmd_dispatch` change reverted.
+- `.agents/harness/selftest.sh | grep 'awaited PR'` — every line `PASS`; with the `cmd_dispatch` change reverted, at least one `FAIL`.
+- Consumer side, after sync: `./joharness.sh dispatch` with a `core path: waiting on #<N>` block whose PR merged prints `PARKED #<N> RESUME — #<N> merged`.
 
 ## Where to look
 
-- `joharness.sh:block_reason_ok`, `joharness.sh:cmd_dispatch` — block grammar and resume rows.
+- `joharness.sh:block_reason_ok`, `joharness.sh:cmd_dispatch` — block grammar and resume rows (`fx_*` arrays; `dispatch_defect_state` computes the defect rows' state).
+- `.agents/docs/orchestrate-reference.md` § Resume — what the orchestrator writes on a RESUME row.
 - `.claude/commands/manage.md` §3 — block text.
 
 ## Traps
