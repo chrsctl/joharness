@@ -5,24 +5,27 @@ lines say when to read each; its terms hold here.
 
 ## Free
 
-A copy task, never a build. Claim on
-     `docs/handover/free-<key>.md`, `workstream: free-<key>`, `plan: none`,
-     key = the branch with every character outside `A-Za-z0-9._-` as `-`.
-     Push the claim, then `./joharness.sh free <branch>`: it merges, drops
-     the owner's workstream files and stems DONE ON MAIN, runs `curate
-     --apply` on the plans it brings in only, `ci`, commits. Refused:
-     `already merged into <your branch>` after `free` committed = done,
-     push and §4; `holds`, `already merged into <base>`, `outside docs/`,
-     `no such branch`, `shares no history`, `free takes another branch` =
-     nothing to free: delete your workstream file, push, exit, no pull
-     request; anything else is your own branch's state: fix it, run again.
-     Reset (conflict, red `ci`) = do by hand, inside a plan-only diff, what
-     `free` does: merge, delete the owner's workstream files, drop stems
-     DONE ON MAIN, retire a done record's plan, `curate --apply` (keep only
-     the plans you bring in), `ci`, recover lines from the owner's tip. Or
-     block `conflict:`. Then §4 whole; its `recover` lines
-     and the owner branch go in the body.
-     Never push to the owner's branch.
+A copy task, never a build. Claim on `docs/handover/free-<key>.md`,
+`workstream: free-<key>`, `plan: none`, key = the branch with every
+character outside `A-Za-z0-9._-` as `-`. Push the claim, then
+`./joharness.sh free <branch>`: it merges, drops the owner's workstream
+files and stems DONE ON MAIN, runs `curate --apply` on the plans it brings
+in only (restoring every other file curate touched), `ci`, commits. Its
+refusals:
+
+- `already merged into <your branch>` after `free` committed = done: push
+  and §4.
+- `holds`, `already merged into <base>`, `outside docs/`, `no such branch`,
+  `shares no history`, `free takes another branch` = nothing to free: delete
+  your workstream file, push, exit, no pull request.
+- anything else = your own branch's state: fix it, run again.
+
+Reset (conflict, red `ci`) = do by hand, inside a plan-only diff, what
+`free` does: merge, delete the owner's workstream files, drop stems DONE ON
+MAIN, retire a done record's plan, `curate --apply` (keep only the plans you
+bring in), `ci`, recover lines from the owner's tip. Or block `conflict:`.
+Then §4 whole; its `recover` lines and the owner branch go in the body.
+Never push to the owner's branch.
 
 ## Human remainder
 
@@ -85,8 +88,7 @@ leaves the retire on a branch only.
 ## Plan issue
 
 Plan names `issue: N`? Plan carries a `## Issue remainder` section: body
-carries `Refs #N`, never `Closes #N` (the plan file decides, not the issue's
-labels, which can change while the plan is queued). Otherwise body carries
+carries `Refs #N`, never `Closes #N`. Otherwise body carries
 `Closes #N` when no other plan on fresh `origin/main` names it
 (`git grep -l -E '^issue: *#?N([^0-9]|$)' origin/main -- docs/plans`, yours
 excluded), else `Refs #N`. That issue's labels (`issue_read`, `get_labels`,
@@ -152,9 +154,7 @@ exit — no retry, no second transport. Run no queue command.
    never `Closes #N`.
 4. A second defect in the same session: step 2 runs for EVERY defect. A
    match = step 2's `Refs #N` line. Only an unmatched second or later defect
-   is pull request body only, one line each. Why: a body is read by nobody
-   after merge; the issue is where the owner learns the defect still
-   reproduces.
+   is pull request body only, one line each.
 5. Non-blocking: `issue_write` fails: put the issue text in the pull request body under a
    line `defect not filed: <error, 40 chars>`. Never block or delay the item
    for it.

@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01MxsnXk5U4DRcTvfd8urrBK
 agent: opus
 updated: 2026-10-24
-next: Run plan-checker on docs/plans/compact-role-commands.md, then fan out workers per file
+next: Wait for plan-checker findings, record them, then fan out workers on the one-pass role files
 ---
 
 ## Goal
@@ -19,11 +19,11 @@ history, behaviour unchanged.
 
 ## Decisions
 
-- None yet.
+- Manager does manage.md and manage-reference.md itself (needle-dense); workers take the other files.
 
 ## Rejected
 
-- None yet.
+- Manager does manage.md and manage-reference.md itself (needle-dense); workers take the other files.
 
 ## Review
 
