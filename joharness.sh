@@ -42,7 +42,7 @@
 #   conduct         whether a conduct reviewer is due, its sample, the ledger
 #                   tally. Report-only
 #   retro           whether a retro reviewer is due, its sample of sessions
-#                   that blocked or looped. Report-only
+#                   that blocked, were abandoned or were killed. Report-only
 #   role <clerk|scout|curate|conduct|retro> [--session <url>] [--agent <tier>] [--twin|--retire]
 #                   the role's prelude: authority, fetch, report, branch,
 #                   claim; last line GO <branch> or STOP: <reason>
@@ -130,7 +130,7 @@ JOHARNESS_SCOUT_READS|12|dispatch|Outside reads one scout pass makes before it p
 JOHARNESS_CONDUCT_HOURS|168|dispatch|Hours since the conduct ledger last landed before a reviewer is due; 0 = off.
 JOHARNESS_CONDUCT_SAMPLE|3|dispatch|Retired branches one conduct run samples; 0 = off.
 JOHARNESS_RETRO_HOURS|168|dispatch|Hours since the retro ledger last landed before a retro reviewer is due; 0 = off.
-JOHARNESS_RETRO_SAMPLE|3|dispatch|Blocked or looped sessions one retro run samples; 0 = off.
+JOHARNESS_RETRO_SAMPLE|3|dispatch|Sessions that did not come back clean one retro run samples; 0 = off.
 JOHARNESS_RETRO_EVENTS|200|dispatch|Transcript events a retro reviewer reads per sampled session.
 JOHARNESS_DEFECT_PLAN_HOURS|48|dispatch|Hours after the first defect: park on an issue with no plan naming it = PARKED UNPLANNED; 0 lifts it.
 JOHARNESS_DEFECT_FIX_HOURS|72|dispatch|Hours after the first defect: park on an issue with no RESUME = PARKED STUCK; 0 lifts it.
@@ -4245,9 +4245,11 @@ cmd_conduct() {
 
 # Outside .agents/docs/ for the reason CONDUCT_LEDGER is.
 RETRO_LEDGER="docs/retro-log.md"
-# The line the orchestrator writes under `## Blockers` after a LOOP kill
+# The lines the orchestrator writes under `## Blockers` when it kills a
+# manager: after a LOOP, and after silence past a nudge
 # (.agents/docs/orchestrate-reference.md, KILL and LOOP).
 RETRO_LOOP_NOTE='Looped, killed by the orchestrator'
+RETRO_KILL_NOTE='Killed by the orchestrator'
 
 # The ledger as the base branch carries it. rc 0 = printed, 1 = absent,
 # 2 = unreadable.
@@ -4282,45 +4284,47 @@ retro_landed_ts() {
   printf '%s' "$ts"
 }
 
-# Sessions that ended badly, from git only: a workstream-file commit on any
-# origin branch, merged or not, since the ledger last landed, whose file then
-# read `status: blocked` or carried the loop note. One `<branch>\t<session>`
-# per session, the first seen (newest commit) winning; a `session:` that is
-# not a session URL is skipped, and so is one the ledger names. `?` alone =
-# unreadable.
+# Sessions that did not come back clean, from git only: a workstream-file
+# commit on any origin branch, merged or not, whose file then read `status:
+# blocked` or `status: abandoned` (the janitor: session gone), or held a
+# `## Blockers` line opening with a kill note. A session that merged clean
+# never qualifies. No time window: the ledger's session column is what stops
+# a re-sample, so a session past the sample waits for the next run. One
+# `<branch>\t<session>\t<sha>:<path>` per session, the newest commit
+# winning; a `session:` that is no session URL, or a `branch:` that is no
+# plain ref name, is skipped. `?` alone = unreadable.
 retro_candidates() {
-  local since log rc ledger lrc logged
-  since="$(retro_landed_ts)"
+  local log rc ledger lrc logged
   ledger="$(retro_ledger)"; lrc=$?
   log="$(git -C "$ROOT" -c core.quotePath=false log --full-history \
-    --format='C %H %ct' --name-only --glob='refs/remotes/origin/*' \
+    --format='C %H' --name-only --glob='refs/remotes/origin/*' \
     -- docs/handover </dev/null 2>/dev/null)"; rc=$?
-  if [ "$rc" -ne 0 ] || [ "$lrc" -eq 2 ] || [ "$since" = '?' ]; then
+  if [ "$rc" -ne 0 ] || [ "$lrc" -eq 2 ]; then
     printf '?\n'
     return 0
   fi
   logged="$(printf '%s\n' "$ledger" | retro_logged)"
   # One cat-file process reads every touched file at its commit; %(rest)
   # carries the key through, a deleted file prints `missing`.
-  printf '%s\n' "$log" | awk -v since="${since:-0}" '
-    /^C [0-9a-f]+ [0-9]+$/ { sha = $2; keep = ($3 + 0 > since + 0); next }
-    keep && /^docs\/handover\/[A-Za-z0-9._-]+\.md$/ {
+  printf '%s\n' "$log" | awk '
+    /^C [0-9a-f]+$/ { sha = $2; next }
+    /^docs\/handover\/[A-Za-z0-9._-]+\.md$/ {
       if ($0 ~ /\/(README|TEMPLATE|RETIRED)\.md$/) next
-      print sha ":" $0 " " sha
+      print sha ":" $0 " " sha ":" $0
     }' |
     git -C "$ROOT" cat-file --batch='@@retro %(objecttype) %(rest)' 2>/dev/null |
-    logged="$logged" note="$RETRO_LOOP_NOTE" awk '
+    logged="$logged" loop="$RETRO_LOOP_NOTE" kill="$RETRO_KILL_NOTE" awk '
       BEGIN { n = split(ENVIRON["logged"], a, "\n"); for (i = 1; i <= n; i++) done[a[i]] = 1 }
       function flush() {
         if (!on) return
         on = 0
-        if (st != "blocked" && !loop) return
+        if (st != "blocked" && st != "abandoned" && !killed) return
         if (se !~ /^https:\/\/claude\.ai\/code\/session_[A-Za-z0-9]+$/) return
+        if (br !~ /^[A-Za-z0-9][A-Za-z0-9._\/-]*$/ || br ~ /\.\./) return
         if (done[se] || seen[se]++) return
-        print (br != "" ? br : "?") "\t" se
+        print br "\t" se "\t" key
       }
-      /^@@retro / { flush(); on = ($2 == "blob"); fm = 0; nl = 0; st = br = se = ""; loop = 0; next }
-      / missing$/ && !on { next }
+      /^@@retro / { flush(); on = ($2 == "blob"); key = $3; fm = 0; nl = 0; sec = ""; st = br = se = ""; killed = 0; next }
       !on { next }
       {
         nl++
@@ -4333,29 +4337,33 @@ retro_candidates() {
           else if ($0 ~ /^session:/ && se == "") se = v
           next
         }
-        if (index($0, ENVIRON["note"])) loop = 1
+        if ($0 ~ /^## /) { sec = $0; next }
+        # Only the note itself: a line that merely mentions it is no kill.
+        if (sec == "## Blockers" && (index($0, ENVIRON["loop"]) == 1 || index($0, ENVIRON["kill"]) == 1)) killed = 1
       }
       END { flush() }'
 }
 
 # The sample: the N candidates whose sha1(<session URL>) sorts lowest, so a
-# re-run picks the same set. N = 0 = any one. `?` alone = unreadable.
+# re-run picks the same set; `<branch> <session URL> <sha>:<path>` each, the
+# path the workstream file as that session left it. N = 0 = any one. `?`
+# alone = unreadable.
 retro_sample() {
-  local n="$1" cands b s h got=0 limit=1
+  local n="$1" cands b s f h got=0 limit=1
   cands="$(retro_candidates)"
   case "$cands" in '?') printf '?\n'; return 0 ;; '') return 0 ;; esac
   if [ "$n" -gt 0 ]; then
     limit="$n"
     [ -n "$(printf 'x' | conduct_sha1)" ] || { printf '?\n'; return 0; }
-    cands="$(while IFS=$'\t' read -r b s; do
+    cands="$(while IFS=$'\t' read -r b s f; do
       [ -n "$s" ] || continue
       h="$(printf '%s' "$s" | conduct_sha1)"
-      printf '%s\t%s\t%s\n' "$h" "$b" "$s"
+      printf '%s\t%s\t%s\t%s\n' "$h" "$b" "$s" "$f"
     done <<<"$cands" | LC_ALL=C sort | cut -f2-)"
   fi
-  while IFS=$'\t' read -r b s; do
+  while IFS=$'\t' read -r b s f; do
     [ -n "$s" ] || continue
-    printf '%s %s\n' "$b" "$s"
+    printf '%s %s %s\n' "$b" "$s" "$f"
     got=$((got + 1))
     [ "$got" -lt "$limit" ] || break
   done <<<"$cands"
@@ -4436,7 +4444,7 @@ retro_due() {
   case "$cands" in
     '?') RETRO_DUE='unreadable the workstream files or the ledger could not be read'
          RETRO_ROWS=""; return 0 ;;
-    '')  RETRO_DUE="empty ${age}h since ${base_word} (>= ${hours}h), but no session blocked or looped since" ;;
+    '')  RETRO_DUE="empty ${age}h since ${base_word} (>= ${hours}h), but every session that blocked, was abandoned or was killed is in the ledger" ;;
     *)   RETRO_DUE="due ${age}h since ${base_word} (>= ${hours}h)" ;;
   esac
 }
@@ -4449,7 +4457,7 @@ cmd_retro() {
   events="$(num_knob JOHARNESS_RETRO_EVENTS)"
   printf '== retro (every %sh: JOHARNESS_RETRO_HOURS; %s session(s) a run: JOHARNESS_RETRO_SAMPLE; %s events each: JOHARNESS_RETRO_EVENTS)\n\n' \
     "$hours" "$sample" "$events"
-  printf 'candidates: a workstream file that read status: blocked or carried the loop note since %s last landed; the reviewer reads each transcript, never a diff (.claude/commands/retro.md)\n\n' \
+  printf 'candidates: a session whose workstream file read status: blocked or abandoned, or whose ## Blockers opens with the orchestrator'"'"'s kill note, not yet in %s; a clean merge never qualifies. The reviewer reads each transcript, never a diff (.claude/commands/retro.md)\n\n' \
     "$RETRO_LEDGER"
 
   retro_due
@@ -4476,8 +4484,8 @@ cmd_retro() {
   s="$(retro_sample "$sample")"
   case "$s" in
     '?') printf 'sample    : UNREADABLE — take no session this run: a list that could not be read is no empty list\n' ;;
-    '')  printf 'sample    : none — no session blocked or looped since the ledger last landed\n' ;;
-    *)   printf 'sample    : %s session(s), lowest sha1(<session URL>) first — review exactly these, <branch> <session URL>\n' \
+    '')  printf 'sample    : none — every session that blocked, was abandoned or was killed is in the ledger\n' ;;
+    *)   printf 'sample    : %s session(s), lowest sha1(<session URL>) first — review exactly these, <branch> <session URL> <sha>:<workstream file>\n' \
            "$(printf '%s\n' "$s" | awk 'END { print NR + 0 }')"
          printf '%s\n' "$s" | sed 's/^/            /' ;;
   esac

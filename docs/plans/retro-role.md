@@ -60,14 +60,16 @@ rule. It never fixes anything itself.
     - `JOHARNESS_RETRO_HOURS` (default 168, 0 = off);
     - `JOHARNESS_RETRO_SAMPLE` (default 3);
     - `JOHARNESS_RETRO_EVENTS` (default 200).
-  - **Candidates, from git only:** branches, merged or not, with a
-    workstream commit since the ledger's last row whose `status:` was
-    `blocked`, or that carries the orchestrator's loop note (`Looped,
-    killed by the orchestrator`, written under `## Blockers`). A workstream file
-    whose `session:` is not a session URL is skipped.
+  - **Candidates, from git only:** sessions that did not come back clean —
+    a workstream commit on any branch, merged or not, whose `status:` was
+    `blocked` or `abandoned`, or whose `## Blockers` opens a line with the
+    orchestrator's kill note (`Looped, killed by the orchestrator`, `Killed
+    by the orchestrator`). A clean merge never qualifies. No time window: a
+    session the ledger names is skipped. A `session:` that is not a session
+    URL, or a `branch:` that is not a plain ref name, is skipped.
   - **Prints** `retro DUE: spawn ONE retro reviewer`, `retro : not due …`,
     `retro : off`, `retro : IN FLIGHT`, `retro : due, nothing to sample` or
-    `retro : UNREADABLE`, and the sample, one `<branch> <session URL>` per line.
+    `retro : UNREADABLE`, and the sample, one `<branch> <session URL> <sha>:<workstream file>` per line.
     In flight = an unmerged branch named `retro-<digit>…`, as conduct.
   - **Ledger:** `docs/retro-log.md`, one row per sampled session: date,
     branch, session, outcome (`plans: <stems>` | `refs: <#n or plan stem>` | `rule broken: <rule>` | `nothing`).
