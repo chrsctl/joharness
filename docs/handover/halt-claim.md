@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01Te9BJuEAtCjWLZLa2BMTDM
 agent: opus
 updated: 2026-10-24
-next: Run ci, verify and the selftest; verifier at opus; then finish
+next: Re-run ci and the selftest on the verifier fixes, then finish
 ---
 
 ## Goal
@@ -43,6 +43,12 @@ None yet.
 - r6: (plan-checker) janitor-range acceptance has no PASS floor; guard acceptance needs network (no change: run here with network; the janitor topic printed its PASS lines)
 - r7: (plan-checker) Scope spelled `skip :` etc. unpadded against padded selftest text (fixed: plan uses janitor_apply's padded column)
 - r8: (plan-checker) A6's grep prints two lines (no change: one is fixture text, the `expect` is one)
+- r9: (verifier) a branch that only deletes plans, no workstream file ever, keeps its retired slot after halt (wontfix: no claim record to release; the plan's Neither = skip; such a branch is a plan-only edge whose pull request closes it — flagged for a human)
+- r10: (verifier) halt twice on one day said `no frontmatter … release it by hand`, rc 1 (fixed: an identical blob still on the tip reading `abandoned` = `already released`, rc 0; selftest fails without it)
+- r11: (verifier) `halt HEAD` followed the origin/HEAD symref and deleted refs/remotes/origin/main (fixed: `update-ref --no-deref -d` in halt and janitor_apply; selftest fails without it)
+- r12: (verifier) the swept-record path had no test (fixed: case 7)
+- r13: (verifier) closing `halt wrote git only` line printed when nothing was written (fixed: only after a push; asserted)
+- r14: (verifier) orchestrated.md freer row said janitor-released only (fixed: names halt)
 ## Blockers
 
 None.

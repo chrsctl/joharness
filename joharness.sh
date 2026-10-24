@@ -3068,7 +3068,7 @@ janitor_apply() {
       0) ;;
       2) # Released already. Drop the local ref a narrow refspec never prunes,
          # or every dispatch names the branch again. Local only.
-         git -C "$ROOT" update-ref -d "refs/remotes/origin/${want}" 2>/dev/null || :
+         git -C "$ROOT" update-ref --no-deref -d "refs/remotes/origin/${want}" 2>/dev/null || :
          continue ;;
       *) printf 'skip      : %s — guard refused; nothing released\n' "$want"
          rc=1; continue ;;
@@ -3118,7 +3118,7 @@ janitor_apply() {
 # back. git only: the session and any pull request are not this command's.
 cmd_halt() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}" want tip base files own c cand
-  local path src blob newblob idx tree commit today next n rc=0
+  local path src blob newblob idx tree commit today next n done_n wrote=0 rc=0
   [ "$#" -gt 0 ] || die "usage: $0 halt <branch>... (a human's order; never a session's judgement)"
   git -C "$ROOT" fetch -q origin \
     "+refs/heads/${base_branch}:refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null ||
@@ -3138,7 +3138,7 @@ cmd_halt() {
     case $? in
       0) ;;
       2) printf 'skip      : %s — gone on origin\n' "$want"
-         git -C "$ROOT" update-ref -d "refs/remotes/origin/${want}" 2>/dev/null || :
+         git -C "$ROOT" update-ref --no-deref -d "refs/remotes/origin/${want}" 2>/dev/null || :
          continue ;;
       *) printf 'skip      : %s — guard refused; nothing released\n' "$want"
          rc=1; continue ;;
@@ -3181,15 +3181,22 @@ cmd_halt() {
     fi
     idx="$(mktemp)"
     GIT_INDEX_FILE="$idx" git -C "$ROOT" read-tree "$tip" || { rm -f "$idx"; rc=1; continue; }
-    n=0
+    n=0; done_n=0
     while IFS=$'\t' read -r path src; do
       [ -n "$path" ] || continue
       blob="$(git -C "$ROOT" show "$src" 2>/dev/null)" || continue
       newblob="$(printf '%s\n' "$blob" | release_rewrite "$next" |
         git -C "$ROOT" hash-object -w --stdin)" || continue
-      # No frontmatter the awk can read: an identical blob releases nothing.
+      # An identical blob releases nothing: halted already today (still on the
+      # tip), or no frontmatter the awk can read.
       if [ "$newblob" = "$(printf '%s\n' "$blob" | git -C "$ROOT" hash-object --stdin)" ]; then
-        printf 'skip      : %s  %s — no frontmatter to write status: abandoned into; release it by hand\n' "$want" "$path"
+        if [ "$src" = "${tip}:${path}" ] &&
+           [ "$(printf '%s\n' "$blob" | gr_field status)" = abandoned ]; then
+          printf 'skip      : %s  %s — already released; nothing to write\n' "$want" "$path"
+          done_n=$((done_n + 1))
+        else
+          printf 'skip      : %s  %s — no frontmatter to write status: abandoned into; release it by hand\n' "$want" "$path"
+        fi
         continue
       fi
       GIT_INDEX_FILE="$idx" git -C "$ROOT" update-index --add --cacheinfo "100644,${newblob},${path}" || continue
@@ -3197,8 +3204,10 @@ cmd_halt() {
       printf 'release   : %s  %s\n' "$want" "$path"
     done <<<"$files"
     if [ "$n" -eq 0 ]; then
+      rm -f "$idx"
+      [ "$done_n" -gt 0 ] && continue
       printf 'skip      : %s — no workstream file to release; nothing written\n' "$want"
-      rm -f "$idx"; rc=1; continue
+      rc=1; continue
     fi
     tree="$(GIT_INDEX_FILE="$idx" git -C "$ROOT" write-tree)"
     rm -f "$idx"
@@ -3208,12 +3217,13 @@ cmd_halt() {
     if git -C "$ROOT" push -q --force-with-lease="refs/heads/${want}:${tip}" \
       origin "${commit}:refs/heads/${want}" 2>/dev/null; then
       printf 'pushed    : %s %s\n' "$want" "${commit:0:12}"
+      wrote=1
     else
       printf 'FAILED    : %s — push refused (the branch moved?); nothing released\n' "$want"
       rc=1
     fi
   done
-  printf 'the session is the control plane'"'"'s to stop and an open pull request is the human'"'"'s to close: halt wrote git only\n'
+  [ "$wrote" -eq 1 ] && printf 'the session is the control plane'"'"'s to stop and an open pull request is the human'"'"'s to close: halt wrote git only\n'
   return "$rc"
 }
 

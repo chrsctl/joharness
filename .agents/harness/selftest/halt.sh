@@ -90,6 +90,17 @@ expect "and keeps its pr:" "pr: 12" "$hdoc"
 expect "the commit subject names the halt" "halt: a human released the claim (${htoday})" \
   "$(git -C "$horigin" log -1 --format=%s mgr-live 2>&1)"
 
+# A second order on a released claim is no failure and no hand-edit.
+hlive="$(git -C "$horigin" rev-parse mgr-live)"
+out="$(hrun halt mgr-live)"; rc=$?
+expect "halting it again says already released" \
+  "skip      : mgr-live  docs/handover/mgr-live.md — already released" "$out"
+refute "never asks for a hand release" "release it by hand" "$out"
+refute "and claims no write" "halt wrote git only" "$out"
+if [ "$rc" -eq 0 ] && [ "$(git -C "$horigin" rev-parse mgr-live)" = "$hlive" ]; then
+  pass "and exits 0 with the branch unmoved"
+else fail "and exits 0 with the branch unmoved (rc ${rc})"; printf '%s\n' "$(indent "$out")"; fi
+
 # --- 2. released: no slot, no in-flight row, the plan offered again ----------
 git -C "$hwork" fetch -q origin
 out="$(hdsp)"
@@ -138,6 +149,18 @@ if [ "$rc" -eq 1 ] && [ "$(git -C "$horigin" rev-parse main)" = "$hmain" ]; then
   pass "and exits 1 with origin's main unmoved"
 else fail "and exits 1 with origin's main unmoved (rc ${rc})"; fi
 
+# A symref name: `HEAD` resolves through origin/HEAD to the base's sha, and
+# the gone arm must drop the symref at most, never the base's tracking ref.
+git -C "$hwork" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
+out="$(hrun halt HEAD)"; rc=$?
+refute "halt HEAD pushes nothing" "pushed    :" "$out"
+if git -C "$hwork" rev-parse -q --verify refs/remotes/origin/main >/dev/null; then
+  pass "and the base's tracking ref survives"
+else fail "and the base's tracking ref survives"; printf '%s\n' "$(indent "$out")"
+  git -C "$hwork" fetch -q origin; fi
+if [ "$(git -C "$horigin" rev-parse main)" = "$hmain" ]; then pass "and origin's main is unmoved"
+else fail "and origin's main is unmoved"; fi
+
 # --- 5. a branch with no record to release -----------------------------------
 git -C "$hwork" checkout -qb mgr-norecord main
 printf 'other\n' >>"${hwork}/code.txt"
@@ -164,6 +187,30 @@ else fail "and origin still has no such branch (re-created)"; fi
 if git -C "$hwork" rev-parse -q --verify refs/remotes/origin/mgr-gone >/dev/null; then
   fail "and the stale local ref is dropped"
 else pass "and the stale local ref is dropped"; fi
+
+# --- 7. an edge branch that swept a record the base carries -----------------
+hplan sweptwork
+mkdir -p "${hwork}/docs/handover"
+printf -- '---\nworkstream: sweptwork\nstatus: in-progress\nbranch: mgr-sweep\nplan: sweptwork\npr: none\nsession: https://example.invalid/session_sweep\nagent: sonnet\nupdated: %s\nnext: Build it\n---\n\n## Goal\nFixture.\n' \
+  "$htoday" >"${hwork}/docs/handover/sweptwork.md"
+hcommit "base carries a record" "$hnow"
+git -C "$hwork" push -q origin main
+git -C "$hwork" checkout -qb mgr-sweep main
+git -C "$hwork" rm -q docs/handover/sweptwork.md docs/plans/sweptwork.md
+hcommit "retire sweptwork" "$hnow"
+git -C "$hwork" push -qu origin mgr-sweep
+git -C "$hwork" checkout -q main
+out="$(hdsp)"
+expect "swept: dispatch has a retired row before" "retired, no claim file" \
+  "$(hrows mgr-sweep "$out")"
+out="$(hrun halt mgr-sweep)"; rc=$?
+expect "swept: halt restores the base's record" "release   : mgr-sweep  docs/handover/sweptwork.md" "$out"
+if [ "$rc" -eq 0 ]; then pass "swept: exits 0"
+else fail "swept: exits 0 (rc ${rc})"; printf '%s\n' "$(indent "$out")"; fi
+expect "swept: the restored record says abandoned" "status: abandoned" \
+  "$(git -C "$horigin" show mgr-sweep:docs/handover/sweptwork.md 2>&1)"
+git -C "$hwork" fetch -q origin
+refute "swept: no retired row after" "retired, no claim file" "$(hrows mgr-sweep "$(hdsp)")"
 
 # --- usage --------------------------------------------------------------------
 out="$(hrun halt)"; rc=$?
