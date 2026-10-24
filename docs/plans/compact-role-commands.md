@@ -22,8 +22,8 @@ Files: the eleven in `scope:`. Together 1408 lines on origin/main 5adc5d0c.
 Target: 1150 lines or fewer. Per-file targets below. Not listed there: conduct about 105, retro about 125, curate about 55, handover about 24, who about 30.
 
 - `.claude/commands/manage.md` (200 → about 150):
-  - §3: keep the reason list and the `issue_write` mechanics. Point at AGENTS.md Decide alone for the block format and `human-review` labelling. AGENTS.md stays their home: they bind every role.
-  - §4: one line for the label check (Loop step 7 owns it). Delete the empty "A DEFECT outside your item" stub and the duplicate "Carried plan" pointer.
+  - §3: keep the reason list and the `issue_write` mechanics. Point at AGENTS.md Decide alone for the `<reason>: <question>` block form and `human-review` labelling. AGENTS.md stays their home: they bind every role. Keep in §3 the `defect: #<n>: <one line>` and `core path: waiting on #<N>: <question>` forms (`joharness.sh` cites manage.md §3 for both) and its `ref § Defect.` pointer.
+  - §4: one line for the label check (Loop step 7 owns it); keep its `product: human-review label on PR #<n>` block, which has no other home. Delete the empty "A DEFECT outside your item" stub and the duplicate "Carried plan" pointer.
   - §1 claim: point at Loop 3 for the mechanics. Keep the frontmatter fields and the "second manager" consequence.
   - §2: drop the restated Loop 4 research/`feedback` lines and the haiku 5x billing aside (agent-selection.md owns it).
   - Drop the `curate --apply` aside, which ref § Free states.
@@ -34,18 +34,17 @@ Target: 1150 lines or fewer. Per-file targets below. Not listed there: conduct a
 - `.claude/commands/clerk.md` (249 → about 185):
   - Status quo cuts: the §1 cycle-dating paragraph, the twin tiebreak rationale, the author-gate rationale.
   - Compress the §2 skip list and footer bullet, and §3 UPSTREAM.
-  - Point the §3 issue-closing text at manage-reference § Plan issue.
-- `.claude/commands/scout.md` (237 → about 180):
-  - Point the §3/§4 WAITING and staling restatements, and the footer rule, at clerk.md THE SCOUT GATE.
-  - Make the §0 STOP enumeration a pointer at `role scout` output.
+  - `.claude/commands/scout.md` (237 → about 180):
+  - Cut the §3/§4 WAITING and staling restatements and the footer rule down to the pointers scout.md already carries: orchestrate-reference "A scout issue needs the scout" (WAITING) and clerk.md §2 (footer rule).
+  - Make the §0 STOP enumeration a pointer at `role scout` output, keeping the actions it does not print (`TWIN: deferred`, never pull and push again, never both go on).
   - Status quo cut: "so the login never says whose it is". Keep "Known limit: another session…": it is a current limit.
-- `.claude/commands/conduct.md`, `retro.md`: compress §0.1 STOP lists. Status quo cuts: "Git cannot see it past the drop window", "(a page of 100 overruns…)".
+- `.claude/commands/conduct.md`: compress the §0.1 STOP list. `retro.md` has none. Status quo cuts: "Git cannot see it past the drop window", "(a page of 100 overruns…)".
 - `.claude/commands/curate.md`: delete "that multiplies the queue" and "priority is the human's".
 - `.claude/commands/upstream-report.md` (95 → about 65):
-  - Make §1 about 4 lines plus a pointer at feedback.md.
+  - Compress §1 toward a pointer at feedback.md, keeping what feedback.md lacks: the handling of the two doubts `upstream` prints and "Neither enters a report on its own".
   - Delete the "A child repo DETECTS…" paragraph and the rationale clauses in Never.
-- `.claude/commands/plan.md` (49 → about 33): keep the allowed-values list. Point at `.agents/docs/plans/README.md` Shape for key explanations.
-- `.claude/commands/handover.md`: point Review form and retire text at Loop 5 and Loop 7.
+- `.claude/commands/plan.md` (49 → about 33): keep the allowed-values list. Point at `.agents/docs/plans/README.md` Shape only for explanations Shape states; keep the key rules with no other home (xhigh for a Part 2 prohibition, fake edge, requirement-file deletion, `none` only when unknowable).
+- `.claude/commands/handover.md`: point Review form at `.agents/docs/handover/README.md` (Reviewing, which holds "written BEFORE its fix") and retire text at Loop 7.
 - `.claude/commands/who.md`: delete the tool-name history parenthetical.
 
 ## Assumptions
@@ -84,6 +83,9 @@ git diff --name-only origin/main...HEAD | grep -v '\.md$'   # empty
 
 - Section numbers cited by code and docs stay: manage.md §0 §R §2 §3 §4 and "rescope"; clerk.md §1 §2 §3.
 - Pinned strings stay: THE SCOUT GATE, SCOUT COMMENT, REVISION OPEN, "reason from manage.md §3".
+- Every `expect` needle in `.agents/harness/selftest/orchestrated.sh`, `clerk.sh`, `scout.sh`, `retro.sh`, `role.sh` reading these files stays on one line (raw-text needles match per line).
+- Every `## X` of manage-reference.md keeps a `ref § X.` pointer in manage.md, ending with a period.
+- clerk.md THE SCOUT GATE item numbers stay (orchestrate-reference cites "(THE SCOUT GATE, 2)"); manage.md heading "Finish" stays (orchestrated.md cites it).
 - `AskUserQuestion` stays inside manage.md `## Never`.
 - "remainder issue not filed" stays absent.
 - Glossary lint bans `handover file`, `model tier`, `env layer`, `rescope manager`, `bare role title`.
