@@ -1,34 +1,36 @@
 name: prune-branches
 
-# Deletes branches that hold nothing `main` lacks, so `git fetch` and every
-# harness walk over refs/remotes/origin stay short. Two jobs:
+# Deletes branches that hold nothing `main` lacks AND that no harness reader
+# still counts, so `git fetch` and every walk over refs/remotes/origin stay
+# short. One daily sweep; nothing is deleted the moment it merges.
 #
-# - on-merge: a merged pull request's head branch, right after the merge.
-# - sweep: the backlog and what on-merge never sees — branches merged by
-#   ancestry with no pull request (empty clerk/curate branches, a direct
-#   push), and unmerged branches with NO net change against their merge base
-#   (an ended clerk pass) once they are a week old.
+# A branch goes only when one of these holds:
+#
+# - merged by ancestry (a merged pull request's head, an empty clerk or
+#   curate pass) and its tip is at least 24h old. Every protocol reader of
+#   branch state reads UNMERGED refs (joharness.sh: clerk_walk, scout_walk,
+#   conduct_due, retro_due, dispatch_curate_branches, cl_inflight); merged
+#   commits stay reachable from main under the merge-commit method, so the
+#   workstream-file recovery command a pull request body carries still works.
+# - unmerged with NO net change against its merge base, and older than the
+#   window after which the harness itself stops counting it:
+#     clerk-<digit>...            JOHARNESS_CLERK_STALE_HOURS (0 = never)
+#     conduct-/retro-<digit>...   a seventh of JOHARNESS_CONDUCT_HOURS /
+#                                 JOHARNESS_RETRO_HOURS, at least 24h
+#     anything else               HANDOVER_STALE_SECONDS
+#   Knobs are read as dispatch reads them: environment, then the default
+#   branch's joharness.conf, then the harness default.
 #
 # Never deleted: the default branch; a branch an open pull request rides; the
 # newest `clerk-noop-*` and newest `curate-noop-*` — each IS its role's clock
-# (joharness.sh: clerk_noop, curate_noop read merged refs of that name); any
-# branch whose tip is younger than MIN_AGE_HOURS (a session may still be
-# pushing to it); an unmerged branch with any net change — abandoned work is
-# a human's to triage, never an age-out.
+# (joharness.sh: clerk_noop, curate_noop read merged refs of that name); an
+# unmerged branch with any net change — abandoned work is a human's to
+# triage, never an age-out. Sessions still never `git push --delete`
+# (.agents/harness/AGENTS.md step 7); this file is the human's.
 #
-# Merged = nothing lost: the merge-commit method keeps every commit of the
-# branch in main's history, so the workstream-file recovery command a pull
-# request body carries keeps working. Sessions still never `git push
-# --delete` (.agents/harness/AGENTS.md step 7); this file is the human's.
-#
-# Cost: each job bills a minimum runner minute on a private repo. The free
-# alternative for on-merge alone is Settings > General > "Automatically
-# delete head branches"; the sweep still covers everything that setting
-# misses.
+# Cost: one runner minute a day on a private repo.
 
 on:
-  pull_request:
-    types: [closed]
   schedule:
     - cron: '23 4 * * *'
   workflow_dispatch:
@@ -43,47 +45,17 @@ permissions:
   pull-requests: read
 
 concurrency:
-  group: prune-branches-${{ github.event_name == 'pull_request' && github.event.pull_request.number || 'sweep' }}
+  group: prune-branches
   cancel-in-progress: false
 
 jobs:
-  on-merge:
-    if: >-
-      github.event_name == 'pull_request' &&
-      github.event.pull_request.merged == true &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      github.event.pull_request.head.ref != github.event.repository.default_branch
-    runs-on: ubuntu-latest
-    steps:
-      - name: delete the merged head branch
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          BRANCH: ${{ github.event.pull_request.head.ref }}
-          MERGED_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          tip="$(gh api "repos/${REPO}/git/ref/heads/${BRANCH}" --jq .object.sha 2>/dev/null)" || {
-            echo "${BRANCH}: already gone"; exit 0; }
-          # A push after the merge holds work main lacks: the sweep judges it later.
-          if [ "$tip" != "$MERGED_SHA" ]; then
-            echo "${BRANCH}: tip ${tip} moved past the merged ${MERGED_SHA}, kept"; exit 0
-          fi
-          open="$(gh pr list --repo "$REPO" --state open --head "$BRANCH" --json number --jq length)"
-          if [ "$open" != "0" ]; then
-            echo "${BRANCH}: another open pull request rides it, kept"; exit 0
-          fi
-          gh api -X DELETE "repos/${REPO}/git/refs/heads/${BRANCH}"
-          echo "${BRANCH}: deleted"
-
   sweep:
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
       BASE: ${{ github.event.repository.default_branch }}
       DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
       MIN_AGE_HOURS: 24
-      EMPTY_AGE_HOURS: 168
     steps:
       - uses: actions/checkout@v4
         with:
@@ -93,6 +65,19 @@ jobs:
           set -euo pipefail
           git fetch -q --prune origin '+refs/heads/*:refs/remotes/origin/*'
           base="refs/remotes/origin/${BASE}"
+          # <key> <default>: environment, then the base's conf, then the default.
+          knob() {
+            local v="${!1:-}"
+            [ -n "$v" ] || v="$(git show "${base}:joharness.conf" 2>/dev/null |
+              sed -n "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*\([0-9]*\).*/\1/p" | tail -n 1)"
+            printf '%s' "${v:-$2}"
+          }
+          seventh() { local d=$(( ($1 + 6) / 7 )); [ "$d" -ge 24 ] || d=24; printf '%s' "$d"; }
+          clerk_h="$(knob JOHARNESS_CLERK_STALE_HOURS 24)"
+          conduct_h="$(seventh "$(knob JOHARNESS_CONDUCT_HOURS 168)")"
+          retro_h="$(seventh "$(knob JOHARNESS_RETRO_HOURS 168)")"
+          other_h=$(( $(knob HANDOVER_STALE_SECONDS 518400) / 3600 ))
+          echo "windows: clerk ${clerk_h}h, conduct ${conduct_h}h, retro ${retro_h}h, other ${other_h}h, merged ${MIN_AGE_HOURS}h"
           now="$(date +%s)"
           open="$(gh pr list --state open --limit 1000 --json headRefName --jq '.[].headRefName')"
           keep="$(for k in clerk-noop curate-noop; do
@@ -111,7 +96,16 @@ jobs:
             else
               mb="$(git merge-base "$base" "refs/remotes/origin/${name}")" || continue
               git diff --quiet "$mb" "refs/remotes/origin/${name}" || continue
-              [ "$age" -ge "$EMPTY_AGE_HOURS" ] || continue
+              case "$name" in
+                clerk-[0-9]*) win="$clerk_h" ;;
+                *) case "${name##*/}" in
+                     conduct-[0-9]*) win="$conduct_h" ;;
+                     retro-[0-9]*) win="$retro_h" ;;
+                     *) win="$other_h" ;;
+                   esac ;;
+              esac
+              # A window of 0 = every such branch holds: never deleted.
+              { [ "$win" -gt 0 ] && [ "$age" -ge "$win" ]; } || continue
               why=empty
             fi
             printf '%-6s %5sh  %s\n' "$why" "$age" "$name"
