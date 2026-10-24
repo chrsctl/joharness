@@ -18,7 +18,7 @@ fwork="${TMP}/fastwork"
 mkdir -p "${fwork}/.agents/harness" "${fwork}/.agents/env/none" \
   "${fwork}/docs/handover" "${fwork}/docs/plans"
 cp "${ROOT}/joharness.sh" "${fwork}/joharness.sh"
-printf '#!/usr/bin/env bash\nexit 0\n' >"${fwork}/.agents/harness/selftest.sh"
+printf '#!/usr/bin/env bash\nprintf "1 passed, 0 failed\\n"\nexit 0\n' >"${fwork}/.agents/harness/selftest.sh"
 chmod +x "${fwork}/.agents/harness/selftest.sh" "${fwork}/joharness.sh"
 # Main carries two files a branch can delete or rename, and a workstream
 # file a branch can inherit.

@@ -140,19 +140,29 @@ out="$(ci_scope)"
 expect "a harness diff runs the suite" "STUB SUITE RAN" "$out"
 refute "a harness diff prints no skip line" "skipped: nothing outside" "$out"
 
-# The git-exec budget, counted from OUTSIDE the suite: a stub that execs git
-# exactly twice, so the number is known without trusting the suite to report
-# itself. Uncommitted, which also runs the suite (case above).
-printf '#!/usr/bin/env bash\ngit --version >/dev/null\ngit --version >/dev/null\nprintf "STUB SUITE RAN\\n"\nexit 0\n' \
-  >"${swork}/.agents/harness/selftest.sh"
-out="$(JOHARNESS_SELFTEST_GIT_BUDGET=2 ci_scope)"
-expect "the stage counts the suite's git execs against the budget" \
-  "selftest git execs: 2 (budget 2)" "$out"
+# The git-exec budget is a rate, counted from OUTSIDE the suite: a stub that
+# execs git exactly twice and prints its own pass count, so the number is known
+# without trusting the suite to report itself. Uncommitted, which also runs the
+# suite (case above).
+stub_suite() { # <pass-line>
+  printf '#!/usr/bin/env bash\ngit --version >/dev/null\ngit --version >/dev/null\nprintf "STUB SUITE RAN\\n%s\\n"\nexit 0\n' \
+    "$1" >"${swork}/.agents/harness/selftest.sh"
+}
+stub_suite '2 passed, 0 failed'
+out="$(JOHARNESS_SELFTEST_GIT_PER_CASE=1 ci_scope)"
+expect "the stage counts the suite's git execs against the per-case rate" \
+  "selftest git execs: 2 for 2 cases (1.0 per case, budget 1)" "$out"
 refute "at the budget is not over it" "Over budget" "$out"
-out="$(JOHARNESS_SELFTEST_GIT_BUDGET=1 ci_scope)"
+stub_suite '1 passed, 0 failed'
+out="$(JOHARNESS_SELFTEST_GIT_PER_CASE=1 ci_scope)"
 expect "one exec past the budget reds the stage" "Over budget" "$out"
 expect "and the red names the count and the budget" \
-  "selftest git execs: 2 (budget 1)" "$out"
+  "selftest git execs: 2 for 1 cases (2.0 per case, budget 1)" "$out"
+stub_suite 'no count here'
+out="$(JOHARNESS_SELFTEST_GIT_PER_CASE=99 ci_scope)"
+expect "a suite printing no count line reds the stage" \
+  "suite printed no pass count" "$out"
+stub_suite '2 passed, 0 failed'
 # An exported `git` function makes `command -v git` print `git`, and a
 # wrapper exec'ing that name finds itself on PATH and never stops. Bounded:
 # without the fix this case is a 60s timeout, not a hung suite (timeout
@@ -160,8 +170,8 @@ expect "and the red names the count and the budget" \
 # shellcheck disable=SC2317  # git() is called, through the export
 out="$( git() { command git "$@"; }; export -f git
   CLAUDE_PROJECT_DIR="$swork" JOHARNESS_CONF="${swork}/joharness.conf" \
-  GITHUB_ACTIONS='' JOHARNESS_SELFTEST='' JOHARNESS_SELFTEST_GIT_BUDGET=2 \
+  GITHUB_ACTIONS='' JOHARNESS_SELFTEST='' JOHARNESS_SELFTEST_GIT_PER_CASE=1 \
   timeout 60 "${swork}/joharness.sh" ci 2>&1 | sed -n '/== harness selftest/,/^$/p' )"
 expect "an exported git function does not loop the wrapper" \
-  "selftest git execs: 2 (budget 2)" "$out"
+  "selftest git execs: 2 for 2 cases (1.0 per case, budget 1)" "$out"
 git -C "$swork" checkout -q -- .agents/harness/selftest.sh

@@ -32,7 +32,7 @@ cp "${ROOT}/.agents/harness/queue-context.sh" \
    "${ROOT}/.agents/harness/handover-context.sh" \
    "${ROOT}/.agents/harness/handover-guard.sh" "${orcwork}/.agents/harness/"
 # ci's selftest stage, stubbed: this fixture proves ci's other stages.
-printf '#!/usr/bin/env bash\nexit 0\n' >"${orcwork}/.agents/harness/selftest.sh"
+printf '#!/usr/bin/env bash\nprintf "1 passed, 0 failed\\n"\nexit 0\n' >"${orcwork}/.agents/harness/selftest.sh"
 chmod +x "${orcwork}/.agents/harness/selftest.sh" "${orcwork}/joharness.sh"
 printf '# none\n' >"${orcwork}/.agents/env/none/AGENTS.md"
 orcconf="${orcwork}/joharness.conf"
