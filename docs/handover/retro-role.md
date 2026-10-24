@@ -30,7 +30,7 @@ caught it, files plans preferring a mechanism over a rule. Never fixes.
 - Dispatch: retro is also suppressed while conduct spawns this pass or is in flight — one reviewer of either kind a pass.
 - No workstream file for retro, as conduct: one word added to AGENTS.md's Handover exemption (scope widened; flag for human).
 - Knobs: dispatch-scoped, in KNOBS and orchestrated.md's table; not in conf-keys.sh/bootstrap (consumers run on defaults).
-- Title emoji 🩺 retro; ledger field `retroed=<stamp>`.
+- Title `retro: <UTC date>`, no emoji, as scout's: the glossary row is pinned by selftest/orchestrated.sh, outside scope. Ledger field `retroed=<stamp>`.
 
 ## Rejected
 
@@ -45,7 +45,7 @@ caught it, files plans preferring a mechanism over a rule. Never fixes.
 - r5: (plan-checker) dry run undefined; Refs vs rule-broken order unstated (fixed: dry run = §2–§3 only; Refs checked first)
 - r6: (plan-checker) "plan-only pull request" contradicts the ledger rows (fixed: plans plus `docs/retro-log.md`)
 - r7: (plan-checker) orchestrate-reference.md spawn table not in scope (fixed)
-- r8: (plan-checker) glossary role-title registry not in scope (fixed)
+- r8: (plan-checker) glossary role-title registry not in scope (fixed: emoji-less title as scout's, glossary untouched)
 - r9: (plan-checker) knob registries: orchestrated.md table not asked; conf-keys.sh, bootstrap absent (fixed: table rows; wontfix: conf-keys.sh and bootstrap, dispatch-scoped defaults apply)
 - r10: (plan-checker) selftest/role.sh role list not in scope (fixed)
 - r11: (plan-checker) output shapes unpinned (fixed: every state line named in the plan)
@@ -56,6 +56,7 @@ caught it, files plans preferring a mechanism over a rule. Never fixes.
 - r16: dry run (sonnet, 195 events): F1 missed FAIL line in window, refs ci-red-legible; F2 edit under ci and F3 pkill self-kill outside the window, secondhand from plan Goals, refs ci-red-legible and guard-one-shot-self-kill; F4 refs selftest-git-budget-per-case, #603. All three Goal failures named, three plans Refs'd, no new plan (no change)
 - r17: dry run: page of 100 overruns tool output; `git show` of the retire commit fails; out-of-window failures need a rule (fixed: retro.md limit 30, `$sha^`, secondhand rule)
 - r18: selftest second alpha commit was a no-op, so the ledger-dedupe refute passed vacuously (fixed: distinct body)
+- r19: shellcheck SC1010 on the fixture's bare `done` argument (fixed: quoted)
 
 ## Blockers
 

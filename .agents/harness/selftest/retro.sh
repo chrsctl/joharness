@@ -78,7 +78,7 @@ expect "retro: the header names the events knob" "200 events each: JOHARNESS_RET
 # Candidates: blocked (unmerged), blocked then done and merged, a loop note.
 rt_ws m/alpha alpha blocked "$(rt_url Alpha1)" '2026-01-10T00:00:00Z'
 rt_ws m/bravo bravo blocked "$(rt_url Bravo2)" '2026-01-10T01:00:00Z'
-rt_ws m/bravo bravo done "$(rt_url Bravo2)" '2026-01-10T02:00:00Z'
+rt_ws m/bravo bravo 'done' "$(rt_url Bravo2)" '2026-01-10T02:00:00Z'
 GIT_COMMITTER_DATE='2026-01-10T03:00:00Z' git -C "$rt_work" merge -q --no-ff -m "merge bravo" m/bravo
 git -C "$rt_work" push -q origin main
 rt_ws m/charlie charlie in-progress "$(rt_url Charlie3)" '2026-01-10T04:00:00Z' \

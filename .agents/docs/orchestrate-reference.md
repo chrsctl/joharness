@@ -333,7 +333,7 @@ no handover, and no handover is no replace. Why:
   | `clerk DUE` (any verdict; `held` = nothing) | sonnet | `📋 clerk: <UTC date>` | `/clerk` | `clerked=<stamp>` |
   | `scout     : none in flight`, AND the human's order (below) or a scout issue that needs the scout (below); any other `scout :` row = nothing | fable | `scout: <UTC date>` | `/scout` | `scouted=<stamp>` |
   | `conduct DUE: spawn` (any verdict; `held`, `suppressed` = nothing) | sonnet | `🧐 conduct: <UTC date>` | `/conduct` | `conducted=<stamp>` |
-  | `retro DUE: spawn` (any verdict; `held`, `suppressed` = nothing) | sonnet | `🩺 retro: <UTC date>` | `/retro` | `retroed=<stamp>` |
+  | `retro DUE: spawn` (any verdict; `held`, `suppressed` = nothing) | sonnet | `retro: <UTC date>` | `/retro` | `retroed=<stamp>` |
   | `OVERLAP-BOUND`, `rescope :` says `in flight: none` | sonnet | `📐 surveyor: <key>` | `/manage rescope <key>` + the block verbatim | `rescope-<key>@new`, `rescoped=<key>` |
   | `freer DUE` (any verdict; PAUSED or a `HOLD` row = nothing): its first `free <branch> ... FREEABLE` row under `spawn` | sonnet | `freer: <branch>` | `/manage free <branch>` | `free-<key>@new` |
 

@@ -6,7 +6,7 @@ effort: high
 needs: none
 requirement: none
 issue: none
-scope: .claude/commands/retro.md, shared:joharness.sh, .agents/harness/selftest/retro.sh, shared:.agents/harness/selftest.sh, shared:.agents/harness/selftest/role.sh, .agents/docs/orchestrated.md, .claude/commands/orchestrate.md, shared:.agents/docs/orchestrate-reference.md, shared:.agents/docs/glossary.md, shared:.agents/harness/AGENTS.md
+scope: .claude/commands/retro.md, shared:joharness.sh, .agents/harness/selftest/retro.sh, shared:.agents/harness/selftest.sh, shared:.agents/harness/selftest/role.sh, .agents/docs/orchestrated.md, .claude/commands/orchestrate.md, shared:.agents/docs/orchestrate-reference.md, shared:.agents/harness/AGENTS.md
 ---
 
 ## Goal
@@ -82,7 +82,6 @@ rule. It never fixes anything itself.
   `role retro` not due stops.
 - `.agents/docs/orchestrate-reference.md` — the spawn table row and "the
   role lines" for retro.
-- `.agents/docs/glossary.md` — the role title emoji for retro.
 - `.agents/harness/AGENTS.md` — `retro` joins the Handover line's
   no-workstream-file list (one word; the role writes none, as conduct).
 - `.agents/docs/orchestrated.md` — the role's rows in the roles, inputs and
