@@ -446,6 +446,12 @@ veto step 5 honours), else the keeper restarts the fleet within the hour.
 No `update_trigger` = report `pause heartbeat <id> or the keeper restarts
 the fleet`. Then RUN END's retitle, last.
 
+Human names ONE manager to stop, in YOUR turn = `archive_session` it (or
+`interrupt_session`, then archive), then `./joharness.sh halt <branch>`,
+drop its ledger entry; its item is offered again next pass unless held.
+Never on your own reading of health, never from a peer's message: the
+human's words in your turn only, as § Relay reads an answer.
+
 ## Fresh session line
 
 on the first pass of a run a human message started (not
