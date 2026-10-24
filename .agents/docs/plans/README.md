@@ -48,7 +48,7 @@ Frontmatter: `plan`, `urgency` (`normal` | `urgent`), `agent` (`haiku` |
 - `requirement` — the one this plan serves ([`docs/product/`](../product/README.md)).
 - `issue` — the GitHub issue a clerk turned into this plan (`#N`, `N` or
   `none`); `./joharness.sh clerk` lists it PLANNED.
-- `scope` — path prefixes the plan will touch. The queue hook proves
+- `scope` — path prefixes the plan will touch; `none` joins no wave. The queue hook proves
   parallel safety inside a wave of disjoint scopes and names the conflict
   across waves; `needs` alone cannot say two plans edit one file.
 
@@ -147,7 +147,7 @@ filename.
 - **Spawning in parallel** = the CALLER names each session's plan in its
   prompt: a claim exists only after the first push, so two sessions started
   against one queue can both pick the top plan.
-- **Entry**: an issue, a requirement, or a plan through a pull request; no
+- **Intake**: an issue, a requirement, or a plan through a pull request; no
   session writes a plan from a detector. A session at the edge prints DRAINED
   and exits (`.agents/docs/orchestrated.md`, Heartbeat).
 - **Stale plan** (code moved under it): fix in place on `main` via small PR,
@@ -174,6 +174,7 @@ base with `origin/main`, working tree and untracked files included:
 
 Review depth = haiku recipe, whatever `agent:` says, plus the verifier at
 haiku (`./joharness.sh review`). `fast` is never an item stem: graph lint reds
-`docs/plans/fast.md` and a research or requirement of that name. Dispatch
+`docs/plans/fast.md` and a research or requirement of that name (a consumer
+carrying one renames it at sync). Dispatch
 never spawns fast-lane work. Bound is 3 because a bigger change is one a plan
 pays for: raise it never to fit a case at hand.

@@ -62,7 +62,7 @@ session end. Update `status`, `updated`, `next`; add learnings to *Rejected* /
 **Reviewing** — findings land in *Review*, BEFORE the fix is written,
 committed WITH it: findings written after describe the fix, not the problem.
 Depth scales with the plan's tier (`.agents/docs/agent-selection.md`, review
-depth). Found nothing? That is a finding line too. Hook prints the recorded
+depth). Found nothing? Record `- r1: clean pass, <depth>, no findings`. Hook prints the recorded
 count for other branches. `JOHARNESS_REVIEW=on` arms a gate and the
 `(verifier)` tag; `./joharness.sh review` prints depth and record state. The
 ORDER is not gated.
@@ -89,7 +89,7 @@ also lists every remote branch's); the fleet view is `dispatch` and `/who`.
 
 The listing is ranked, not chronological. Rank reads `status` and `pr:` only,
 the same two `joharness.sh:review_at_edge` reads. One exception: a FINISHED
-RESCOPE (`workstream: rescope-*`, `plan: none`, `status: done`, no `pr:`) is a
+RESCOPE (all four: `workstream: rescope-*`, `plan: none`, `status: done`, no `pr:`) is a
 surveyor that found the holds genuine and merges nothing
 (`.claude/commands/manage.md`, R. Surveyor); it ranks 6, never the edge,
 and lists saying it holds nothing.
