@@ -53,16 +53,12 @@ discipline fails exactly when someone hurries.
   never justify a graph store.
 - No stored graph, no auto-extraction, no embeddings. Derived state =
   second copy, rots (derivability rule, `.agents/docs/handover/README.md`).
-- No datastore for the work queue either. Storing every work item as a row
-  and every action with an actor buys queries but costs a database, a daemon and
-  a CLI in every repo that runs the harness. Shell plus markdown travels with
-  a clone, a runner or CI, nothing installed. Re-open only for a question
-  files cannot answer.
+- No datastore for the work queue: shell plus markdown travels with a clone,
+  a runner or CI, nothing installed. Re-open only for a question files cannot
+  answer.
 - A harness that lives in the repo has no long-running service of its own:
   only the orchestrator and the heartbeat (`.agents/docs/orchestrated.md`)
-  watch, nudge and schedule. It travels everywhere instead, CI included. Neither side of that trade is more correct. Know
-  which side a mechanism assumes before importing it from a system built on
-  the other one.
+  watch, nudge and schedule.
 - Fusion manual: graduation ritual, human-reviewed. Wrong merge worse than
   missed merge.
 - Provenance = commits. Never hand-write time or source into a file.
@@ -72,8 +68,7 @@ discipline fails exactly when someone hurries.
 
 ## Serving
 
-SessionStart hook = retrieval. Injects the 1-hop neighborhood — this
-branch's workstream, overlap warnings — and prints `git show` commands as
-edge traversals. The queue is not printed: a manager gets its item in the
-prompt, the orchestrator reads `dispatch`. Instructions get skimmed;
-injected context is already in window.
+SessionStart hook = retrieval: injects the 1-hop neighborhood (this branch's
+workstream, overlap warnings) and prints `git show` commands as edge
+traversals. The queue is not printed: a manager gets its item in the prompt,
+the orchestrator reads `dispatch`.
