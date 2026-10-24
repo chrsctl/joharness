@@ -39,6 +39,7 @@ merges.
 - r4: fixture state after the case matches what later cases expect (verifier) (no change)
 - r5: reference did not say how to find the retire commit (verifier) (fixed)
 - r6: `next:` carried no question (verifier) (fixed)
+- r8: shellcheck SC2016 on the two literal needles (fixed)
 - r7: lint warns the restored claim's plan is gone from the tree; it is a warning, and dispatch reads the row as blocked (verifier) (no change)
 
 ## Blockers

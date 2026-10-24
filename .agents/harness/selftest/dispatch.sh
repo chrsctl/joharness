@@ -694,8 +694,10 @@ expect "so the count does not move for it" "slots     : 3 of 8 free" "$out"
 # so the cases below read the branch as they did.
 # The reference's own commands, so the case runs the procedure as written.
 lbl="$(sed -n '/^## Label at merge/,/^## /p' "${ROOT}/.agents/docs/manage-reference.md")"
+# shellcheck disable=SC2016  # literal text the reference prints
 expect "the reference finds the retire commit by the file's deletion" \
   'c="$(git log -1 --format=%H --diff-filter=D -- docs/handover/<file>)"' "$lbl"
+# shellcheck disable=SC2016  # literal text the reference prints
 expect "and restores the file from its parent" \
   'git checkout "$c^" -- docs/handover/<file>' "$lbl"
 git -C "$dspwork" checkout -q mgr-eta
