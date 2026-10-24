@@ -404,7 +404,8 @@ The rules that bind every session.
   reviewer's `approved` comment, newer than the scout's newest footed
   `scout:` comment; closing the issue declines it.
 - **`human-review` label.** An agent applies it when it blocks on a human (never a `defect:` block),
-  and to the `human/<stem>` pull request holding its plan's human remainder
+  after a clerk HUMAN verdict or a clerk NARROWER verdict with a human
+  remainder, and to the `human/<stem>` pull request holding its plan's human remainder
   (`.agents/docs/plans/README.md`, "A human remainder"); a human applies it
   to hold an issue or pull request. It stops the clerk
   planning that issue and any session merging that pull request. Only a human

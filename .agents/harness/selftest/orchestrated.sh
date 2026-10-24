@@ -766,6 +766,16 @@ expect "and only one newer than the question" \
   "number \`N\` (whitespace and trailing punctuation ignored), newer than the" "$clerktext"
 expect "and the comment says the label must come off" \
   "so the next pass reads it" "$clerktext"
+expect "a clerk NARROWER verdict with a human remainder applies human-review" \
+  "apply \`human-review\` to the issue (visibility only" "$clerktext"
+expect "and gives numbered options for the part needing a human" \
+  "sorting each part not planned into one of two kinds" "$clerktext"
+expect "and a numbered answer covers a NARROWER comment" \
+  "\`clerk: HUMAN\` or \`clerk: NARROWER\` comment carrying numbered options," "$clerktext"
+expect "and the plan carries an Issue remainder section" \
+  "the plan carries a" "$clerktext"
+expect "and an Issue remainder plan says Refs, never Closes" \
+  "carries \`Refs #N\`, never \`Closes #N\`" "$mgrreftext"
 expect "a remainder needing the branch's files waits for it" \
   "merge after <your branch> lands on main" "$mgrreftext"
 expect "and an unlabelled remainder pull request blocks the retire" \
