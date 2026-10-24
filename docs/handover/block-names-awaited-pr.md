@@ -42,7 +42,7 @@ resumable once `origin/main` shows that PR merged (issue #596).
 - r10: (verifier) a merge older than the block resumes it, so a re-block on the same #N loops unbounded on nudges (fixed: merge commit must be dated no earlier than the block; unknown block age reads false)
 - r11: (verifier) `--grep` matched a body line, and any head branch counted (fixed: subject only, head must be `<owner>/human/`)
 - r12: (verifier) manage.md "the one block respawned" false beside defect RESUME (fixed: "the one human's block respawned")
-- r13: (verifier) a resumed item whose own PR carries `human-review` from the block still needs a second human touch at finish (wontfix: the label rule is Loop's, `.agents/harness/AGENTS.md`, outside this plan's scope; sent as a lead)
+- r13: (verifier) a resumed item whose own PR carries `human-review` from the block still needs a second human touch at finish (wontfix: the label rule is Loop's, `.agents/harness/AGENTS.md`, outside this plan's scope; named in the PR body)
 - r14: (verifier) no cases for the slot-wait MERGED row, merge-before-block, body match (fixed: four cases; each new refute FAILs against the previous commit's joharness.sh)
 
 ## Blockers
