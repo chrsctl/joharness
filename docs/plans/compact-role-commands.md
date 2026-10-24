@@ -38,13 +38,13 @@ Target: 1150 lines or fewer. Per-file targets below. Not listed there: conduct a
   - Cut the §3/§4 WAITING and staling restatements and the footer rule down to the pointers scout.md already carries: orchestrate-reference "A scout issue needs the scout" (WAITING) and clerk.md §2 (footer rule).
   - Make the §0 STOP enumeration a pointer at `role scout` output, keeping the actions it does not print (`TWIN: deferred`, never pull and push again, never both go on).
   - Status quo cut: "so the login never says whose it is". Keep "Known limit: another session…": it is a current limit.
-- `.claude/commands/conduct.md`: compress the §0.1 STOP list. `retro.md` has none. Status quo cuts: "Git cannot see it past the drop window", "(a page of 100 overruns…)".
+- `.claude/commands/conduct.md`: compress the §0.1 STOP list (`retro.md` has none). Status quo cuts: "Git cannot see it past the drop window" (conduct.md), "(a page of 100 overruns…)" (retro.md).
 - `.claude/commands/curate.md`: delete "that multiplies the queue" and "priority is the human's".
 - `.claude/commands/upstream-report.md` (95 → about 65):
   - Compress §1 toward a pointer at feedback.md, keeping what feedback.md lacks: the handling of the two doubts `upstream` prints and "Neither enters a report on its own".
   - Delete the "A child repo DETECTS…" paragraph and the rationale clauses in Never.
 - `.claude/commands/plan.md` (49 → about 33): keep the allowed-values list. Point at `.agents/docs/plans/README.md` Shape only for explanations Shape states; keep the key rules with no other home (xhigh for a Part 2 prohibition, fake edge, requirement-file deletion, `none` only when unknowable).
-- `.claude/commands/handover.md`: point Review form at `.agents/docs/handover/README.md` (Reviewing, which holds "written BEFORE its fix") and retire text at Loop 7.
+- `.claude/commands/handover.md`: point Review form at Loop 5, keeping "written BEFORE its fix" in handover.md (its other homes are being cut), and retire text at Loop 7.
 - `.claude/commands/who.md`: delete the tool-name history parenthetical.
 
 ## Assumptions

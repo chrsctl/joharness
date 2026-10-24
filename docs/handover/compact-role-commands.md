@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01MxsnXk5U4DRcTvfd8urrBK
 agent: opus
 updated: 2026-10-24
-next: Fan out workers on clerk/scout, conduct/retro/curate, upstream-report/plan/handover/who; then ci + verify
+next: Workers on the nine other files running; then deeper manage.md and manage-reference.md cuts, ci, verify
 ---
 
 ## Goal
@@ -46,6 +46,14 @@ history, behaviour unchanged.
 - r14: (plan-checker) retro.md has no STOP list (fixed: plan says conduct only)
 - r15: (plan-checker) two Acceptance lines are not runnable (wontfix: PR-body list is checked at review; SHIPS consumer line is the standard consumer criterion)
 - r16: (plan-checker) A3 lists no needles (fixed: covered by r2)
+- r17: (plan-checker) handover.md Review pointer target is cut by sibling compact-queue-docs (fixed: plan keeps "written BEFORE its fix" in handover.md)
+- r18: (plan-checker) manage.md §3 label line lost "not a `defect:` block" (fixed in manage.md)
+- r19: (plan-checker) manage.md + manage-reference.md at 184+167 leave the 1150 bound unreachable (fixed: deeper cuts in the build)
+- r20: (plan-checker) "page of 100" quote is retro.md's, not conduct.md's (fixed: plan names the file per quote)
+- r21: (plan-checker) plan's "ref § Free states" was false on a1f5af79 (no change: branch edit adds the restore clause to § Free)
+- r22: (plan-checker) "(curate.md 0.4)" citation in joharness.sh dangles (wontfix: predates this plan; code is out of scope)
+- r23: (plan-checker) Acceptance lines do not say what failure looks like (wontfix: each comment states the one passing output; anything else fails)
+
 ## Blockers
 
 None.

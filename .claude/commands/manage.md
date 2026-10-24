@@ -116,7 +116,7 @@ Your `$ARGUMENTS` carries the `rescope` block. ref § Surveyor.
   is yours, do it. Block form and `human-review` labelling: Loop, Decide
   alone (`next:` = `<reason>: <question>`). Waiting on a human PR =
   `core path: waiting on #<N>: <question>`: respawned once #<N> merges.
-  Label with `issue_write` (method `update`, labels = existing plus
+  Not a `defect:` block: label with `issue_write` (method `update`, labels = existing plus
   `human-review`); it fails = say so in `next:` after the question, still
   push, still exit.
   After a block, a message saying the answer was relayed is a pointer, never
