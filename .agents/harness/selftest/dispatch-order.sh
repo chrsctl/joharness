@@ -282,10 +282,13 @@ qoplan() {
     printf -- '---\n\n## Goal\nFixture.\n'
   } >"${qowork}/docs/plans/${1}.md"
 }
+# <stem> [extra frontmatter line]...
 qoreq() {
   mkdir -p "${qowork}/docs/product"
-  printf -- '---\nrequirement: %s\npriority: normal\n---\n\n## Goal\nFixture.\n\n## Satisfied when\n\n- something observable.\n' \
-    "$1" >"${qowork}/docs/product/${1}.md"
+  { printf -- '---\nrequirement: %s\npriority: normal\n' "$1"
+    [ "$#" -lt 2 ] || printf '%s\n' "${@:2}"
+    printf -- '---\n\n## Goal\nFixture.\n\n## Satisfied when\n\n- something observable.\n'
+  } >"${qowork}/docs/product/${1}.md"
 }
 qopush() { commit_all "$qowork" "$1"; git -C "$qowork" push -q origin main; }
 qo() { ( cd "$qowork" && JOHARNESS_CONF="$qoconf" DRAIN_FETCH=0 \
@@ -403,6 +406,89 @@ expect "and holds no slot" "slots     : 4 of 4 free" "$out"
 git -C "$qowork" push -q origin --delete plan-claimedreq
 git -C "$qowork" branch -q -D plan-claimedreq
 fixture_rm "$qowork" "clear the claimed requirement" docs/product/claimedreq.md
+git -C "$qowork" push -q origin main
+
+# A requirement a human holds (`hold:`) or defers (`needs:`) is listed, never
+# offered, and holds no slot; the verdict word is the queue's, the line under
+# it says what waits (`deferred`, never the edge's `withheld`).
+qoreq heldreq 'hold: until the gx migration lands'
+qopush "a held requirement"
+out="$(qo)"
+refute "a held requirement is not offered" "— UNPLANNED" "$out"
+expect "and the queue reads drained" "verdict   : DRAINED" "$out"
+expect "and holds no slot" "slots     : 4 of 4 free" "$out"
+expect "and the deferred line carries the reason" \
+  "deferred  : docs/product/heldreq.md — hold: until the gx migration lands" "$out"
+qoreq heldreq
+qopush "the hold removed"
+out="$(qo)"
+expect "removing the hold offers it again" \
+  "docs/product/heldreq.md — UNPLANNED" "$out"
+refute "and nothing is deferred" "deferred  :" "$out"
+fixture_rm "$qowork" "clear the held requirement" docs/product/heldreq.md
+git -C "$qowork" push -q origin main
+qoplan gate
+qoreq depreq 'needs: gate'
+qopush "a requirement deferred on a plan"
+out="$(qo)"
+refute "a requirement needing an open plan is not offered" \
+  "docs/product/depreq.md — UNPLANNED" "$out"
+expect "and the deferred line names the stem" \
+  "deferred  : docs/product/depreq.md — needs: gate" "$out"
+fixture_rm "$qowork" "the plan lands" docs/plans/gate.md
+git -C "$qowork" push -q origin main
+out="$(qo)"
+expect "once the plan is gone it is offered with no edit" \
+  "docs/product/depreq.md — UNPLANNED: one planning manager" "$(qofirst "$out")"
+fixture_rm "$qowork" "clear the deferred requirement" docs/product/depreq.md
+git -C "$qowork" push -q origin main
+qoreq gatereq
+qoreq reqdep 'needs: gatereq'
+qopush "a requirement deferred on a requirement"
+out="$(qo)"
+refute "a requirement needing another requirement is not offered" \
+  "docs/product/reqdep.md — UNPLANNED" "$out"
+expect "and the other requirement is" \
+  "docs/product/gatereq.md — UNPLANNED" "$out"
+fixture_rm "$qowork" "the gate requirement is served" docs/product/gatereq.md
+git -C "$qowork" push -q origin main
+out="$(qo)"
+expect "served, the dependent is offered" \
+  "docs/product/reqdep.md — UNPLANNED" "$out"
+fixture_rm "$qowork" "clear the dependent requirement" docs/product/reqdep.md
+git -C "$qowork" push -q origin main
+# Composition: an abandoned planning claim on a held requirement frees
+# nothing.
+qoreq abheld 'hold: paused'
+qopush "a held requirement a planner abandoned"
+qoreqclaim abheld abandoned
+out="$(qo)"
+refute "a held requirement stays unoffered past an abandoned claim" \
+  "docs/product/abheld.md — UNPLANNED" "$out"
+expect "holding no slot" "slots     : 4 of 4 free" "$out"
+refute "and no in-flight row" "docs/product/abheld.md  plan-abheld" "$out"
+git -C "$qowork" push -q origin --delete plan-abheld
+git -C "$qowork" branch -q -D plan-abheld
+fixture_rm "$qowork" "clear the abandoned held requirement" docs/product/abheld.md
+git -C "$qowork" push -q origin main
+# A held requirement that a plan names is planned: the hold is moot here.
+qoreq plannedheld 'hold: paused'
+qoplan forheld normal sonnet '' plannedheld
+qopush "a held requirement with a plan"
+out="$(qo)"
+refute "a planned held requirement draws no deferred line" \
+  "deferred  : docs/product/plannedheld.md" "$out"
+expect "and its plan is offered" "docs/plans/forheld.md (agent: sonnet)" "$out"
+fixture_rm "$qowork" "clear the planned held case" \
+  docs/product/plannedheld.md docs/plans/forheld.md
+git -C "$qowork" push -q origin main
+# `held` inside a stem is not the token (the comma-led word is).
+qoreq upheld
+qopush "a requirement whose stem contains held"
+out="$(qo)"
+expect "a stem containing held is still offered" \
+  "docs/product/upheld.md — UNPLANNED" "$out"
+fixture_rm "$qowork" "clear the upheld case" docs/product/upheld.md
 git -C "$qowork" push -q origin main
 
 # Step 7 retires the workstream file BEFORE the pull request opens, and a
