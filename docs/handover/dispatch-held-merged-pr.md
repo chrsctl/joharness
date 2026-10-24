@@ -1,6 +1,6 @@
 ---
 workstream: dispatch-held-merged-pr
-status: in-progress
+status: blocked
 branch: manage/dispatch-held-merged-pr
 pr: none
 plan: dispatch-held-merged-pr
@@ -8,7 +8,7 @@ issue: 594
 session: https://claude.ai/code/session_01GjKnsgJV4qubTD63CuMiH7
 agent: sonnet
 updated: 2026-10-24
-next: ci red only on selftest git-exec budget (89316 vs 88960 on branch); compare with baseline origin/main ci in /tmp/basewt (task bnq6q169b); trim fixture or justify budget bump, then verify, verifier review, retire, PR
+next: defect: #603: ci red on origin/main, selftest git execs 89189 over budget 88960; item code+selftest done on branch
 ---
 
 ## Goal
@@ -23,7 +23,8 @@ next: ci red only on selftest git-exec budget (89316 vs 88960 on branch); compar
 
 ## Blockers
 
-None.
+ci reds only on the selftest git-exec budget, reproduced on origin/main 202a48ca (89189 vs 88960); branch adds 127 (89316). Filed #603. Resume once main is green or the budget is raised.
+
 
 ## Where to look
 
