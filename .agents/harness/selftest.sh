@@ -601,6 +601,7 @@ SELFTEST_TOPICS=(
   ci-graph-lint
   clerk
   role
+  retro
   ci-ship-scope
   assumptions-lint
   authority
