@@ -197,10 +197,12 @@ after merged PR #n` (a `Merge pull request #n from` commit on the base's first
 parent, tip ahead of the base), and, for `status: done`, `plan gone from
 <base>` when the base deleted the `plan:` file, unless the branch still
 carries that file atop the delete (a new plan of an old stem).
-Neither closes a claim; releasing one stays the janitor's.
+Neither closes a claim; releasing one stays the janitor's or a human's
+(`halt`).
 
 `abandoned` is written only by `./joharness.sh janitor --apply`, on a branch
-whose session is ARCHIVED or not found. The claim is released (plan free,
+whose session is ARCHIVED or not found, and by `./joharness.sh halt`, on a
+human's order, same word, same effect. The claim is released (plan free,
 scope holds nothing); the file stays; a returning session sets the word back.
 Not `blocked`: a block is owed an answer.
 

@@ -27,10 +27,13 @@
 #   janitor [--apply <branch>...]
 #                   stale claims whose session may be gone; --apply releases
 #                   the named ones (session proven gone) on their own branch
+#   halt <branch>...
+#                   a human's order: release the named claims at any age, pr:
+#                   or not, through guard and the lease. git only
 #   free <branch>   merge a doc-only branch whose author is gone into this
 #                   claimed branch: drops its workstream files and done plans,
 #                   curate --apply, ci, commit. Never pushes
-#   guard janitor|kill|loop <branch> [--expect <sha>]
+#   guard janitor|kill|loop|halt <branch> [--expect <sha>]
 #                   re-read live state right before a harness push onto a
 #                   branch the session does not own. Report-only; non-zero =
 #                   refused, do not push
@@ -2960,8 +2963,8 @@ guard_workstreams() {
 cmd_guard() {
   local verb="${1:-}" branch="${2:-}" expect="" base_branch="${HANDOVER_BASE_BRANCH:-main}"
   local live rc f doc pr s_was t_was s_now t_now files raw=""
-  local usage="usage: $0 guard janitor|kill|loop <branch> [--expect <sha>]"
-  case "$verb" in janitor | kill | loop) ;; *) die "$usage" ;; esac
+  local usage="usage: $0 guard janitor|kill|loop|halt <branch> [--expect <sha>]"
+  case "$verb" in janitor | kill | loop | halt) ;; *) die "$usage" ;; esac
   [ -n "$branch" ] || die "$usage"
   shift 2
   if [ "$#" -gt 0 ]; then
@@ -3027,7 +3030,7 @@ cmd_guard() {
 
   # 5. A claim at the edge (pr: set) is never released. kill/loop skip it: a
   # stalled manager with an open pull request stays killable, and its record
-  # is a handover, not a release.
+  # is a handover, not a release. halt skips it: a human's order, any claim.
   if [ "$verb" = janitor ]; then
     while IFS= read -r f; do
       [ -n "$f" ] || continue
@@ -3043,6 +3046,25 @@ cmd_guard() {
   fi
   printf 'guard     : pass — %s may push %s onto %s\n' "$verb" "${live:0:12}" "$branch"
   return 0
+}
+
+# A branch whose own joharness.sh predates `abandoned` reds `ci` on the word
+# (#279); a release says why on the line it reads first.
+release_why() {
+  printf '%s\n' "ci reds on status 'abandoned' (not one of: ...) until this branch reconciles with its base; that reconcile clears it"
+}
+
+# stdin -> stdout: a workstream file with `status: abandoned` and `next: <$1>`
+# in its frontmatter, written in when absent. No frontmatter = unchanged.
+release_rewrite() {
+  awk -v n="$1" '
+    NR == 1 && $0 == "---" { fm = 1; print; next }
+    fm && $0 == "---" { if (!ss) print "status: abandoned"
+                        if (!ns) print "next: " n
+                        fm = 0; print; next }
+    fm && /^status:/ { print "status: abandoned"; ss = 1; next }
+    fm && /^next:/   { print "next: " n; ns = 1; next }
+    { print }'
 }
 
 # Release named claims: write `status: abandoned` into each candidate claim on
@@ -3063,9 +3085,7 @@ janitor_apply() {
   done
   cands="$(janitor_candidates)"
   today="$(date -u +%Y-%m-%d)"
-  # A branch whose own joharness.sh predates `abandoned` reds `ci` on the word
-  # (#279); say why on the line it reads first.
-  why="ci reds on status 'abandoned' (not one of: ...) until this branch reconciles with its base; that reconcile clears it"
+  why="$(release_why)"
   for want in "$@"; do
     tip="$(git -C "$ROOT" rev-parse -q --verify "refs/remotes/origin/${want}^{commit}" 2>/dev/null)" || {
       printf 'skip      : %s — no such branch on origin\n' "$want"; rc=1; continue; }
@@ -3077,7 +3097,7 @@ janitor_apply() {
       0) ;;
       2) # Released already. Drop the local ref a narrow refspec never prunes,
          # or every dispatch names the branch again. Local only.
-         git -C "$ROOT" update-ref -d "refs/remotes/origin/${want}" 2>/dev/null || :
+         git -C "$ROOT" update-ref --no-deref -d "refs/remotes/origin/${want}" 2>/dev/null || :
          continue ;;
       *) printf 'skip      : %s — guard refused; nothing released\n' "$want"
          rc=1; continue ;;
@@ -3088,14 +3108,9 @@ janitor_apply() {
     while IFS=$'\t' read -r b path; do
       [ "$b" = "$want" ] || continue
       blob="$(git -C "$ROOT" show "${tip}:${path}" 2>/dev/null)" || continue
-      newblob="$(printf '%s\n' "$blob" | awk -v d="$today" -v w="$why" '
-        NR == 1 && $0 == "---" { fm = 1; print; next }
-        fm && $0 == "---" { if (!ss) print "status: abandoned"
-                            if (!ns) print "next: Pick this up from the plan; the claim was released " d "; " w
-                            fm = 0; print; next }
-        fm && /^status:/ { print "status: abandoned"; ss = 1; next }
-        fm && /^next:/   { print "next: Pick this up from the plan; the claim was released " d "; " w; ns = 1; next }
-        { print }' | git -C "$ROOT" hash-object -w --stdin)" || continue
+      newblob="$(printf '%s\n' "$blob" |
+        release_rewrite "Pick this up from the plan; the claim was released ${today}; ${why}" |
+        git -C "$ROOT" hash-object -w --stdin)" || continue
       # No frontmatter the awk can read (none, unterminated, CRLF): an
       # identical blob would push a release that releases nothing.
       if [ "$newblob" = "$(printf '%s\n' "$blob" | git -C "$ROOT" hash-object --stdin)" ]; then
@@ -3123,6 +3138,121 @@ janitor_apply() {
       rc=1
     fi
   done
+  return "$rc"
+}
+
+# `halt <branch>...`: a human's order, released by the harness. Writes
+# `status: abandoned` through guard and the lease at any age, `pr:` or not; an
+# edge branch (no workstream file in its diff) gets its own retired record
+# back. git only: the session and any pull request are not this command's.
+cmd_halt() {
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" want tip base files own c cand
+  local path src blob newblob idx tree commit today next n done_n wrote=0 rc=0
+  [ "$#" -gt 0 ] || die "usage: $0 halt <branch>... (a human's order; never a session's judgement)"
+  git -C "$ROOT" fetch -q origin \
+    "+refs/heads/${base_branch}:refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null ||
+    warn "fetch failed; using the last fetched refs"
+  # The decision read, per named branch (as janitor_apply): a gone branch fails
+  # this fetch and keeps its stale ref for guard to call gone.
+  for want in "$@"; do
+    git -C "$ROOT" fetch -q origin "+refs/heads/${want}:refs/remotes/origin/${want}" \
+      </dev/null 2>/dev/null || :
+  done
+  today="$(date -u +%Y-%m-%d)"
+  next="Halted by a human ${today}: the claim is released; pick this up from the plan; $(release_why)"
+  for want in "$@"; do
+    tip="$(git -C "$ROOT" rev-parse -q --verify "refs/remotes/origin/${want}^{commit}" 2>/dev/null)" || {
+      printf 'skip      : %s — no such branch on origin\n' "$want"; rc=1; continue; }
+    cmd_guard halt "$want" --expect "$tip"
+    case $? in
+      0) ;;
+      2) printf 'skip      : %s — gone on origin\n' "$want"
+         git -C "$ROOT" update-ref --no-deref -d "refs/remotes/origin/${want}" 2>/dev/null || :
+         continue ;;
+      *) printf 'skip      : %s — guard refused; nothing released\n' "$want"
+         rc=1; continue ;;
+    esac
+    # `<path>\t<rev:path>`: what to write, from where.
+    files="$(guard_workstreams "$tip" | awk -v t="$tip" '{ print $0 "\t" t ":" $0 }')"
+    if [ -z "$files" ]; then
+      # At the edge: the newest record this branch's own first-parent commits
+      # both added and deleted, as dispatch_retired_edges reads it; else the
+      # base's record the branch deleted.
+      base="$(git -C "$ROOT" merge-base "$tip" "refs/remotes/origin/${base_branch}" \
+        </dev/null 2>/dev/null)" || base=""
+      if [ -n "$base" ]; then
+        own="$(git -C "$ROOT" log --first-parent --no-merges --format= \
+          --name-only --diff-filter=A "${base}..${tip}" -- docs/handover \
+          2>/dev/null | gr_docs | sort -u)"
+        [ -z "$own" ] || files="$(git -C "$ROOT" log --first-parent --no-merges \
+            --format='@%H' --name-only \
+            --diff-filter=D "${base}..${tip}" -- docs/handover 2>/dev/null |
+          { c=""
+            while IFS= read -r cand; do
+              case "$cand" in
+                '') continue ;;
+                @*) c="${cand#@}"; continue ;;
+              esac
+              [ -n "$c" ] || continue
+              printf '%s\n' "$cand" | gr_docs | grep -q . || continue
+              printf '%s\n' "$own" | grep -qxF -- "$cand" || continue
+              printf '%s\t%s^:%s\n' "$cand" "$c" "$cand"
+              break
+            done; })"
+        [ -n "$files" ] || files="$(git -C "$ROOT" diff --name-only --diff-filter=D \
+            "$base" "$tip" -- docs/handover 2>/dev/null | gr_docs | head -1 |
+          awk -v b="$base" '{ print $0 "\t" b ":" $0 }')"
+      fi
+    fi
+    if [ -z "$files" ]; then
+      printf 'skip      : %s — no workstream file to release; nothing written\n' "$want"
+      rc=1; continue
+    fi
+    idx="$(mktemp)"
+    GIT_INDEX_FILE="$idx" git -C "$ROOT" read-tree "$tip" || { rm -f "$idx"; rc=1; continue; }
+    n=0; done_n=0
+    while IFS=$'\t' read -r path src; do
+      [ -n "$path" ] || continue
+      blob="$(git -C "$ROOT" show "$src" 2>/dev/null)" || continue
+      newblob="$(printf '%s\n' "$blob" | release_rewrite "$next" |
+        git -C "$ROOT" hash-object -w --stdin)" || continue
+      # An identical blob releases nothing: halted already today (still on the
+      # tip), or no frontmatter the awk can read.
+      if [ "$newblob" = "$(printf '%s\n' "$blob" | git -C "$ROOT" hash-object --stdin)" ]; then
+        if [ "$src" = "${tip}:${path}" ] &&
+           [ "$(printf '%s\n' "$blob" | gr_field status)" = abandoned ]; then
+          printf 'skip      : %s  %s — already released; nothing to write\n' "$want" "$path"
+          done_n=$((done_n + 1))
+        else
+          printf 'skip      : %s  %s — no frontmatter to write status: abandoned into; release it by hand\n' "$want" "$path"
+        fi
+        continue
+      fi
+      GIT_INDEX_FILE="$idx" git -C "$ROOT" update-index --add --cacheinfo "100644,${newblob},${path}" || continue
+      n=$((n + 1))
+      printf 'release   : %s  %s\n' "$want" "$path"
+    done <<<"$files"
+    if [ "$n" -eq 0 ]; then
+      rm -f "$idx"
+      [ "$done_n" -gt 0 ] && continue
+      printf 'skip      : %s — no workstream file to release; nothing written\n' "$want"
+      rc=1; continue
+    fi
+    tree="$(GIT_INDEX_FILE="$idx" git -C "$ROOT" write-tree)"
+    rm -f "$idx"
+    commit="$(git -C "$ROOT" commit-tree "$tree" -p "$tip" \
+      -m "halt: a human released the claim (${today})")" || { rc=1; continue; }
+    # The lease refuses a branch deleted or moved since the guard read.
+    if git -C "$ROOT" push -q --force-with-lease="refs/heads/${want}:${tip}" \
+      origin "${commit}:refs/heads/${want}" 2>/dev/null; then
+      printf 'pushed    : %s %s\n' "$want" "${commit:0:12}"
+      wrote=1
+    else
+      printf 'FAILED    : %s — push refused (the branch moved?); nothing released\n' "$want"
+      rc=1
+    fi
+  done
+  [ "$wrote" -eq 1 ] && printf 'the session is the control plane'"'"'s to stop and an open pull request is the human'"'"'s to close: halt wrote git only\n'
   return "$rc"
 }
 
@@ -4334,8 +4464,8 @@ retro_landed_ts() {
 
 # Sessions that did not come back clean, from git only: a workstream-file
 # commit on any origin branch, merged or not, whose file then read `status:
-# blocked` or `status: abandoned` (the janitor: session gone) — that
-# session — or whose `## Blockers` opens a line with a kill note — the
+# blocked` or `status: abandoned` (the janitor: session gone; halt: a human
+# stopped it) — that session — or whose `## Blockers` opens a line with a kill note — the
 # session the file named when the note FIRST appeared, never a successor
 # that inherited it. A session that never blocked, was never abandoned and
 # never killed is never sampled, however it ended. Role sessions (a dated
@@ -8775,6 +8905,7 @@ main() {
     upstream)       cmd_upstream "$@" ;;
     analysis)       cmd_analysis "$@" ;;
     janitor)        cmd_janitor "$@" ;;
+    halt)           cmd_halt "$@" ;;
     free)           cmd_free "$@" ;;
     guard)          cmd_guard "$@" ;;
     scout)          cmd_scout "$@" ;;

@@ -592,6 +592,7 @@ SELFTEST_TOPICS=(
   retired-ledger
   analysis
   janitor
+  halt
   free
   guard
   scout
