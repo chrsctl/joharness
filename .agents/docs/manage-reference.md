@@ -33,9 +33,10 @@ opened before the retire commit, ready for a human to merge:
 1. A separate worktree from fresh-fetched `origin/main`, never your own
    tree: `git worktree add -b human/<stem> ../<repo>-human origin/main`.
 2. There, commit ONLY the core-path edit, run `./joharness.sh ci`, push
-   `human/<stem>`. `ci` red only because the edit needs a file your branch
-   adds = the body leads with `merge after <your branch> lands on main`;
-   red for any other reason = fix it there first. This commit is the one exception to the boundary (Loop
+   `human/<stem>`. The edit needs a file your branch adds (`ci` red), or renames
+   or moves a path the tree still uses (`ci` may pass) = the body leads with
+   `merge after <your branch> lands on main`, naming that branch; `ci` red
+   for any other reason = fix it there first. This commit is the one exception to the boundary (Loop
    step 2) and to a spawn prompt's "never commit under those paths": it
    never lands on your branch, and a human merges it.
 3. `create_pull_request` from `human/<stem>`: title `human: <stem>: <edit,
