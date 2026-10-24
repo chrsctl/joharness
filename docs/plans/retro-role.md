@@ -6,7 +6,7 @@ effort: high
 needs: none
 requirement: none
 issue: none
-scope: .claude/commands/retro.md, shared:joharness.sh, .agents/harness/selftest/retro.sh, shared:.agents/harness/selftest.sh, shared:.agents/harness/selftest/role.sh, .agents/docs/orchestrated.md, .claude/commands/orchestrate.md, shared:.agents/docs/orchestrate-reference.md, shared:.agents/harness/AGENTS.md
+scope: .claude/commands/retro.md, shared:joharness.sh, .agents/harness/selftest/retro.sh, shared:.agents/harness/selftest.sh, shared:.agents/harness/selftest/role.sh, .agents/docs/orchestrated.md, .claude/commands/orchestrate.md, shared:.agents/docs/orchestrate-reference.md, shared:.agents/harness/AGENTS.md, shared:.agents/docs/glossary.md, shared:.agents/harness/selftest/orchestrated.sh
 ---
 
 ## Goal
@@ -64,7 +64,8 @@ rule. It never fixes anything itself.
     a workstream commit on any branch, merged or not, whose `status:` was
     `blocked` or `abandoned`, or whose `## Blockers` opens a line with the
     orchestrator's kill note (`Looped, killed by the orchestrator`, `Killed
-    by the orchestrator`). A clean merge never qualifies. No time window: a
+    by the orchestrator`), for the session the note first named. A manager
+    that never did any of these never qualifies; role sessions never. No time window: a
     session the ledger names is skipped. A `session:` that is not a session
     URL, or a `branch:` that is not a plain ref name, is skipped.
   - **Prints** `retro DUE: spawn ONE retro reviewer`, `retro : not due …`,
@@ -84,6 +85,8 @@ rule. It never fixes anything itself.
   `role retro` not due stops.
 - `.agents/docs/orchestrate-reference.md` — the spawn table row and "the
   role lines" for retro.
+- `.agents/docs/glossary.md` and `.agents/harness/selftest/orchestrated.sh`
+  — the role title `🩺 retro` in the role-title row and its pin.
 - `.agents/harness/AGENTS.md` — `retro` joins the Handover line's
   no-workstream-file list (one word; the role writes none, as conduct).
 - `.agents/docs/orchestrated.md` — the role's rows in the roles, inputs and

@@ -4286,13 +4286,16 @@ retro_landed_ts() {
 
 # Sessions that did not come back clean, from git only: a workstream-file
 # commit on any origin branch, merged or not, whose file then read `status:
-# blocked` or `status: abandoned` (the janitor: session gone), or held a
-# `## Blockers` line opening with a kill note. A session that merged clean
-# never qualifies. No time window: the ledger's session column is what stops
-# a re-sample, so a session past the sample waits for the next run. One
-# `<branch>\t<session>\t<sha>:<path>` per session, the newest commit
-# winning; a `session:` that is no session URL, or a `branch:` that is no
-# plain ref name, is skipped. `?` alone = unreadable.
+# blocked` or `status: abandoned` (the janitor: session gone) — that
+# session — or whose `## Blockers` opens a line with a kill note — the
+# session the file named when the note FIRST appeared, never a successor
+# that inherited it. A session that never blocked, was never abandoned and
+# never killed is never sampled, however it ended. Role sessions (a dated
+# stem) are not managers: skipped. No time window: the ledger's session
+# column is what stops a re-sample, so a session past the sample waits for
+# the next run. One `<branch>\t<session>\t<sha>:<path>` per session, the
+# newest qualifying commit winning; a `session:` that is no session URL, or
+# a `branch:` that is no plain ref name, is skipped. `?` alone = unreadable.
 retro_candidates() {
   local log rc ledger lrc logged
   ledger="$(retro_ledger)"; lrc=$?
@@ -4305,43 +4308,69 @@ retro_candidates() {
   fi
   logged="$(printf '%s\n' "$ledger" | retro_logged)"
   # One cat-file process reads every touched file at its commit; %(rest)
-  # carries the key through, a deleted file prints `missing`.
+  # carries the key through, a deleted file prints `missing`. Framed by
+  # %(objectsize): a body line that looks like a header is still body.
   printf '%s\n' "$log" | awk '
     /^C [0-9a-f]+$/ { sha = $2; next }
     /^docs\/handover\/[A-Za-z0-9._-]+\.md$/ {
       if ($0 ~ /\/(README|TEMPLATE|RETIRED)\.md$/) next
+      # Role sessions carry a date in the stem, as conduct_candidates reads.
+      if ($0 ~ /-[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/) next
       print sha ":" $0 " " sha ":" $0
     }' |
-    git -C "$ROOT" cat-file --batch='@@retro %(objecttype) %(rest)' 2>/dev/null |
-    logged="$logged" loop="$RETRO_LOOP_NOTE" kill="$RETRO_KILL_NOTE" awk '
+    git -C "$ROOT" cat-file --batch='@@retro %(objecttype) %(objectsize) %(rest)' 2>/dev/null |
+    LC_ALL=C logged="$logged" loop="$RETRO_LOOP_NOTE" kill="$RETRO_KILL_NOTE" awk '
       BEGIN { n = split(ENVIRON["logged"], a, "\n"); for (i = 1; i <= n; i++) done[a[i]] = 1 }
-      function flush() {
+      function ok(b, s, k) {
+        return s ~ /^https:\/\/claude\.ai\/code\/session_[A-Za-z0-9]+$/ &&
+          b ~ /^[A-Za-z0-9][A-Za-z0-9._\/-]*$/ && b !~ /\.\./ &&
+          k ~ /^[0-9a-f]+:docs\/handover\/[A-Za-z0-9._-]+\.md$/
+      }
+      function flush(   i, p) {
         if (!on) return
         on = 0
-        if (st != "blocked" && st != "abandoned" && !killed) return
-        if (se !~ /^https:\/\/claude\.ai\/code\/session_[A-Za-z0-9]+$/) return
-        if (br !~ /^[A-Za-z0-9][A-Za-z0-9._\/-]*$/ || br ~ /\.\./) return
-        if (done[se] || seen[se]++) return
-        print br "\t" se "\t" key
+        if (st == "blocked" || st == "abandoned") { nc++; cb[nc] = br; cs[nc] = se; ck[nc] = key }
+        # Newest first: the last write per note line is its first appearance.
+        p = key; sub(/^[^:]*:/, "", p)
+        for (i = 1; i <= nn; i++) {
+          if (!((p, note[i]) in kseen)) { kseen[p, note[i]] = 1; korder[++nk] = p SUBSEP note[i] }
+          kb[p, note[i]] = br; ks[p, note[i]] = se; kk[p, note[i]] = key
+        }
       }
-      /^@@retro / { flush(); on = ($2 == "blob"); key = $3; fm = 0; nl = 0; sec = ""; st = br = se = ""; killed = 0; next }
-      !on { next }
-      {
+      left > 0 { left -= length($0) + 1; body(); next }
+      /^@@retro / {
+        flush(); on = ($2 == "blob"); key = $4; left = $3 + 1
+        fm = 0; nl = 0; nn = 0; sec = ""; st = br = se = ""
+        next
+      }
+      { next }
+      function body(   v, l) {
+        if (!on) return
         nl++
-        if (nl == 1 && $0 == "---") { fm = 1; next }
-        if (fm && $0 == "---") { fm = 0; next }
+        if (nl == 1 && $0 == "---") { fm = 1; return }
+        if (fm && $0 == "---") { fm = 0; return }
         if (fm) {
           v = $0; sub(/^[a-z]+:[ \t]*/, "", v); sub(/[ \t]+#.*$/, "", v); sub(/[ \t]+$/, "", v)
           if ($0 ~ /^status:/ && st == "") st = v
           else if ($0 ~ /^branch:/ && br == "") br = v
           else if ($0 ~ /^session:/ && se == "") se = v
-          next
+          return
         }
-        if ($0 ~ /^## /) { sec = $0; next }
-        # Only the note itself: a line that merely mentions it is no kill.
-        if (sec == "## Blockers" && (index($0, ENVIRON["loop"]) == 1 || index($0, ENVIRON["kill"]) == 1)) killed = 1
+        if ($0 ~ /^## /) { sec = $0; return }
+        if (sec != "## Blockers") return
+        # Only the note itself, bare or as a bullet: a mention is no kill.
+        l = $0; sub(/^[-*][ \t]+/, "", l)
+        if (index(l, ENVIRON["loop"]) == 1 || index(l, ENVIRON["kill"]) == 1) note[++nn] = $0
       }
-      END { flush() }'
+      function emit(b, s, k) {
+        if (!ok(b, s, k) || done[s] || seen[s]++) return
+        print b "\t" s "\t" k
+      }
+      END {
+        flush()
+        for (i = 1; i <= nc; i++) emit(cb[i], cs[i], ck[i])
+        for (i = 1; i <= nk; i++) emit(kb[korder[i]], ks[korder[i]], kk[korder[i]])
+      }'
 }
 
 # The sample: the N candidates whose sha1(<session URL>) sorts lowest, so a
@@ -4457,7 +4486,7 @@ cmd_retro() {
   events="$(num_knob JOHARNESS_RETRO_EVENTS)"
   printf '== retro (every %sh: JOHARNESS_RETRO_HOURS; %s session(s) a run: JOHARNESS_RETRO_SAMPLE; %s events each: JOHARNESS_RETRO_EVENTS)\n\n' \
     "$hours" "$sample" "$events"
-  printf 'candidates: a session whose workstream file read status: blocked or abandoned, or whose ## Blockers opens with the orchestrator'"'"'s kill note, not yet in %s; a clean merge never qualifies. The reviewer reads each transcript, never a diff (.claude/commands/retro.md)\n\n' \
+  printf 'candidates: a session whose workstream file read status: blocked or abandoned, or whose ## Blockers opens with the orchestrator'"'"'s kill note, not yet in %s; a manager that never blocked, was abandoned or was killed never qualifies, however it ended. The reviewer reads each transcript, never a diff (.claude/commands/retro.md)\n\n' \
     "$RETRO_LEDGER"
 
   retro_due

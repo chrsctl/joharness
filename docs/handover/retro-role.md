@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01Lcrz8PYtM5Xk7gcHyMkGGH
 agent: opus
 updated: 2026-10-24
-next: Run ci and verify on the verifier fixes, then open the pull request
+next: ci and verify on round-2 fixes, then retire and open the pull request
 ---
 
 ## Goal
@@ -30,7 +30,7 @@ caught it, files plans preferring a mechanism over a rule. Never fixes.
 - Dispatch: retro is also suppressed while conduct spawns this pass or is in flight — one reviewer of either kind a pass.
 - No workstream file for retro, as conduct: one word added to AGENTS.md's Handover exemption (scope widened; flag for human).
 - Knobs: dispatch-scoped, in KNOBS and orchestrated.md's table; not in conf-keys.sh/bootstrap (consumers run on defaults).
-- Title `retro: <UTC date>`, no emoji, as scout's: the glossary row is pinned by selftest/orchestrated.sh, outside scope. Ledger field `retroed=<stamp>`.
+- Title `🩺 retro: <UTC date>` (human direction in session: name kept `retro`, emoji like the other roles): glossary row and its pin in selftest/orchestrated.sh, scope widened. Ledger field `retroed=<stamp>`.
 
 ## Rejected
 
@@ -70,6 +70,14 @@ caught it, files plans preferring a mechanism over a rule. Never fixes.
 - r30: (verifier) last page overshoots the event cap; twin rule dropped "never both go on" (fixed)
 - r31: (verifier) dry run found two of three Goal failures only secondhand (no change: recorded in r16; a failure nobody filed yet is the reviewer's real test)
 - r32: human direction: sample only managers that did not come back clean; kill-for-silence and `abandoned` added (fixed)
+- r33: (verifier) a header-shaped body line forged a row with an unvalidated `<sha>:<path>` field (fixed: cat-file framed by objectsize, key checked against `<hex>:docs/handover/<name>.md`; no-framing mutation reds)
+- r34: (verifier) a respawned successor inherited the kill note and was sampled after a clean merge (fixed: a kill counts for the session the note first named)
+- r35: (verifier) no test for the Blockers-only match, `..` branches, one row per session (fixed: three cases; each mutation reds)
+- r36: (verifier) conduct spawning this pass untested; the twin clock check shared with conduct (fixed: a case; wontfix: the twin clock, conduct's branch, tested in role.sh)
+- r37: (verifier) RETRO_KILL_NOTE pinned to nothing (fixed: both notes pinned to orchestrate-reference.md's text; a `- ` bullet accepted)
+- r38: (verifier) "a clean merge never qualifies" reads wrong for a merged session that blocked once (fixed: wording names the rule)
+- r39: (verifier) abandoned role claims (curate-<date>) sampled as managers (fixed: dated stems skipped, as conduct)
+- r40: human direction: role title with an emoji, name kept `retro` (fixed: 🩺 retro)
 
 ## Blockers
 

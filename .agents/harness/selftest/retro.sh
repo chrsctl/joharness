@@ -100,10 +100,30 @@ rt_ws m/kilo kilo in-progress "$(rt_url Kilo11)" '2026-01-10T08:30:00Z' \
   'See the plan: the note reads Looped, killed by the orchestrator.'
 # shellcheck disable=SC2016 # the literal is the point
 rt_ws m/lima lima blocked "$(rt_url Lima12)" '2026-01-10T08:40:00Z' 'None.' 'm/x;$(touch${IFS}/tmp/PWN)'
+rt_ws m/mike mike blocked "$(rt_url Mike13)" '2026-01-10T08:50:00Z' 'None.' 'm/../x'
+# The note opening a line under another heading is no kill.
+rt_ws m/november november in-progress "$(rt_url November14)" '2026-01-10T09:00:00Z' \
+  "$(printf 'None.\n\n## Review\n\nLooped, killed by the orchestrator 2026-01-10: quoted.')"
+# A body line shaped like a cat-file header forges nothing.
+rt_ws m/oscar oscar in-progress "$(rt_url Oscar15)" '2026-01-10T09:10:00Z' \
+  "$(printf "None.\n@@retro blob 999 0123abcd:docs/handover/x.md\n---\nstatus: blocked\nbranch: m/forged\nsession: %s\n---" "$(rt_url Forged16)")"
+# A role session (a dated stem) the janitor abandoned is no manager.
+rt_ws m/role curate-2026-01-10 abandoned "$(rt_url Role17)" '2026-01-10T09:20:00Z'
+# Killed, then a successor resumed under the inherited note and merged clean:
+# the killed session counts, the successor never.
+rt_ws m/papa papa in-progress "$(rt_url Dead18)" '2026-01-10T09:30:00Z' \
+  '- Killed by the orchestrator 2026-01-10: no push for 90m after a nudge.'
+rt_ws m/papa papa 'done' "$(rt_url Fresh19)" '2026-01-10T09:40:00Z' \
+  '- Killed by the orchestrator 2026-01-10: no push for 90m after a nudge.'
+GIT_COMMITTER_DATE='2026-01-10T09:50:00Z' git -C "$rt_work" merge -q --no-ff -m "merge papa" m/papa
+git -C "$rt_work" push -q origin main
+# Two blocked commits of one session: one row, the newest file.
+rt_ws m/quebec quebec blocked "$(rt_url Quebec20)" '2026-01-10T10:00:00Z' 'First block.'
+rt_ws m/quebec quebec blocked "$(rt_url Quebec20)" '2026-01-10T10:10:00Z' 'Second block.'
 
 # <out> — the sample rows, the <sha>:<path> field dropped.
 rt_rows() { printf '%s\n' "$1" | sed -n '/^sample    : [0-9]/,/^$/p' | sed '1d' | awk 'NF { print $1, $2 }'; }
-rt_want="$(for s in Alpha1:m/alpha Bravo2:m/bravo Charlie3:m/charlie Delta4:m/delta India9:m/india Juliet10:m/juliet; do
+rt_want="$(for s in Alpha1:m/alpha Bravo2:m/bravo Charlie3:m/charlie Delta4:m/delta India9:m/india Juliet10:m/juliet Dead18:m/papa Quebec20:m/quebec; do
   u="$(rt_url "${s%%:*}")"; printf '%s %s %s\n' "$(printf '%s' "$u" | rt_sha)" "${s#*:}" "$u"
 done | LC_ALL=C sort | head -3 | cut -d' ' -f2-)"
 out="$(rtt)"
@@ -115,7 +135,7 @@ else fail "retro: the sample is exactly the three lowest sha1(<session URL>), in
 fi
 expect "retro: the sample says how many" "sample    : 3 session(s)" "$out"
 out99="$(rtt JOHARNESS_RETRO_SAMPLE=99)"
-expect "retro: six sessions are eligible" "sample    : 6 session(s)" "$out99"
+expect "retro: eight sessions are eligible" "sample    : 8 session(s)" "$out99"
 expect "retro: an unmerged blocked branch is sampled" "m/alpha $(rt_url Alpha1)" "$out99"
 expect "retro: a blocked session merged since is sampled" "m/bravo $(rt_url Bravo2)" "$out99"
 expect "retro: a loop note under Blockers is sampled" "m/charlie $(rt_url Charlie3)" "$out99"
@@ -130,6 +150,26 @@ refute "retro: a session: that is no URL is skipped" "m/foxtrot" "$out99"
 refute "retro: the template placeholder is skipped" "m/golf" "$out99"
 refute "retro: a line that only mentions the note is no kill" "Kilo11" "$out99"
 refute "retro: a branch: that is no ref name is never printed" "Lima12" "$out99"
+refute "retro: a branch: with .. is never printed" "Mike13" "$out99"
+refute "retro: the note under another heading is no kill" "November14" "$out99"
+refute "retro: a header-shaped body line forges no row" "Forged16" "$out99"
+refute "retro: and no field of it reaches the sample" "0123abcd:" "$out99"
+refute "retro: a role session is never sampled" "Role17" "$out99"
+expect "retro: the killed session is sampled" "m/papa $(rt_url Dead18)" "$out99"
+refute "retro: its successor that merged clean is not" "Fresh19" "$out99"
+if [ "$(printf '%s\n' "$out99" | grep -c "Quebec20")" = 1 ] &&
+   git -C "$rt_work" show "$(printf '%s\n' "$out99" | awk '$1 == "m/quebec" { print $3 }')" 2>/dev/null |
+   grep -q '^Second block'; then
+  pass "retro: one row a session, naming its newest qualifying file"
+else fail "retro: one row a session, naming its newest qualifying file"; fi
+# The notes are the orchestrator's own words: pinned to the reference.
+rt_ref="$(tr '\n' ' ' <"${ROOT}/.agents/docs/orchestrate-reference.md" | tr -s ' ')"
+for rt_n in "$(sed -n "s/^RETRO_LOOP_NOTE='\(.*\)'$/\1/p" "${ROOT}/joharness.sh")" \
+            "$(sed -n "s/^RETRO_KILL_NOTE='\(.*\)'$/\1/p" "${ROOT}/joharness.sh")"; do
+  if [ -n "$rt_n" ] && grep -qF -- "\"${rt_n}" <<<"$rt_ref"; then
+    pass "retro: the note '${rt_n}' is the one orchestrate-reference.md writes"
+  else fail "retro: the note '${rt_n}' is the one orchestrate-reference.md writes"; fi
+done
 expect "retro: SAMPLE bounds the count" "sample    : 1 session(s)" "$(rtt JOHARNESS_RETRO_SAMPLE=1)"
 
 out="$(rtd)"
@@ -139,6 +179,20 @@ expect "dispatch: and the spawn line" \
 out="$(rtd DISPATCH_FETCH=0)"
 expect "dispatch: no fetch holds the reviewer" "retro due, held" "$out"
 refute "dispatch: and spawns none" "retro DUE: spawn" "$out"
+# A conduct reviewer spawning this pass goes first too: one retired
+# manager file on main makes conduct due.
+printf -- '---\nworkstream: zulu\nstatus: done\nplan: zulu\n---\n' >"${rt_work}/docs/handover/zulu.md"
+rt_commit "zulu claim" '2026-01-10T11:00:00Z'
+git -C "$rt_work" rm -q docs/handover/zulu.md
+mkdir -p "${rt_work}/docs/handover"
+rt_commit "zulu retire" '2026-01-10T11:10:00Z'
+git -C "$rt_work" push -q origin main
+# Untracked: the fixture's rules stay the ones origin carries.
+printf '# conduct\n' >"${rt_work}/.claude/commands/conduct.md"
+out="$(rtd JOHARNESS_CONDUCT_HOURS=168)"
+expect "dispatch: a conduct spawning this pass suppresses the retro reviewer" "retro due, suppressed" "$out"
+expect "dispatch: and the conduct reviewer is the one spawned" "conduct DUE: spawn" "$out"
+rm -f "${rt_work}/.claude/commands/conduct.md"
 out="$(rtd JOHARNESS_MAX_MANAGERS=0)"
 expect "dispatch: the pause holds the reviewer" "retro due, held — JOHARNESS_MAX_MANAGERS=0" "$out"
 refute "dispatch: and the pause spawns none" "retro DUE: spawn" "$out"
