@@ -24,6 +24,7 @@ next: Run ci and verify on the committed tree; retire plan and workstream file; 
 - #603 (main red: selftest git execs 89189 over budget 88960) fixed here: the suite grew from 2813 to 3534 cases since the 2026-10-14 count; budget re-baselined to this branch's count plus a tenth. Human said other sessions are closed, so no one else would.
 
 - Built: dispatch_branch_plans emits a 7th field (0 or n:pr) from workstream pr:; bplans awk appends it. Selftest case in dispatch-branch-plans.sh (own fixture repo). 
+- Follow-up plans filed in this PR from this session's own failures: selftest-git-budget-per-case, ci-red-legible, guard-one-shot-self-kill, retro-role.
 
 ## Review
 
@@ -32,8 +33,7 @@ next: Run ci and verify on the committed tree; retire plan and workstream file; 
 - r3: (verifier) several workstream files on one branch: the last merged `pr:` names the `#n` (no change: the count is the branch's either way)
 - r4: first fixture merged the plan onto main, so it never was a branch plan and the case failed; reported as green at the time (fixed: PR merges the workstream file only, plan filed after)
 - r5: shellcheck SC1010 on a bare `done` argument in the fixture (fixed: quoted)
-
-- Follow-up plans filed in this PR from this session's own failures: selftest-git-budget-per-case, ci-red-legible, guard-one-shot-self-kill.
+- r6: verify `Container networking` (container DNS on a user-defined network) failed on this branch twice, then `./joharness.sh verify` passed 6/0 on origin/main 202a48ca and on this branch, 2026-10-24; diff touches no env code (no change: intermittent in this sandbox)
 
 ## Blockers
 

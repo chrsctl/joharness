@@ -6,7 +6,7 @@ effort: medium
 needs: none
 requirement: none
 issue: none
-scope: joharness.sh, .agents/harness/selftest/ci-output.sh
+scope: shared:joharness.sh, .agents/harness/selftest/ci-output.sh
 ---
 
 ## Goal
@@ -57,6 +57,7 @@ a run immune to edits of its own script.
 - The new edit-during-run case fails (prints `syntax error`) with the last-line change reverted.
 - The verdict case fails with the `cmd_ci` change reverted.
 - `./joharness.sh verify` — `0 failed`.
+- Consumer side, after its next sync: a red `./joharness.sh ci` in a consumer prints `ci: FAIL (<n>: <stage>`.
 
 ## Where to look
 

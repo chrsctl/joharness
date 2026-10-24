@@ -6,7 +6,7 @@ effort: medium
 needs: none
 requirement: none
 issue: none
-scope: joharness.sh, .agents/harness/selftest/ci-selftest-scope.sh, shared:.agents/harness/selftest.sh
+scope: shared:joharness.sh, .agents/harness/selftest/ci-selftest-scope.sh, shared:.agents/harness/selftest.sh
 ---
 
 ## Goal
@@ -55,6 +55,7 @@ new topic whose cases cost more git execs than the average, still reds the stage
 - `grep -rn SELFTEST_GIT_BUDGET --exclude-dir=.git .` prints nothing.
 - The new no-count-line case fails with the `selftest_counted` change reverted.
 - `./joharness.sh verify` — `0 failed`.
+- Consumer side: the knob is canonical-only; after its next sync a consumer's `./joharness.sh ci` prints no `SELFTEST_GIT` line and no red from it.
 
 ## Where to look
 

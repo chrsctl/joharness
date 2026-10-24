@@ -61,6 +61,7 @@ one-shot kill too.
 - The 2026-10-24 fixture is denied by the new hook and allowed by `pretool-bash-guard.sh` (shows the gap is real).
 - `human/guard-one-shot-self-kill` pull request open, labelled `human-review`, its `ci` run green.
 - `./joharness.sh verify` — `0 failed`.
+- Consumer side, after its next sync and the human PR's merge: in a consumer, `pkill -f` on a pattern its own command line holds is denied.
 
 ## Where to look
 
