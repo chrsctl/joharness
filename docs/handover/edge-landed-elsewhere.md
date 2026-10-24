@@ -8,7 +8,7 @@ issue: 594
 session: https://claude.ai/code/session_013k9uhKZdpmecdnYEgGw8kZ
 agent: opus
 updated: 2026-10-24
-next: Run ci and verify, prove the new selftest fails without the hook change, then spawn the verifier
+next: Spawn the verifier at the review tier, record findings, then step 7
 ---
 
 ## Goal
@@ -25,6 +25,8 @@ merged history, then release" (issue #594).
 - Facts computed in `edge_facts`, second loop, ranks 0-2 only (displayed entries; one git process set each). `plan:` rides as a 16th row field after `pushed_rel`, so sort keys are untouched.
 - Plan-gone check uses `--full-history -m` like `dispatch_branch_plans`, and skips a delete that is an ancestor of the branch's merge base (a reused stem), beyond the plan's literal `git log --diff-filter=D`.
 - Dispatch's `plans on a branch ... held Nd` line (issue case 2) is in `joharness.sh`, outside scope and shared with `block-names-awaited-pr`: follow-up plan `docs/plans/dispatch-held-merged-pr.md`.
+
+- Measured 2026-10-24: `./joharness.sh ci` on this head = `ci: pass`; same with `handover-context.sh` from origin/main = 6 new cases FAIL; `./joharness.sh verify` = `6 passed, 0 failed`.
 
 ## Rejected
 

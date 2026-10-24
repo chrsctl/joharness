@@ -42,6 +42,7 @@ same fact, so an orchestrator reading only `dispatch` sees it.
 - `./joharness.sh ci` — prints `ci: pass`; any `FAIL` line is red.
 - `./joharness.sh verify` — `0 failed`.
 - The new selftest case fails with the `joharness.sh` change reverted.
+- Consumer side, after its next sync: `./joharness.sh dispatch` in a consumer whose plan-holding branch's `pr:` merged with the tip ahead prints `commit(s) after merged PR #` on that `plans on a branch` line.
 
 ## Where to look
 
