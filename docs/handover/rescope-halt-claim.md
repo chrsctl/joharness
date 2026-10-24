@@ -1,6 +1,6 @@
 ---
 workstream: rescope-halt-claim
-status: in-progress
+status: review
 branch: rescope-halt-claim
 pr: none
 plan: none
@@ -23,3 +23,7 @@ without marking it `shared:` (hold-requirement already does).
   `.agents/harness/selftest.sh` (registers a topic) become `shared:`.
   Other paths edit in place.
 - hold-requirement: already marks `shared:.agents/docs/orchestrated.md`; no change.
+
+## Review
+
+- r1: clean pass — edge review of the one-line scope diff; (verifier) clean, no defects
