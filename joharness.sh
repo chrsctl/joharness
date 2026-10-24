@@ -63,6 +63,10 @@
 # KNOBS table below holds every one the script reads, with its default, scope
 # and meaning; `conf` prints them with their live values.
 
+# The script ends in `main "$@"; exit $?`; after that exit shellcheck sees the
+# checks run_check calls through "$@" as unreachable.
+# shellcheck disable=SC2317
+
 set -uo pipefail
 
 ROOT="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
@@ -363,6 +367,7 @@ cmd_verify() {
 # check with -v or JOHARNESS_VERBOSE=1.
 CHECK_VERBOSE="${JOHARNESS_VERBOSE:-0}"
 CHECK_FAILS=0
+CHECK_FAILED=""
 CHECK_SKIPPED=0
 
 # run_check <name> <function> [args]: run one check, print its output only
@@ -384,7 +389,7 @@ run_check() {
   case "$rc" in
     0) ;;
     3) CHECK_SKIPPED=1 ;;
-    *) CHECK_FAILS=$((CHECK_FAILS + 1)) ;;
+    *) CHECK_FAILS=$((CHECK_FAILS + 1)); CHECK_FAILED="${CHECK_FAILED:+${CHECK_FAILED}, }${name}" ;;
   esac
   return 0
 }
@@ -446,7 +451,7 @@ ci_selftest() {
 # stage stays quiet like every other; `ci -v` prints the count. The default
 # is a count plus a tenth: `ci -v` on this repository, 2026-10-24 (89316).
 selftest_counted() {
-  local real dir rc n budget
+  local real dir rc n nf sout budget
   budget="$(num_knob JOHARNESS_SELFTEST_GIT_BUDGET)"
   # A path, never a name: an exported `git` function makes `command -v` say
   # `git`, and a wrapper exec'ing that finds itself on PATH forever.
@@ -462,14 +467,22 @@ selftest_counted() {
   } >"${dir}/git"
   chmod +x "${dir}/git"
   : >"${dir}/count"
-  PATH="${dir}:${PATH}" "${HARNESS_ROOT}/selftest.sh" 2>&1
+  sout="$(PATH="${dir}:${PATH}" "${HARNESS_ROOT}/selftest.sh" 2>&1)"
   rc=$?
+  printf '%s\n' "$sout"
   n="$(wc -l <"${dir}/count")"; n="${n//[!0-9]/}"
   rm -rf "$dir"
   printf '  selftest git execs: %s (budget %s)\n' "${n:-0}" "$budget"
+  # Last lines name each red that holds: a reader stops at the first one seen.
+  nf="$(printf '%s\n' "$sout" | sed -n 's/^[0-9]* passed, \([0-9]*\) failed.*/\1/p' | tail -n 1)"
+  if [ "$rc" -ne 0 ]; then
+    if [ "${nf:-0}" -gt 0 ]; then printf '  selftest: %s case(s) failed\n' "$nf"
+    else printf '  selftest: exited %s with no failed case counted\n' "$rc"; fi
+  fi
   if [ "${n:-0}" -gt "$budget" ]; then
     printf '  Over budget: a topic re-runs work, or a new one costs more than it\n'
     printf '  should. Find it before raising JOHARNESS_SELFTEST_GIT_BUDGET.\n'
+    printf '  selftest: git execs over budget\n'
     return 1
   fi
   return "$rc"
@@ -606,10 +619,10 @@ cmd_ci() {
   local f listing fs
   local -a targets=()
   check_args "$@"
-  CHECK_FAILS=0; CHECK_SKIPPED=0
+  CHECK_FAILS=0; CHECK_FAILED=""; CHECK_SKIPPED=0
   if ! listing="$(check_targets)"; then
     warn "could not enumerate all shell scripts; a partial list is no lint bar"
-    CHECK_FAILS=$((CHECK_FAILS + 1))
+    CHECK_FAILS=$((CHECK_FAILS + 1)); CHECK_FAILED="script listing"
   fi
   while IFS= read -r f; do
     [ -n "$f" ] && targets+=("$f")
@@ -634,7 +647,7 @@ cmd_ci() {
 
   # The environment smoke test is not part of this: run `verify`.
   if [ "$CHECK_FAILS" -ne 0 ]; then
-    printf 'ci: FAIL (%s)\n' "$CHECK_FAILS"
+    printf 'ci: FAIL (%s: %s)\n' "$CHECK_FAILS" "$CHECK_FAILED"
     return 1
   elif [ "$CHECK_SKIPPED" -eq 1 ]; then
     printf 'ci: pass (shellcheck SKIPPED — not the full bar)\n'
@@ -5313,7 +5326,7 @@ finish_adds() {
 cmd_finish() {
   local ref branch is_local=0
   check_args "$@"
-  CHECK_FAILS=0; CHECK_SKIPPED=0
+  CHECK_FAILS=0; CHECK_FAILED=""; CHECK_SKIPPED=0
   ref="$(decide_ref)" || die \
     "no ref for base branch '${HANDOVER_BASE_BRANCH:-main}' in this checkout" \
     "— a gate cannot pass on a comparison it could not make." \
@@ -8387,4 +8400,4 @@ main() {
   esac
 }
 
-main "$@"
+main "$@"; exit $?
