@@ -255,10 +255,16 @@ finished_rescope() {
   [ "$2" = none ] && [ "$3" = "done" ] && [ -z "$4" ]
 }
 
-# A `pr:` value a reader wrote by hand.
+# A `pr:` value a reader wrote by hand: `N`, `#N`, or a pull request URL
+# ending in `/pull/N` (one trailing slash allowed).
 pr_num() {
-  local v="${1#\#}"
+  local v="${1#\#}" u
   case "$v" in '' | none | NONE ) return 0 ;; esac
+  u="${v%/}"
+  case "$u" in
+    http://*/pull/[0-9]* | https://*/pull/[0-9]* )
+      case "${u##*/}" in *[!0-9]* ) ;; * ) v="${u##*/}" ;; esac ;;
+  esac
   printf '%s' "$v"
 }
 
@@ -337,7 +343,7 @@ while IFS= read -r ref; do
       in_r && /^- /             { n++ }
       END { print n + 0 }')"
 
-    rows="${rows}${rank}${US}${pushed_at:-9999999999}${US}${short}${US}${f}${US}${status}${US}${pr}${US}${updated}${US}${agent}${US}${issue}${US}${session}${US}${fresh}${US}${entry_stale}${US}${inherited_n}${US}${review_n}${US}${pushed_rel}"$'\n'
+    rows="${rows}${rank}${US}${pushed_at:-9999999999}${US}${short}${US}${f}${US}${status}${US}${pr}${US}${updated}${US}${agent}${US}${issue}${US}${session}${US}${fresh}${US}${entry_stale}${US}${inherited_n}${US}${review_n}${US}${pushed_rel}${US}${wplan}"$'\n'
   done <<<"$ws_files"
 done < <(git for-each-ref --format='%(refname)' refs/remotes 2>/dev/null)
 
@@ -349,8 +355,48 @@ lead_ref=""
 lead_file=""
 lead_why=""
 
+# First-parent merge subjects of the base, read ONCE: a `pr:` whose
+# `Merge pull request #N from` commit is here merged, whatever the tip did
+# after. Git proves that much; GitHub is never asked.
+base_merges="$(git log --first-parent --merges --format=%s \
+  "origin/${BASE_BRANCH}" 2>/dev/null)"
+
+# Facts git proves about an edge entry, `; `-joined, empty when none: commits
+# after its merged pull request, and a done plan the base carried and deleted.
+# Neither closes a claim (.agents/docs/handover/README.md, Status).
+edge_facts() {
+  local ref="$1" status="$2" pr="$3" plan="$4" n del mb out=""
+  case "$pr" in
+    '' | *[!0-9]* ) ;;
+    * )
+      if printf '%s\n' "$base_merges" |
+        grep -q "^Merge pull request #${pr} from "; then
+        n="$(git rev-list --count "origin/${BASE_BRANCH}..${ref}" 2>/dev/null)"
+        [ -n "$n" ] && [ "$n" -gt 0 ] &&
+          out="${n} commit(s) after merged PR #${pr}"
+      fi ;;
+  esac
+  case "$plan" in '' | none | NONE ) plan="" ;; esac
+  # `--full-history -m` sees a retire a merge carried, as dispatch's
+  # plans-on-a-branch reader does; `:(literal)` keeps a plan name a name. A
+  # branch that still CARRIES the file atop that delete wrote a new plan of an
+  # old stem; one that merged the delete in no longer carries it.
+  if [ "$status" = "done" ] && [ -n "$plan" ] &&
+     ! git cat-file -e "origin/${BASE_BRANCH}:docs/plans/${plan}.md" 2>/dev/null; then
+    del="$(git log -1 --format=%H --full-history -m --diff-filter=D \
+      "origin/${BASE_BRANCH}" -- ":(literal)docs/plans/${plan}.md" 2>/dev/null)"
+    mb="$(git merge-base "$ref" "origin/${BASE_BRANCH}" 2>/dev/null)"
+    if [ -n "$del" ] && [ -n "$mb" ] &&
+       ! { git cat-file -e "${ref}:docs/plans/${plan}.md" 2>/dev/null &&
+           git merge-base --is-ancestor "$del" "$mb" 2>/dev/null; }; then
+      out="${out:+${out}; }plan gone from ${BASE_BRANCH}: landed elsewhere? confirm in merged history, then release"
+    fi
+  fi
+  printf '%s' "$out"
+}
+
 while IFS="$US" read -r rank _ short f status pr updated agent issue \
-  session fresh entry_stale inherited_n review_n pushed_rel; do
+  session fresh entry_stale inherited_n review_n pushed_rel wplan; do
   [ -n "$short" ] || continue
 
   if [ "$count" -ge "$MAX_ENTRIES" ]; then
@@ -379,9 +425,15 @@ while IFS="$US" read -r rank _ short f status pr updated agent issue \
     0 ) others="${others}    EDGE: status done, unmerged — merging is all that is left (step 7)"$'\n' ;;
     1 ) others="${others}    EDGE: at review — record findings, then merge (step 5, then 7)"$'\n' ;;
     2 ) others="${others}    EDGE: names pull request #${pr} — CHECK IT IS OPEN, then drive it green and merge (step 7)"$'\n'
-        others="${others}         this hook reads git, never GitHub: closed, open and merged-elsewhere are the same bytes here"$'\n' ;;
+        others="${others}         this hook reads git, never GitHub: open and closed are the same bytes here; merged shows only as its merge commit on ${BASE_BRANCH}"$'\n' ;;
     6 ) others="${others}    FINISHED RESCOPE: holds genuine, nothing to merge — holds no slot, never edge work, never nudge"$'\n' ;;
   esac
+
+  facts=""
+  if [ "$rank" -le 2 ]; then
+    facts="$(edge_facts "$short" "$status" "$pr" "$wplan")"
+    [ -n "$facts" ] && others="${others}    EDGE: ${facts}"$'\n'
+  fi
 
   [ "$entry_stale" = "1" ] &&
     others="${others}    STALE: pushed ${pushed_rel} — read as abandoned from git alone, never hidden even when it is the only entry at this rank (.agents/docs/product/README.md, Branch flow)"$'\n'
@@ -394,6 +446,7 @@ while IFS="$US" read -r rank _ short f status pr updated agent issue \
       1 ) lead_why="at review" ;;
       2 ) lead_why="names pull request #${pr}, state unverified" ;;
     esac
+    [ -n "$facts" ] && lead_why="${lead_why}; ${facts}"
     [ "$entry_stale" = "1" ] && lead_why="${lead_why} — STALE, pushed ${pushed_rel}"
   fi
 

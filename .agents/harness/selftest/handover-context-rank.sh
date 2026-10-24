@@ -254,3 +254,122 @@ fsorder="$(printf '%s\n' "$fsout" |
   sed -n 's|^  origin/\([a-z-]*\): docs/handover/.*|\1|p' | paste -sd, -)"
 expect "the finished rescope ranks last, below live work" \
   "rs-pr,rs-plan,rs-free,rs-live,rs-fin" "$fsorder"
+
+
+# --- edge facts git proves: merged PR, plan gone from the base (issue #594) --
+# An edge entry whose `pr:` merge commit is on the base and whose tip moved on
+# read only "held"; a done entry whose plan the base deleted read "finish
+# before starting". Both are facts in git. Its own repo: the lead is asserted.
+lework="${TMP}/landedwork"
+leorigin="${TMP}/landedorigin.git"
+git init -q --bare "$leorigin"
+git init -q "$lework"
+git -C "$lework" symbolic-ref HEAD refs/heads/main
+mkdir -p "${lework}/docs/plans"
+for p in both gone kept old rec evil; do printf 'plan\n' >"${lework}/docs/plans/${p}.md"; done
+commit_all "$lework" "base"
+git -C "$lework" remote add origin "$leorigin"
+git -C "$lework" push -qu origin main
+
+# branch, status, pr, plan, date.
+lebranch() {
+  git -C "$lework" checkout -q main
+  git -C "$lework" checkout -qb "$1"
+  mkdir -p "${lework}/docs/handover"
+  printf -- '---\nworkstream: %s\nstatus: %s\npr: %s\nplan: %s\nagent: sonnet\nupdated: 2026-01-01\n---\n\n## Goal\nFixture.\n' \
+    "$1" "$2" "$3" "$4" >"${lework}/docs/handover/${1}.md"
+  git -C "$lework" add -A
+  GIT_AUTHOR_DATE="$5" GIT_COMMITTER_DATE="$5" \
+    git -C "$lework" commit -qm "$1"
+  git -C "$lework" push -qu origin "$1"
+}
+# Merged on main as pull request $2, then one more commit to its own file.
+lemerge() {
+  git -C "$lework" checkout -q main
+  git -C "$lework" merge -q --no-ff -m "Merge pull request #$2 from o/$1" "$1"
+  git -C "$lework" push -q origin main
+  git -C "$lework" checkout -q "$1"
+  printf 'after\n' >>"${lework}/docs/handover/${1}.md"
+  GIT_AUTHOR_DATE="$3" GIT_COMMITTER_DATE="$3" \
+    git -C "$lework" commit -qam "$1 after merge"
+  git -C "$lework" push -q origin "$1"
+}
+# A stem reused: `old` retired on main BEFORE lreuse was cut, then written
+# again on lreuse. That delete is no landing of lreuse's plan.
+git -C "$lework" rm -q docs/plans/old.md
+commit_all "$lework" "old plan retired"
+git -C "$lework" push -q origin main
+lebranch lboth "done"      "https://github.com/o/r/pull/5" both "2026-01-01T00:00:00Z"
+lebranch lgone "done"      none                            gone "2026-01-02T00:00:00Z"
+lebranch lsame "done"      none                            same "2026-01-03T00:00:00Z"
+printf 'plan\n' >"${lework}/docs/plans/same.md"
+commit_all "$lework" "a plan written on this branch, never on main"
+git -C "$lework" push -q origin lsame
+lebranch lreuse "done"     none                            old  "2026-01-03T12:00:00Z"
+printf 'plan again\n' >"${lework}/docs/plans/old.md"
+commit_all "$lework" "a new plan under a retired stem"
+git -C "$lework" push -q origin lreuse
+lebranch lkept "done"      none                            kept "2026-01-04T00:00:00Z"
+lebranch lrec  "done"      none                            rec  "2026-01-04T12:00:00Z"
+lebranch levil "done"      none                            evil "2026-01-04T13:00:00Z"
+lebranch lrevw review      none                            gone "2026-01-04T14:00:00Z"
+lebranch lslsh in-progress "https://github.com/o/r/pull/8/"  none "2026-01-04T15:00:00Z"
+lebranch lmrg  in-progress 6                               none "2026-01-05T00:00:00Z"
+lebranch lopen in-progress 7                               none "2026-01-06T00:00:00Z"
+lemerge lboth 5 "2026-01-01T12:00:00Z"
+lemerge lmrg  6 "2026-01-08T00:00:00Z"
+git -C "$lework" checkout -q main
+git -C "$lework" rm -q docs/plans/both.md docs/plans/gone.md docs/plans/rec.md
+commit_all "$lework" "plans retired"
+# An evil merge: the delete lives only in the merge commit, which plain
+# history simplification never shows.
+git -C "$lework" checkout -q -b side main
+printf 'side\n' >"${lework}/side.txt"
+commit_all "$lework" "side work"
+git -C "$lework" checkout -q main
+git -C "$lework" merge -q --no-ff --no-commit side >/dev/null
+git -C "$lework" rm -q docs/plans/evil.md
+git -C "$lework" commit -qm "Merge pull request #11 from o/side"
+git -C "$lework" push -q origin main
+# lrec reconciles as step 3 says: merging main in takes the delete with it.
+git -C "$lework" checkout -q lrec
+git -C "$lework" merge -q -m "merge origin/main" main
+printf 'reconciled\n' >>"${lework}/docs/handover/lrec.md"
+commit_all "$lework" "lrec after reconcile"
+git -C "$lework" push -q origin lrec
+git -C "$lework" checkout -q main
+
+leout="$(CLAUDE_PROJECT_DIR="$lework" HANDOVER_FETCH=0 \
+  bash "${ROOT}/.agents/harness/handover-context.sh" 2>&1)"
+leblock() { printf '%s\n' "$leout" | awk -v r="  origin/$1: " '
+  index($0, r) == 1 { on = 1; next }
+  on && /^  origin\// { on = 0 }
+  on { print }'; }
+
+expect "a pr: URL is read as its trailing number" "pr #5]" "$(leblock lboth)"
+expect "commits after a merged pull request are counted" \
+  "EDGE: 1 commit(s) after merged PR #5; plan gone from main: landed elsewhere? confirm in merged history, then release" \
+  "$(leblock lboth)"
+expect "the lead line carries both facts" \
+  "FINISH BEFORE STARTING: origin/lboth (docs/handover/lboth.md) — status done and unmerged; 1 commit(s) after merged PR #5; plan gone from main: landed elsewhere? confirm in merged history, then release." \
+  "$leout"
+expect "a done plan the base deleted says so" \
+  "EDGE: plan gone from main: landed elsewhere? confirm in merged history, then release" \
+  "$(leblock lgone)"
+refute "and names no merged pull request it lacks" "after merged PR" "$(leblock lgone)"
+refute "a plan never on the base prints nothing new" "plan gone" "$(leblock lsame)"
+expect "a branch that merged the delete in still says so" "plan gone from main" "$(leblock lrec)"
+expect "a delete made only in a merge commit is seen" "plan gone from main" "$(leblock levil)"
+refute "plan gone is said of status done only" "plan gone" "$(leblock lrevw)"
+expect "and that entry really is in the report" "EDGE: at review" "$(leblock lrevw)"
+expect "a pr: URL with a trailing slash is still its number" "pr #8]" "$(leblock lslsh)"
+refute "a delete older than the branch is not its landing" "plan gone" "$(leblock lreuse)"
+expect "and that entry really is in the report" "origin/lreuse: docs/handover/lreuse.md" "$leout"
+refute "a plan the base still carries prints nothing new" "plan gone" "$(leblock lkept)"
+expect "a rank-2 entry counts commits after its merged pull request" \
+  "EDGE: 1 commit(s) after merged PR #6" "$(leblock lmrg)"
+expect "and the rank-2 caveat stays true" \
+  "open and closed are the same bytes here; merged shows only as its merge commit on main" \
+  "$(leblock lmrg)"
+refute "an unmerged pull request prints no merged fact" "after merged PR" "$(leblock lopen)"
+refute "the listing never writes abandoned" "abandoned" "$leout"
