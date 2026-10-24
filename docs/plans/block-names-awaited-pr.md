@@ -6,7 +6,7 @@ effort: high
 needs: none
 requirement: none
 issue: 596
-scope: joharness.sh, shared:.claude/commands/manage.md, .agents/harness/selftest/block-resume.sh
+scope: joharness.sh, .claude/commands/orchestrate.md, shared:.claude/commands/manage.md, .agents/harness/selftest/dispatch.sh, .agents/harness/selftest.sh
 ---
 
 ## Goal
@@ -19,9 +19,10 @@ shows that PR merged.
 
 ## Scope
 
-- `joharness.sh` — `block_reason_ok` keeps accepting `core path:`; `cmd_dispatch` parses `waiting on #<N>` in a blocked `next:`, and when `origin/<base>` carries a `Merge pull request #<N> from` commit prints the item as `RESUME — #<N> merged` (one slot, as the other resume rows).
+- `joharness.sh` — `block_reason_ok` keeps accepting `core path:`; `cmd_dispatch` parses `waiting on #<N>` in a blocked `next:`, and when `origin/<base>` carries a `Merge pull request #<N> from` commit prints the item as `PARKED #<N> RESUME`-shaped row text `RESUME — #<N> merged` that orchestrate.md already respawns on (one slot, as the other resume rows).
 - `.claude/commands/manage.md` — §3: a `core path:` block names the awaited PR as `core path: waiting on #<N>: <question>`.
-- `.agents/harness/selftest/block-resume.sh` (new) — case: blocked item with merged PR resumes; open PR does not. Fails without the change.
+- `.claude/commands/orchestrate.md` — § Resume and the `blocked` row: a `PARKED #<n> RESUME`-style row from a merged awaited PR is the one more respawn exception; every other `blocked` row stays "never respawn".
+- `.agents/harness/selftest/dispatch.sh` — case: blocked item with merged PR resumes; open PR does not. Fails without the change.
 
 ## Assumptions
 
@@ -30,6 +31,8 @@ shows that PR merged.
 - A3: "A blocked item is never respawned" must keep holding for every block without a merged awaited PR — evidence: `.claude/commands/manage.md` §3 — confidence: high
 
 ## Out of scope
+
+- A new selftest topic file: `selftest.sh` lists topics, so the case goes in the existing `dispatch.sh`.
 
 - Other block reasons; an unmerged or closed PR (no resume).
 - Merging, labelling or approving the human PR: no session does.
@@ -47,6 +50,8 @@ shows that PR merged.
 - `.claude/commands/manage.md` §3 — block text.
 
 ## Traps
+
+- `human-half-order-and-park-pr` (issue #597) tells a human PR that renames a path to merge WITH or AFTER its code half; this plan covers a code half that waits for a human PR that is independent of it. Do not widen the awaited-PR rule to renames.
 
 - `joharness.sh` is not a core path; `.github` and the conf are: touch neither.
 - Never wake a block silently: the resume row names the PR.
