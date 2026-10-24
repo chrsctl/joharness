@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_016VB32myigsC5a7gT5th1gL
 agent: fable
 updated: 2026-10-24
-next: Run plan-checker on both plans and the verifier on the diff; record findings; retire; pull request; merge
+next: Spawn the verifier on the diff, record findings, retire the workstream file, pull request, merge
 ---
 
 ## Goal
@@ -60,10 +60,18 @@ other work without a slot) into plans. Plans only, no implementation.
 
 ## Review
 
-One bullet per finding, written BEFORE its fix, committed WITH it, in exactly
-the form `- rN: text (fixed|wontfix: why|no change)` — `ci` checks it. Tag the
-verifier's findings `(verifier)`. Clean pass = one bullet saying so. Remove
-this paragraph when you add the first bullet.
+- r1: halt-claim Scope lacked the rev-parse step before the guard that its SHIPS acceptance line relies on (plan-checker) (fixed)
+- r2: halt-claim left `guard janitor|kill|loop` stale in orchestrated.md and the joharness.sh header (plan-checker) (fixed)
+- r3: halt-claim said an unlisted selftest topic is never run; the runner reds it (plan-checker) (fixed)
+- r4: halt-claim A7 anchored `retro_due`; the comment is `retro_candidates`'s (plan-checker) (fixed)
+- r5: halt-claim named the `own` walk; `dispatch_retired_edges` computes `items` and filters by `own` (plan-checker) (fixed)
+- r6: halt's `next:` dropped the janitor's why clause a pre-`abandoned` branch needs (plan-checker) (fixed)
+- r7: both plans at 8 or 9 Scope bullets drew curate's decompose proposal (plan-checker) (fixed: same-file bullets merged, 7 each)
+- r8: hold-requirement's queue-context case refuted a sentence that fixture never prints (plan-checker) (fixed)
+- r9: hold-requirement anchor named assertions absent from the queue-context selftest (plan-checker) (fixed)
+- r10: hold-requirement acceptance counted `withheld` from 4 while one PASS label already carries it (plan-checker) (fixed)
+- r11: hold-requirement SHIPS parenthetical understated the shipped set (plan-checker) (fixed)
+- r12: hold-requirement anchors imprecise on the `rprio` comment and the `claimed on` parse (plan-checker) (fixed)
 
 ## Blockers
 

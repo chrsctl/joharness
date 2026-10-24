@@ -28,25 +28,29 @@ the gap is who may write it, and under which guard.
 - `joharness.sh` — new `cmd_halt`, routed as `halt)` beside `janitor)` in
   the command `case`, listed in the header usage block after `janitor`.
   Per branch named: `git fetch -q origin
-  +refs/heads/<b>:refs/remotes/origin/<b>` (as `janitor_apply` does), tip =
-  `refs/remotes/origin/<b>`, `cmd_guard halt <b> --expect <tip>`; exit 2 =
+  +refs/heads/<b>:refs/remotes/origin/<b>` (as `janitor_apply` does); tip =
+  `git rev-parse -q --verify refs/remotes/origin/<b>^{commit}`, unresolved =
+  `skip      : <b> — no such branch on origin`, rc 1 (the `janitor_apply`
+  step before its guard); then `cmd_guard halt <b> --expect <tip>`; exit 2 =
   `skip : <b> — gone on origin`, any other non-zero = `skip : <b> — guard
   refused; nothing released`, rc 1. Then the write, two shapes:
   1. The branch writes a workstream file (`guard_workstreams "$tip"` is
      non-empty): every such file gets `status: abandoned` and `next: Halted
-     by a human <date>: the claim is released; pick this up from the plan`.
-     Factor the awk in `janitor_apply` into one helper taking the `next:`
-     text, used by both callers, so the janitor's own text stays
-     byte-identical (its selftest asserts it).
+     by a human <date>: the claim is released; pick this up from the plan;
+     <why>`, `<why>` = the janitor's own `why` clause (ci reds on the word
+     until the branch reconciles), unchanged. Factor the awk in
+     `janitor_apply` into one helper taking the leading `next:` text, used
+     by both callers, so the janitor's own text stays byte-identical (its
+     selftest asserts `the claim was released`).
   2. The branch is at the edge (no workstream file in its diff against the
      base): restore its own retired record. Walk
      `git log --first-parent --no-merges --format='@%H' --name-only
      --diff-filter=D <base>..<tip> -- docs/handover` exactly as
-     `dispatch_retired_edges` does for `own` (added AND deleted on this
-     first-parent line), take the newest, content from `<commit>^:<path>`,
-     write it back at `<path>` with the same two fields rewritten. No such
-     record = `skip : <b> — no workstream file to release; nothing
-     written`, rc 1.
+     `dispatch_retired_edges` computes `items`, filtered against its `own`
+     list (files this first-parent line both ADDED and deleted), take the
+     newest, content from `<commit>^:<path>`, write it back at `<path>`
+     with the same two fields rewritten. No such record = `skip : <b> — no
+     workstream file to release; nothing written`, rc 1.
   Commit via `commit-tree` on the tip with subject `halt: a human released
   the claim (<date>)`; push `--force-with-lease=refs/heads/<b>:<tip>`;
   print `release : <b>  <path>` per file, `pushed : <b> <sha12>` or
@@ -55,15 +59,19 @@ the gap is who may write it, and under which guard.
   an open pull request is the human's to close: halt wrote git only`.
   Never: the age gate, the `pr:` gate, a session read, a deletion, a write
   to the base branch (guard refuses it by name), the GitHub API.
-- `joharness.sh` — `cmd_guard`: verb `halt` accepted (`janitor | kill |
-  loop | halt`), usage line updated; `halt` skips the `pr:` check as `kill`
-  and `loop` do (the `[ "$verb" = janitor ]` branch stays janitor-only).
+  Same file, `cmd_guard`: verb `halt` accepted (`janitor | kill | loop |
+  halt`), its `usage=` string and the header comment line `guard
+  janitor|kill|loop <branch> [--expect <sha>]` both gain `|halt`; `halt`
+  skips the `pr:` check as `kill` and `loop` do (the `[ "$verb" = janitor ]`
+  branch stays janitor-only).
 - `.agents/harness/AGENTS.md` — Loop step 3, the parenthesis `(--force-with-lease
   only in orchestrate GUARD, janitor)` gains `, halt`. One word; the file
   is caveman.
 - `.agents/harness/selftest/halt.sh` — new topic `joharness.sh halt`, its
   own scratch repo in the shape of `selftest/janitor.sh` (bare origin, a
-  plan on main, a claim branch). Cases, each `expect`/`refute`:
+  plan on main, a claim branch); registered in `.agents/harness/selftest.sh`
+  `SELFTEST_TOPICS` after `janitor` (the registry: the runner reds a
+  tracked topic file nobody sources). Cases, each `expect`/`refute`:
   1. A claim pushed NOW naming `pr: 12`: `janitor --apply <b>` first says
      `skip      : <b> — not a candidate`; then `halt <b>` prints
      `release   : <b>  docs/handover/<ws>.md` and `pushed    : <b>`;
@@ -86,8 +94,6 @@ the gap is who may write it, and under which guard.
   6. A branch deleted on origin between fetch and halt (`git push --delete`
      after the branch is fetched once, then `halt <b>`): `live      :
      REFUSED` surfaces, nothing pushed.
-- `.agents/harness/selftest.sh` — `halt` added to `SELFTEST_TOPICS` after
-  `janitor` (the registry; a topic file not listed is never run).
 - `.agents/harness/selftest/guard.sh` — two cases: `guard halt <b>` on a
   claim with `pr:` set passes (`guard     : pass — halt may push`) and never
   prints `names pr:`; `guard halt main` refused at `protected`.
@@ -95,7 +101,10 @@ the gap is who may write it, and under which guard.
   `./joharness.sh halt <branch>...` after the janitor row: a human's order,
   writes `status: abandoned` through the guard and the lease at any age,
   `pr:` or not; restores the retired record on an edge branch; the item
-  returns to the queue; deletes nothing; never the GitHub API.
+  returns to the queue; deletes nothing; never the GitHub API. "The guard
+  before a harness push": the verb list reads `janitor|kill|loop|halt`,
+  `halt` joins the callers, and the sentence "`kill` and `loop` skip the
+  `pr:` check" names `halt` too.
 - `.agents/docs/handover/README.md` — the paragraph opening "`abandoned` is
   written only by `./joharness.sh janitor --apply`": add `halt` as the
   second writer, on a human's order, same word, same effect. One sentence;
@@ -117,7 +126,7 @@ the gap is who may write it, and under which guard.
 - A4: an edge branch is one whose diff against the base adds or modifies no workstream file; adding one back makes it a claim row — evidence: `joharness.sh:dispatch_retired_edges`, the `git diff … --diff-filter=ACMRT … -- docs/handover | gr_docs | grep -q . && continue` line — confidence: high
 - A5: `cmd_guard`'s `pr:` refusal is janitor-only; `kill` and `loop` skip it — evidence: `joharness.sh:cmd_guard`, `if [ "$verb" = janitor ]` — confidence: high
 - A6: the janitor's release text is asserted by its selftest and must not change — evidence: `grep -n 'the claim was released' .agents/harness/selftest/janitor.sh` — confidence: medium (run the grep; absent = no constraint, keep the helper anyway)
-- A7: the retro cycle samples an `abandoned` claim as a session that did not come back clean — evidence: `joharness.sh:retro_due` comment "status: blocked or abandoned"; `.agents/docs/orchestrated.md` retro row — confidence: high (accepted: a human stop is such a session)
+- A7: the retro cycle samples an `abandoned` claim as a session that did not come back clean — evidence: `joharness.sh:retro_candidates` header comment "status: blocked or abandoned"; `.agents/docs/orchestrated.md` retro row — confidence: high (accepted: a human stop is such a session)
 
 ## Out of scope
 
@@ -152,7 +161,7 @@ the gap is who may write it, and under which guard.
 - `joharness.sh:janitor_candidates` — the gates halt does NOT apply (age, `pr:`, status). Read, never edit.
 - `joharness.sh:cmd_guard` — the verb list, the janitor-only `pr:` arm, the exit codes (0 pass, 2 gone, 1 refused).
 - `joharness.sh:guard_workstreams` — the workstream files a tip writes relative to the base: shape 1's file list.
-- `joharness.sh:dispatch_retired_edges` — the `own` walk (first-parent, no merges, added and deleted) shape 2 copies; the `ACMRT … && continue` line A4 rests on.
+- `joharness.sh:dispatch_retired_edges` — the `items` walk filtered by `own` (first-parent, no merges, added and deleted) shape 2 copies; the `ACMRT … && continue` line A4 rests on.
 - `joharness.sh:cmd_dispatch` — where an in-flight row and a `retired, no claim file` row come from; cases 2 and 3 read this output.
 - `.agents/harness/selftest/janitor.sh` — the fixture shape (bare origin, dated commits, `jan`/`jdsp` runners) the new topic copies.
 - `.agents/harness/selftest/guard.sh` — `grun`, `grefused` helpers; the `pr: set, kill: passes` case the new halt case mirrors.

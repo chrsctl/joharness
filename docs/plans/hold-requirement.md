@@ -35,7 +35,8 @@ Satisfied when, clauses 2 to 4).
   into plans<, blocked by: <stems>><, held><, claimed on <branch>>]`;
   the words `blocked by:` and `held` are the only new tokens, the reason
   text is never printed (branch- and base-controlled text in a label is
-  how a claim was forged once: verifier r6 comment above `rprio`). Rank
+  how a claim was forged once: verifier r6 comment between `rprio=` and
+  its `case` guard). Rank
   `+4` when blocked or held, as a blocked plan ranks. `unplanned_free`
   excludes rows carrying `blocked by:` or `held` as it excludes `claimed on`,
   so every sentence that sends a session to planning skips them.
@@ -58,15 +59,15 @@ Satisfied when, clauses 2 to 4).
   `needs:` or `hold:` that an open plan's `requirement:` names =
   `lint_warn "${rel}: held, but planned — its plans run regardless; the hold
   withholds planning only"`.
-- `.agents/docs/product/README.md` — "## Requirements": the frontmatter
-  sentence names `needs` and `hold` as optional; one bullet **Held** after
-  **Unplanned**: what each field does, read from the base, no slot, offered
-  again without an edit once the named item is gone; a `hold` clears only
-  by edit; neither touches the requirement's plans. "Intake facts": a
-  `needs:` naming a stem that never existed reds `ci`; one that existed and
-  is gone holds nothing.
-- `.agents/docs/product/TEMPLATE.md` — frontmatter gains `needs: none` and
-  `hold: none` with one comment line each inside the existing HTML comment.
+- `.agents/docs/product/README.md` and `.agents/docs/product/TEMPLATE.md`
+  — README "## Requirements": the frontmatter sentence names `needs` and
+  `hold` as optional; one bullet **Held** after **Unplanned**: what each
+  field does, read from the base, no slot, offered again without an edit
+  once the named item is gone; a `hold` clears only by edit; neither
+  touches the requirement's plans. "Intake facts": a `needs:` naming a stem
+  that never existed reds `ci`; one that existed and is gone holds nothing.
+  TEMPLATE frontmatter gains `needs: none` and `hold: none` with one
+  comment line each inside the existing HTML comment.
 - `.agents/docs/graph.md` — the `needs` edge row: `plan → plan;
   requirement → plan, research or requirement`, same open-target rule.
 - `.agents/harness/selftest/dispatch-order.sh` — cases after the
@@ -86,12 +87,17 @@ Satisfied when, clauses 2 to 4).
      abandoned`): still not offered, `4 of 4 free`, no in-flight row.
   5. A held requirement that a plan names in `requirement:`: no `withheld`
      line for it (not UNPLANNED, the hold is moot), the plan offered.
-- `.agents/harness/selftest/queue-context.sh` — one requirement `hold:`
-  and one `needs:` naming an existing plan beside `unplanned-req`: rows
-  read `[normal, UNPLANNED — decompose into plans, held]` and `[…, blocked
-  by: <stem>]`; a withheld-only queue never prints `plan the requirements
-  above`. Read the topic header first: it shares a chain and a fixture
-  (`SELFTEST_CHAINS`), so set every precondition the case turns on.
+- `.agents/harness/selftest/queue-context.sh` — one `priority: normal`
+  requirement with `hold:` and one with `needs:` naming an existing plan,
+  beside `unplanned-req`: rows read `[normal, UNPLANNED — decompose into
+  plans, held]` and `[…, blocked by: <stem>]`; with `unplanned-req`
+  removed so every unplanned requirement is withheld, the output carries
+  neither `Plus one planning session for the UNPLANNED requirements above`
+  nor `then UNPLANNED requirements above` (the fixture holds plans, so
+  `plan the requirements above` never prints there: refuting it proves
+  nothing). Read the topic header first: it shares a chain and a fixture
+  (`SELFTEST_CHAINS`), so set every precondition the case turns on and
+  restore `unplanned-req` after.
 - `.agents/harness/selftest/ci-graph-lint.sh` — `needs: nosuch` on a
   requirement reds with `no such plan, question or requirement`; `needs:
   <an existing plan>` and `hold: any words here` pass; `needs:` naming a
@@ -103,7 +109,7 @@ Satisfied when, clauses 2 to 4).
 
 - A1: the queue hook is the only producer of requirement rows and `drain_requirement` the only consumer that offers one — evidence: `.agents/harness/queue-context.sh` `unplanned=` block; `joharness.sh:drain_requirement` (`sed -n '/^Requirements without plans/,/^$/p'`), called once in `cmd_dispatch` — confidence: high
 - A2: `unplanned_free` is what every "go plan" sentence in the hook reads — evidence: `.agents/harness/queue-context.sh`, the comment above `unplanned_free=` (verifier r4) — confidence: high
-- A3: a label token is trusted downstream, so free text must not enter it — evidence: `.agents/harness/queue-context.sh` comment above `rprio` ("forged a planner in flight (verifier r6)"); `joharness.sh:cmd_dispatch` parses `claimed on ` out of labels with `sed` — confidence: high
+- A3: a label token is trusted downstream, so free text must not enter it — evidence: `.agents/harness/queue-context.sh` comment below `rprio=` ("forged a planner in flight (verifier r6)"); `joharness.sh:cmd_dispatch` cuts the branch out of a label with `branch="${label##*claimed on }"` — confidence: high
 - A4: `lint_existed` answers "did this path ever exist on this history" for any path — evidence: `joharness.sh:lint_existed`; the plan loop's `needs` arm calls it on `docs/plans/<n>.md` — confidence: high
 - A5: `gr_fields`/`fields` read a frontmatter key once, comment after ` #` stripped — evidence: `joharness.sh:gr_fields`; `.agents/harness/queue-context.sh:fields` — confidence: high
 - A6: a requirement with open plans is not in the `unplanned` list at all — evidence: `.agents/harness/queue-context.sh`, `grep -qxF -- "$rs" <<<"$served" && continue` — confidence: high
@@ -130,10 +136,10 @@ Satisfied when, clauses 2 to 4).
 
 - `./joharness.sh ci` — last line `ci: pass`.
 - `./joharness.sh verify` — the layer prints `0 failed`.
-- `JOHARNESS_SELFTEST_JOBS=1 .agents/harness/selftest.sh 2>&1 | sed -n '/^== joharness.sh dispatch: order$/,/^== /p' | grep -c 'withheld'` — at least `4` PASS lines name `withheld`, and the range's `grep -c '^  FAIL'` is `0` (read the topic's `step` title first and use it verbatim in the `sed` range).
+- `JOHARNESS_SELFTEST_JOBS=1 .agents/harness/selftest.sh 2>&1 | sed -n '/^== joharness.sh dispatch: order$/,/^== /p' | grep -c 'withheld'` — at least `5` (one PASS label, `and its requirement stays withheld`, exists today; the new cases add at least four whose labels name `withheld`), and the range's `grep -c '^  FAIL'` is `0`.
 - `JOHARNESS_SELFTEST_JOBS=1 .agents/harness/selftest.sh 2>&1 | grep -c '^  FAIL'` — `0`.
 - On a scratch checkout of this branch: write `docs/product/x.md` with `needs: nosuch` beside `requirement: x` and `priority: normal`; `./joharness.sh ci 2>&1 | grep -c "needs 'nosuch' — no such plan, question or requirement"` — `1`.
-- SHIPS (`joharness.sh` and `.agents/harness/queue-context.sh` reach every consumer): in a consumer checkout with one requirement carrying `hold: paused`, `./joharness.sh dispatch 2>&1 | grep -c 'withheld  : docs/product/'` — `1`, and the same output `grep -c 'UNPLANNED: one planning manager'` — `0`.
+- SHIPS (`joharness.sh`, `.agents/harness/queue-context.sh` and the three `.agents/docs/` files reach every consumer; the selftest files do not): in a consumer checkout with one requirement carrying `hold: paused`, `./joharness.sh dispatch 2>&1 | grep -c 'withheld  : docs/product/'` — `1`, and the same output `grep -c 'UNPLANNED: one planning manager'` — `0`.
 
 ## Where to look
 
@@ -143,7 +149,7 @@ Satisfied when, clauses 2 to 4).
 - `joharness.sh:lint_graph` — the plan loop's `needs` arm (the resolution to copy) and the `docs/product` loop (where it lands).
 - `joharness.sh:lint_existed` — history test for a cleared edge.
 - `.agents/harness/selftest/dispatch-order.sh` — `qoreq`, `qoreqclaim`, `qo`, `qofirst`, `fixture_rm`; the `claimedreq` cases the new ones follow.
-- `.agents/harness/selftest/queue-context.sh` — `unplanned-req` fixture and the "Requirements without plans" assertions.
+- `.agents/harness/selftest/queue-context.sh` — `unplanned-req` and `served-req` fixtures and their `UNPLANNED` row assertions.
 - `.agents/harness/selftest/ci-graph-lint.sh` — the `gone-req` and `claim-goal` fixtures.
 - `.agents/docs/product/README.md` — "## Requirements" bullets and "Intake facts".
 
