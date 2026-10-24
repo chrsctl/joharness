@@ -136,7 +136,7 @@ JOHARNESS_CANONICAL||session|Conf line JOHARNESS_CANONICAL=1 marks the canonical
 JOHARNESS_CONF|computed|session|Path of the conf file; default joharness.conf under the checkout.
 JOHARNESS_VERBOSE|0|session|1 = ci and finish print passing checks too.
 JOHARNESS_SELFTEST||session|always = run the selftest even on a docs-only diff.
-JOHARNESS_SELFTEST_GIT_BUDGET|88960|session|Git execs the selftest may make before the ci stage reds; canonical-only.
+JOHARNESS_SELFTEST_GIT_BUDGET|98248|session|Git execs the selftest may make before the ci stage reds; canonical-only.
 JOHARNESS_SELFTEST_JOBS|computed|session|Parallel selftest workers; default the CPU count, at most 4; 1 = one topic after another; canonical-only.
 JOHARNESS_SESSION_SOURCE||session|The SessionStart hook source (startup, resume, clear, compact), set by session-start.
 JOHARNESS_FORCE_SETUP|0|session|1 = provision at session start outside the remote sandbox.
@@ -444,7 +444,7 @@ ci_selftest() {
 # from it. Over JOHARNESS_SELFTEST_GIT_BUDGET = red, like a failed case: the
 # suite's cost grows one fixture at a time and nobody sees it grow. A green
 # stage stays quiet like every other; `ci -v` prints the count. The default
-# is a count plus a tenth: `ci -v` on this repository, 2026-10-14.
+# is a count plus a tenth: `ci -v` on this repository, 2026-10-24 (89316).
 selftest_counted() {
   local real dir rc n budget
   budget="$(num_knob JOHARNESS_SELFTEST_GIT_BUDGET)"
