@@ -1,0 +1,128 @@
+name: prune-branches
+
+# Deletes branches that hold nothing `main` lacks, so `git fetch` and every
+# harness walk over refs/remotes/origin stay short. Two jobs:
+#
+# - on-merge: a merged pull request's head branch, right after the merge.
+# - sweep: the backlog and what on-merge never sees — branches merged by
+#   ancestry with no pull request (empty clerk/curate branches, a direct
+#   push), and unmerged branches with NO net change against their merge base
+#   (an ended clerk pass) once they are a week old.
+#
+# Never deleted: the default branch; a branch an open pull request rides; the
+# newest `clerk-noop-*` and newest `curate-noop-*` — each IS its role's clock
+# (joharness.sh: clerk_noop, curate_noop read merged refs of that name); any
+# branch whose tip is younger than MIN_AGE_HOURS (a session may still be
+# pushing to it); an unmerged branch with any net change — abandoned work is
+# a human's to triage, never an age-out.
+#
+# Merged = nothing lost: the merge-commit method keeps every commit of the
+# branch in main's history, so the workstream-file recovery command a pull
+# request body carries keeps working. Sessions still never `git push
+# --delete` (.agents/harness/AGENTS.md step 7); this file is the human's.
+#
+# Cost: each job bills a minimum runner minute on a private repo. The free
+# alternative for on-merge alone is Settings > General > "Automatically
+# delete head branches"; the sweep still covers everything that setting
+# misses.
+
+on:
+  pull_request:
+    types: [closed]
+  schedule:
+    - cron: '23 4 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: List what would be deleted, delete nothing
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+  pull-requests: read
+
+concurrency:
+  group: prune-branches-${{ github.event_name == 'pull_request' && github.event.pull_request.number || 'sweep' }}
+  cancel-in-progress: false
+
+jobs:
+  on-merge:
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref != github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    steps:
+      - name: delete the merged head branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+          MERGED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          tip="$(gh api "repos/${REPO}/git/ref/heads/${BRANCH}" --jq .object.sha 2>/dev/null)" || {
+            echo "${BRANCH}: already gone"; exit 0; }
+          # A push after the merge holds work main lacks: the sweep judges it later.
+          if [ "$tip" != "$MERGED_SHA" ]; then
+            echo "${BRANCH}: tip ${tip} moved past the merged ${MERGED_SHA}, kept"; exit 0
+          fi
+          open="$(gh pr list --repo "$REPO" --state open --head "$BRANCH" --json number --jq length)"
+          if [ "$open" != "0" ]; then
+            echo "${BRANCH}: another open pull request rides it, kept"; exit 0
+          fi
+          gh api -X DELETE "repos/${REPO}/git/refs/heads/${BRANCH}"
+          echo "${BRANCH}: deleted"
+
+  sweep:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BASE: ${{ github.event.repository.default_branch }}
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
+      MIN_AGE_HOURS: 24
+      EMPTY_AGE_HOURS: 168
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: delete merged and empty branches
+        run: |
+          set -euo pipefail
+          git fetch -q --prune origin '+refs/heads/*:refs/remotes/origin/*'
+          base="refs/remotes/origin/${BASE}"
+          now="$(date +%s)"
+          open="$(gh pr list --state open --limit 1000 --json headRefName --jq '.[].headRefName')"
+          keep="$(for k in clerk-noop curate-noop; do
+            git for-each-ref --format='%(refname:lstrip=3)' "refs/remotes/origin/${k}-*" | sort | tail -n 1
+          done)"
+          merged="$(git for-each-ref --merged="$base" --format='%(refname:lstrip=3)' refs/remotes/origin)"
+          del=()
+          while IFS=$'\t' read -r name ct; do
+            { [ "$name" = "$BASE" ] || [ "$name" = HEAD ]; } && continue
+            grep -qxF -- "$name" <<<"$open" && continue
+            grep -qxF -- "$name" <<<"$keep" && continue
+            age=$(( (now - ct) / 3600 ))
+            [ "$age" -ge "$MIN_AGE_HOURS" ] || continue
+            if grep -qxF -- "$name" <<<"$merged"; then
+              why=merged
+            else
+              mb="$(git merge-base "$base" "refs/remotes/origin/${name}")" || continue
+              git diff --quiet "$mb" "refs/remotes/origin/${name}" || continue
+              [ "$age" -ge "$EMPTY_AGE_HOURS" ] || continue
+              why=empty
+            fi
+            printf '%-6s %5sh  %s\n' "$why" "$age" "$name"
+            del+=("$name")
+          done < <(git for-each-ref --format='%(refname:lstrip=3)%09%(committerdate:unix)' refs/remotes/origin)
+          echo "${#del[@]} branch(es) to delete"
+          if [ "$DRY_RUN" = true ] || [ "${#del[@]}" -eq 0 ]; then
+            exit 0
+          fi
+          failed=0
+          for ((i = 0; i < ${#del[@]}; i += 50)); do
+            git push -q origin --delete "${del[@]:i:50}" || failed=1
+          done
+          exit "$failed"
