@@ -6,7 +6,7 @@ effort: medium
 needs: none
 requirement: none
 issue: none
-scope: shared:joharness.sh, .agents/harness/selftest/ci-selftest-scope.sh, shared:.agents/harness/selftest.sh
+scope: joharness.sh, .agents/harness/selftest/ci-selftest-scope.sh, shared:.agents/harness/selftest.sh
 ---
 
 ## Goal

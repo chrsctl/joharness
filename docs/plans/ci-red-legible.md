@@ -6,7 +6,7 @@ effort: medium
 needs: none
 requirement: none
 issue: none
-scope: shared:joharness.sh, .agents/harness/selftest/ci-output.sh
+scope: joharness.sh, .agents/harness/selftest/ci-output.sh
 ---
 
 ## Goal
