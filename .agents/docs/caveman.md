@@ -3,8 +3,7 @@
 Rules for all instruction files and agent replies in this repo. Distilled from
 [JuliusBrussee/caveman](https://github.com/JuliusBrussee/caveman): rules from
 `skills/caveman/SKILL.md`, motto from its `README.md`.
-MIT License, Copyright (c) 2026 Julius Brussee — full notice at the end of
-this file, so a copy of it carries the whole condition wherever it goes.
+MIT License, Copyright (c) 2026 Julius Brussee — full notice at the end.
 Motto: why use many token when few do trick.
 
 ## Core
@@ -50,13 +49,12 @@ Yes: "Bug in auth middleware. Token expiry check use `<` not `<=`. Fix:"
 ## Tokenizer facts (measured upstream, obeyed here)
 
 - NO invented abbreviations (cfg, impl, req, res, fn): tokenizer splits them
-  same as full word. Zero tokens saved, reader still decodes. Standard
-  well-known acronyms fine (DB, API, HTTP).
+  same as full word. Well-known acronyms fine (DB, API, HTTP).
 - NO arrows (X → Y) and similar symbols in prose: own token, save nothing.
-  Plain words instead. `=` in "A = B" fine — reads as "is".
-- Never ADD word to sound caveman. Compression only — style never grows
-  output. No fake broken grammar: if caveman phrasing not shorter than plain,
-  use plain. Keep correct verb form when same cost.
+  `=` in "A = B" fine — reads as "is".
+- Never ADD word to sound caveman: compression only, style never grows output.
+  No fake broken grammar: not shorter than plain = use plain; keep correct verb
+  form when same cost.
 - State each fact once.
 
 ## Status quo
@@ -75,9 +73,8 @@ reached; every past sentence is paid by every reader, forever.
 - Workstream and plan files: same rule (handover README: only what git
   cannot tell).
 
-"Numbers, dates — exact" under Never touch governs compression of text
-that stays, not whether a dated story stays. Measured number keeps its
-command and when (Loop step 5): that is the number's metadata, not a story.
+"Numbers, dates — exact" (Never touch) governs text that stays, not whether a
+dated story stays. Measured number keeps its command and when (Loop step 5).
 
 ## Where it applies
 
@@ -89,39 +86,25 @@ command and when (Loop step 5): that is the number's metadata, not a story.
   messages, issue / PR / review text, third-party messages. Upstream boundary
   rule; kept here.
 
-## What it costs
+Cost: every file loaded before the first prompt (`CLAUDE.md` and its `@`
+imports, the `session-start` injection) is paid by every session, forever.
+Before adding a line there: is the rule already stated somewhere read on
+demand? A why under `.agents/docs/` costs nothing until opened.
 
-Every file a session loads before its first prompt — `CLAUDE.md` through its
-`@` imports, plus the `session-start` injection — is paid by every session,
-forever. Growth arrives one honest rule at a time, and the session adding the
-rule cannot see the total. So before adding a line there, ask: is the rule already
-stated somewhere a session reads on demand? A why under `.agents/docs/` costs
-nothing until opened.
-
-## Controlled vocabulary: built, not invented, and not adopted
+## Controlled vocabulary
 
 `.agents/docs/glossary.md` fixes contested terms; `ci` fails on the banned
-spellings (`joharness.sh:lint_glossary`). Prior art: Vale `accept.txt`
-vocabularies ([docs.vale.sh/keys/vocabularies](https://docs.vale.sh/keys/vocabularies)),
-`textlint-rule-terminology`. This repo builds its own: `ci` is shell and
-shellcheck, and `joharness.sh` ships to every consumer, so adopting puts a Go
-or Node runtime in all of them. Re-open only if that trade changes.
-
-A term that means different things in two layers gets NO row: see
-`.agents/docs/glossary.md`, "One meaning, or nothing".
+spellings (`joharness.sh:lint_glossary`, shell: adopting Vale would ship a Go runtime).
 
 ## Honest numbers (upstream's own warning)
 
-Style compresses output and re-read input. It proves nothing about quality —
-compress only where every load-bearing fact survives. When compressed text
-loses a symptom, a number, or a negation, verbose wins. Upstream:
-[HONEST-NUMBERS.md](https://github.com/JuliusBrussee/caveman/blob/main/docs/HONEST-NUMBERS.md).
+Style proves nothing about quality: compressed text that loses a symptom, a number or a
+negation loses to verbose ([HONEST-NUMBERS.md](https://github.com/JuliusBrussee/caveman/blob/main/docs/HONEST-NUMBERS.md)).
 
 ## Upstream license
 
-This file is a derivative of the caveman skill. MIT names two things that
-travel with every copy — the copyright notice and the permission notice — so
-both are here rather than in a neighbouring file a copy would leave behind.
+Derivative of the caveman skill: MIT's copyright and permission notices
+travel inside this file, so every copy carries them.
 
     MIT License
 

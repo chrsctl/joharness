@@ -1,11 +1,9 @@
 # Agent selection
 
-Different plans, different agents. Each plan file under `docs/plans/` names
-in frontmatter which agent tier implements it (`agent`) and at what effort
-(`effort`). This document: the lineup, the selection rules, the model
-behavior they rest on. Lineup facts: claude-api skill's model table —
-read 2026-10-06, verify against Models API when stale. Cache-read column:
-Anthropic's pricing page (2026-10-09); it wins over the skill cache.
+Each plan file under `docs/plans/` names in frontmatter which agent tier
+implements it (`agent`) and at what effort (`effort`). Lineup facts:
+claude-api skill's model table, read 2026-10-06 (verify against Models API
+when stale); cache-read column: Anthropic's pricing page, 2026-10-09.
 
 ## Lineup
 
@@ -22,9 +20,8 @@ mapping:
 The 100K line counts the whole prompt, cache reads included, per request: a
 haiku session whose context grows past it pays 5x on every later turn. A
 manager's haiku worker is the cheapest lever that keeps quality — the
-manager re-runs the acceptance command before any commit.
-Opus 5.5 defaults to effort `medium`, one below Opus 5 (same skill
-cache) — the plan's `effort:` is what keeps it at `high`.
+manager re-runs the acceptance command before any commit. Opus 5.5 defaults
+to effort `medium`; the plan's `effort:` is what keeps it at `high`.
 
 ## Selection rules
 
@@ -55,8 +52,6 @@ cache) — the plan's `effort:` is what keeps it at `high`.
 - Tier binds the builder. Session below the plan's `agent`: never implement —
   record the wanted tier in the workstream file's `agent:`, push, hand off;
   the hook prints it. Effort below the plan's `effort`: raise in place.
-  Unenforced on purpose: a session cannot read its own tier reliably, and a
-  gate that guesses is one sessions route around.
 
 ### Review depth
 
@@ -78,11 +73,10 @@ Findings land in `## Review` (`.agents/docs/handover/README.md`, Reviewing).
 Escalating tier escalates review depth; neither ever downgrades.
 
 `./joharness.sh review` prints the depth for this branch and whether the
-record exists. `JOHARNESS_REVIEW=on` arms the gate: mid-build it only says
-the record is owed; at the edge (`pr:` set, or `status:` review/done) `ci`
-fails on an empty `## Review` or one with no finding tagged `(verifier)`.
-It checks the RECORD, never the count — a gate on N findings buys invented
-findings. A clean pass records one line saying so.
+record exists. `JOHARNESS_REVIEW=on` arms the gate: mid-build it says the
+record is owed; at the edge (`pr:` set, or `status:` review/done) `ci` fails on
+an empty `## Review` or one with no `(verifier)` finding. It checks the RECORD, never the count. A clean pass
+records one line saying so.
 
 ### Review churn
 
@@ -112,11 +106,9 @@ inside the churn cannot see it. A genuine large rework lifts the gate with
   a wait past the TTL is cheaper as a fresh session reading what git holds. An
   orchestrator starts each run fresh ([`orchestrated.md`](orchestrated.md),
   "Start each run fresh"); a manager stays in its session, waking on task
-  notifications inside the TTL (re-check if a queue starts parking managers on
-  human review). `JOHARNESS_HEALTH_MINUTES` under the TTL keeps passes warm.
-- **Effort does not cross a spawn.** `Agent` and `create_session` take a
-  model, not an effort; a plan's `effort:` reaches a spawned session only as
-  prompt prose.
+  notifications inside the TTL. `JOHARNESS_HEALTH_MINUTES` under the TTL keeps
+  passes warm.
+- **Effort does not cross a spawn** ([`subagents.md`](subagents.md)).
 - **Subscription limits are one pool.** On Pro or Max every fleet session
   draws the same allowance as the human's own use; `JOHARNESS_MAX_MANAGERS`
   multiplies the burn rate.
@@ -130,19 +122,14 @@ a lever from a session's billed `modelUsage`, not from a table.
 
 From Anthropic migration notes, each with its harness consequence:
 
-1. **Literal instruction following** — does not generalise or infer unstated
-   requests: plans state scope AND out-of-scope.
-2. **Strict effort adherence** — at low effort scopes to exactly what was
-   asked: raise effort, never prompt around it.
-3. **More agentic** — runs self-verification unprompted: acceptance commands
-   with expected output get run.
-4. **Good progress updates by default** — no "summarize every N steps"
-   scaffolding.
-5. **Conservative-reporting instructions lower recall** — review prompts say
-   report everything, filter later.
+1. **Literal instruction following** (infers no unstated request): plans state
+   scope AND out-of-scope.
+2. **Strict effort adherence** (low effort = exactly what was asked): raise
+   effort, never prompt around it.
+3. **More agentic**: acceptance commands with expected output get run.
+4. **Good progress updates by default**: no "summarize every N steps" scaffolding.
+5. **Conservative-reporting instructions lower recall**: review prompts say report everything, filter later.
 
 ## Writing plans for agents
 
-Rules in `.agents/docs/plans/README.md`. An agent executes what the plan
-says, precisely, and nothing else. Ambiguity is executed literally or asked
-back to a human.
+Rules in `.agents/docs/plans/README.md`: an agent executes what the plan says, and nothing else.
