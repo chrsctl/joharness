@@ -6,7 +6,7 @@ effort: xhigh
 needs: none
 requirement: halt-and-hold
 issue: none
-scope: shared:joharness.sh, .agents/harness/AGENTS.md, .agents/harness/selftest.sh, .agents/harness/selftest/halt.sh, .agents/harness/selftest/guard.sh, shared:.agents/docs/orchestrated.md, .agents/docs/handover/README.md, .agents/docs/orchestrate-reference.md
+scope: shared:joharness.sh, .agents/harness/AGENTS.md, shared:.agents/harness/selftest.sh, .agents/harness/selftest/halt.sh, .agents/harness/selftest/guard.sh, shared:.agents/docs/orchestrated.md, .agents/docs/handover/README.md, .agents/docs/orchestrate-reference.md
 ---
 
 ## Goal
