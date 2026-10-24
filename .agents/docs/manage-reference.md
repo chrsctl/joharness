@@ -84,8 +84,10 @@ leaves the retire on a branch only.
 
 ## Plan issue
 
-Plan names `issue: N`? Body carries `Closes #N` when no other plan on fresh
-`origin/main` names it (`git grep -l -E '^issue: *#?N([^0-9]|$)' origin/main
+Plan names `issue: N`? Plan carries a `## Issue remainder` section: body
+carries `Refs #N`, never `Closes #N` (the plan file decides, not the issue's
+labels, which can change while the plan is queued). Otherwise body carries
+`Closes #N` when no other plan on fresh `origin/main` names it (`git grep -l -E '^issue: *#?N([^0-9]|$)' origin/main
 -- docs/plans`, yours excluded), else `Refs #N`. That issue's labels
 (`issue_read`, `get_labels`, one read when you open the pull request)
 include `scout`, or its title starts `scout:`? Title starts `scout: ` and the pull request carries the

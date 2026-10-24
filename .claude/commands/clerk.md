@@ -112,8 +112,8 @@ plan, however it is worded.
 
 A NUMBERED ANSWER. A counting maintainer comment whose whole text is a
 number `N` (whitespace and trailing punctuation ignored), newer than the
-newest `clerk: HUMAN` comment posted by the identity you comment as,
-selects option `N` of that comment; that option's text is read as the
+newest `clerk: HUMAN` or `clerk: NARROWER` comment carrying numbered options,
+posted by the identity you comment as, selects option `N` of that comment; that option's text is read as the
 maintainer's answer. No such comment, no option `N` in it, or a reply older
 than it = the reply is read as written, like any other.
 
@@ -135,7 +135,14 @@ recorded in the pull request body with the evidence, one line each:
   written — `ci` fails it, and only a human can build it: verdict HUMAN
   instead. A plan written: comment `clerk: HOLDS — plan <stem> in PR #<M>`.
 - **NARROWER** — a plan for only the part that holds, `issue: <N>`; comment
-  saying which parts did not hold and why, and naming `PR #<M>`.
+  naming `PR #<M>` and sorting each part not planned into one of two kinds.
+  Does not hold: the evidence, as DOES NOT HOLD gives it. Needs a human (the
+  HUMAN reasons): the question, then 2 to 4 numbered options, one line each,
+  `(recommended)` on one, and the same closing lines as a HUMAN comment.
+  After the comment, apply `human-review` to the issue (visibility only; the
+  manager does not read it). When any part needs a human, the plan carries a
+  `## Issue remainder` section: one line per such part, naming the question.
+  A plan without the section left no human remainder.
 - **DOES NOT HOLD** — comment with the evidence: the command, its output,
   the line read. Do not close the issue; a human closes it.
 - **HUMAN** — it needs product direction, money, credentials or hardware
@@ -174,8 +181,9 @@ three questions in the pull request body.
 
 One plan per issue, unless the issue names asks that are separable on its
 own words. A plan's `issue:` is how the issue closes later: the manager's
-pull request says `Closes #<N>` when no other queued plan names that issue,
-and `Refs #<N>` when one does (`manage.md` §4), so the last plan closes it.
+pull request says `Closes #<N>` when no other queued plan names that issue
+and the plan has no `## Issue remainder` section, and `Refs #<N>` otherwise
+(`manage.md` §4), so the last plan closes it.
 
 Every comment opens `clerk: <VERDICT>` — that prefix is what §2 reads to
 skip the issue next pass — and ends with the attribution footer this
@@ -224,7 +232,8 @@ posted (link comments counted).
 - Edit anything under `./joharness.sh protocol-paths`, or any plan you did
   not write this pass.
 - Close an issue, open an issue, or edit an issue's labels or body. Three
-  carve-outs: `human-review` goes on after a HUMAN verdict, never off
+  carve-outs: `human-review` goes on after a HUMAN verdict or a NARROWER
+  verdict with a human remainder, never off
   (`.agents/docs/orchestrated.md`, Bounds); the UPSTREAM route closes the consumer issue it routed, and
   opens or reads issues on `CANONICAL_REPO`; the label `scout` goes on your
   own pull request (§4).
