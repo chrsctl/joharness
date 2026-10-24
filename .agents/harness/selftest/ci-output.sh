@@ -12,7 +12,7 @@ git -C "$cowork" symbolic-ref HEAD refs/heads/main
 mkdir -p "${cowork}/.agents/harness" "${cowork}/.agents/env/none" \
   "${cowork}/docs/plans" "${cowork}/docs/handover"
 cp "${ROOT}/joharness.sh" "${cowork}/joharness.sh"
-printf '#!/usr/bin/env bash\nprintf "STUB SUITE RAN\\n"\nexit 0\n' >"${cowork}/.agents/harness/selftest.sh"
+printf '#!/usr/bin/env bash\nprintf "STUB SUITE RAN\\n1 passed, 0 failed\\n"\nexit 0\n' >"${cowork}/.agents/harness/selftest.sh"
 chmod +x "${cowork}/.agents/harness/selftest.sh" "${cowork}/joharness.sh"
 printf '# none\n' >"${cowork}/.agents/env/none/AGENTS.md"
 coconf="${cowork}/joharness.conf"
@@ -58,11 +58,28 @@ commit_all "$cowork" "record a finding"
 out="$(coci)"; rc=$?
 expect "a failing check is printed" "== finding verdicts" "$out"
 expect "with its detail" "r1: a finding with no verdict" "$out"
-expect "and the verdict counts the failures" "ci: FAIL (1)" "$out"
+expect "and the verdict counts the failures" "ci: FAIL (1: finding verdicts)" "$out"
 refute "a passing check is not printed" "== glossary" "$out"
 if [ "$rc" -ne 0 ]; then pass "and ci exits non-zero"; else fail "and ci exits non-zero"; fi
 if coci --bogus >/dev/null 2>&1; then fail "an unknown argument is refused"
 else pass "an unknown argument is refused"; fi
+
+# A run is immune to an edit of its own script: bash reads on from its old
+# byte offset after `main` returns, and a rewrite that moved the bytes lands
+# it mid-`case`. The fixture's `sleepy` subcommand sleeps; the script is
+# rewritten in place (same inode) meanwhile, with bytes added ahead of the tail.
+edit="${cowork}/edit-during-run.sh"
+sed 's/^    -h|--help|help) usage ;;/    sleepy) sleep 2; return 7 ;;\n&/' "${ROOT}/joharness.sh" >"$edit"
+chmod +x "$edit"
+( cd "$cowork" && JOHARNESS_CONF="$coconf" ./edit-during-run.sh sleepy >"${TMP}/edit.out" 2>&1; echo $? >"${TMP}/edit.rc" ) &
+sleep 1
+{ head -n 1 "$edit"; printf '# padding\n%.0s' 1 2 3 4 5 6 7 8; tail -n +2 "$edit"; } >"${TMP}/edit.new"
+cat "${TMP}/edit.new" >"$edit"
+wait
+out="$(cat "${TMP}/edit.out")"
+refute "a script edited during its own run prints no syntax error" "syntax error" "$out"
+if [ "$(cat "${TMP}/edit.rc")" = 7 ]; then pass "and exits with main's status"
+else fail "and exits with main's status (got $(cat "${TMP}/edit.rc"))"; fi
 
 # finish: the same shape.
 out="$(cofin)"; rc=$?

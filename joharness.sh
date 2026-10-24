@@ -65,6 +65,10 @@
 # KNOBS table below holds every one the script reads, with its default, scope
 # and meaning; `conf` prints them with their live values.
 
+# The script ends in `main "$@"; exit $?`; after that exit shellcheck sees the
+# checks run_check calls through "$@" as unreachable.
+# shellcheck disable=SC2317
+
 set -uo pipefail
 
 ROOT="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
@@ -141,7 +145,7 @@ JOHARNESS_CANONICAL||session|Conf line JOHARNESS_CANONICAL=1 marks the canonical
 JOHARNESS_CONF|computed|session|Path of the conf file; default joharness.conf under the checkout.
 JOHARNESS_VERBOSE|0|session|1 = ci and finish print passing checks too.
 JOHARNESS_SELFTEST||session|always = run the selftest even on a docs-only diff.
-JOHARNESS_SELFTEST_GIT_BUDGET|98248|session|Git execs the selftest may make before the ci stage reds; canonical-only.
+JOHARNESS_SELFTEST_GIT_PER_CASE|28|session|Git execs per passing selftest case before the ci stage reds; canonical-only.
 JOHARNESS_SELFTEST_JOBS|computed|session|Parallel selftest workers; default the CPU count, at most 4; 1 = one topic after another; canonical-only.
 JOHARNESS_SESSION_SOURCE||session|The SessionStart hook source (startup, resume, clear, compact), set by session-start.
 JOHARNESS_FORCE_SETUP|0|session|1 = provision at session start outside the remote sandbox.
@@ -368,6 +372,7 @@ cmd_verify() {
 # check with -v or JOHARNESS_VERBOSE=1.
 CHECK_VERBOSE="${JOHARNESS_VERBOSE:-0}"
 CHECK_FAILS=0
+CHECK_FAILED=""
 CHECK_SKIPPED=0
 
 # run_check <name> <function> [args]: run one check, print its output only
@@ -389,7 +394,7 @@ run_check() {
   case "$rc" in
     0) ;;
     3) CHECK_SKIPPED=1 ;;
-    *) CHECK_FAILS=$((CHECK_FAILS + 1)) ;;
+    *) CHECK_FAILS=$((CHECK_FAILS + 1)); CHECK_FAILED="${CHECK_FAILED:+${CHECK_FAILED}, }${name}" ;;
   esac
   return 0
 }
@@ -446,13 +451,15 @@ ci_selftest() {
 
 # The selftest under a counting `git` first on PATH: every exec appends one
 # line, so the count is taken from OUTSIDE the suite and no topic can hide
-# from it. Over JOHARNESS_SELFTEST_GIT_BUDGET = red, like a failed case: the
-# suite's cost grows one fixture at a time and nobody sees it grow. A green
-# stage stays quiet like every other; `ci -v` prints the count. The default
-# is a count plus a tenth: `ci -v` on this repository, 2026-10-24 (89316).
+# from it. Over JOHARNESS_SELFTEST_GIT_PER_CASE execs per passing case = red,
+# like a failed case: the suite's cost grows one fixture at a time and nobody
+# sees it grow, and a rate lets the suite grow without a stale fixed number. A
+# green stage stays quiet like every other; `ci -v` prints the count. The
+# default is the measured rate plus a tenth, rounded up: `ci -v` on this
+# repository, 2026-10-24 (88783 execs, 3494 passing cases).
 selftest_counted() {
-  local real dir rc n budget
-  budget="$(num_knob JOHARNESS_SELFTEST_GIT_BUDGET)"
+  local real dir rc n per_case passed rate nf
+  per_case="$(num_knob JOHARNESS_SELFTEST_GIT_PER_CASE)"
   # A path, never a name: an exported `git` function makes `command -v` say
   # `git`, and a wrapper exec'ing that finds itself on PATH forever.
   real="$(type -P git)"
@@ -467,14 +474,26 @@ selftest_counted() {
   } >"${dir}/git"
   chmod +x "${dir}/git"
   : >"${dir}/count"
-  PATH="${dir}:${PATH}" "${HARNESS_ROOT}/selftest.sh" 2>&1
-  rc=$?
+  PATH="${dir}:${PATH}" "${HARNESS_ROOT}/selftest.sh" 2>&1 | tee "${dir}/out"
+  rc="${PIPESTATUS[0]}"
+  passed="$(sed -n 's/^\([0-9][0-9]*\) passed, [0-9][0-9]* failed.*/\1/p' "${dir}/out" | tail -1)"
   n="$(wc -l <"${dir}/count")"; n="${n//[!0-9]/}"
+  # Last lines name each red that holds: a reader stops at the first one seen.
+  nf="$(sed -n 's/^[0-9][0-9]* passed, \([0-9][0-9]*\) failed.*/\1/p' "${dir}/out" | tail -1)"
   rm -rf "$dir"
-  printf '  selftest git execs: %s (budget %s)\n' "${n:-0}" "$budget"
-  if [ "${n:-0}" -gt "$budget" ]; then
+  if [ -z "$passed" ]; then
+    printf '  selftest git execs: %s; suite printed no pass count\n' "${n:-0}"
+    printf '  selftest: no pass count printed (exit %s)\n' "$rc"
+    return 1
+  fi
+  rate="$(awk -v n="${n:-0}" -v p="$passed" 'BEGIN { printf "%.1f", (p > 0 ? n / p : n) }')"
+  printf '  selftest git execs: %s for %s cases (%s per case, budget %s)\n' \
+    "${n:-0}" "$passed" "$rate" "$per_case"
+  [ "${nf:-0}" -eq 0 ] || printf '  selftest: %s case(s) failed\n' "$nf"
+  if [ "${n:-0}" -gt $((per_case * passed)) ]; then
     printf '  Over budget: a topic re-runs work, or a new one costs more than it\n'
-    printf '  should. Find it before raising JOHARNESS_SELFTEST_GIT_BUDGET.\n'
+    printf '  should. Find it before raising JOHARNESS_SELFTEST_GIT_PER_CASE.\n'
+    printf '  selftest: git execs over budget\n'
     return 1
   fi
   return "$rc"
@@ -611,10 +630,10 @@ cmd_ci() {
   local f listing fs
   local -a targets=()
   check_args "$@"
-  CHECK_FAILS=0; CHECK_SKIPPED=0
+  CHECK_FAILS=0; CHECK_FAILED=""; CHECK_SKIPPED=0
   if ! listing="$(check_targets)"; then
     warn "could not enumerate all shell scripts; a partial list is no lint bar"
-    CHECK_FAILS=$((CHECK_FAILS + 1))
+    CHECK_FAILS=$((CHECK_FAILS + 1)); CHECK_FAILED="script listing"
   fi
   while IFS= read -r f; do
     [ -n "$f" ] && targets+=("$f")
@@ -639,7 +658,7 @@ cmd_ci() {
 
   # The environment smoke test is not part of this: run `verify`.
   if [ "$CHECK_FAILS" -ne 0 ]; then
-    printf 'ci: FAIL (%s)\n' "$CHECK_FAILS"
+    printf 'ci: FAIL (%s: %s)\n' "$CHECK_FAILS" "$CHECK_FAILED"
     return 1
   elif [ "$CHECK_SKIPPED" -eq 1 ]; then
     printf 'ci: pass (shellcheck SKIPPED — not the full bar)\n'
@@ -5609,7 +5628,7 @@ finish_adds() {
 cmd_finish() {
   local ref branch is_local=0
   check_args "$@"
-  CHECK_FAILS=0; CHECK_SKIPPED=0
+  CHECK_FAILS=0; CHECK_FAILED=""; CHECK_SKIPPED=0
   ref="$(decide_ref)" || die \
     "no ref for base branch '${HANDOVER_BASE_BRANCH:-main}' in this checkout" \
     "— a gate cannot pass on a comparison it could not make." \
@@ -8720,4 +8739,4 @@ main() {
   esac
 }
 
-main "$@"
+main "$@"; exit $?

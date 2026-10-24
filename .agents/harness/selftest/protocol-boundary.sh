@@ -34,7 +34,7 @@ mkdir -p "${pbwork}/.agents/harness" "${pbwork}/.agents/env/none" \
 cp "${ROOT}/joharness.sh" "${pbwork}/joharness.sh"
 # A stub selftest, as review.sh's scratch harness has: case d runs ci, and ci
 # must not re-enter this suite.
-printf '#!/usr/bin/env bash\nexit 0\n' >"${pbwork}/.agents/harness/selftest.sh"
+printf '#!/usr/bin/env bash\nprintf "1 passed, 0 failed\\n"\nexit 0\n' >"${pbwork}/.agents/harness/selftest.sh"
 chmod +x "${pbwork}/.agents/harness/selftest.sh" "${pbwork}/joharness.sh"
 # A conf at the base, so case c EDITS a core file rather than adding one. A
 # comment only: anything the entrypoint reads from it would move the mode.

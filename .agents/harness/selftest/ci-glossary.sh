@@ -17,7 +17,7 @@ step "joharness.sh ci: glossary"
 gl="${TMP}/glossary"
 mkdir -p "${gl}/.agents/docs" "${gl}/.agents/harness"
 cp "${ROOT}/joharness.sh" "${gl}/joharness.sh"
-printf '#!/usr/bin/env bash\nexit 0\n' >"${gl}/.agents/harness/selftest.sh"
+printf '#!/usr/bin/env bash\nprintf "1 passed, 0 failed\\n"\nexit 0\n' >"${gl}/.agents/harness/selftest.sh"
 chmod +x "${gl}/.agents/harness/selftest.sh" "${gl}/joharness.sh"
 # The banned wording is ASSEMBLED, never written: this file is tracked, the
 # stage reads tracked files, and the one path exemption belongs to the
@@ -286,7 +286,7 @@ glng="${TMP}/glossary-nogit"
 mkdir -p "${glng}/.agents/docs" "${glng}/.agents/harness"
 cp "${gl}/joharness.sh" "${glng}/joharness.sh"
 cp "${gl}/.agents/docs/glossary.md" "${glng}/.agents/docs/glossary.md"
-printf '#!/usr/bin/env bash\nexit 0\n' >"${glng}/.agents/harness/selftest.sh"
+printf '#!/usr/bin/env bash\nprintf "1 passed, 0 failed\\n"\nexit 0\n' >"${glng}/.agents/harness/selftest.sh"
 chmod +x "${glng}/.agents/harness/selftest.sh" "${glng}/joharness.sh"
 printf 'The %s.\n' "$gl_bad" >"${glng}/.agents/docs/note.md"
 out="$(CLAUDE_PROJECT_DIR="$glng" JOHARNESS_CONF="${glng}/joharness.conf" \
