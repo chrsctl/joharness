@@ -442,6 +442,16 @@ expect "once the plan is gone it is offered with no edit" \
   "docs/product/depreq.md — UNPLANNED: one planning manager" "$(qofirst "$out")"
 fixture_rm "$qowork" "clear the deferred requirement" docs/product/depreq.md
 git -C "$qowork" push -q origin main
+qoplan gate2
+qoplan helddoc
+qoreq multireq 'needs: gate2, helddoc'
+qopush "a requirement deferred on two plans, one stem starting held"
+out="$(qo)"
+expect "a stem starting held in the needs list is not the held token" \
+  "deferred  : docs/product/multireq.md — needs: gate2, helddoc" "$out"
+fixture_rm "$qowork" "clear the multi-need case" \
+  docs/product/multireq.md docs/plans/gate2.md docs/plans/helddoc.md
+git -C "$qowork" push -q origin main
 qoreq gatereq
 qoreq reqdep 'needs: gatereq'
 qopush "a requirement deferred on a requirement"

@@ -383,7 +383,7 @@ if [ -n "$reqs" ]; then
       { [ -z "$rblock" ] && [ -z "$rheld" ]; } || rrank=$((rrank + 4))
       printf '%s\t%s\t[%s, UNPLANNED — decompose into plans%s%s%s]\n' \
         "$rrank" "$rf" "${rprio:-normal}" \
-        "${rblock:+, blocked by: ${rblock}}" "${rheld:+, held}" \
+        "${rheld:+, held}" "${rblock:+, blocked by: ${rblock}}" \
         "${rqclaimed:+, claimed on ${rqclaimed}}"
     done <<<"$reqs" | sort -t$'\t' -k1,1n -k2,2
   )"

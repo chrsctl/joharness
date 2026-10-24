@@ -25,6 +25,9 @@ Give a requirement optional `needs:` and `hold:` frontmatter so dispatch holds i
 
 ## Review
 
+- r1: `, held` token matched inside a `blocked by:` list on a stem starting `held`, wrong `deferred` display (verifier) (fixed: label emits `held` before `blocked by:`, dispatch tests only the part before it; case multireq)
+- r2: requirement `needs:` cycles (A needs B, B needs A) not caught by ci (verifier) (wontfix: plan asks only self-reference; the human edits the line)
+- r3: lint does not clean stems with `tr` as the hook does, odd-character stem passes lint, never matches in hook (verifier) (wontfix: stems outside A-Za-z0-9._- are not valid file stems here; edge only)
 
 ## Blockers
 

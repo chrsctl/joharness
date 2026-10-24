@@ -8275,7 +8275,9 @@ cmd_dispatch() {
     case "$dlabel" in *'claimed on '*) continue ;; esac
     case "$dlabel" in *', blocked by:'* | *', held'*) ;; *) continue ;; esac
     dline=""
-    case "$dlabel" in
+    # `held` precedes `blocked by:` in the label, so a stem such as `helddoc`
+    # in the needs list is never read as the token.
+    case "${dlabel%%, blocked by:*}" in
       *', held'*)
         dreason="$(git -C "$ROOT" show "refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}:${dpath}" 2>/dev/null |
           gr_field hold | tr -cd 'A-Za-z0-9 ._:#/()-')"
@@ -8283,8 +8285,7 @@ cmd_dispatch() {
     esac
     case "$dlabel" in
       *', blocked by:'*)
-        dstems="${dlabel##*, blocked by: }"; dstems="${dstems%%, held*}"
-        dstems="${dstems%%, claimed on*}"; dstems="${dstems%%]*}"
+        dstems="${dlabel##*, blocked by: }"; dstems="${dstems%%, claimed on*}"; dstems="${dstems%%]*}"
         dline="${dline:+${dline}; }needs: ${dstems}" ;;
     esac
     case "$printed_deferred" in
