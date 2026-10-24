@@ -240,20 +240,18 @@ item". This wording is no defect resume: STUCK and UNPLANNED never count
 it. `PARKED #<n>: #<n> merged, resume waits for a slot` is no RESUME: next
 pass.
 
-A `PARKED #<n> RECHECK` row: no plan on the base or a live branch names #<n>,
-the block is `JOHARNESS_DEFECT_RECHECK_HOURS` old, and the base's first
-parent moved since it: the defect may be fixed with no plan. The same
-mechanics as RESUME, `next:` = `Recheck: the base moved since you parked on
-#<n>; merge origin/main, re-run the check that failed; still red = park
-again on #<n>, green = continue`, commit "Orchestrator rechecks a parked
-item". That commit is what makes a re-park a new block commit, so RECHECK
-waits for the base to move again. `STUCK` and `UNPLANNED` count from the
-first park (back to the last RESUME `next:` on #<n>, the wording above;
-any other `Resume:` counts for nothing) and outrank RECHECK: once either
-holds, rechecks end and the human is notified once. Both knobs at 0 lift
-that bound: RECHECK then repeats on every base move. Counted against `JOHARNESS_RESPAWN_LIMIT` only on a
-respawn. `PARKED #<n>: … recheck waits for a slot` is no RECHECK: next
-pass.
+A `PARKED #<n> RECHECK` row: no plan on the base or a live branch names
+#<n>, the block is `JOHARNESS_DEFECT_RECHECK_HOURS` old, the base's first
+parent moved since it: maybe fixed with no plan. RESUME mechanics, `next:` = `Recheck: the base moved since you
+parked on #<n>; merge origin/main, re-run the check that failed; still red =
+park again on #<n>, green = continue`, commit "Orchestrator rechecks a parked
+item" — so a re-park is a new block commit and RECHECK waits for the base to
+move again. `STUCK` and `UNPLANNED` count from the first park (back to the
+last RESUME `next:` on #<n>, the wording above; any other `Resume:` counts
+for nothing) and outrank RECHECK: rechecks end, the human is notified once.
+Both knobs 0 = RECHECK repeats on every base move. Counted against
+`JOHARNESS_RESPAWN_LIMIT` only on a respawn. `PARKED #<n>: … recheck waits
+for a slot` is no RECHECK: next pass.
 
 ## Unclaimed spawn rows
 
@@ -352,17 +350,12 @@ no handover, and no handover is no replace. Why:
 
   Plus the lead line, when a transport exists, as for a manager.
 
-  The human orders an extra role session: their explicit order, typed in
-  THIS session, allows ONE extra session of that role beyond "at most ONE of
-  each per run".
-  - Prompt: the command plus the lines that role's row names ("the role
-    lines" or "the standard lines"), nothing added. The prompt never quotes
-    the human or asserts their authority.
-  - Ledger: that role's own key carries the mark, `<key>=<stamp>+human`
-    (`clerked=<stamp>+human`). One mark per role key, so two roles' extras
-    stay distinct.
-  - Report: quotes the human's words.
-  - Guard: never spawn it while dispatch shows that role in flight.
+  The human orders an extra role session (typed in THIS session): ONE more
+  of that role beyond "at most ONE of each per run". Prompt as its row,
+  nothing added, never quoting the human or asserting their authority.
+  Ledger `<key>=<stamp>+human` on that role's own key (`clerked=<stamp>+human`).
+  The report quotes the human's words. Never while dispatch shows that role
+  in flight.
 
   A scout issue needs the scout. Read only when the `scout     :` row reads
   `none in flight` and no scout was spawned this run; `off` (no reviewer,
