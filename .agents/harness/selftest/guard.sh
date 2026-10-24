@@ -169,6 +169,14 @@ expect "pr: set, kill: passes, a stalled manager stays killable" "guard     : pa
 if [ "$rc" -eq 0 ]; then pass "pr: set, kill: exit 0"
 else fail "pr: set, kill: exit 0 (rc ${rc})"; fi
 refute "pr: set, kill: the pr: check never runs" "names pr:" "$out"
+out="$(grun halt g-withpr)"; rc=$?
+expect "pr: set, halt: passes, a human's order" "guard     : pass — halt may push" "$out"
+if [ "$rc" -eq 0 ]; then pass "pr: set, halt: exit 0"
+else fail "pr: set, halt: exit 0 (rc ${rc})"; fi
+refute "pr: set, halt: the pr: check never runs" "names pr:" "$out"
+out="$(grun halt main)"; rc=$?
+expect "halt on the base branch: refused at protected" "protected : REFUSED — main is the base branch" "$out"
+grefused "halt on the base branch" "$out" "$rc"
 
 # --- usage ------------------------------------------------------------------
 out="$(grun release g-clean)"; rc=$?

@@ -6,7 +6,7 @@ effort: xhigh
 needs: none
 requirement: halt-and-hold
 issue: none
-scope: shared:joharness.sh, .agents/harness/AGENTS.md, .agents/harness/selftest.sh, .agents/harness/selftest/halt.sh, .agents/harness/selftest/guard.sh, .agents/docs/orchestrated.md, .agents/docs/handover/README.md, .agents/docs/orchestrate-reference.md
+scope: shared:joharness.sh, .agents/harness/AGENTS.md, .agents/harness/selftest.sh, .agents/harness/selftest/halt.sh, .agents/harness/selftest/guard.sh, shared:.agents/docs/orchestrated.md, .agents/docs/handover/README.md, .agents/docs/orchestrate-reference.md
 ---
 
 ## Goal
@@ -30,13 +30,15 @@ write it, and under which guard.
 - `joharness.sh` — new `cmd_halt`, routed as `halt)` beside `janitor)` in
   the command `case`, listed in the header usage block after `janitor`.
   Per branch named: `git fetch -q origin
-  +refs/heads/<b>:refs/remotes/origin/<b>` (as `janitor_apply` does); tip =
+  +refs/heads/<b>:refs/remotes/origin/<b>` (as `janitor_apply` does, and no
+  `--prune` fetch: case 6 reads a stale ref); tip =
   `git rev-parse -q --verify refs/remotes/origin/<b>^{commit}`, unresolved =
   `skip      : <b> — no such branch on origin`, rc 1 (the `janitor_apply`
   step before its guard); then `cmd_guard halt <b> --expect <tip>`; exit 2 =
-  `skip : <b> — gone on origin` and `git update-ref -d
+  `skip      : <b> — gone on origin`, rc unchanged (as the janitor: gone is
+  no failure), and `git update-ref -d
   refs/remotes/origin/<b>` (as `janitor_apply` does, or every dispatch names
-  the branch again), any other non-zero = `skip : <b> — guard refused;
+  the branch again), any other non-zero = `skip      : <b> — guard refused;
   nothing released`, rc 1. Then the write, two shapes:
   1. The branch writes a workstream file (`guard_workstreams "$tip"` is
      non-empty): every such file gets `status: abandoned` and `next: Halted
@@ -55,12 +57,12 @@ write it, and under which guard.
      newest, content from `<commit>^:<path>`, write it back at `<path>`
      with the same two fields rewritten. None, and the branch deleted a
      record the base carries (`dispatch_retired_edges`'s `swept`): restore
-     `<base>:<swept>` the same way. Neither = `skip : <b> — no workstream
+     `<base>:<swept>` the same way. Neither = `skip      : <b> — no workstream
      file to release; nothing written`, rc 1.
   Commit via `commit-tree` on the tip with subject `halt: a human released
   the claim (<date>)`; push `--force-with-lease=refs/heads/<b>:<tip>`;
-  print `release : <b>  <path>` per file, `pushed : <b> <sha12>` or
-  `FAILED : <b> — push refused (the branch moved?); nothing released`.
+  print `release   : <b>  <path>` per file, `pushed    : <b> <sha12>` or
+  `FAILED    : <b> — push refused (the branch moved?); nothing released`.
   After the loop one line: `the session is the control plane's to stop and
   an open pull request is the human's to close: halt wrote git only`.
   Never: the age gate, the `pr:` gate, a session read, a deletion, a write
@@ -79,7 +81,8 @@ write it, and under which guard.
   `SELFTEST_TOPICS` after `janitor` (the registry: the runner reds a
   tracked topic file nobody sources). Cases, each `expect`/`refute`:
   1. A claim pushed NOW naming `pr: 12`: `janitor --apply <b>` first says
-     `skip      : <b> — not a candidate`; then `halt <b>` prints
+     `skip      : <b> — guard refused; nothing released` (its guard's `pr:`
+     arm) and `guard halt <b>` passes; then `halt <b>` prints
      `release   : <b>  docs/handover/<ws>.md` and `pushed    : <b>`;
      `git show origin/<b>:docs/handover/<ws>.md` carries `status: abandoned`
      and `next: Halted by a human`; `git log -1 --format=%s origin/<b>` is
@@ -97,8 +100,8 @@ write it, and under which guard.
      `origin/main` sha unchanged; rc 1.
   5. A branch with no workstream file and no retired record: `skip`, rc 1,
      branch sha unchanged.
-  6. A branch deleted on origin between fetch and halt (`git push --delete`
-     after the branch is fetched once, then `halt <b>`): `live      :
+  6. A branch deleted on origin between fetch and halt (deleted on the
+     bare origin after this clone fetched it, then `halt <b>`): `live      :
      REFUSED` surfaces, nothing pushed, and `git rev-parse -q --verify
      refs/remotes/origin/<b>` then fails (the stale ref is dropped).
 - `.agents/harness/selftest/guard.sh` — two cases: `guard halt <b>` on a

@@ -23,6 +23,7 @@ commit `649b832` — docs only, no text reproduced (`.agents/NOTICE`).
 | `dispatch` verdict `OVERLAP-BOUND` | Slots free but every free plan HELD behind work in flight. A `rescope :` block names the holder key and the held paths; the verdict spawns ONE surveyor to correct the `scope:` declarations. |
 | `./joharness.sh curate` + `curate :` line | Whether the plan queue's declarations are still true. Mechanical repairs: `./joharness.sh curate --apply`, and `ci` fails a branch whose added plans still need one. A curator session is offered only for PROPOSE findings (decompose, order). Due on plan churn (`JOHARNESS_CURATE_PLANS`) or the clock; state read from git: the last curate landing, or a newer merged `curate-noop-<stamp>` branch (a pass with nothing to propose), which resets both triggers. Orthogonal to the verdict. |
 | `./joharness.sh janitor` + `janitor :` line | Claims whose session is gone. Mechanical: `./joharness.sh janitor --apply` writes `status: abandoned` into the claim's own file — only where the session is ARCHIVED or not found, never a claim with `pr:` — and deletes nothing. No session, no pull request. Listed only when stale claims exist; the caller proves each session gone and passes the branches: `janitor --apply <branch>...`. |
+| `./joharness.sh halt <branch>...` | A human's order, never a session's judgement. Writes `status: abandoned` through the guard and the lease at any age, `pr:` or not; on an edge branch it restores the branch's own retired record, released. The item returns to the queue. Deletes nothing; git only, never the GitHub API: the session and any pull request stay the control plane's and the human's. |
 | `./joharness.sh clerk` + `clerk :` line | Open issues become plans only through the clerk (`dispatch` reads `docs/plans/` only). Clock-driven, batch `JOHARNESS_CLERK_BATCH`, dated from git: the last `clerk-<digit>…` merge on the base's first parent (GitHub's default merge subject), or a newer `clerk-noop-<stamp>` branch. An unmerged `clerk-<digit>…` branch younger than `JOHARNESS_CLERK_STALE_HOURS` is in flight, due or not, and no second clerk spawns — unless it is `ended`: no net change, and a merged `clerk-noop-<stamp>` stamped at or after its tip and not in the future. Orthogonal to the verdict. |
 | `./joharness.sh analysis` | One unmerged branch's condition (BLOCKED / STALL? / LOOP?) beside the base branch's current conf. Read by hand; spawns nothing. |
 | `./joharness.sh scout` + `scout :` line | No clock, no backlog trigger, no DRAINED gate. A pass runs on the reviewer's order (`/scout` typed by a human, or the orchestrator's `+human` extra session) or on a `scout` issue waiting on the scout, which the orchestrator reads on GitHub (`orchestrate-reference.md`, "A scout issue needs the scout"): `joharness.sh` stays git-only: `scout` prints `off` (empty `JOHARNESS_SCOUT_REVIEWER`, or no `docs/product/SCOUT.md` brief on the base branch), `IN FLIGHT` or `none in flight`; dispatch adds `held` (stale view, a pending spawn, `JOHARNESS_MAX_MANAGERS=0`). The report prints every conf value a pass reads: brief, reviewer, research and budget. Every misread fails closed — never spawns a second scout. |
@@ -233,16 +234,16 @@ whether the session is live, so it never licenses a replacement.
 
 A harness write onto a branch the session does not own is decided on one
 read and pushed later, after the read may have stopped being true.
-`./joharness.sh guard janitor|kill|loop <branch> --expect <sha>` re-reads
+`./joharness.sh guard janitor|kill|loop|halt <branch> --expect <sha>` re-reads
 origin right before the push — base branch by name, branch still on origin,
 head still the decision's read (on a move it prints the claim's `session:`
 and `status:` both sides), and for the janitor no `pr:` at live head — and
 refuses on the first that fails. It writes nothing. Its callers: `janitor
---apply` before its leased push, and the orchestrator's KILL and LOOP
+--apply` and `halt` before their leased push, and the orchestrator's KILL and LOOP
 records, a relayed human answer and the respawn-limit hand-off
-(`.agents/docs/orchestrate-reference.md`, GUARD). `kill` and `loop` skip the `pr:`
-check: a stalled manager with an open pull request stays killable, and its
-record is a handover, not a release. Every caller then pushes with
+(`.agents/docs/orchestrate-reference.md`, GUARD). `kill`, `loop` and `halt` skip the `pr:`
+check: a stalled manager with an open pull request stays killable, its
+record is a handover, not a release, and a halt is a human's order. Every caller then pushes with
 `--force-with-lease` at the same sha, which covers the window after the
 guard read: a plain push onto a branch deleted in that window re-creates
 it. Guard makes "re-read before writing" a property of the write path
@@ -414,8 +415,8 @@ The rules that bind every session.
 ### Bounds, orchestrator
 
 It merges nothing, edits nothing but a killed manager's workstream file, picks
-no tier, and takes no item itself. `janitor --apply` (How the harness runs) is
-the one writer to a branch it does not own.
+no tier, and takes no item itself. `janitor --apply` and, on a human's order,
+`halt` (How the harness runs) are its writers to a branch it does not own.
 
 `./joharness.sh env <name>` writes `joharness.conf` (core path), so switching
 layers is a human's call.
