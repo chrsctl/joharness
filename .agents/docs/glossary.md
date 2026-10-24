@@ -1,11 +1,8 @@
 # Glossary
 
-Contested terms only — ones this repo spells two ways. Not a dictionary: term
-with one spelling needs no row.
-
-Row FIXES a spelling, POINTS at the file defining it. Gloss disambiguates in
-one line, never redefines. Row explaining a term = second copy of that
-definition, rots against the first (`.agents/docs/caveman.md`).
+Contested terms only — ones this repo spells two ways. Row FIXES a spelling,
+POINTS at the file defining it. Gloss disambiguates in one line, never
+redefines: a second copy of a definition rots against the first.
 
 | Canonical | Means | Defined in | Not this |
 | --- | --- | --- | --- |
@@ -28,20 +25,15 @@ the rest of the root, a repo's own `.agents/env/<layer>/`. Those are the
 consumer's to write, and a consumer cannot fix a hit in the glossary anyway —
 editing it locally makes the file AHEAD on every future sync.
 
-Two consequences worth knowing before you fight the gate:
-
-- This file is the one scanned path that may spell a ban. Exempt by path; a
-  marker comment would spread to every file that wanted one.
-- The lint cannot tell prose from a quote. A record of the rename, a pasted
-  failure, an old commit message — anything quoting a losing spelling goes
-  under `docs/`, which is out of scope for exactly this reason.
+- This file is the one scanned path that may spell a ban (exempt by path).
+- The lint cannot tell prose from a quote: anything quoting a losing spelling
+  goes under `docs/`.
 
 ## Where the code names the thing, the code wins
 
-Counts settle a spelling only when lopsided. `agent tier` was not lopsided;
-the frontmatter field is `agent`, the stronger evidence, which decided that
-row. Inside the gate's own scope every losing spelling counts 0: that is the
-lint working, not evidence.
+Counts settle a spelling only when lopsided; otherwise the name the code uses
+(a frontmatter field, a function) wins. Inside the gate's scope a losing
+spelling counts 0: the lint working, not evidence.
 
 ## One meaning, or nothing
 
@@ -55,6 +47,5 @@ defined in the file owning the zone, and silence beats a wrong global answer.
 
 ## Prose only
 
-Frontmatter fields, subcommands, function names, paths keep their spellings,
-`docs/handover/` included. Rule is `.agents/docs/caveman.md` "Never touch";
-the row exists because a rename sweep runs straight at it.
+Rows bind prose. Frontmatter fields, subcommands, function names, paths keep
+their spellings, `docs/handover/` included (`.agents/docs/caveman.md`, "Never touch").
