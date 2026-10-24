@@ -19,6 +19,10 @@ Make the selftest git budget a per-case rate (plan file).
 
 ## Review
 
+- r1: all-failed suite prints `0 passed` so Over budget noise joins the real reds (verifier) (wontfix: stage is red either way; message only)
+- r2: rate prints one decimal, red decided on exact integers (verifier) (no change)
+- r3: default 28 re-derives from 88783/3494; rerun measured 88836/3536 = 25.1 per case (verifier) (no change)
+
 ## Blockers
 
 None.
