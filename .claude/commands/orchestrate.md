@@ -31,10 +31,8 @@ Find each with `ToolSearch("+<name>")` (names carry an unstable prefix).
 Claude Code Remote MCP: `list_sessions`, `list_triggers`, `get_session`,
 `create_session`, `interrupt_session`, `archive_session`,
 `set_session_title`, `send_later`, `send_message`, `create_trigger`,
-`delete_trigger`. Messaging: (1) Claude
-Code Remote `send_message` by `session_id` reaches a manager; (2) harness
-`SendMessage` to a `ListAgents` row reaches a peer — `ListAgents` empty
-closes transport 2 only.
+`delete_trigger`. Harness `SendMessage` to a `ListAgents` row reaches a
+peer; `ListAgents` empty closes that transport only.
 Claude Code Remote send_message takes the session_id create_session returned.
 After a restart, find it by title (`🔨 manager: <stem>`), never from a
 `session:` line (that names a writer, not a worker). A send counts only when
@@ -260,9 +258,8 @@ after the final report: `set_session_title` yours to `💤 orchestrator
 that still fires does nothing (Pass entry, Retired). The same last act
 closes a human's stop (below); "## 0. Start" step 3's exit spells it
 `👯 orchestrator (duplicate): <owner/repo>`. No `set_session_title`, or it is
-refused = report `not retitled: no set_session_title`, end the turn.
-Retitling a session the keeper already retitled changes nothing. A retired
-title is final: nothing in this file sets `🎼 orchestrator: <owner/repo>` on
+refused = report `not retitled: no set_session_title`, end the turn. A
+retired title is final: nothing in this file sets `🎼 orchestrator: <owner/repo>` on
 it again but SWAP step 2's rollback.
 
 A retired or duplicate title woken by a message → ref § Retired session

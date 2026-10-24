@@ -11,8 +11,6 @@ Role, health and dispatch ideas adapted from
 [Gas Town](https://github.com/gastownhall/gastown) (Steve Yegge, MIT), read at
 commit `649b832` — docs only, no text reproduced (`.agents/NOTICE`).
 
-## How the harness runs
-
 | Where | What it does |
 | --- | --- |
 | `joharness.sh:unattended` | The ONE predicate the boundary, the marking and `authority` read. |
@@ -21,14 +19,14 @@ commit `649b832` — docs only, no text reproduced (`.agents/NOTICE`).
 | `./joharness.sh dispatch` | The orchestrator's one read: the human's numbers, managers in flight with push age and marks (`STALL?`, `LOOP?`, `CEILING?`), slots under the cap, the spawn order with waves and `HOLD`s, the `deferred  :` lines for held requirements, the cycle lines, one verdict. Reports only. |
 | `dispatch` wait line | Under any `DRAINED` verdict, when `CORE ONLY` plans wait: `<n> plan(s) wait on a human core edit (oldest <d>d): <stems>`. The verdict word is unchanged; the orchestrator reports the line and pushes each stem to the human once per run. Never on `NOT DRAINED`, `OVERLAP-BOUND` or `PAUSED`. |
 | `dispatch` verdict `OVERLAP-BOUND` | Slots free but every free plan HELD behind work in flight. A `rescope :` block names the holder key and the held paths; the verdict spawns ONE surveyor to correct the `scope:` declarations. |
-| `./joharness.sh curate` + `curate :` line | Whether the plan queue's declarations are still true. Mechanical repairs: `./joharness.sh curate --apply`, and `ci` fails a branch whose added plans still need one. A curator session is offered only for PROPOSE findings (decompose, order). Due on plan churn (`JOHARNESS_CURATE_PLANS`) or the clock; state read from git: the last curate landing, or a newer merged `curate-noop-<stamp>` branch (a pass with nothing to propose), which resets both triggers. Orthogonal to the verdict. |
+| `./joharness.sh curate` + `curate :` line | Whether the plan queue's declarations are still true; repairs are `curate --apply`, a curator session only for PROPOSE findings. Due on plan churn or the clock, dated from git (`joharness.sh:cmd_curate`, `.claude/commands/curate.md`). Orthogonal to the verdict. |
 | `./joharness.sh janitor` + `janitor :` line | Claims whose session is gone. Mechanical: `./joharness.sh janitor --apply` writes `status: abandoned` into the claim's own file — only where the session is ARCHIVED or not found, never a claim with `pr:` — and deletes nothing. No session, no pull request. Listed only when stale claims exist; the caller proves each session gone and passes the branches: `janitor --apply <branch>...`. |
 | `./joharness.sh halt <branch>...` | A human's order, never a session's judgement. Writes `status: abandoned` through the guard and the lease at any age, `pr:` or not; on an edge branch it restores the branch's own retired record, released. The item returns to the queue. Deletes nothing; git only, never the GitHub API: the session and any pull request stay the control plane's and the human's. |
-| `./joharness.sh clerk` + `clerk :` line | Open issues become plans only through the clerk (`dispatch` reads `docs/plans/` only). Clock-driven, batch `JOHARNESS_CLERK_BATCH`, dated from git: the last `clerk-<digit>…` merge on the base's first parent (GitHub's default merge subject), or a newer `clerk-noop-<stamp>` branch. An unmerged `clerk-<digit>…` branch younger than `JOHARNESS_CLERK_STALE_HOURS` is in flight, due or not, and no second clerk spawns — unless it is `ended`: no net change, and a merged `clerk-noop-<stamp>` stamped at or after its tip and not in the future. Orthogonal to the verdict. |
+| `./joharness.sh clerk` + `clerk :` line | Open issues become plans only through the clerk (`dispatch` reads `docs/plans/` only). Clock-driven, dated from git, at most one in flight (`joharness.sh:cmd_clerk`, `.claude/commands/clerk.md`). Orthogonal to the verdict. |
 | `./joharness.sh analysis` | One unmerged branch's condition (BLOCKED / STALL? / LOOP?) beside the base branch's current conf. Read by hand; spawns nothing. |
-| `./joharness.sh scout` + `scout :` line | No clock, no backlog trigger, no DRAINED gate. A pass runs on the reviewer's order (`/scout` typed by a human, or the orchestrator's `+human` extra session) or on a `scout` issue waiting on the scout, which the orchestrator reads on GitHub (`orchestrate-reference.md`, "A scout issue needs the scout"): `joharness.sh` stays git-only: `scout` prints `off` (empty `JOHARNESS_SCOUT_REVIEWER`, or no `docs/product/SCOUT.md` brief on the base branch), `IN FLIGHT` or `none in flight`; dispatch adds `held` (stale view, a pending spawn, `JOHARNESS_MAX_MANAGERS=0`). The report prints every conf value a pass reads: brief, reviewer, research and budget. Every misread fails closed — never spawns a second scout. |
-| `./joharness.sh conduct` + `conduct :` line | A sample of retired managers' own artifacts, read for how the item was worked, never the diff. Clock-driven (`JOHARNESS_CONDUCT_HOURS`), dated from the ledger `docs/conduct-log.md`; the command prints the sample and the ledger tally. NOT gated on DRAINED; suppressed while a curate or clerk spawns this pass or is in flight (one held by a stale view or the pause does not hold it). Every misread fails closed. |
-| `./joharness.sh retro` + `retro :` line | Sessions that ended badly, read from their transcripts for the check that should have caught each failure. Clock-driven (`JOHARNESS_RETRO_HOURS`), dated from the ledger `docs/retro-log.md`. Candidates from git only, sessions that did not come back clean: a workstream-file commit on any origin branch, merged or not, that read `status: blocked` or `abandoned`, or whose `## Blockers` opens a line with the orchestrator's kill note (loop or silence), with a session URL the ledger does not name and a plain `branch:`; a manager that never blocked, was abandoned or was killed never qualifies, however it ended; a kill counts for the session the note first named, never a successor that inherited it; role sessions (a dated stem) never; nothing due = no reviewer. Sample lowest `sha1(<session URL>)` first, printed `<branch> <session URL> <sha>:<workstream file>`. Held and suppressed as conduct, and also while a conduct reviewer spawns or is in flight. Every misread fails closed. |
+| `./joharness.sh scout` + `scout :` line | No clock, no backlog trigger, no DRAINED gate: a pass runs on the reviewer's order or on a `scout` issue waiting on the scout (`orchestrate-reference.md`, "A scout issue needs the scout"). Every misread fails closed — never a second scout (`joharness.sh:cmd_scout`, `.claude/commands/scout.md`). |
+| `./joharness.sh conduct` + `conduct :` line | A sample of retired managers' own artifacts, read for how the item was worked, never the diff. Clock-driven, dated from `docs/conduct-log.md`; every misread fails closed (`joharness.sh:cmd_conduct`, `.claude/commands/conduct.md`). |
+| `./joharness.sh retro` + `retro :` line | Sessions that did not come back clean (blocked, abandoned, killed), read from their transcripts for the check that should have caught each failure. Clock-driven, dated from `docs/retro-log.md`; every misread fails closed (`joharness.sh:cmd_retro`, `.claude/commands/retro.md`). |
 | `.claude/commands/*.md` | The roles, as commands. |
 
 ## Roles
@@ -47,41 +45,34 @@ commit `649b832` — docs only, no text reproduced (`.agents/NOTICE`).
 | conduct | sonnet | a session on `conduct DUE`, beyond the cap; prelude `./joharness.sh role conduct` | nothing | one pull request appending ledger rows to `docs/conduct-log.md`, no workstream file; never acts on a CONCERN | its pull request merges, or `TWIN: deferred` |
 | retro | sonnet | a session on `retro DUE`, beyond the cap; prelude `./joharness.sh role retro` | nothing (it files plans, fixes nothing) | one pull request: ledger rows in `docs/retro-log.md` and new plans for mechanisms, no workstream file; never a rule-only fix | its pull request merges, or `TWIN: deferred` |
 
-`JOHARNESS_MAX_MANAGERS` caps managers only: the cap is for sessions that
-build a plan. Every role session — curator, clerk, scout, conduct reviewer,
-retro reviewer, surveyor, freer — builds none, so it runs beyond the cap: one session of
-that role, at most one in flight (a blocked one included), on its own
-trigger, under any verdict but `PAUSED`, and each run is the owner's money.
-A full fleet of managers holds none of them. `JOHARNESS_MAX_MANAGERS=0` is
-the human's pause for every role. A role command that says nothing to do
-spawns nothing.
+`JOHARNESS_MAX_MANAGERS` caps managers only; every role session runs beyond
+the cap, one of each in flight (`orchestrate.md` §3).
 
 ### The role prelude is a command
 
-The clerk, scout, curator and conduct reviewer open with
-`./joharness.sh role <name>`: authority, the pruned fetch, the role's own
-report and its plain exits, the branch under the role's name, the claim
-file where the role writes one; `--twin` and `--retire` after. It prints
-`GO <branch>` or `STOP: <reason>` last; the command file keeps only the
-judgement. Selftest: `.agents/harness/selftest/role.sh`.
+The clerk, scout, curator and conduct reviewer open with `./joharness.sh role
+<name>` (authority, fetch, the role's report and exits, branch, claim file;
+`--twin` and `--retire` after), which prints `GO <branch>` or `STOP: <reason>`
+last; the command file keeps only the judgement (selftest `role.sh`).
 
 ### What each role reads
 
 Session start prints the banner, the environment pointer and THIS branch's
 workstream files (`HANDOVER_SCOPE=branch`) — no queue. Every line injected is
-paid by every session.
+paid by every session. A role whose command states its reads is listed by
+its limits only.
 
 | Role | Reads | Never opens |
 | --- | --- | --- |
-| orchestrator | `dispatch`, the control plane, the Lineup table | a plan, a requirement, a research file, another branch's workstream file, this doc |
+| orchestrator | `orchestrate.md` | a plan, a requirement, a research file, another branch's workstream file, this doc |
 | keeper | `keeper.md`, its trigger list and the sessions it names, the Lineup table | dispatch, the queue, a plan, any workstream file, this doc |
-| manager | its item, its own workstream file, the item's anchors, `feedback` on files it touches, the environment rules if it touches them | the queue, other plans, other branches, this doc |
+| manager | `manage.md` | the queue, other plans, other branches, this doc |
 | surveyor | the `rescope :` block in its prompt, and the `## Scope` of each plan it renames | the queue, product code, this doc |
-| curator | `./joharness.sh curate` and the plans it names | a held plan, the queue order, product code, this doc |
-| clerk | `./joharness.sh clerk`, the open issues, the source each issue cites | the queue order, another branch, product code beyond what an issue cites, this doc (except the design doc where an issue cites it: only the cited section; and the files the plan names as anchors, which outrank the product-code limit) |
-| scout | `./joharness.sh scout` and the evidence it lists — `upstream`, `feedback`, canonical issues, session cost, a dated release-note or Models API read; the brief `docs/product/SCOUT.md`; the open and closed `scout` issues; under `research  : on`, the web | a plan beyond its frontmatter and `## Goal`, the queue order, product code, another branch's code |
-| conduct | `./joharness.sh conduct`; per sampled stem its workstream file before the retire commit, the branch's commit order (subjects, file names), the plan's `## Goal` and `## Acceptance` | any diff body, product code, the queue, this doc |
-| retro | `./joharness.sh retro`; per sampled session its transcript (`list_events`, kinds user, assistant, result, at most `JOHARNESS_RETRO_EVENTS` events) and its workstream file; the open plans' `## Goal` and open issue titles | any diff body, product code, another role's ledger, this doc |
+| curator | `curate.md` | a held plan, the queue order, product code, this doc |
+| clerk | `clerk.md` | the queue order, another branch, product code beyond what an issue cites, this doc (except the design doc where an issue cites it: only the cited section; and the files the plan names as anchors, which outrank the product-code limit) |
+| scout | `scout.md` | a plan beyond its frontmatter and `## Goal`, the queue order, product code, another branch's code |
+| conduct | `conduct.md` | any diff body, product code, the queue, this doc |
+| retro | `retro.md` | any diff body, product code, another role's ledger, this doc |
 | worker | its sub-task prompt and the files it names | everything else |
 
 Two spawn levels, never three. A worker that needs a branch of its own is a
@@ -97,53 +88,20 @@ orchestrators are the collision to avoid: a `RUNNING` session titled
 
 ## The loop
 
-Every `JOHARNESS_HEALTH_MINUTES`, scheduled with `send_later` — never a
-sleep, never a poll:
-
-1. `./joharness.sh dispatch`.
-2. Health pass over every manager in flight. Kills and respawns happen here,
-   before any spawn.
-3. Spawn up to `slots`, in dispatch's order, skipping `HOLD`, `WAIT` and
-   `NOT YOURS`.
-4. Schedule the next pass; past `JOHARNESS_ORCHESTRATOR_PASSES` the wake
-   carries `retire=yes` and the keeper swaps in a successor; end the turn.
-
-A merge is read from git — the branch head is an ancestor of `origin/main`,
-and dispatch stops listing it. No message is needed for it; a freed slot is
-filled on the next pass.
-
-"Across passes" is memory, and the orchestrator stores nothing in the repo.
-The wake message carries the ledger — in-flight items only; git holds what
-merged. It survives compaction because the message arrives fresh.
-
-The wake also carries `harness=` (hash of `orchestrate.md` on `origin/main`
-when it was armed) and `pass=` (a counter). A wake armed before a harness
-resync can fire after it and run the old rules; `harness=` against fresh
-`origin/main` makes that visible. Two passes armed across the resync would
-both run; a wake with a higher `pass=` in this session's `list_triggers`
-supersedes the lower one, which does nothing.
+One pass every `JOHARNESS_HEALTH_MINUTES`, armed with `send_later` — never a
+sleep, never a poll: dispatch, the health pass (kills and respawns before any
+spawn), spawns up to `slots`, the next arm (`orchestrate.md`). A merge is read
+from git. The wake message carries the ledger (in-flight items only),
+`harness=` and `pass=`, so it survives compaction; the orchestrator stores
+nothing in the repo.
 
 ## Health: two signals, one verdict
 
 Push time is not liveness in either direction, so a verdict needs both
-halves: git (dispatch) and the control plane.
-
-| Word | Git (dispatch) | Control plane | Orchestrator does |
-| --- | --- | --- | --- |
-| working | any push age | `RUNNING`, or pushed inside the window | nothing |
-| stalled | `STALL?` — no push for `JOHARNESS_STALL_MINUTES` | `RUNNING`, `status_detail` unchanged across two passes | pass 1 nudge; pass 2 kill |
-| looping | `LOOP?` — one file rewritten `JOHARNESS_CHURN_LIMIT`+ times; or head moved three passes with `next:` unchanged | any | kill with the record, respawn one tier up |
-| crashed | branch unmerged | `status_bucket` `..._FAILED` while `session_status` is not `RUNNING` | NO nudge. Confirm once, then archive and respawn. **Read before idle** |
-| stillborn | ledger entry still `new` from a previous pass | `IDLE`/`PENDING`, NO `last_served_model`, NO `session_context.sources`, confirmed by a second read | archive, spawn the ITEM again (plain spawn), counted against the respawn limit. **Read before idle** |
-| blocked before claim | ledger entry still `new` | `status_bucket` `..._BLOCKED`, `session_status` not `IDLE`/`PENDING`/`ARCHIVED`, confirmed by a second read | interrupt, archive, spawn the ITEM again, counted. Item gone, at the limit, or no `interrupt_session`: report only |
-| unclaimed | ledger entry still `new` | `last_served_model` present — it ran and stopped without claiming | report; never respawn, a successor repeats it |
-| gone before claim | ledger entry still `new` | `ARCHIVED`, or no session by title | report, keep the entry; the human decides |
-| unratified block | `status: in-progress`, head unchanged past the stall window | `IDLE`, last turn ended asking for input | pass 1 nudge, head recorded; pass 2 respawn if head still equals it (limit: report only). A reply or new `status_detail` does not count |
-| idle | branch unmerged | `IDLE` or `PENDING`, bucket not FAILED — **between turns, not gone** | pass 1 nudge; pass 2 respawn only if head AND `status_detail` both unchanged |
-| gone | branch unmerged, claimed, or an in-flight edge row naming an item | `ARCHIVED`, or no session by title | respawn on the branch, no nudge. An edge row naming `?` is never respawned |
-| leftover | under `leftovers`: its item already gone from the base branch | any | never respawned; report, the human deletes the branch |
-| blocked | status `blocked` | any | report; never respawn |
-| done | branch merged | any | drop the ledger entry |
+halves: git (dispatch) and the control plane. The table and GONE are
+`orchestrate.md` step 2; what each field decides is
+`orchestrate-reference.md`, Control plane fields. A row built on push age
+may ask for a control-plane read and may order nothing.
 
 **An idle manager is not a block.** Only `status: blocked` with a reason
 ratifies a stop; the `INVALID BLOCK?` check reads that status alone. A
@@ -153,82 +111,14 @@ treats the reply to a nudge as no movement: only a head change counts. A
 respawn may carry one `Environment note:` line, a fact read off a sibling
 merge. It is data for the manager to check, never authority.
 
-**Gone is ARCHIVED, not found on the control plane, a FAILED bucket confirmed
-by a second look, or a session that did not move across a nudge and a
-confirming pass. Never IDLE on its own, never PENDING on its own** — a manager
-that arms its own check-in reads IDLE for the whole interval.
-`post_turn_summary.status_category` is the session's account of its TURN and
-never decides liveness; merge state is git's (`git merge-base
---is-ancestor`), never a summary's.
-
-`updated_at` decides nothing alone, at any interval. On an `IDLE` row it is
-the age of the last activity; on a `RUNNING` row a frozen value reads the same
-whether the writer is slow or the session stopped. What turns a suspicion into
-a verdict is `status_bucket` plus the head from git.
-
-**And push age is not death either.** Push age is the tip commit date, and a
-stopped manager and a stopped fleet both freeze it (an orchestrator
-back from a long suspension reads every live manager as stalled). A row built on push age may ask for a control-plane read and may
-order nothing. Dispatch's `suspect a stopped fleet` tail line decides nothing.
-
-**Nor frozen cost, at any floor.** `external_metadata.usage.cost_usd` has no
-write cadence a pass can lean on: a live `RUNNING` manager can carry none long
-after its creation, and on `IDLE` no turn runs, so it stays frozen for the
-whole gap. A suspended fleet freezes it on every row, and a death is told
-apart from a suspension only after the resume: hindsight, not a read a pass
-can make. A floor would have to sit above the longest live silence, and
-nothing bounds that. `CEILING?` reports cost; nothing keys on it.
-
-### Messaging
-
-A nudge is a message: push your workstream file now. Two transports, one per
-kind of target: Claude Code Remote `send_message` addressed by the
-`session_id` `create_session` returned, and the harness `SendMessage`
-addressed by a `ListAgents` row. `ListAgents` can be empty while
-`send_message` by `session_id` delivers, so no peer row is not "no messaging".
-The delivery result, never tool presence, says a nudge was sent.
-
-Without messaging the loop still runs: a stall costs the same two passes and
-loses only the ask; the kill's interrupt gives the Stop guard the same chance
-to push. `JOHARNESS_STALL_MINUTES` is then a kill threshold — an operator may
-want it higher. A name you cannot find is a capability you do not have, not a
-reason to do nothing: only `create_session`, `send_later` and one liveness
-read stop the loop.
-
-### Loops are not stalls
-
-A stall is silence. A loop is pushes landing while the same file is rewritten,
-or `next:` never moving while the head does. `LOOP?` sits on
-`JOHARNESS_CHURN_LIMIT` (knob table, The numbers are the human's). A loop gets
-no nudge (it is pushing); it gets a kill with the progress recorded and a
-successor one tier up, told to do the research step first
-([`agent-selection.md`](agent-selection.md), review churn).
-
-### `CEILING?` is a report
-
-`JOHARNESS_MANAGER_HOURS` marks a mid-build claim (`in-progress`, no `pr:`)
-older than that many hours. The orchestrator reports the age and `cost_usd`
-and never acts on the mark alone: neither git nor `IDLE` says a manager is
-between runs, so archiving ends whatever is in flight. A manager gone quiet at
-the finish is already the STALL and IDLE rows' respawn. Refreshing a live,
-pushing manager is the human's call.
-
 ## The kill, and why the handover comes first
 
-A killed session with no handover strands a branch the successor cannot read.
-
-1. Interrupt. The Stop guard fires; it may push.
-2. One pass later: head or `updated:` moved = the handover landed.
-3. Else the orchestrator writes it — the one file this role ever writes: a
-   note under `## Blockers` and a `next:` that says resume. Pushed.
-4. Archive. Spawn a successor on the SAME branch. Past
-   `JOHARNESS_RESPAWN_LIMIT` the branch stays claimed and the human is told.
+A killed session with no handover strands a branch the successor cannot read,
+so the record lands before the archive and the successor resumes on the SAME
+branch; a loop gets no nudge and a successor one tier up
+(`orchestrate-reference.md`, KILL and LOOP).
 
 The branch is the claim and the claim survives the kill.
-
-A refused stop reads as absent: the permission classifier can refuse
-`archive_session` and a plain `kill`, and a refusal says nothing about
-whether the session is live, so it never licenses a replacement.
 
 ### The guard before a harness push
 
@@ -246,8 +136,7 @@ check: a stalled manager with an open pull request stays killable, its
 record is a handover, not a release, and a halt is a human's order. Every caller then pushes with
 `--force-with-lease` at the same sha, which covers the window after the
 guard read: a plain push onto a branch deleted in that window re-creates
-it. Guard makes "re-read before writing" a property of the write path
-instead of a rule each author remembers.
+it.
 
 ## Concurrency
 
@@ -270,12 +159,11 @@ hook's: urgent first, then oldest, in waves of disjoint scope. On top:
   as `QUEUE_WITHHELD`.
 - `JOHARNESS_MAX_MANAGERS=0` is the human's pause: `PAUSED`, nothing spawned,
   the health pass runs until in-flight managers end.
-- Every free plan held with slots idle = `OVERLAP-BOUND`. Most such
-  collisions are a plan that only appends to a shared registry, or claims a
-  whole directory, declared exclusive. ONE surveyor (beyond the cap, no slot) per holder key per run
-  (`manage.md`, R) marks registries `shared:` and narrows directory claims;
-  genuine collisions settle in one pass. The idle slot is the trigger, not
-  the surveyor's budget.
+- Every free plan held with slots idle = `OVERLAP-BOUND`. ONE surveyor
+  (beyond the cap, no slot) per holder key per run (`manage.md`, R) marks
+  registries `shared:` and narrows directory claims; genuine collisions
+  settle in one pass. The idle slot is the trigger, not the surveyor's
+  budget.
 
 ### A plan the queue cannot see
 
@@ -287,7 +175,7 @@ branch has no row: not free, not held, not in flight.
 | plan-only pull request | filer drives it to merged before exit | `manage.md`, Finish |
 | plan riding a product pull request | row in dispatch's `plans on a branch` block — visible, counted nowhere | `joharness.sh:dispatch_branch_plans` |
 | plan-only pull request whose plan was carried to the base by another branch, built and retired | the carrying session closes or comments on the source pull request at its own step 7 (its carry commit names the number); the reader prints the branch as a leftover (the human closes the pull request and deletes the branch); a carry that retired it with `status: done, pr: none` (ledger line, or a done workstream file on any other ref, merged or not) prints the row `DONE ON MAIN` — drop it, never spawn on it | `joharness.sh:dispatch_branch_plans` |
-| author gone: doc-only branch (`docs/plans`, `docs/product`, `docs/research`, `docs/handover`), every plan live or DONE ON MAIN, no workstream file blocked, in review or naming a `pr:`, last push older than `HANDOVER_STALE_SECONDS`; or its only diff a `status: done, pr: none` workstream file naming a `plan:` (no wait; `free` retires that plan too) | dispatch prints `free <branch> ... FREEABLE` under spawn and a `freer DUE` tail line; the orchestrator proves the owner's session not RUNNING and spawns one sonnet freer (a role, beyond the cap); `free` merges the branch into the freer's claim, drops the owner's workstream files and retired stems, `curate --apply`, `ci`, commits; the freer's pull request closes the owner branch by merging it. A released (`status: abandoned`, janitor or `halt`) branch is not offered: dispatch hides its plans | `joharness.sh:cmd_free`, `joharness.sh:dispatch_freeable`, `manage.md` §0 |
+| author gone: doc-only branch (`docs/plans`, `docs/product`, `docs/research`, `docs/handover`), idle, nothing of it blocked or in review; exact test in `dispatch_freeable` | dispatch prints `free <branch> ... FREEABLE` under spawn and a `freer DUE` tail line; the orchestrator proves the owner's session not RUNNING and spawns one sonnet freer (a role, beyond the cap); `free` merges the branch into the freer's claim, and the freer's pull request closes the owner branch by merging it. A released (`status: abandoned`) branch is not offered | `joharness.sh:cmd_free`, `joharness.sh:dispatch_freeable`, `manage.md` §0 |
 
 The row carries no instruction: the scheduler cannot see a pull request, and a
 branch plan has not been reviewed into the queue, so spawning on it is the
@@ -298,23 +186,11 @@ claims and every plan on an `abandoned` branch; one row per stem.
 
 **A spawn the human orders carries the plan, never takes the branch.** The
 manager cuts its own branch from the base, copies the plan file across, and
-pushes nothing to the owner's branch. Hazard: once the owner's branch merges,
-the retired plan comes BACK (its side still adds it against a base that never
-had it). The guard is the ledger, not the owner: the carry's retire appends
-the stem to `docs/plans/RETIRED.md`, also when it finds the plan already done,
-and `ci` refuses a diff adding a plan the base branch's ledger lists
-(`joharness.sh:lint_plans_in_diff`). It fires on a `ci` run after the retire
-lands: Loop step 7's 0-behind rule forces one for a session; a human merging
-on an older green check is covered only when branch protection requires an
-up-to-date branch. Removing the line, on the base first, is the human
-override.
-
-**A carried plan reads as a leftover.** `dispatch_branch_plans` sees its
-retire with `git log --full-history -m --diff-filter=D -- <plan>` on the base
-(plain `--diff-filter=D` misses the treesame merge); a carry that found the
-plan done deletes nothing, so the row also reads the base's ledger and every
-other ref's `status: done` workstream files written after the plan's filing
-commit, and carries `held Nd` from that commit.
+pushes nothing to the owner's branch. The carry's retire appends the stem to
+`docs/plans/RETIRED.md`, also when it finds the plan already done, and `ci`
+refuses a diff adding a plan the base branch's ledger lists
+(`joharness.sh:lint_plans_in_diff`), so the owner branch's merge cannot bring
+the plan back. Removing the line, on the base first, is the human override.
 
 ## The numbers are the human's
 
@@ -352,10 +228,9 @@ commit, and carries `held Nd` from that commit.
 and source; the selftest `knobs-declared` keeps this table complete for the
 `dispatch`-scoped ones and in step with `KNOBS` and `conf-keys.sh`.
 
-None of these is an `updated_at` threshold — one cannot be written (Health,
-above). Read by `dispatch` (and the churn pair by `ci`) from the environment
-for one command, `joharness.conf` for the repo, else the default; digits only.
-A consumer gets the numbers as prose only — they are not in
+Read by `dispatch` (and the churn pair by `ci`) from the environment for one
+command, `joharness.conf` for the repo, else the default; digits only. A
+consumer gets the numbers as prose only — they are not in
 `.agents/scripts/conf-keys.sh`. A session proposes a change with a run's
 evidence; it never sets one (`.agents/harness/AGENTS.md`, Decide alone).
 
@@ -365,35 +240,28 @@ The rules that bind every session.
 
 - **The core paths are off limits to a session running**: `joharness.conf`
   (cap — money), `.claude/settings.json` (hooks, permissions) and `.github`
-  (the merge gate's checks, and CODEOWNERS). Protocol text is NOT: a session edits and self-merges
-  `joharness.sh`, `.agents/harness/` and `.claude/` under the step 7 gate.
-  `joharness.sh:protocol_paths` is the list, read by the banner, the Stop
-  guard and the queue hook — the early warning. `.github/CODEOWNERS` plus a
-  branch-protection rule requiring code-owner review is the guarantee; that
-  rule is a repository setting, the human's. A plan with ANY core path in
-  `scope:` is marked `CORE ONLY` and de-ranked: acceptance is all-or-nothing,
-  so a partly-core plan cannot be finished either. `.agents/env/` is not
-  core. One exception, merged by a human: a manager's `human/<stem>`
-  pull request labelled `human-review`, carrying only the core-path edit its
-  plan leaves to a human, committed from a separate worktree, never on the
-  session's own branch, and never merged by a session
+  (the merge gate's checks, and CODEOWNERS). Protocol text is NOT: a session
+  edits and self-merges `joharness.sh`, `.agents/harness/` and `.claude/`
+  under the step 7 gate. `joharness.sh:protocol_paths` is the list, read by
+  the banner, the Stop guard and the queue hook — the early warning;
+  `.github/CODEOWNERS` plus a branch-protection rule requiring code-owner
+  review (the human's setting) is the guarantee. A plan with ANY core path in
+  `scope:` is `CORE ONLY` and de-ranked: acceptance is all-or-nothing.
+  `.agents/env/` is not core. One exception, merged by a human: a manager's
+  `human/<stem>` pull request labelled `human-review`, carrying only the
+  core-path edit its plan leaves to a human, from a separate worktree
   (`.claude/commands/manage.md` §2). A hook `.claude/settings.json` registers
   runs from the working tree: it is built unregistered, tested through
   fixtures, and registered in that pull request, never edited in place.
 - **A `CORE ONLY` plan is a wait on a human, and the verdict must say so.**
-  With slots free and nothing left but `CORE ONLY` plans, `dispatch` reads
-  `DRAINED` — true of the fleet, false of the queue: the orchestrator opens
-  no plan, pushes the human only on `status: blocked`, and exits; the
-  heartbeat re-seeds and exits again. A requirement whose only plan is
-  `CORE ONLY` counts as planned, so no planning manager is offered either.
-  The de-rank stays: a manager spawned on a partly-core plan spends a slot
-  to end `core path:` blocked, and a surveyor never splits a plan. `dispatch`
-  prints the wait under its verdict (count, oldest age, stems) and the
-  orchestrator pushes it to the human once per run, never spawning on it —
-  a heartbeat run included, so hourly while the plan waits. The human's move
-  is a split by hand: the core edit on their own commit, then the plan
-  without it in BOTH `scope:` and `## Scope` — dropping the path from one
-  is hiding (`.agents/docs/plans/README.md`, "A core path in `scope:`").
+  Nothing left but `CORE ONLY` plans reads `DRAINED`, and a requirement whose
+  only plan is `CORE ONLY` counts as planned. The de-rank stays: a manager on
+  a partly-core plan spends a slot to end `core path:` blocked, and a
+  surveyor never splits a plan. The orchestrator pushes `dispatch`'s wait
+  line to the human once per run, never spawning on it. The human's move is a
+  split by hand: the core edit on their own commit, then the plan without it
+  in BOTH `scope:` and `## Scope` — dropping the path from one is hiding
+  (`.agents/docs/plans/README.md`, "A core path in `scope:`").
 - **Merging uses the step 7 conditions unchanged.** The mode removes the
   human, never the gate.
 - **No state store, no status field.** Every view derives from git and the
@@ -414,11 +282,8 @@ The rules that bind every session.
 
 ### Bounds, orchestrator
 
-It merges nothing, edits nothing but a killed manager's workstream file, picks
-no tier, and takes no item itself. `janitor --apply` and, on a human's order,
-`halt` (How the harness runs) are its writers to a branch it does not own.
-
-`./joharness.sh env <name>` writes `joharness.conf` (core path), so switching
+`janitor --apply` and, on a human's order, `halt` (How the harness runs) are
+its writers to a branch it does not own. `./joharness.sh env <name>` writes `joharness.conf` (core path), so switching
 layers is a human's call.
 
 ## The one stop
@@ -428,37 +293,29 @@ run — a rate limit, a session asking a question, a failed spawn — is a
 finding, not a stop. A queue of only `CORE ONLY` plans is DRAINED and a
 wait for a human (Bounds).
 
-A human decision is a PUSH, never a wait. A manager that asks
-inside the session writes nothing: its slot stays held and the question
-reaches nobody. `status: blocked` with `next:` = the question frees the slot,
-prints the question in the report, and is never respawned.
+A human decision is a PUSH, never a wait. A manager that asks inside the
+session writes nothing: its slot stays held and the question reaches nobody.
+`status: blocked` with `next:` = the question frees the slot, prints the
+question in the report, and is never respawned.
 
-One block is not a human's: `defect: #<n>: …`, a manager parked on a
-defect outside its item. `dispatch` prints it `PARKED #<n>`: no slot, not
-counted as waiting, the verdict line unchanged, listed under the verdict.
-Read from git alone: once a plan naming #<n> leaves the base's first parent
-after the block commit (a rename is no retire) and no plan on the base or a
-live branch names #<n>, the row reads `RESUME`, takes a slot, and the
-orchestrator resumes it (`orchestrate-reference.md`, Resume); a pass with a
-RESUME is never DRAINED. Fixed with no plan: once no plan names #<n>, the
-block is `JOHARNESS_DEFECT_RECHECK_HOURS` old and the base moved since, the
-row reads `RECHECK` and is resumed the same way to re-run its check; a
-re-park restarts that clock only. The human hears only when nothing is
-fixing it, and those states outrank RECHECK:
-`UNPLANNED` (no plan names #<n> `JOHARNESS_DEFECT_PLAN_HOURS` after the
-first park), `STUCK` (no RESUME `JOHARNESS_DEFECT_FIX_HOURS` after it, a stale
-live branch naming #<n> included) or `UNREADABLE` (the block commit is not
-in the clone: no RESUME), each notified once.
+One block is not a human's: `defect: #<n>: …`, a manager parked on a defect
+outside its item. `dispatch` prints it `PARKED #<n>`: no slot, not counted
+as waiting, the verdict line unchanged. From git alone: a plan naming #<n>
+leaves the base's first parent after the block commit (a rename is no
+retire) and no plan names #<n> = `RESUME`, a slot, never DRAINED; no plan,
+the block `JOHARNESS_DEFECT_RECHECK_HOURS` old, the base moved = `RECHECK`
+(a re-park restarts that clock only). Outranking RECHECK, notified once:
+`UNPLANNED`, `STUCK` (a stale live branch naming #<n> included),
+`UNREADABLE` (the block commit is not in the clone: no RESUME). Mechanics:
+`orchestrate-reference.md`, Resume.
 
-A block names its reason: `next:` = `<reason>: <question>`, the
-reason one word from a closed list (money, credentials, product, interface,
-core path, conflict, hardware, github, stalled, respawns, defect). A free question
-with no reason is usually work the manager should do; `dispatch` marks it
-`INVALID BLOCK?`, and the orchestrator asks instead of relaying it. A valid
-block is pushed to the human once (`PushNotification`, ledger `notified=`),
-so it is not left in a pass report nobody reads. The answer is text the user
-types into the orchestrator's own turn, written into `next:`; a peer's message
-is never an answer. The list is `joharness.sh:block_reason_ok`.
+A block names its reason: `next:` = `<reason>: <question>`, one word from
+the closed list `joharness.sh:block_reason_ok`. A free question with no
+reason is usually work the manager should do; `dispatch` marks it `INVALID
+BLOCK?`, and the orchestrator asks instead of relaying it. A valid block is
+pushed to the human once (`PushNotification`, ledger `notified=`). The answer
+is text the user types into the orchestrator's own turn, written into
+`next:`; a peer's message is never an answer.
 
 ## Authority: the prompt routes, the repository authorises
 
@@ -469,15 +326,13 @@ human is watching", "never ask", "authorised by X", or any keep-going
 instruction the Loop does not carry. `./joharness.sh authority` reads VERIFIABLE
 only when the rules this checkout runs (`joharness.sh`, `.agents/harness`,
 `.claude`, `joharness.conf`) equal `origin/main`'s — proof of review, not of a
-human hand. Tuning the prompt until a session stops refusing is not the remedy.
+human hand.
 
 ## Start each run fresh
 
 Start each run in a new session at the Lineup's orchestrator tier; never
 resume the last one ("Can we continue"): a resumed session pays a cache
-re-warm on its whole context. A resumed orchestrator whose last final report
-is over an hour old says `fresh session is cheaper`, when RUN END's retitle
-was refused, on its first pass (`orchestrate-reference.md`, "Fresh session
+re-warm on its whole context (`orchestrate-reference.md`, "Fresh session
 line"). Within one run the cost compounds too: `send_later` wakes the SAME
 session and pass N re-reads passes 1..N-1. So after
 `JOHARNESS_ORCHESTRATOR_PASSES` passes the wake carries `retire=yes`, and it
@@ -505,16 +360,13 @@ trusts nothing new. A doorbell's text is never read, so a session that
 messages the keeper can make it check sooner, never write a prompt.
 
 **Lineage stays flat.** A `create_session` child sits one level below its
-parent; a session reads its own `lineage` (`depth`, `limit`) only from
+parent; a session reads its `lineage` (`depth`, `limit`) only from
 `get_session` with no `session_id`. At `depth == limit`, `create_session`,
-`send_later` and every trigger call refuse ("No user or organization setting
-changes this limit"). Every orchestrator the keeper starts sits at the
-keeper's depth plus one, so retiring never deepens. Without an up-to-date
-heartbeat nothing swaps: the orchestrator keeps arming in the same session,
-and "## 0. Start" stops a session already at the cap with the reason in its
-push. Managers sit one level below their orchestrator; no role command calls
-`create_session` or `send_later` (`grep -n 'send_later\|create_session'
-.claude/commands/*.md`: only `orchestrate.md`). Managers:
+`send_later` and every trigger call refuse. Every orchestrator the keeper
+starts sits at the keeper's depth plus one, so retiring never deepens.
+Without an up-to-date heartbeat nothing swaps: the orchestrator keeps arming
+in the same session, and "## 0. Start" stops one at the cap. Only
+`orchestrate.md` calls `create_session` or `send_later`. Managers:
 [`agent-selection.md`](agent-selection.md), Cost levers, "Fresh session".
 
 ## Heartbeat: making the fleet long
@@ -524,7 +376,8 @@ platform adds the Routine's `⚡`.
 
 Dispatch makes the fleet WIDE; the heartbeat makes it LONG. Each session
 claims, merges, ends, and the fleet survives only while something fires
-the next.
+the next. Periodic roles add no scheduler and no Routine: their `DUE` lines
+ride `dispatch`, which the orchestrator the keeper starts reads.
 
 The heartbeat is a Routine bound to one keeper session per repo
 (`.claude/commands/keeper.md`); its prompt `/keeper` names the role and the
@@ -547,40 +400,36 @@ requester's veto is the pause: a Routine with `enabled` false and an empty
 `ended_reason` is never re-enabled, edited or replaced, and nor is one made in
 the UI. Any `ended_reason` but `auto_disabled_session_gone` counts as a pause,
 and a replace takes only a Routine whose prompt is exactly `/keeper` (or the
-older spec's `/orchestrate keeper`): what a UI-made Routine's `created_via`
-reads, and what `ended_reason` a manual pause leaves, are unmeasured, so both
-rules fail toward leaving the Routine alone. A pause stops the hourly
-restarts, not a running orchestrator's `send_later` chain; the human's stop
-does both (`orchestrate-reference.md`, "Human stop").
+older spec's `/orchestrate keeper`). A pause stops the hourly restarts, not a
+running orchestrator's `send_later` chain; the human's stop does both
+(`orchestrate-reference.md`, "Human stop").
 
 **Bound, not fresh.** A Routine `create_trigger` makes from a session with
-`create_new_session_on_fire` reads `created_via: meta_mcp`, and its fired
-session had `sources: []`, no `create_session`, `list_sessions` or
-`get_session`, no GitHub tools, and the permission check refused
-`./joharness.sh` from the clone it made (`create_trigger` + `fire_trigger`).
-`create_trigger` takes no repository. A keeper made with `create_session` and a
-`source_url` has the repository and the tools, so the Routine wakes it instead.
-"Run now" fires a fresh session titled `⚡ <Routine name>` with no repository
-and no `/orchestrate`, live keeper or not; on a Routine whose keeper is
-`ARCHIVED` it also rebinds `persistent_session_id` to it, and `last_run` still
-reads `SUCCEEDED` (2026-10-23). So "Run now" never restarts the fleet; a new
-`/orchestrate` session does, keeper archived or not: the check reads
-`keeper-gone` and REPLACE restores the keeper. The check runs every pass and
-its `get_session` on the bound session is never skipped: its `ok` line carries
-`session_status` and `updated_at`, which only that read returns.
+`create_new_session_on_fire` reads `created_via: meta_mcp`; its fired session
+has `sources: []`, no `create_session`, `list_sessions`, `get_session` or
+GitHub tools, and cannot run `./joharness.sh`. `create_trigger` takes no
+repository. A keeper made with `create_session` and a `source_url` has the
+repository and the tools, so the Routine wakes it instead. "Run now" fires a
+fresh session titled `⚡ <Routine name>` with no repository and no
+`/orchestrate`, live keeper or not; on a Routine whose keeper is `ARCHIVED` it
+also rebinds `persistent_session_id` to it while `last_run` reads
+`SUCCEEDED`. So "Run now" never restarts the fleet; a new `/orchestrate`
+session does, keeper archived or not: the check reads `keeper-gone` and
+REPLACE restores the keeper. The check runs every pass and its `get_session`
+on the bound session is never skipped: its `ok` line carries `session_status`
+and `updated_at`, which only that read returns.
 
 **Keeper liveness reads wakes, not sessions.** `list_sessions` is too large
 to read hourly into one persistent context; a pending wake costs one
-`list_triggers` (account-wide: it lists another session's pending
-`/orchestrate pass` wake with its `persistent_session_id` and
+`list_triggers` (account-wide, each wake with its `persistent_session_id` and
 `derived_state.prompt`) and a `get_session` per candidate. An orchestrator
 mid-pass has no pending wake, so the keeper also counts the one it last
 started, and its own `parent_session_id`, while that reads `RUNNING` or
-`PENDING` (one `get_session` each): an hourly wake can land inside the
-first start of the parent (the orchestrator whose REGISTER or replace made
-the keeper), before it arms a wake. A human-started orchestrator
-missed that way makes two; "## 0. Start" step 3 lets the older proceed and
-the newer exit. A DRAINED fleet costs one short orchestrator session an hour.
+`PENDING`: an hourly wake can land inside the parent's first start (the
+orchestrator whose REGISTER or replace made the keeper), before it arms a
+wake. A human-started orchestrator missed that way makes two; "## 0. Start"
+step 3 lets the older proceed and the newer exit. A DRAINED fleet costs one
+short orchestrator session an hour.
 
 The spec every orchestrator checks at start and on every pass after the first
 (`orchestrate-reference.md`, "## 0. Start" step 5; a session-made stale one is
@@ -610,12 +459,6 @@ replaced, any other `heartbeat stale` or `heartbeat duplicated` line pushes):
   orchestrator exit at step 0's one-orchestrator check. Unresolved.
 - **Firing over a live fleet**: nothing special — claimed plans are not free;
   an unpushed claim is invisible.
-
-### Periodic roles ride the heartbeat
-
-The conduct reviewer adds no scheduler and no Routine: the keeper holds no
-fleet state, and the orchestrator it starts reads `dispatch`, where
-`conduct DUE` rides.
 
 ## Not constrained, by decision
 

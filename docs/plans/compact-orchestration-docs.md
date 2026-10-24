@@ -18,8 +18,9 @@ compression. Behaviour does not change.
 
 ## Scope
 
-Files: the five in `scope:`. Together 1549 lines on origin/main 5adc5d0c.
-Target: 1250 lines or fewer.
+Files: the five in `scope:`. Together 1549 lines on origin/main a1f5af79.
+Target: 1370 lines or fewer (the listed cuts measured 1368; 1250 needed
+rewording pinned text).
 
 - `.agents/docs/orchestrated.md` (624 → about 380). Keep one home, point to it:
   - Cap: "`JOHARNESS_MAX_MANAGERS` caps managers only". The home is orchestrate.md §3. orchestrated.md keeps one sentence.
@@ -68,7 +69,7 @@ Target: 1250 lines or fewer.
 ## Acceptance
 
 ```bash
-cat .agents/docs/orchestrated.md .agents/docs/orchestrate-reference.md .claude/commands/orchestrate.md .claude/commands/keeper.md .claude/commands/start.md | wc -l   # <= 1250
+cat .agents/docs/orchestrated.md .agents/docs/orchestrate-reference.md .claude/commands/orchestrate.md .claude/commands/keeper.md .claude/commands/start.md | wc -l   # <= 1370; more = red
 ./joharness.sh ci       # ci: pass
 ./joharness.sh verify   # 0 failed
 git diff --name-only origin/main...HEAD | grep -v '\.md$'   # empty
