@@ -6828,10 +6828,8 @@ dispatch_branch_plans() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}" only="${1:-}"
   local refs r name base plans wfs wf doc own wplan wstat abandoned p stem urg agt retired rc
   local addh addt abase kind days now ev evh evs ledger evcache="" wpr mpr npr
-  local bmerges
+  local bmerges="" bmread=0
   now="$(date +%s)"
-  bmerges="$(git -C "$ROOT" log --first-parent --merges --format=%s \
-    "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null)"
   refs="$(refs_unmerged "refs/remotes/origin/${base_branch}")"
   while IFS= read -r r; do
     [ -n "$r" ] || continue
@@ -6859,6 +6857,12 @@ dispatch_branch_plans() {
       wpr="${wpr#\#}"; wpr="${wpr%/}"
       case "$wpr" in http://*/pull/[0-9]* | https://*/pull/[0-9]* ) wpr="${wpr##*/}" ;; esac
       case "$wpr" in '' | *[!0-9]* ) ;; * )
+        # The base's merge subjects, read once and only for a numeric `pr:`.
+        if [ "$bmread" -eq 0 ]; then
+          bmread=1
+          bmerges="$(git -C "$ROOT" log --first-parent --merges --format=%s \
+            "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null)"
+        fi
         if printf '%s\n' "$bmerges" | grep -q "^Merge pull request #${wpr} from "; then
           npr="$(git -C "$ROOT" rev-list --count \
             "refs/remotes/origin/${base_branch}..${r}" </dev/null 2>/dev/null)"

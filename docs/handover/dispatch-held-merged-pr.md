@@ -8,7 +8,7 @@ issue: 594
 session: https://claude.ai/code/session_01GjKnsgJV4qubTD63CuMiH7
 agent: sonnet
 updated: 2026-10-24
-next: Read ci and verify results (background task output), fix any red, run verifier review, record ## Review, retire files, open PR
+next: ci red only on selftest git-exec budget (89316 vs 88960 on branch); compare with baseline origin/main ci in /tmp/basewt (task bnq6q169b); trim fixture or justify budget bump, then verify, verifier review, retire, PR
 ---
 
 ## Goal
