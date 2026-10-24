@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_013f3eAfhcJSxaNqqGQMfsEo
 agent: sonnet
 updated: 2026-10-24
-next: Compact the nine docs per plan, run ci and verify, open PR
+next: Run ci and verify, verifier review, retire files, open PR
 ---
 
 ## Goal
