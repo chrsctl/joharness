@@ -6,7 +6,7 @@ effort: high
 needs: none
 requirement: none
 issue: none
-scope: .claude/commands/retro.md, shared:joharness.sh, .agents/harness/selftest/retro.sh, shared:.agents/harness/selftest.sh, .agents/docs/orchestrated.md, .claude/commands/orchestrate.md
+scope: .claude/commands/retro.md, shared:joharness.sh, .agents/harness/selftest/retro.sh, shared:.agents/harness/selftest.sh, shared:.agents/harness/selftest/role.sh, .agents/docs/orchestrated.md, .claude/commands/orchestrate.md, shared:.agents/docs/orchestrate-reference.md, shared:.agents/docs/glossary.md, shared:.agents/harness/AGENTS.md
 ---
 
 ## Goal
@@ -30,8 +30,9 @@ rule. It never fixes anything itself.
 ## Scope
 
 - NEW `.claude/commands/retro.md` — the role, written like
-  `.claude/commands/conduct.md`: tier sonnet, ONE pass, one plan-only pull
-  request merged by the reviewer itself, exit.
+  `.claude/commands/conduct.md`: tier sonnet, ONE pass, no workstream file,
+  one pull request touching only `docs/plans/*.md` (new plans) and
+  `docs/retro-log.md`, merged by the reviewer itself, exit.
   - **Reads:** `./joharness.sh retro` (the sample). Per sampled session,
     its transcript through the Claude Code Remote `list_events` tool with
     `kinds` = user, assistant, result, at most `JOHARNESS_RETRO_EVENTS`
@@ -50,7 +51,8 @@ rule. It never fixes anything itself.
     - A rule-only fix to `.agents/harness/AGENTS.md` is never filed. Rules
       load into every session.
     - A failure an open plan or issue already covers = `Refs` in the
-      ledger, no new plan.
+      ledger, no new plan. Checked FIRST: an open plan or issue wins over
+      `rule broken`.
   - The report says the run's cost is the owner's money, as conduct.md does.
 - `joharness.sh` — `cmd_retro` and `retro_due`/`retro_sample`, copying
   conduct's shape (`conduct_due`, `conduct_sample`, `conduct_ledger`).
@@ -60,34 +62,46 @@ rule. It never fixes anything itself.
     - `JOHARNESS_RETRO_EVENTS` (default 200).
   - **Candidates, from git only:** branches, merged or not, with a
     workstream commit since the ledger's last row whose `status:` was
-    `blocked`, or whose `## Review` holds a loop note. A workstream file
+    `blocked`, or that carries the orchestrator's loop note (`Looped,
+    killed by the orchestrator`, written under `## Blockers`). A workstream file
     whose `session:` is not a session URL is skipped.
-  - **Prints** `retro DUE: spawn ONE retro reviewer`, `retro : not due …`
-    or `retro : off`, and the sample, one `<branch> <session URL>` per line.
+  - **Prints** `retro DUE: spawn ONE retro reviewer`, `retro : not due …`,
+    `retro : off`, `retro : IN FLIGHT`, `retro : due, nothing to sample` or
+    `retro : UNREADABLE`, and the sample, one `<branch> <session URL>` per line.
+    In flight = an unmerged branch named `retro-<digit>…`, as conduct.
   - **Ledger:** `docs/retro-log.md`, one row per sampled session: date,
-    branch, outcome (`plans: <stems>` | `refs: #<n>` | `rule broken: <rule>` | `nothing`).
-  - `dispatch` prints the `retro` line, and `role retro` is the prelude,
-    as for conduct.
+    branch, session, outcome (`plans: <stems>` | `refs: <#n or plan stem>` | `rule broken: <rule>` | `nothing`).
+  - `dispatch` prints the `retro     :` line and the spawn line (held,
+    suppressed while a curate, clerk or conduct goes first), and `role
+    retro` is the prelude, as for conduct.
 - `.agents/harness/selftest/retro.sh` — due and not due, off, sampling from
   fixture branches (blocked counts, in-progress-only does not, a non-URL
   `session:` skipped), ledger dating, and the `dispatch` line.
 - `.agents/harness/selftest.sh` — list the topic.
+- `.agents/harness/selftest/role.sh` — the fixture writes `retro.md` too;
+  `role retro` not due stops.
+- `.agents/docs/orchestrate-reference.md` — the spawn table row and "the
+  role lines" for retro.
+- `.agents/docs/glossary.md` — the role title emoji for retro.
+- `.agents/harness/AGENTS.md` — `retro` joins the Handover line's
+  no-workstream-file list (one word; the role writes none, as conduct).
 - `.agents/docs/orchestrated.md` — the role's rows in the roles, inputs and
-  reads tables, beside conduct's.
+  reads tables, beside conduct's, and the three knobs in the numbers table.
 - `.claude/commands/orchestrate.md` — `retro DUE` among the role sessions it
   spawns beyond the cap, and `retroed=<stamp>` in the ledger line.
 
 ## Assumptions
 
 - A1: a session can read another session's transcript with `list_events` — evidence: this session's Claude Code Remote tools (`list_events`, `get_session`) — confidence: medium; confirm with one read of a retired manager's session before building
-- A2: `list_events` needs no `.claude/settings.json` permission entry that a role session lacks — evidence: none read — confidence: low; refuted = the permission is a human remainder (`human/retro-role`), and the plan still builds the rest
+- A2: `list_events` needs no `.claude/settings.json` permission entry that a role session lacks — evidence: `.claude/settings.json` has no `permissions` key; a manager session called `list_events` unprompted — confidence: medium; refuted = the permission is a human remainder (`human/retro-role`), and the plan still builds the rest
 - A3: a workstream file's `session:` holds the session URL — evidence: `.agents/docs/handover/TEMPLATE.md` (`session: https://claude.ai/code/session_...`) — confidence: high
 - A4: conduct's due/sample/ledger code can be copied without changing conduct — evidence: `joharness.sh:conduct_due`, `joharness.sh:conduct_sample` — confidence: medium
 
 ## Out of scope
 
 - Building any fix the reviewer finds; it files plans only.
-- Editing `.agents/harness/AGENTS.md` or any role command other than orchestrate.md.
+- Any `.agents/harness/AGENTS.md` edit beyond the one word, or any role command other than orchestrate.md.
+- `.agents/scripts/conf-keys.sh` and `bootstrap-consumer.sh`: the knobs are dispatch-scoped, their defaults apply in a consumer.
 - Changing conduct, clerk or the verifier.
 - `joharness.sh` calling any API: the command reads git, the session reads transcripts.
 
@@ -95,11 +109,11 @@ rule. It never fixes anything itself.
 
 - `./joharness.sh retro` on this repository prints one of `retro DUE:`, `retro : not due`, `retro : off`, and with DUE the sampled `<branch> <session URL>` lines.
 - `JOHARNESS_RETRO_HOURS=0 ./joharness.sh retro` prints `retro : off`.
-- `./joharness.sh dispatch` prints a `retro` line.
-- The topic's sampling case fails with `retro_sample` returning nothing.
+- `./joharness.sh dispatch` prints a line starting `retro     :` (fails: no such line).
+- The topic's sampling case fails with `retro_sample` returning nothing (fails: `retro_sample() { :; }` reds it).
 - `./joharness.sh ci` — `ci: pass`.
 - `./joharness.sh verify` — `0 failed`.
-- One dry run of `/retro` against the 2026-10-24 session (`https://claude.ai/code/session_01GjKnsgJV4qubTD63CuMiH7`) names the three failures in the Goal, and `Refs` the three plans the Goal names.
+- One dry run of `/retro` §2–§3 (read and trace, no ledger, no pull request) against the 2026-10-24 session (`https://claude.ai/code/session_01GjKnsgJV4qubTD63CuMiH7`), recorded in the workstream file's `## Review`, names the three failures in the Goal and `Refs` the three plans the Goal names while they are open (fails: a failure missing, or a new plan for a covered one).
 - Consumer side, after its next sync: a consumer's `./joharness.sh dispatch` prints a `retro` line.
 
 ## Where to look

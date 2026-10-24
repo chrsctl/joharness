@@ -31,7 +31,7 @@ cp "${ROOT}/joharness.sh" "${role_work}/joharness.sh"
 cp "${ROOT}/.agents/harness/queue-context.sh" \
    "${ROOT}/.agents/harness/handover-context.sh" "${role_work}/.agents/harness/"
 cp "${ROOT}/.agents/docs/handover/TEMPLATE.md" "${role_work}/.agents/docs/handover/"
-for role_c in clerk scout curate conduct; do
+for role_c in clerk scout curate conduct retro; do
   printf '# %s\n' "$role_c" >"${role_work}/.claude/commands/${role_c}.md"
 done
 printf '# none\n' >"${role_work}/.agents/env/none/AGENTS.md"
@@ -59,6 +59,13 @@ refute "and nothing is fetched or cut" "branch    :" "$out"
 out="$(role_run ./joharness.sh role conduct)"
 expect "conduct not due stops" "STOP: cadence   : not due" "$(role_last "$out")"
 refute "and cuts no branch" "branch    :" "$out"
+
+# --- retro not due: its plain exit, as conduct's -----------------------------
+out="$(role_run ./joharness.sh role retro)"
+expect "retro not due stops" "STOP: retro : not due" "$(role_last "$out")"
+refute "retro not due cuts no branch" "branch    :" "$out"
+expect "retro --retire: no claim file" "STOP: retro writes no claim file" \
+  "$(role_last "$(role_run ./joharness.sh role retro --retire)")"
 
 # --- curate with no PROPOSE finding: its plain exit --------------------------
 out="$(role_run ./joharness.sh role curate --session s --agent sonnet)"

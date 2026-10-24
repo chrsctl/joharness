@@ -167,7 +167,7 @@ GUARD `<verb>`, before every push onto a manager's branch → ref § GUARD.
 
 Managers: up to `slots`, dispatch's order, rows under `spawn` only. A ledger `held-human=<pr>` entry holds no slot (dropped per ref § Held by human): spawn up to `slots` plus the number of such entries whose branch dispatch still lists as `retired, no claim file`.
 `JOHARNESS_MAX_MANAGERS` caps managers only. Every role session (curator,
-clerk, scout, conduct reviewer, surveyor, freer) runs beyond it and holds no
+clerk, scout, conduct reviewer, retro reviewer, surveyor, freer) runs beyond it and holds no
 slot: spawn its line even with every slot full, at most one of each in
 flight. `JOHARNESS_MAX_MANAGERS=0` (`PAUSED`) holds every role too. A line
 or command that says nothing to do spawns nothing.
@@ -184,7 +184,7 @@ or command that says nothing to do spawns nothing.
   `./joharness.sh janitor --apply <branch>...` yourself — no session. It
   refuses a claim with `pr:` set. Skip any branch the health pass
   respawned this pass: it has a live manager now.
-- Role sessions (`curate DUE`, `clerk DUE`, `scout     :`, `conduct DUE`,
+- Role sessions (`curate DUE`, `clerk DUE`, `scout     :`, `conduct DUE`, `retro DUE`,
   `OVERLAP-BOUND`, `freer DUE`, the human's order) → ref § Role
   sessions ("A scout issue needs the scout").
 
@@ -224,7 +224,7 @@ Ledger every spawn the moment it returns as `<stem>@new`.
 ```
 /orchestrate pass
 harness=<first 12 chars of git hash-object of origin/main:.claude/commands/orchestrate.md> pass=<this pass's number plus one> [retire=yes]
-ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] [held=<updated_at>] [unratified=<head>] [notified=<stem>] [held-human=<pr>] respawns=<n> [rescoped=<key>] [corewait=<stem>[,<stem>]] [curated=<stamp>[+human]] [clerked=<stamp>[+human]] [scouted=<stamp>[+human]] [conducted=<stamp>[+human]]; ...
+ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] [held=<updated_at>] [unratified=<head>] [notified=<stem>] [held-human=<pr>] respawns=<n> [rescoped=<key>] [corewait=<stem>[,<stem>]] [curated=<stamp>[+human]] [clerked=<stamp>[+human]] [scouted=<stamp>[+human]] [conducted=<stamp>[+human]] [retroed=<stamp>[+human]]; ...
 lead <stem>: <40 chars, to the end of this line>
 ```
 

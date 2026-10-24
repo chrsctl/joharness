@@ -105,4 +105,4 @@ log, not markdown ([`caveman.md`](../../.agents/docs/caveman.md), Status quo).
   `.agents/docs/handover/README.md`.
 - Write only what git cannot tell: goal, decisions, rejected paths,
   blockers, next step.
-- Copy, sync, clerk or conduct task: no workstream file.
+- Copy, sync, clerk, conduct or retro task: no workstream file.
