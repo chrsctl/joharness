@@ -136,7 +136,7 @@ JOHARNESS_CANONICAL||session|Conf line JOHARNESS_CANONICAL=1 marks the canonical
 JOHARNESS_CONF|computed|session|Path of the conf file; default joharness.conf under the checkout.
 JOHARNESS_VERBOSE|0|session|1 = ci and finish print passing checks too.
 JOHARNESS_SELFTEST||session|always = run the selftest even on a docs-only diff.
-JOHARNESS_SELFTEST_GIT_BUDGET|88960|session|Git execs the selftest may make before the ci stage reds; canonical-only.
+JOHARNESS_SELFTEST_GIT_BUDGET|98248|session|Git execs the selftest may make before the ci stage reds; canonical-only.
 JOHARNESS_SELFTEST_JOBS|computed|session|Parallel selftest workers; default the CPU count, at most 4; 1 = one topic after another; canonical-only.
 JOHARNESS_SESSION_SOURCE||session|The SessionStart hook source (startup, resume, clear, compact), set by session-start.
 JOHARNESS_FORCE_SETUP|0|session|1 = provision at session start outside the remote sandbox.
@@ -444,7 +444,7 @@ ci_selftest() {
 # from it. Over JOHARNESS_SELFTEST_GIT_BUDGET = red, like a failed case: the
 # suite's cost grows one fixture at a time and nobody sees it grow. A green
 # stage stays quiet like every other; `ci -v` prints the count. The default
-# is a count plus a tenth: `ci -v` on this repository, 2026-10-14.
+# is a count plus a tenth: `ci -v` on this repository, 2026-10-24 (89316).
 selftest_counted() {
   local real dir rc n budget
   budget="$(num_knob JOHARNESS_SELFTEST_GIT_BUDGET)"
@@ -6816,6 +6816,9 @@ dispatch_tip_holds() {
 # Plans on a branch: a plan file an unmerged branch ADDED and the base does not
 # carry. One row per (branch, plan), six tab-separated fields:
 #   <kind> <branch> <stem> <urgency> <agent> <held days>
+# A seventh field, `0` or `<n>:<pr>`: the branch's workstream `pr:` has its
+# first-parent `Merge pull request #<pr> from` commit on the base and the tip
+# is <n> > 0 commits ahead of the base (the hook's edge_facts, from git alone).
 # kind `leftover`: the base added and retired the path; `done`: DONE ON MAIN,
 # the stem retired elsewhere (the base's ledger, or a `status: done`
 # workstream file on any other ref); `live`: neither.
@@ -6824,7 +6827,8 @@ dispatch_tip_holds() {
 dispatch_branch_plans() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}" only="${1:-}"
   local refs r name base plans wfs wf doc own wplan wstat abandoned p stem urg agt retired rc
-  local addh addt abase kind days now ev evh evs ledger evcache=""
+  local addh addt abase kind days now ev evh evs ledger evcache="" wpr mpr npr
+  local bmerges="" bmread=0
   now="$(date +%s)"
   refs="$(refs_unmerged "refs/remotes/origin/${base_branch}")"
   while IFS= read -r r; do
@@ -6839,16 +6843,36 @@ dispatch_branch_plans() {
       -- docs/plans </dev/null 2>/dev/null | gr_docs)"
     [ -n "$plans" ] || continue
     # The branch's own workstream files, the ones it introduced or changed.
-    own=" "; abandoned=0
+    own=" "; abandoned=0; mpr=0
     wfs="$(git -c core.quotePath=false -C "$ROOT" diff --name-only \
       --diff-filter=ACMRT "$base" "$r" \
       -- docs/handover </dev/null 2>/dev/null | gr_docs)"
     while IFS= read -r wf; do
       [ -n "$wf" ] || continue
       doc="$(git -C "$ROOT" show "${r}:${wf}" </dev/null 2>/dev/null)"
-      { read -r wplan; read -r wstat; } \
-        <<<"$(printf '%s\n' "$doc" | gr_fields plan status)"
+      { read -r wplan; read -r wstat; read -r wpr; } \
+        <<<"$(printf '%s\n' "$doc" | gr_fields plan status pr)"
       [ "$wstat" = abandoned ] && abandoned=1
+      # `pr:` as the hook's pr_num reads it: `N`, `#N`, or `.../pull/N`.
+      wpr="${wpr#\#}"
+      case "${wpr%/}" in
+        http://*/pull/[0-9]* | https://*/pull/[0-9]* ) wpr="${wpr%/}"; wpr="${wpr##*/}" ;;
+      esac
+      case "$wpr" in '' | *[!0-9]* ) ;; * )
+        # The base's merge subjects, read once and only for a numeric `pr:`.
+        if [ "$bmread" -eq 0 ]; then
+          bmread=1
+          bmerges="$(git -C "$ROOT" log --first-parent --merges --format=%s \
+            "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null)"
+        fi
+        # A here-string, never a pipe: `grep -q` exits at its match, and
+        # under pipefail a printf past the pipe buffer then fails the test.
+        if grep -q "^Merge pull request #${wpr} from " <<<"$bmerges"; then
+          npr="$(git -C "$ROOT" rev-list --count \
+            "refs/remotes/origin/${base_branch}..${r}" </dev/null 2>/dev/null)"
+          [ "${npr:-0}" -gt 0 ] && mpr="${npr}:${wpr}"
+        fi ;;
+      esac
       wplan="$(lint_stem "$wplan" | tr -cd 'A-Za-z0-9._-')"
       [ -z "$wplan" ] || [ "$wplan" = none ] || own="${own}${wplan} "
     done <<<"$wfs"
@@ -6927,9 +6951,9 @@ dispatch_branch_plans() {
         </dev/null 2>/dev/null | gr_fields urgency agent)"
       urg="$(printf '%s' "$urg" | tr -cd 'A-Za-z0-9._-')"
       agt="$(printf '%s' "$agt" | tr -cd 'A-Za-z0-9._-')"
-      printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$kind" \
+      printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$kind" \
         "$(printf '%s' "$name" | tr -cd 'A-Za-z0-9._/-')" \
-        "$stem" "${urg:-?}" "${agt:-?}" "$days"
+        "$stem" "${urg:-?}" "${agt:-?}" "$days" "$mpr"
     done <<<"$plans"
   done <<<"$refs"
 }
@@ -7964,15 +7988,17 @@ cmd_dispatch() {
   bplans="$(printf '%s\n' "$bprows" | awk -F'\t' '$1 == "live" || $1 == "done" {
       k = $3 SUBSEP $1
       if (!(k in on)) { order[++n] = k; st[k] = $3; kd[k] = $1; urg[k] = $4
-                        agt[k] = $5; on[k] = $2; held[k] = $6 }
-      else { on[k] = on[k] ", " $2; if ($6 + 0 > held[k] + 0) held[k] = $6 } }
+                        agt[k] = $5; on[k] = $2; held[k] = $6; mg[k] = "" }
+      else { on[k] = on[k] ", " $2; if ($6 + 0 > held[k] + 0) held[k] = $6 }
+      if ($7 != "0" && $7 != "") { split($7, m, ":")
+        mg[k] = mg[k] "; " m[1] " commit(s) after merged PR #" m[2] } }
     END { for (i = 1; i <= n; i++) { k = order[i]
       if (kd[k] == "done")
-        printf "  DONE ON MAIN %s (urgency: %s, agent: %s)  on %s  held %sd: retired elsewhere — drop it, never spawn on it\n",
-          st[k], urg[k], agt[k], on[k], held[k]
+        printf "  DONE ON MAIN %s (urgency: %s, agent: %s)  on %s  held %sd%s: retired elsewhere — drop it, never spawn on it\n",
+          st[k], urg[k], agt[k], on[k], held[k], mg[k]
       else
-        printf "  %s%s (urgency: %s, agent: %s)  on %s  held %sd\n",
-          (urg[k] == "urgent" ? "URGENT " : ""), st[k], urg[k], agt[k], on[k], held[k] } }')"
+        printf "  %s%s (urgency: %s, agent: %s)  on %s  held %sd%s\n",
+          (urg[k] == "urgent" ? "URGENT " : ""), st[k], urg[k], agt[k], on[k], held[k], mg[k] } }')"
   if [ -n "$bplans" ]; then
     printf '\nplans on a branch, not in the queue until it merges:\n%s\n' "$bplans"
   fi

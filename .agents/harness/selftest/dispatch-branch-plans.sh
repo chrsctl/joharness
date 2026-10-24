@@ -193,6 +193,58 @@ expect "it is a leftover row naming its branch" \
 expect "a plan of a retired stem's name filed AFTER the retire still shows" \
   "  reused (urgency: normal, agent: sonnet)  on reuse-src" "$bpblock"
 
+# --- plans on a branch: commits after a merged pull request (issue #594) ---
+# A holding branch whose workstream `pr:` already merged, tip ahead: the line
+# says so, as the hook's edge listing does. Its own repo: merging moves main.
+mpwork="${TMP}/mergedprwork"
+mporigin="${TMP}/mergedprorigin.git"
+git init -q --bare "$mporigin"
+git init -q "$mpwork"
+git -C "$mpwork" symbolic-ref HEAD refs/heads/main
+mkdir -p "${mpwork}/docs/plans" "${mpwork}/docs/handover" \
+  "${mpwork}/.agents/harness" "${mpwork}/.agents/env/none"
+cp "${ROOT}/joharness.sh" "${mpwork}/joharness.sh"
+cp "${ROOT}/.agents/harness/queue-context.sh" \
+   "${ROOT}/.agents/harness/handover-context.sh" "${mpwork}/.agents/harness/"
+printf '# none\n' >"${mpwork}/.agents/env/none/AGENTS.md"
+printf 'JOHARNESS_ENV=none\n' >"${mpwork}/joharness.conf"
+bpplan "${mpwork}/docs/plans/onmain.md" onmain normal
+commit_all "$mpwork" "base"
+git -C "$mpwork" remote add origin "$mporigin"
+git -C "$mpwork" push -qu origin main
+mp() { ( cd "$mpwork" && JOHARNESS_CONF="${mpwork}/joharness.conf" DRAIN_FETCH=0 \
+  DISPATCH_FETCH=0 ./joharness.sh dispatch 2>&1 ); }
+# <branch> <stem> <pr>: a workstream file naming <pr>, plan none.
+mpws() {
+  printf -- '---\nworkstream: other-%s\nstatus: %s\nbranch: %s\npr: %s\nplan: none\nagent: sonnet\nupdated: 2026-01-01\nnext: Build\n---\n\n## Goal\nFixture.\n' \
+    "$2" "$4" "$1" "$3" >"${mpwork}/docs/handover/other-$2.md"
+}
+# PR #7 merges carrying the workstream file; AFTER it the branch edits that
+# file and files plan mpa, then one more commit: 2 past the base.
+git -C "$mpwork" checkout -qb mp-merged main
+mpws mp-merged mpa 7 in-progress
+commit_all "$mpwork" "claim"
+git -C "$mpwork" checkout -q main
+git -C "$mpwork" merge -q --no-ff -m "Merge pull request #7 from o/mp-merged" mp-merged
+git -C "$mpwork" checkout -q mp-merged
+mpws mp-merged mpa 7 "done"
+bpplan "${mpwork}/docs/plans/mpa.md" mpa normal
+commit_all "$mpwork" "after 1: file mpa"
+printf 'x\n' >"${mpwork}/after.txt"
+commit_all "$mpwork" "after 2"
+# A pr: written as a URL whose pull request never merged: nothing appended.
+git -C "$mpwork" checkout -qb mp-open main
+mpws mp-open mpb "https://example.test/o/r/pull/8" in-progress
+bpplan "${mpwork}/docs/plans/mpb.md" mpb normal
+commit_all "$mpwork" "file mpb"
+git -C "$mpwork" checkout -q main
+git -C "$mpwork" push -q origin main mp-merged mp-open
+out="$(mp)"
+mpblock="$(sed -n '/^plans on a branch/,/^$/p' <<<"$out")"
+expect "a holding branch whose pr: merged, tip ahead, says so on its line" \
+  "mpa (urgency: normal, agent: sonnet)  on mp-merged  held 0d; 2 commit(s) after merged PR #7" "$mpblock"
+refute "an unmerged pr: adds nothing" "on mp-open  held 0d;" "$mpblock"
+
 # --- plans on a branch: DONE ON MAIN and held Nd (issue #423) --------------
 # A carry that wrote `status: done, pr: none` deletes nothing on the base, so
 # the leftover test above never fires: in a consumer 3 of 9 held plans were
