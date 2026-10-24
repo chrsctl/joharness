@@ -46,7 +46,7 @@ commit `649b832` — docs only, no text reproduced (`.agents/NOTICE`).
 | retro | sonnet | a session on `retro DUE`, beyond the cap; prelude `./joharness.sh role retro` | nothing (it files plans, fixes nothing) | one pull request: ledger rows in `docs/retro-log.md` and new plans for mechanisms, no workstream file; never a rule-only fix | its pull request merges, or `TWIN: deferred` |
 
 `JOHARNESS_MAX_MANAGERS` caps managers only; every role session runs beyond
-the cap, one of each in flight (`orchestrate.md` §3).
+the cap, one of each in flight, a blocked one included (`orchestrate.md` §3).
 
 ### The role prelude is a command
 
@@ -75,25 +75,22 @@ its limits only.
 | retro | `retro.md` | any diff body, product code, another role's ledger, this doc |
 | worker | its sub-task prompt and the files it names | everything else |
 
-Two spawn levels, never three. A worker that needs a branch of its own is a
-plan, and enters the queue through the manager's pull request
-(`.agents/docs/plans/README.md`, same-session plan handed off). Subagents
-cannot claim, get no hook state and die with the parent's turn
-([`subagents.md`](subagents.md)).
+Two spawn levels, never three. A worker that needs a branch is a plan, in the
+manager's pull request (`.agents/docs/plans/README.md`, same-session plan
+handed off). Subagents cannot claim, get no hook state and die with the
+parent's turn ([`subagents.md`](subagents.md)).
 
-The default role is the orchestrator: the keeper's spawn prompt is standalone,
-and a manager is told what it is by the orchestrator that spawned it. Two
-orchestrators are the collision to avoid: a `RUNNING` session titled
-`🎼 orchestrator: <repo>` (glossary, role title) that is not you = exit.
+The default role is the orchestrator; a manager is told what it is by its
+spawner. Two orchestrators are the collision to avoid: a `RUNNING` session
+titled `🎼 orchestrator: <repo>` (glossary, role title) not you = exit.
 
 ## The loop
 
-One pass every `JOHARNESS_HEALTH_MINUTES`, armed with `send_later` — never a
-sleep, never a poll: dispatch, the health pass (kills and respawns before any
-spawn), spawns up to `slots`, the next arm (`orchestrate.md`). A merge is read
-from git. The wake message carries the ledger (in-flight items only),
-`harness=` and `pass=`, so it survives compaction; the orchestrator stores
-nothing in the repo.
+One pass every `JOHARNESS_HEALTH_MINUTES`, armed with `send_later`, never a
+poll: dispatch, the health pass (kills and respawns first), spawns up to
+`slots`, the next arm (`orchestrate.md`). Merges are read from git. The wake
+carries the ledger (in-flight only), `harness=` and `pass=`, so it survives
+compaction; the orchestrator stores nothing in the repo.
 
 ## Health: two signals, one verdict
 
@@ -141,10 +138,9 @@ it.
 ## Concurrency
 
 `JOHARNESS_MAX_MANAGERS` caps managers in flight. Blocked managers hold no
-slot. A manager past its retire commit still holds one — it owns a branch, a
-pull request, CI and a container, but no claim. Whether that slot is real is
-decided in git by the item: still on the base branch = merge pending, hold
-it; gone = leftover, counts as nothing. Within the cap the order is the queue
+slot. A manager past its retire commit holds one (a branch, a pull request,
+CI, a container, no claim) while its item is still on the base branch; item
+gone = leftover, counts as nothing. Within the cap the order is the queue
 hook's: urgent first, then oldest, in waves of disjoint scope. On top:
 
 - A free plan whose scope overlaps a plan a manager HOLDS is `HOLD`
@@ -175,7 +171,7 @@ branch has no row: not free, not held, not in flight.
 | plan-only pull request | filer drives it to merged before exit | `manage.md`, Finish |
 | plan riding a product pull request | row in dispatch's `plans on a branch` block — visible, counted nowhere | `joharness.sh:dispatch_branch_plans` |
 | plan-only pull request whose plan was carried to the base by another branch, built and retired | the carrying session closes or comments on the source pull request at its own step 7 (its carry commit names the number); the reader prints the branch as a leftover (the human closes the pull request and deletes the branch); a carry that retired it with `status: done, pr: none` (ledger line, or a done workstream file on any other ref, merged or not) prints the row `DONE ON MAIN` — drop it, never spawn on it | `joharness.sh:dispatch_branch_plans` |
-| author gone: doc-only branch (`docs/plans`, `docs/product`, `docs/research`, `docs/handover`), idle, nothing of it blocked or in review; exact test in `dispatch_freeable` | dispatch prints `free <branch> ... FREEABLE` under spawn and a `freer DUE` tail line; the orchestrator proves the owner's session not RUNNING and spawns one sonnet freer (a role, beyond the cap); `free` merges the branch into the freer's claim, and the freer's pull request closes the owner branch by merging it. A released (`status: abandoned`) branch is not offered | `joharness.sh:cmd_free`, `joharness.sh:dispatch_freeable`, `manage.md` §0 |
+| author gone: doc-only branch (`docs/plans`, `docs/product`, `docs/research`, `docs/handover`), idle, nothing of it blocked or in review; or its only diff a `status: done, pr: none` workstream file naming a `plan:` (no wait); exact test in `dispatch_freeable` | dispatch prints `free <branch> ... FREEABLE` under spawn and a `freer DUE` tail line; the orchestrator proves the owner's session not RUNNING and spawns one sonnet freer (a role, beyond the cap); `free` merges the branch into the freer's claim, and the freer's pull request closes the owner branch by merging it. A released (`status: abandoned`) branch is not offered | `joharness.sh:cmd_free`, `joharness.sh:dispatch_freeable`, `manage.md` §0 |
 
 The row carries no instruction: the scheduler cannot see a pull request, and a
 branch plan has not been reviewed into the queue, so spawning on it is the
@@ -190,7 +186,10 @@ pushes nothing to the owner's branch. The carry's retire appends the stem to
 `docs/plans/RETIRED.md`, also when it finds the plan already done, and `ci`
 refuses a diff adding a plan the base branch's ledger lists
 (`joharness.sh:lint_plans_in_diff`), so the owner branch's merge cannot bring
-the plan back. Removing the line, on the base first, is the human override.
+the plan back. It fires on a `ci` run after the retire lands: Loop step 7's
+0-behind rule forces one for a session; a human merging on an older green
+check is covered only when branch protection requires an up-to-date branch.
+Removing the line, on the base first, is the human override.
 
 ## The numbers are the human's
 
@@ -302,7 +301,7 @@ One block is not a human's: `defect: #<n>: …`, a manager parked on a defect
 outside its item. `dispatch` prints it `PARKED #<n>`: no slot, not counted
 as waiting, the verdict line unchanged. From git alone: a plan naming #<n>
 leaves the base's first parent after the block commit (a rename is no
-retire) and no plan names #<n> = `RESUME`, a slot, never DRAINED; no plan,
+retire) and no plan on the base or a live branch names #<n> = `RESUME`, a slot, never DRAINED; no plan,
 the block `JOHARNESS_DEFECT_RECHECK_HOURS` old, the base moved = `RECHECK`
 (a re-park restarts that clock only). Outranking RECHECK, notified once:
 `UNPLANNED`, `STUCK` (a stale live branch naming #<n> included),
@@ -362,11 +361,14 @@ messages the keeper can make it check sooner, never write a prompt.
 **Lineage stays flat.** A `create_session` child sits one level below its
 parent; a session reads its `lineage` (`depth`, `limit`) only from
 `get_session` with no `session_id`. At `depth == limit`, `create_session`,
-`send_later` and every trigger call refuse. Every orchestrator the keeper
+`send_later` and every trigger call refuse ("No user or organization setting
+changes this limit"). Every orchestrator the keeper
 starts sits at the keeper's depth plus one, so retiring never deepens.
 Without an up-to-date heartbeat nothing swaps: the orchestrator keeps arming
-in the same session, and "## 0. Start" stops one at the cap. Only
-`orchestrate.md` calls `create_session` or `send_later`. Managers:
+in the same session, and "## 0. Start" stops one at the cap with the reason
+in its push. Managers sit one level below their orchestrator; only
+`orchestrate.md` and `keeper.md` call `create_session` or `send_later`
+(`grep -ln 'send_later\|create_session' .claude/commands/*.md`). Managers:
 [`agent-selection.md`](agent-selection.md), Cost levers, "Fresh session".
 
 ## Heartbeat: making the fleet long
@@ -407,7 +409,8 @@ running orchestrator's `send_later` chain; the human's stop does both
 **Bound, not fresh.** A Routine `create_trigger` makes from a session with
 `create_new_session_on_fire` reads `created_via: meta_mcp`; its fired session
 has `sources: []`, no `create_session`, `list_sessions`, `get_session` or
-GitHub tools, and cannot run `./joharness.sh`. `create_trigger` takes no
+GitHub tools, and the permission check refuses `./joharness.sh` from the
+clone it makes (`create_trigger` + `fire_trigger`). `create_trigger` takes no
 repository. A keeper made with `create_session` and a `source_url` has the
 repository and the tools, so the Routine wakes it instead. "Run now" fires a
 fresh session titled `⚡ <Routine name>` with no repository and no
@@ -448,10 +451,9 @@ replaced, any other `heartbeat stale` or `heartbeat duplicated` line pushes):
   session to `keeper.md`, so a rename never costs a replace.
 - **Stop**: `update_trigger` `enabled: false` pauses (the veto),
   `delete_trigger` removes and lets the next `/orchestrate` register a new
-  one. A Routine not named exactly `heartbeat: <owner/repo>` never counts
-  and is never touched: an older one under another name stays wherever a
-  human left it. Read `last_run`, never `next_run_at` (a paused Routine keeps a
-  stale one).
+  one. A Routine not named exactly `heartbeat: <owner/repo>` never counts and
+  is never touched. Read `last_run`, never `next_run_at` (a paused Routine
+  keeps a stale one).
 - **The chain can end silently.** A `send_later` link can be delivered and
   never run (`SUCCEEDED`, identical to a healthy link, however long idle), or fail with `auto_disabled_session_gone`. `last_run` reports
   delivery, not execution — which is why the Routine exists.

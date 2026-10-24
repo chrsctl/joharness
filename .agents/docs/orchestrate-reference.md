@@ -240,9 +240,9 @@ item". This wording is no defect resume: STUCK and UNPLANNED never count
 it. `PARKED #<n>: #<n> merged, resume waits for a slot` is no RESUME: next
 pass.
 
-A `PARKED #<n> RECHECK` row: no plan names #<n>, the block is
-`JOHARNESS_DEFECT_RECHECK_HOURS` old, the base moved since: maybe fixed
-with no plan. RESUME mechanics, `next:` = `Recheck: the base moved since you
+A `PARKED #<n> RECHECK` row: no plan on the base or a live branch names
+#<n>, the block is `JOHARNESS_DEFECT_RECHECK_HOURS` old, the base's first
+parent moved since it: maybe fixed with no plan. RESUME mechanics, `next:` = `Recheck: the base moved since you
 parked on #<n>; merge origin/main, re-run the check that failed; still red =
 park again on #<n>, green = continue`, commit "Orchestrator rechecks a parked
 item" — so a re-park is a new block commit and RECHECK waits for the base to

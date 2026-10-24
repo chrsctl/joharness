@@ -14,7 +14,7 @@ next: Run ci and verify, spawn the verifier, then retire and open the PR
 ## Goal
 
 User asked to simplify and compact the protocol. Cut the five orchestration
-docs to 1250 lines or fewer: one home per rule, no history, caveman
+docs (plan target moved 1250 → 1370, see Decisions): one home per rule, no history, caveman
 compression. Behaviour unchanged.
 
 ## Decisions
@@ -48,7 +48,13 @@ compression. Behaviour unchanged.
 - r5: (plan-checker) start.md 12-line target needs cutting unlisted rules (wontfix: kept the two rules, 16 lines)
 - r6: (plan-checker) Bounds, orchestrator janitor/halt writers had no other home (fixed: kept)
 - r7: (plan-checker) acceptance items lack red readings and two are not commands (fixed: line count names red; PR body and consumer items stay prose)
-- r8: (plan-checker) misquotes, stale base hash, `budget` anchor, column-per-row wording (fixed: base hash; rest no change, located by text)
+- r8: (plan-checker) misquotes, stale base hash, `budget` anchor, column-per-row wording (no change: 5adc5d0c was not stale, plan now names a1f5af79; quotes located by text)
+- r9: (verifier) branch moved its own 1250 bar to 1370 (wontfix: listed cuts cannot reach 1250 without rewording pinned needles; flagged for the human in the PR body)
+- r10: (verifier) "Only orchestrate.md calls create_session" false, keeper.md does; lost depth note and push reason (fixed)
+- r11: (verifier) RETIRED.md guard's up-to-date-branch gap lost its only home (fixed: restored)
+- r12: (verifier) RECHECK and RESUME conditions loosened ("base or a live branch", "first parent") (fixed: restored)
+- r13: (verifier) lost "a blocked one included", "No user or organization setting", Bound-not-fresh method (fixed: restored)
+- r14: (verifier) freeable row "idle" contradicts the no-wait done-file case (fixed: case restored)
 
 ## Blockers
 
