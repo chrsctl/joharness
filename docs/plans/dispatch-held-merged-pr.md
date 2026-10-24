@@ -21,7 +21,7 @@ same fact, so an orchestrator reading only `dispatch` sees it.
 
 - `joharness.sh` — the `plans on a branch` listing (`bplans`, fed by
   `dispatch_branch_plans`): when a holding branch's workstream `pr:` (`N`,
-  `#N` or a URL ending in `/N`) has a first-parent `Merge pull request #N
+  `#N` or a URL ending in `/pull/N`, read by the hook's `pr_num`) has a first-parent `Merge pull request #N
   from` commit on `origin/<base>` and the branch is N > 0 commits ahead, append
   `; N commit(s) after merged PR #n` to that line. N = 0 changes nothing.
 - `.agents/harness/selftest/dispatch-branch-plans.sh` — one case with the

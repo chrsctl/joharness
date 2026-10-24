@@ -195,7 +195,8 @@ Ranks 0 to 2 add an `EDGE:` line (and the `FINISH BEFORE STARTING` reason
 `dispatch` prints) for two facts git proves, and only these: `N commit(s)
 after merged PR #n` (a `Merge pull request #n from` commit on the base's first
 parent, tip ahead of the base), and, for `status: done`, `plan gone from
-<base>` when the base deleted the `plan:` file after the branch was cut.
+<base>` when the base deleted the `plan:` file, unless the branch still
+carries that file atop the delete (a new plan of an old stem).
 Neither closes a claim; releasing one stays the janitor's.
 
 `abandoned` is written only by `./joharness.sh janitor --apply`, on a branch

@@ -255,13 +255,15 @@ finished_rescope() {
   [ "$2" = none ] && [ "$3" = "done" ] && [ -z "$4" ]
 }
 
-# A `pr:` value a reader wrote by hand: `N`, `#N`, or a URL ending in `/N`.
+# A `pr:` value a reader wrote by hand: `N`, `#N`, or a pull request URL
+# ending in `/pull/N` (one trailing slash allowed).
 pr_num() {
-  local v="${1#\#}"
+  local v="${1#\#}" u
   case "$v" in '' | none | NONE ) return 0 ;; esac
-  case "$v" in
-    http://*/[0-9]* | https://*/[0-9]* )
-      case "${v##*/}" in *[!0-9]* ) ;; * ) v="${v##*/}" ;; esac ;;
+  u="${v%/}"
+  case "$u" in
+    http://*/pull/[0-9]* | https://*/pull/[0-9]* )
+      case "${u##*/}" in *[!0-9]* ) ;; * ) v="${u##*/}" ;; esac ;;
   esac
   printf '%s' "$v"
 }
@@ -376,15 +378,17 @@ edge_facts() {
   esac
   case "$plan" in '' | none | NONE ) plan="" ;; esac
   # `--full-history -m` sees a retire a merge carried, as dispatch's
-  # plans-on-a-branch reader does. A delete the branch already sat on top of
-  # was an older plan of that stem, not this one landing.
+  # plans-on-a-branch reader does; `:(literal)` keeps a plan name a name. A
+  # branch that still CARRIES the file atop that delete wrote a new plan of an
+  # old stem; one that merged the delete in no longer carries it.
   if [ "$status" = "done" ] && [ -n "$plan" ] &&
      ! git cat-file -e "origin/${BASE_BRANCH}:docs/plans/${plan}.md" 2>/dev/null; then
     del="$(git log -1 --format=%H --full-history -m --diff-filter=D \
-      "origin/${BASE_BRANCH}" -- "docs/plans/${plan}.md" 2>/dev/null)"
+      "origin/${BASE_BRANCH}" -- ":(literal)docs/plans/${plan}.md" 2>/dev/null)"
     mb="$(git merge-base "$ref" "origin/${BASE_BRANCH}" 2>/dev/null)"
     if [ -n "$del" ] && [ -n "$mb" ] &&
-       ! git merge-base --is-ancestor "$del" "$mb" 2>/dev/null; then
+       ! { git cat-file -e "${ref}:docs/plans/${plan}.md" 2>/dev/null &&
+           git merge-base --is-ancestor "$del" "$mb" 2>/dev/null; }; then
       out="${out:+${out}; }plan gone from ${BASE_BRANCH}: landed elsewhere? confirm in merged history, then release"
     fi
   fi
