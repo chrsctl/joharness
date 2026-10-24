@@ -24,7 +24,7 @@ for _t in plans research product handover; do
   mkdir -p "${lwork}/.agents/docs/${_t}"
   printf '# %s\n' "$_t" >"${lwork}/.agents/docs/${_t}/README.md"
 done
-printf '#!/usr/bin/env bash\nexit 0\n' >"${lwork}/.agents/harness/selftest.sh"
+printf '#!/usr/bin/env bash\nprintf "1 passed, 0 failed\\n"\nexit 0\n' >"${lwork}/.agents/harness/selftest.sh"
 chmod +x "${lwork}/.agents/harness/selftest.sh" "${lwork}/joharness.sh"
 git init -q "$lwork"
 git -C "$lwork" symbolic-ref HEAD refs/heads/main

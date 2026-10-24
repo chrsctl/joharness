@@ -19,7 +19,7 @@ git init -q --bare "$corigin"
 cwork="${TMP}/churnwork"
 mkdir -p "${cwork}/.agents/harness" "${cwork}/.agents/env/none" "${cwork}/docs/handover"
 cp "${ROOT}/joharness.sh" "${cwork}/joharness.sh"
-printf '#!/usr/bin/env bash\nexit 0\n' >"${cwork}/.agents/harness/selftest.sh"
+printf '#!/usr/bin/env bash\nprintf "1 passed, 0 failed\\n"\nexit 0\n' >"${cwork}/.agents/harness/selftest.sh"
 chmod +x "${cwork}/.agents/harness/selftest.sh" "${cwork}/joharness.sh"
 git init -q "$cwork"
 git -C "$cwork" symbolic-ref HEAD refs/heads/main
