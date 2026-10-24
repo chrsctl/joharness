@@ -8,7 +8,7 @@ issue: 596
 session: https://claude.ai/code/session_01TmpgarMNYAZa3MkLwRnKKu
 agent: opus
 updated: 2026-10-24
-next: Run ci and verify, then the verifier at opus; record findings, then finish
+next: Run ci and verify on the r10-r14 fixes, then retire and open the PR
 ---
 
 ## Goal
@@ -39,6 +39,11 @@ resumable once `origin/main` shows that PR merged (issue #596).
 - r7: (plan-checker) manage.md "never respawned" would contradict the exception (fixed)
 - r8: (plan-checker) a waiting core path: block releases its scope, so the resumed item may race an overlapping plan (wontfix: same as every human block today; resumed, its scope is held again and the manager reconciles by merging origin/main)
 - r9: (plan-checker) issues #596/#597 unverified (no change: plan cites them, nothing in code depends on them)
+- r10: (verifier) a merge older than the block resumes it, so a re-block on the same #N loops unbounded on nudges (fixed: merge commit must be dated no earlier than the block; unknown block age reads false)
+- r11: (verifier) `--grep` matched a body line, and any head branch counted (fixed: subject only, head must be `<owner>/human/`)
+- r12: (verifier) manage.md "the one block respawned" false beside defect RESUME (fixed: "the one human's block respawned")
+- r13: (verifier) a resumed item whose own PR carries `human-review` from the block still needs a second human touch at finish (wontfix: the label rule is Loop's, `.agents/harness/AGENTS.md`, outside this plan's scope; sent as a lead)
+- r14: (verifier) no cases for the slot-wait MERGED row, merge-before-block, body match (fixed: four cases; each new refute FAILs against the previous commit's joharness.sh)
 
 ## Blockers
 

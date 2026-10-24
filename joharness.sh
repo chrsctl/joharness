@@ -7127,13 +7127,22 @@ awaited_pr() {
   printf '%s' "${BASH_REMATCH[1]#"${BASH_REMATCH[1]%%[!0]*}"}"
 }
 
-# True when the base's first parent carries GitHub's merge commit for pull
-# request #<n>. Read from git; a clone too shallow to hold it reads false.
+# <n> <block age, minutes>: true when the base's first parent carries
+# GitHub's merge commit for pull request #<n> from a `human/` branch,
+# committed no earlier than the block: a PR merged before it is no answer to
+# it, and a re-block on the same number stays the human's. Subject only, never
+# a line of a body. Read from git; a clone too shallow to hold it, or a block
+# of unknown age, reads false.
 awaited_pr_merged() {
   [ -n "$1" ] || return 1
-  [ -n "$(git -C "$ROOT" log --first-parent --merges -1 --format=%H \
-    --grep="^Merge pull request #${1} from " \
-    "refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" </dev/null 2>/dev/null)" ]
+  case "${2:-}" in '' | *[!0-9]*) return 1 ;; esac
+  git -C "$ROOT" log --first-parent --merges --format='%ct %s' \
+    "refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" </dev/null 2>/dev/null |
+    awk -v n="$1" -v since="$(($(date +%s) - $2 * 60 - 60))" '
+      { s = substr($0, length($1) + 2) }
+      $1 >= since && index(s, "Merge pull request #" n " from ") == 1 &&
+        s ~ /^Merge pull request #[0-9]+ from [^ ]*\/human\// { f = 1 }
+      END { exit !f }'
 }
 
 cmd_dispatch() {
@@ -7545,9 +7554,11 @@ cmd_dispatch() {
           # (manage.md §3) comes back once the base's first parent carries
           # that PR's merge commit: a RESUME row, as a retired fix's, and
           # its scope stays held.
+          # How long it has stood.
+          bage="$(dispatch_block_age_min "$branch" "$ws" "$base")"
           # The raw line: the parsed one stops at ` #`, a YAML comment.
           dn="$(awaited_pr "$(printf '%s\n' "$doc" | gr_field_raw next)")"
-          if [ -n "$dn" ] && awaited_pr_merged "$dn"; then
+          if [ -n "$dn" ] && awaited_pr_merged "$dn" "$bage"; then
             n_parked=$((n_parked + 1)); n_fixed=$((n_fixed + 1)); dresume=1
             di="$(basename "$path" .md) (${branch})"
             fx_lines+=("$parked_lines"); parked_lines=""
@@ -7557,8 +7568,6 @@ cmd_dispatch() {
             flag="  BLOCKED: the human's, holds no slot"
             block_reason_ok "$next" ||
               flag="${flag}  INVALID BLOCK? next: opens with no reason word (manage.md §3): ask, order nothing"
-            # How long it has stood.
-            bage="$(dispatch_block_age_min "$branch" "$ws" "$base")"
             if [ -n "$bage" ]; then
               flag="${flag}, parked $(dispatch_age_text "$bage") ago"
             else
