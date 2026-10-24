@@ -52,8 +52,9 @@ Yes: "Bug in auth middleware. Token expiry check use `<` not `<=`. Fix:"
   same as full word. Well-known acronyms fine (DB, API, HTTP).
 - NO arrows (X → Y) and similar symbols in prose: own token, save nothing.
   `=` in "A = B" fine — reads as "is".
-- Never ADD word to sound caveman. No fake broken grammar: caveman phrasing
-  not shorter than plain = use plain.
+- Never ADD word to sound caveman: compression only, style never grows output.
+  No fake broken grammar: not shorter than plain = use plain; keep correct verb
+  form when same cost.
 - State each fact once.
 
 ## Status quo

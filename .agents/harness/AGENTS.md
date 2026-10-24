@@ -35,8 +35,9 @@ ONE spelling: [`.agents/docs/glossary.md`](../../.agents/docs/glossary.md); `ci`
 5. **Verify.** All green or not done: `./joharness.sh ci` and `./joharness.sh verify`,
    before the pull request. Trust counted numbers, never written ones. Edge review
    always, depth by plan tier, plus `.claude/agents/verifier.md` at the branch's tier,
-   findings tagged `(verifier)`. `## Review`: `- rN: text (fixed|wontfix: why|no change)`,
-   same commit as the fix; clean pass = one line (`./joharness.sh review`).
+   findings tagged `(verifier)`, in the workstream file's `## Review` as
+   `- rN: text (fixed|wontfix: why|no change)`, same commit as the fix; clean pass =
+   one line. `./joharness.sh review` prints depth and record state.
    Fix undoes an earlier fix? Stop patching; research step at raised tier
    (`.agents/docs/agent-selection.md`, review churn). Test for a fix must FAIL
    without it. Tree holds still while your verifier lives (`.agents/docs/subagents.md`).
@@ -73,14 +74,13 @@ ONE spelling: [`.agents/docs/glossary.md`](../../.agents/docs/glossary.md); `ci`
 
 ## Decide alone
 
-- Implementation yours. Interface signatures not yours.
-- Scope change too big to ratify alone? Decide, write down, flag for human; do not stop.
-- Block ONLY for a reason your role command allows (a manager:
-  `.claude/commands/manage.md` §3); each is in the one list dispatch
-  accepts, `joharness.sh:block_reason_ok`. Block = `status: blocked`, `next:` =
-  `<reason>: <question>`, push, exit; never wait in session. Not `defect:`? Also
-  label `human-review` this branch's open PR and the plan's `issue:`, if set;
-  never remove it (`.agents/docs/orchestrated.md`, Bounds).
+- Implementation yours, interface signatures not. Scope change too big to ratify
+  alone? Decide, write down, flag for human; do not stop.
+- Block ONLY for a reason your role command allows (a manager: `.claude/commands/manage.md`
+  §3); each is in the one list dispatch accepts, `joharness.sh:block_reason_ok`. Block =
+  `status: blocked`, `next:` = `<reason>: <question>`, push, exit; never wait in session.
+  Not `defect:`? Also label `human-review` on this branch's open PR and the plan's
+  `issue:`, if set; never remove it (`.agents/docs/orchestrated.md`, Bounds).
 - Consumer repo: no harness upkeep in a session holding product work; a sync
   opens its own pull request (`.agents/docs/consumer-repos.md`).
 

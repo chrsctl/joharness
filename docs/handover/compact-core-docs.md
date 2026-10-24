@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_017f52j2vqCkGcDCHNnfYXnj
 agent: opus
 updated: 2026-10-24
-next: Run verify, spawn verifier at opus, record, retire, open PR
+next: Retire plan and workstream file, open PR, run finish, merge
 ---
 
 ## Goal
@@ -24,11 +24,12 @@ no history, behaviour unchanged.
 - A3: confirmed — orchestrated.sh:797/802 and handover-context-compact.sh:70 pins kept on single lines.
 - `--force-with-lease` exception list kept in step 3: no orchestrator doc names all three uses.
 - Review-record form kept inline in Loop step 5 (one line), not pointed at TEMPLATE.md: sibling compact-role-commands points handover.md at Loop 5, so a pointer would go circular.
-- Cuts past the plan's named list (feedback "What this cannot see", consumer-repos Layers/Ahead/What syncs/Upgrade prose) are rewraps and deduplication only; every rule, number and cited heading stays.
+- Cuts past the plan's named list (feedback "What this cannot see", "Why `feedback` exists" folded into stage 4, consumer-repos Layers/Ahead/What syncs/Upgrade prose) are rewraps and deduplication; the verifier's over-cut list (r12-r20) was restored.
 
 ## Rejected
 
 - Dropping the Loop step 5 background/`pgrep -f` clause: the guards do not cover it (A2).
+- Mechanical reflow of whole docs to 80 columns: added lines (prose had been widened) and would split the verifier.md boundary pin line.
 
 ## Review
 
@@ -43,6 +44,18 @@ no history, behaviour unchanged.
 - r9: (plan-checker) route 2 pointer wrong, Subagent is row 3 (fixed: .agents/docs/subagents.md names the Subagent row of Pick route)
 - r10: (plan-checker) base sha stale and A1 evidence partial (no change: base diff is plans only)
 - r11: (plan-checker) Acceptance prose bullets not runnable, no failure output named (wontfix: plan text, retired with this PR; the commands are runnable)
+
+- r12: (verifier) .claude/agents/verifier.md said a command out of a hunk is "not a finding", contradicting the section (fixed: now "execution, not verification")
+- r13: (verifier) .claude/agents/plan-checker.md lost "Silence is not a result." (fixed)
+- r14: (verifier) .agents/docs/caveman.md lost "style never grows output" and "keep correct verb form" (fixed)
+- r15: (verifier) .agents/docs/feedback.md §4 lost "never drop it silent" and the consumer-PR-does-not-count clause (fixed)
+- r16: (verifier) .agents/docs/consumer-repos.md lost eight symptoms/negations: CRLF bash failure, cmd.exe, below the pinned block, autocrlf ships CRLF, re-running changes nothing, other two leave joharness-update, never in a new workflow, commit there first, files their failures (fixed)
+- r17: (verifier) .agents/docs/feedback.md disposition mechanism cut, only example left (fixed)
+- r18: (verifier) .agents/docs/agent-selection.md lost mid-build gate behaviour and the model behaviour behind findings 1-2 (fixed; findings 3-5 titles already carry it)
+- r19: (verifier) .agents/harness/AGENTS.md step 5 dropped which file holds `## Review` and what review prints (fixed)
+- r20: (verifier) .agents/harness/AGENTS.md "label human-review this branch's" missing "on" (fixed)
+- r21: (verifier) workstream Decisions claimed every rule stays while r12-r18 were open (fixed: bullet reworded)
+- r22: (verifier) AGENTS.md reached 90 partly by widening lines, words fell about 10 percent (wontfix: plan target is lines; no width rule exists, and every cut sentence was a real duplicate or history)
 
 ## Blockers
 

@@ -73,9 +73,9 @@ Findings land in `## Review` (`.agents/docs/handover/README.md`, Reviewing).
 Escalating tier escalates review depth; neither ever downgrades.
 
 `./joharness.sh review` prints the depth for this branch and whether the
-record exists. `JOHARNESS_REVIEW=on` arms the gate: at the edge (`pr:` set,
-or `status:` review/done) `ci` fails on an empty `## Review` or one with no
-`(verifier)` finding. It checks the RECORD, never the count. A clean pass
+record exists. `JOHARNESS_REVIEW=on` arms the gate: mid-build it says the
+record is owed; at the edge (`pr:` set, or `status:` review/done) `ci` fails on
+an empty `## Review` or one with no `(verifier)` finding. It checks the RECORD, never the count. A clean pass
 records one line saying so.
 
 ### Review churn
@@ -122,13 +122,14 @@ a lever from a session's billed `modelUsage`, not from a table.
 
 From Anthropic migration notes, each with its harness consequence:
 
-1. **Literal instruction following**: plans state scope AND out-of-scope.
-2. **Strict effort adherence**: raise effort, never prompt around it.
+1. **Literal instruction following** (infers no unstated request): plans state
+   scope AND out-of-scope.
+2. **Strict effort adherence** (low effort = exactly what was asked): raise
+   effort, never prompt around it.
 3. **More agentic**: acceptance commands with expected output get run.
 4. **Good progress updates by default**: no "summarize every N steps" scaffolding.
 5. **Conservative-reporting instructions lower recall**: review prompts say report everything, filter later.
 
 ## Writing plans for agents
 
-Rules in `.agents/docs/plans/README.md`. An agent executes what the plan
-says, precisely, and nothing else.
+Rules in `.agents/docs/plans/README.md`: an agent executes what the plan says, and nothing else.

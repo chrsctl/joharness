@@ -17,10 +17,11 @@ dies quietly:
 4. **Prevent** — the rule reaches the next session before it repeats the
    defect, not after.
 
-Only stage 4 changes an outcome. Its machinery:
-`.agents/harness/pretool-feedback.sh` serves a file's recorded findings before
-Edit, Write or NotebookEdit touches it, once per file per session;
-`./joharness.sh feedback <path>` = same report on demand.
+Only stage 4 changes an outcome. The finish ritual deletes the workstream
+file, so a finding lives only in merge history; `feedback` puts it in front
+of the next session touching the same file: `.agents/harness/pretool-feedback.sh`
+before Edit, Write or NotebookEdit, once per file per session, at `review`,
+and on demand (`./joharness.sh feedback <path>`).
 
 ## Scoring
 
@@ -45,12 +46,6 @@ counting. Numbers from two windows never compare.
 Volume is not a score: finding counts are no signal
 (`.agents/docs/agent-selection.md`, Review churn). Output on a file nobody
 touched inside the window does not score.
-
-## Why `feedback` exists
-
-The finish ritual deletes the workstream file, so a finding lives only in
-merge history. `feedback` puts it in front of the next session touching the
-same file: on demand, at `review`, and before every edit (the hook).
 
 ## Worked example: tree or diff
 
@@ -111,17 +106,17 @@ The context rule keeps *sync* out of a session holding product work;
 feedback is small and its evidence lives only in that session. So:
 
 - **Capture always, immediately**: the workstream file's `## Review`, else the
-  canonical pull request body, else (finding after the retire commit, no open
-  CANONICAL pull request) an issue on the repo `CANONICAL_REPO` names
+  CANONICAL pull request body (the consumer's own carries no `## Review`, does
+  not count), else an issue on the repo `CANONICAL_REPO` names
   (`.github/workflows/update.yml`).
 - **Fix inline when small** — a message, a comment, a guard's scope.
 - **Route it when not**, carrying the measurement.
 
 The issue route is available, never an order: at most ONE per session, after
 searching canonical's open issues; it carries the command and output.
-Canonical out of GitHub scope? Hand the human the issue text. The clerk's
-UPSTREAM verdict (`.claude/commands/clerk.md`) is the twin for an issue filed
-in a consumer: at most one issue per routed issue.
+Canonical out of GitHub scope? Hand the human the issue text, never drop it
+silent. The clerk's UPSTREAM verdict (`.claude/commands/clerk.md`) is the twin
+for an issue filed in a consumer: at most one issue per routed issue.
 
 ### 5. The manual report
 
@@ -163,7 +158,8 @@ owner releases it; a BLOCKING one is filed unlabelled, so the clerk plans it urg
   all of them to every file it touched.
 - **Findings without the `r1:` id** count in volume but link to no file;
   `./joharness.sh ci`'s `== finding ids` stage names them on the branch's diff.
-- **Disposition read from prose**: "fixed; no change to the docs" reads as no-change.
+- **Disposition read from prose**: `(fixed)`, `wontfix`, "no change" match in
+  the text, so "fixed; no change to the docs" reads as no-change.
 - **Renames.** A pre-move path resolves by unique-suffix match, else stands.
 - **A small window is noisy**: few edges, few pairs, one rediscovery moves it far.
 - **Merged history only.** An open branch has recorded nothing yet.

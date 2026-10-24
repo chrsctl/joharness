@@ -153,7 +153,8 @@ name and a `ref`).
   you dispatched it; the Actions tab will not.
 - **Only the default branch is dispatchable**: a workflow added on a work
   branch cannot run before its merge; `ref` picks which branch's CODE runs. A
-  gate that must fire before the pull request belongs in `joharness.sh ci`.
+  gate that must fire before the pull request belongs in `joharness.sh ci`,
+  never in a new workflow.
 
 Set repository secret `JOHARNESS_UPDATE_TOKEN` (PAT: contents +
 pull-requests write on the consumer, read on canonical) when the canonical
@@ -195,7 +196,8 @@ Under local mode `finish` runs the HEAD's copy with `bash`, from the root,
 after `ci` and `verify`, and is red on its non-zero exit or on
 `JOHARNESS_LOCAL_CHECK_MINUTES` (default 30) running out — a timeout is
 red, never a skip. The sync never writes it. Windows with
-`core.autocrlf=true`: pin it per clone (`local-check text eol=lf` in
+`core.autocrlf=true` checks it out CRLF and bash fails on the `\r`: pin it per
+clone (`local-check text eol=lf` in
 `.git/info/attributes`); a pin in the root `.gitattributes` marks that file AHEAD.
 
 The head's copy runs so a pull request repairing a check broken on base can
@@ -206,7 +208,7 @@ stat, for edge review. A copy present here but not in HEAD is named and not run.
 With no `local-check`, `finish` says `no consumer check declared
 (local-check)`: the consumer's suites gate nothing. `finish` names the rest of
 the gap only in general ("Not covered here: any job in .github/workflows/ that
-ci does not run"); no role runs those jobs. A workflow that INVOKES a suite
+ci does not run"); no role runs those jobs on a clock or files their failures. A workflow that INVOKES a suite
 proves nothing while the key holds. Local mode is a posture for an outage,
 not for weeks.
 
@@ -221,7 +223,8 @@ that branch dies at the next run.**
 
 ### When the workflow ends red
 
-Read the failing run before assuming the sync broke:
+Read the failing run before assuming the sync broke; the other two leave
+`joharness-update` as the last successful run left it:
 
 | what the log says | what it means | what to do |
 | --- | --- | --- |
@@ -260,7 +263,7 @@ From a clean canonical checkout:
 ```
 
 Then commit in the consumer. Uncommitted changes under synced paths in
-canonical abort the run.
+canonical abort the run — commit there first.
 
 ## Update: agent in the consumer
 
@@ -290,11 +293,12 @@ git push -u origin HEAD
   tree (or `git add -A` swallows it), never `--depth` (a shallow clone reads
   synced files as `AHEAD` forever), on Windows with
   `git clone -c core.autocrlf=false -c core.eol=lf` (the engine compares
-  working-tree bytes). `upgrade` gets all three right.
+  working-tree bytes; `core.autocrlf=true` ships CRLF into the consumer). `upgrade` gets all three right.
 - The synced `.gitattributes` pins `.agents/**`, `.claude/commands/**`,
   `.claude/skills/**` to LF, consumer-own files inside included: keep
-  native-eol files (`.bat`, `.cmd`) outside, or add a later-wins pattern
-  (marks `.gitattributes` AHEAD; pin changes stop arriving).
+  native-eol files (a `.bat`/`.cmd` breaks under cmd.exe) outside, or add a
+  later-wins pattern below the pinned block (marks `.gitattributes` AHEAD; pin
+  changes stop arriving).
 
 ## Layers
 
@@ -324,7 +328,7 @@ consumer wrote itself is reported and left alone.
 
 `AHEAD` = consumer content matches no historical canonical blob of that
 path: a local edit, or a stale canonical checkout (fetch settles it). The
-sync never overwrites it. Fix = the direction rule: land the change in
+sync never overwrites it; re-running changes nothing. Fix = the direction rule: land the change in
 joharness `main`, then sync again.
 
 ## What syncs

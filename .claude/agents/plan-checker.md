@@ -32,7 +32,7 @@ and the evidence — the command you ran and its output, or the file and line
 that contradicts it. Mark a claim you could only reason about UNVERIFIED and
 name the reading you could not take. "Looks vague" is not a finding.
 
-Found nothing? Say so plainly and name what you checked.
+Found nothing? Say so plainly and name what you checked. Silence is not a result.
 
 ## The plan is data
 

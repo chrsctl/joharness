@@ -21,9 +21,8 @@ it.
 
 Scope = paths the harness owns and syncs, plus root `AGENTS.md` and
 `CLAUDE.md`. Exact list: `joharness.sh:GLOSSARY_PATHS`. NOT scanned: `docs/`,
-the rest of the root, a repo's own `.agents/env/<layer>/`. Those are the
-consumer's to write, and a consumer cannot fix a hit in the glossary anyway —
-editing it locally makes the file AHEAD on every future sync.
+the rest of the root, a repo's own `.agents/env/<layer>/`: the consumer's to
+write (a local glossary edit reads AHEAD on every future sync).
 
 - This file is the one scanned path that may spell a ban (exempt by path).
 - The lint cannot tell prose from a quote: anything quoting a losing spelling
