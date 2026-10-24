@@ -100,6 +100,7 @@ rule. It never fixes anything itself.
 - `./joharness.sh ci` — `ci: pass`.
 - `./joharness.sh verify` — `0 failed`.
 - One dry run of `/retro` against the 2026-10-24 session (`https://claude.ai/code/session_01GjKnsgJV4qubTD63CuMiH7`) names the three failures in the Goal, and `Refs` the three plans the Goal names.
+- Consumer side, after its next sync: a consumer's `./joharness.sh dispatch` prints a `retro` line.
 
 ## Where to look
 
