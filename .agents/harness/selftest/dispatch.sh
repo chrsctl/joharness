@@ -1462,3 +1462,70 @@ out="$( cd "$dfshallow" && JOHARNESS_CONF="${dfshallow}/joharness.conf" DRAIN_FE
   DISPATCH_FETCH=0 ./joharness.sh dispatch 2>&1 )"
 expect "a block commit this clone cannot read is UNREADABLE" "PARKED UNREADABLE" "$out"
 refute "and never RESUMEs" "PARKED #91 RESUME" "$out"
+
+# --- a core path: block naming its awaited PR RESUMEs once that PR merges ---
+dfplan own-w none; dfplan own-v none; dfplan own-u none
+dfpush 3 "own-w, own-v, own-u"
+dfpark park-w own-w 'core path: waiting on #77: merge the settings edit' 2
+dfpark park-v own-v 'core path: waiting on #7: merge the conf edit' 2
+dfpark park-u own-u 'product: waiting on #77: which one?' 2
+out="$(dfx)"
+if printf '%s\n' "$out" | grep '^  docs/plans/own-w.md' | grep -q 'BLOCKED: the human'"'"'s'; then
+  pass "awaited PR open: the core path: block stays the human's"
+else
+  fail "awaited PR open: the core path: block stays the human's"; printf '%s\n' "$out" | indent
+fi
+refute "awaited PR open: no RESUME" "PARKED #77 RESUME" "$out"
+git -C "$dfwork" checkout -qb human/own-w main
+printf 'edit\n' >"${dfwork}/core-edit.txt"
+dfcommit 1 "the human's core edit"
+git -C "$dfwork" checkout -q main
+git -C "$dfwork" merge -q --no-ff -m "Merge pull request #77 from example/human/own-w" human/own-w
+git -C "$dfwork" push -q origin main
+out="$(dfx)"
+expect "awaited PR merged: the block RESUMEs, naming the PR" \
+  "PARKED #77 RESUME — #77 merged, the human pull request its core path: block waits on" "$out"
+expect "awaited PR merged: listed under the verdict" \
+  "            PARKED #77 RESUME own-w (park-w): #77 merged, resume it this pass" "$out"
+if printf '%s\n' "$out" | grep '^  docs/plans/own-v.md' | grep -q 'BLOCKED: the human'"'"'s' &&
+   ! printf '%s\n' "$out" | grep -q 'PARKED #7 '; then
+  pass "awaited PR #7 is not #77: still the human's"
+else
+  fail "awaited PR #7 is not #77: still the human's"; printf '%s\n' "$out" | indent
+fi
+if printf '%s\n' "$out" | grep '^  docs/plans/own-u.md' | grep -q 'BLOCKED: the human'"'"'s'; then
+  pass "awaited PR on another reason: never resumes"
+else
+  fail "awaited PR on another reason: never resumes"; printf '%s\n' "$out" | indent
+fi
+# Resumed, it comes back: its scope is held again.
+dfplan over-w none src/own-w
+dfpush 0 "a plan on own-w's scope"
+out="$(dfx)"
+expect "awaited PR merged: a plan overlapping it is held" "HOLD — overlaps own-w on src/own-w (claimed on park-w)" "$out"
+out="$(dfx env JOHARNESS_PENDING_SPAWNS=4)"
+expect "awaited PR merged, 0 slots: the resume waits" \
+  "PARKED #77: #77 merged, resume waits for a slot" "$out"
+# <n> <head> <hours ago> [body]: a first-parent merge commit on the base.
+dfmerge() {
+  git -C "$dfwork" checkout -qb "side-$1" main
+  printf '%s\n' "$1" >"${dfwork}/side-$1.txt"
+  dfcommit "$3" "side $1"
+  git -C "$dfwork" checkout -q main
+  GIT_AUTHOR_DATE="@$((dfnow - $3 * 3600)) +0000" \
+    GIT_COMMITTER_DATE="@$((dfnow - $3 * 3600)) +0000" \
+    git -C "$dfwork" merge -q --no-ff -m "Merge pull request #$1 from $2" -m "${4:-}" "side-$1"
+  git -C "$dfwork" push -q origin main
+}
+dfplan own-s none; dfplan own-t none; dfplan own-r none
+dfpush 6 "own-s, own-t, own-r"
+dfmerge 79 example/human/own-s 5
+dfpark park-s own-s 'core path: waiting on #79: merge it' 2
+dfpark park-t own-t 'core path: waiting on #78: merge it' 2
+dfpark park-r own-r 'core path: waiting on #80: merge it' 2
+dfmerge 12 example/human/other 1 "Merge pull request #78 from example/human/own-t"
+dfmerge 80 example/feature-r 1
+out="$(dfx)"
+refute "awaited PR merged before the block: no RESUME" "PARKED #79 RESUME" "$out"
+refute "awaited PR named only in a merge commit's body: no RESUME" "PARKED #78 RESUME" "$out"
+refute "awaited PR from a branch not human/: no RESUME" "PARKED #80 RESUME" "$out"

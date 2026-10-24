@@ -119,8 +119,9 @@ Your `$ARGUMENTS` carries the `rescope` block. ref § Surveyor.
   `conflict:`); a BLOCKING defect outside your item blocks `defect: #<n>:
   <one line>`, the one reason that is not a human's (ref § Defect.); none
   applies = the work is yours, do it. `status: blocked`,
-  `next:` = `<reason>: <question>`, push, exit. A blocked item is never
-  respawned; dispatch flags a `next:` with no reason as `INVALID BLOCK?`.
+  `next:` = `<reason>: <question>`, push, exit. Waiting on a human PR =
+  `core path: waiting on #<N>: <question>`: the one human's block respawned,
+  once #<N> merges. Dispatch flags a `next:` with no reason as `INVALID BLOCK?`.
   Before pushing `status: blocked` (not a `defect:` block), apply the
   `human-review` label (Loop, Decide alone) to the branch's open pull request
   and the plan's `issue: N`, if any, with `issue_write` (method `update`, labels = existing plus
