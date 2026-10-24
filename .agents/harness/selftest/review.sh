@@ -21,7 +21,7 @@ rwork="${TMP}/reviewwork"
 mkdir -p "${rwork}/.agents/harness" "${rwork}/.agents/env/none" \
   "${rwork}/docs/handover" "${rwork}/docs/plans"
 cp "${ROOT}/joharness.sh" "${rwork}/joharness.sh"
-printf '#!/usr/bin/env bash\nexit 0\n' >"${rwork}/.agents/harness/selftest.sh"
+printf '#!/usr/bin/env bash\nprintf "1 passed, 0 failed\\n"\nexit 0\n' >"${rwork}/.agents/harness/selftest.sh"
 chmod +x "${rwork}/.agents/harness/selftest.sh" "${rwork}/joharness.sh"
 git init -q "$rwork"
 git -C "$rwork" symbolic-ref HEAD refs/heads/main

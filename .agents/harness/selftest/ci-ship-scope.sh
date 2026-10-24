@@ -18,7 +18,7 @@ mkdir -p "${shipwork}/.agents/harness" "${shipwork}/.agents/env/none" \
   "${shipwork}/.agents/scripts" "${shipwork}/docs/plans" "${shipwork}/docs/handover" \
   "${shipwork}/docs/product"
 cp "${ROOT}/joharness.sh" "${shipwork}/joharness.sh"
-printf '#!/usr/bin/env bash\nexit 0\n' >"${shipwork}/.agents/harness/selftest.sh"
+printf '#!/usr/bin/env bash\nprintf "1 passed, 0 failed\\n"\nexit 0\n' >"${shipwork}/.agents/harness/selftest.sh"
 chmod +x "${shipwork}/.agents/harness/selftest.sh" "${shipwork}/joharness.sh"
 # The real engine: the stage parses ITS lists, so a hand-written stub here
 # would test the stub. Canonical marker, because a consumer gets no verdict.

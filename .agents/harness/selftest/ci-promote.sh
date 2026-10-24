@@ -20,7 +20,7 @@ mkdir -p "${prwork}/.agents/harness" "${prwork}/.agents/env/none" \
   "${prwork}/docs/handover"
 cp "${ROOT}/joharness.sh" "${prwork}/joharness.sh"
 # The suite is this script; a fixture that ran it would re-enter the suite.
-printf '#!/usr/bin/env bash\nexit 0\n' >"${prwork}/.agents/harness/selftest.sh"
+printf '#!/usr/bin/env bash\nprintf "1 passed, 0 failed\\n"\nexit 0\n' >"${prwork}/.agents/harness/selftest.sh"
 printf '# harness\n' >"${prwork}/.agents/harness/AGENTS.md"
 chmod +x "${prwork}/.agents/harness/selftest.sh" "${prwork}/joharness.sh"
 git init -q "$prwork"

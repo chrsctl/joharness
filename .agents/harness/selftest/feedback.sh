@@ -12,7 +12,7 @@ step "joharness.sh feedback"
 fwork="${TMP}/feedbackwork"
 mkdir -p "${fwork}/.agents/harness" "${fwork}/.agents/env/none" "${fwork}/docs/handover"
 cp "${ROOT}/joharness.sh" "${fwork}/joharness.sh"
-printf '#!/usr/bin/env bash\nexit 0\n' >"${fwork}/.agents/harness/selftest.sh"
+printf '#!/usr/bin/env bash\nprintf "1 passed, 0 failed\\n"\nexit 0\n' >"${fwork}/.agents/harness/selftest.sh"
 chmod +x "${fwork}/.agents/harness/selftest.sh" "${fwork}/joharness.sh"
 git init -q "$fwork"
 git -C "$fwork" symbolic-ref HEAD refs/heads/main
