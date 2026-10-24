@@ -227,7 +227,7 @@ commit_all "$mpwork" "claim"
 git -C "$mpwork" checkout -q main
 git -C "$mpwork" merge -q --no-ff -m "Merge pull request #7 from o/mp-merged" mp-merged
 git -C "$mpwork" checkout -q mp-merged
-mpws mp-merged mpa 7 done
+mpws mp-merged mpa 7 "done"
 bpplan "${mpwork}/docs/plans/mpa.md" mpa normal
 commit_all "$mpwork" "after 1: file mpa"
 printf 'x\n' >"${mpwork}/after.txt"

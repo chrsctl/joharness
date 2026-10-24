@@ -8,7 +8,7 @@ issue: 594
 session: https://claude.ai/code/session_01GjKnsgJV4qubTD63CuMiH7
 agent: sonnet
 updated: 2026-10-24
-next: Run ci and verify; verifier review; record ## Review; retire plan and workstream file; PR; merge
+next: Run ci and verify on the committed tree; retire plan and workstream file; PR (Closes #603, Refs #594); merge
 ---
 
 ## Goal
@@ -26,6 +26,14 @@ next: Run ci and verify; verifier review; record ## Review; retire plan and work
 - Built: dispatch_branch_plans emits a 7th field (0 or n:pr) from workstream pr:; bplans awk appends it. Selftest case in dispatch-branch-plans.sh (own fixture repo). 
 
 ## Review
+
+- r1: (verifier) `printf "$bmerges" | grep -q` under pipefail misses a merged PR once the merge list passes the pipe buffer (about 1,900 merges) (fixed: here-string)
+- r2: (verifier) trailing `/` stripped from any `pr:`, where the hook's pr_num strips it from a URL only: `pr: 7/` read as 7 here, not by the hook (fixed: strip inside the URL arm only)
+- r3: (verifier) several workstream files on one branch: the last merged `pr:` names the `#n` (no change: the count is the branch's either way)
+- r4: first fixture merged the plan onto main, so it never was a branch plan and the case failed; reported as green at the time (fixed: PR merges the workstream file only, plan filed after)
+- r5: shellcheck SC1010 on a bare `done` argument in the fixture (fixed: quoted)
+
+- Follow-up plans filed in this PR from this session's own failures: selftest-git-budget-per-case, ci-red-legible, guard-one-shot-self-kill.
 
 ## Blockers
 

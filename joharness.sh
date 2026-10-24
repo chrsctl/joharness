@@ -6854,8 +6854,10 @@ dispatch_branch_plans() {
         <<<"$(printf '%s\n' "$doc" | gr_fields plan status pr)"
       [ "$wstat" = abandoned ] && abandoned=1
       # `pr:` as the hook's pr_num reads it: `N`, `#N`, or `.../pull/N`.
-      wpr="${wpr#\#}"; wpr="${wpr%/}"
-      case "$wpr" in http://*/pull/[0-9]* | https://*/pull/[0-9]* ) wpr="${wpr##*/}" ;; esac
+      wpr="${wpr#\#}"
+      case "${wpr%/}" in
+        http://*/pull/[0-9]* | https://*/pull/[0-9]* ) wpr="${wpr%/}"; wpr="${wpr##*/}" ;;
+      esac
       case "$wpr" in '' | *[!0-9]* ) ;; * )
         # The base's merge subjects, read once and only for a numeric `pr:`.
         if [ "$bmread" -eq 0 ]; then
@@ -6863,7 +6865,9 @@ dispatch_branch_plans() {
           bmerges="$(git -C "$ROOT" log --first-parent --merges --format=%s \
             "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null)"
         fi
-        if printf '%s\n' "$bmerges" | grep -q "^Merge pull request #${wpr} from "; then
+        # A here-string, never a pipe: `grep -q` exits at its match, and
+        # under pipefail a printf past the pipe buffer then fails the test.
+        if grep -q "^Merge pull request #${wpr} from " <<<"$bmerges"; then
           npr="$(git -C "$ROOT" rev-list --count \
             "refs/remotes/origin/${base_branch}..${r}" </dev/null 2>/dev/null)"
           [ "${npr:-0}" -gt 0 ] && mpr="${npr}:${wpr}"
