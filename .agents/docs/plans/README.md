@@ -60,6 +60,11 @@ session may escalate tier or effort, never downgrade.
 Queue = DAG (edge model: [`graph.md`](../graph.md)). `needs: other-plan`
 blocks a plan while `docs/plans/other-plan.md` exists — file existence IS the
 edge. Hook lists blocked plans last with `blocked by:`; never suggests them.
+`needs: <requirement>`, for one no plan builds yet, blocks while
+`docs/product/<requirement>.md` exists. A gate in prose ("absent at build
+time = block") is no edge: `dispatch` cannot read it and spawns the plan
+into the block. Once a plan builds what this one reads, name that plan;
+`ci` warns while the requirement edge stands beside a plan serving it.
 
 Write `needs` only when this plan reads the other's RESULT; "feels related"
 = fake edge. Unblocked plans are independent by construction: run them in

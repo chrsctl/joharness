@@ -43,6 +43,7 @@ rtd() { ( cd "$rt_work" && env JOHARNESS_CONF="$rt_conf" DISPATCH_FETCH=1 \
   JOHARNESS_CURATE_HOURS=0 JOHARNESS_CONDUCT_HOURS=0 JOHARNESS_CLERK_HOURS=0 \
   "$@" ./joharness.sh dispatch 2>&1 ); }
 # <branch> <stem> <status> <session> <date> [<Blockers line>] [<branch: value>]
+# [<next: value>]
 # — one workstream commit on <branch> (cut from main when new), pushed, back
 # on main.
 rt_ws() {
@@ -52,8 +53,8 @@ rt_ws() {
     git -C "$rt_work" checkout -q -b "$1" main
   fi
   mkdir -p "${rt_work}/docs/handover"
-  printf -- '---\nworkstream: %s\nstatus: %s\nbranch: %s\nplan: %s\nsession: %s\nagent: sonnet\nnext: x\n---\n\n## Goal\nFixture.\n\n## Blockers\n\n%s\n' \
-    "$2" "$3" "${7:-$1}" "$2" "$4" "${6:-None.}" >"${rt_work}/docs/handover/${2}.md"
+  printf -- '---\nworkstream: %s\nstatus: %s\nbranch: %s\nplan: %s\nsession: %s\nagent: sonnet\nnext: %s\n---\n\n## Goal\nFixture.\n\n## Blockers\n\n%s\n' \
+    "$2" "$3" "${7:-$1}" "$2" "$4" "${8:-x}" "${6:-None.}" >"${rt_work}/docs/handover/${2}.md"
   rt_commit "ws $2 $3" "$5"
   git -C "$rt_work" push -q origin "$1"
   git -C "$rt_work" checkout -q main
@@ -267,3 +268,36 @@ git -C "$rt_work" push -q origin main
 out="$(rtt)"
 expect "retro: a ledger landed now is not due" "retro : not due — 0h since the ledger last landed (of 168h)" "$out"
 expect "dispatch: not due is said" "retro     : not due" "$(rtd)"
+
+# Off the clock (issue #626): a blocked session whose `next:` names an open
+# requirement or plan on the base is the queue's to resolve, so retro is due
+# now, and that session leads the sample. Its own `plan:` never counts.
+printf -- '---\nplan: sierra\nurgency: normal\nagent: sonnet\neffort: low\n---\n' \
+  >"${rt_work}/docs/plans/sierra.md"
+mkdir -p "${rt_work}/docs/product"
+printf -- '---\nrequirement: some-layer\npriority: normal\n---\n' \
+  >"${rt_work}/docs/product/some-layer.md"
+rt_commit "an open plan and an unplanned requirement" '2026-01-14T01:00:00Z'
+git -C "$rt_work" push -q origin main
+rt_ws m/sierra sierra blocked "$(rt_url Sierra22)" '2026-01-14T02:00:00Z' 'None.' '' \
+  'product: sierra waits on the human'
+out="$(rtt)"
+expect "retro: a block naming only its own plan keeps the clock" "retro : not due — " "$out"
+rt_ws m/romeo romeo blocked "$(rt_url Romeo21)" '2026-01-14T03:00:00Z' 'None.' '' \
+  'product: some-layer has not landed; plan it, then respawn romeo'
+out="$(rtt)"
+expect "retro: a block naming an open requirement is due off the clock" \
+  "retro DUE: spawn ONE retro reviewer — m/romeo is blocked on 'some-layer'" "$out"
+if [ "$(rt_rows "$out" | head -1)" = "m/romeo $(rt_url Romeo21)" ]; then
+  pass "retro: and that session leads the sample"
+else fail "retro: and that session leads the sample"
+  printf '    got:\n%s\n' "$(indent "$(rt_rows "$out")")"
+fi
+expect "retro: the off switch still wins" "retro : off — JOHARNESS_RETRO_HOURS=0" \
+  "$(rtt JOHARNESS_RETRO_HOURS=0)"
+expect "dispatch: a queue block spawns the reviewer" "retro DUE: spawn ONE retro reviewer" "$(rtd)"
+printf '| 2026-01-14 | m/romeo | %s | repair: some-layer |\n' "$(rt_url Romeo21)" >>"${rt_work}/docs/retro-log.md"
+git -C "$rt_work" add -A && git -C "$rt_work" commit -qm "retro rows"
+git -C "$rt_work" push -q origin main
+out="$(rtt)"
+expect "retro: once the ledger names it, the clock is back" "retro : not due — " "$out"

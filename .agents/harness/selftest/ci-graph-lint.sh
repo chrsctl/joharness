@@ -356,7 +356,7 @@ expect "enum outside vocabulary is red" \
 expect "adjacent vocabulary words are not a value" \
   "effort 'low medium' not one of" "$out"
 expect "dangling needs is red" \
-  "needs 'never-was' — no such plan, never existed" "$out"
+  "needs 'never-was' — no such plan or requirement, never existed" "$out"
 expect "dangling claim is red" \
   "plan 'never-was-plan' — no such plan, question or requirement, never existed" "$out"
 if [ "$rc" -ne 0 ]; then
@@ -1054,6 +1054,31 @@ git -C "$lwork" checkout -q lint-reconcile
 git -C "$lwork" merge -q --no-edit "$lint_main"
 out="$(lint_section "$(lint_ci)")"
 refute "a needs target retired on a merged side branch is not 'never existed' after a reconcile" \
-  "needs 'side-only' — no such plan, never existed" "$out"
+  "needs 'side-only' — no such plan or requirement, never existed" "$out"
 git -C "$lwork" checkout -q "$lint_main"
 fixture_rm "$lwork" "drop the needing plan" docs/plans/needs-side.md
+
+# A plan's `needs:` may name a requirement nobody has planned yet (issue
+# #626): no DEAD for it. Once an open plan serves that requirement, a
+# warning points at the narrower edge; it never reds.
+printf -- '---\nrequirement: unplanned-layer\npriority: normal\n---\n' \
+  >"${lwork}/docs/product/unplanned-layer.md"
+printf -- '---\nplan: needs-layer\nurgency: normal\nagent: sonnet\neffort: high\nneeds: unplanned-layer\n---\n' \
+  >"${lwork}/docs/plans/needs-layer.md"
+commit_all "$lwork" "a plan that needs an unplanned requirement"
+full="$(lint_ci)"
+out="$(lint_section "$full")"
+refute "needs naming an open requirement is no dead edge" \
+  "needs 'unplanned-layer' — no such plan or requirement" "$out"
+refute "needs naming an unplanned requirement warns nothing" \
+  "needs requirement 'unplanned-layer'" "$out"
+printf -- '---\nplan: one-clause\nurgency: normal\nagent: sonnet\neffort: high\nrequirement: unplanned-layer\n---\n' \
+  >"${lwork}/docs/plans/one-clause.md"
+commit_all "$lwork" "a plan now serves it"
+out="$(lint_section "$(lint_ci)")"
+expect "needs naming a requirement an open plan serves warns, naming the plan" \
+  "needs requirement 'unplanned-layer', which open plan(s) one-clause serve" "$out"
+refute "and it is still no dead edge" \
+  "needs 'unplanned-layer' — no such plan or requirement" "$out"
+fixture_rm "$lwork" "drop the requirement fixtures" docs/plans/needs-layer.md \
+  docs/plans/one-clause.md docs/product/unplanned-layer.md

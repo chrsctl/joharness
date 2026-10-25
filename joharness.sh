@@ -1086,10 +1086,21 @@ lint_graph() {
         { [ -n "$n" ] && [ "$n" != "none" ]; } || continue
         [ -f "${ROOT}/docs/plans/${n}.md" ] && continue
         lint_existed "docs/plans/${n}.md" && continue
+        # A requirement nobody has planned yet is an edge too: the plan is
+        # blocked while its file exists (.agents/docs/graph.md, `needs`).
+        # Once a plan serves it, that plan is the narrower edge.
+        if [ -f "${ROOT}/docs/product/${n}.md" ]; then
+          p="$(grep -lx -- "requirement: ${n}" "${ROOT}"/docs/plans/*.md 2>/dev/null |
+            sed 's#.*/##; s#\.md$##' | paste -sd, -)"
+          [ -z "$p" ] ||
+            lint_warn "${rel}: needs requirement '${n}', which open plan(s) ${p} serve — if one builds what this plan reads, name it instead"
+          continue
+        fi
+        lint_existed "docs/product/${n}.md" && continue
         if lint_shallow; then
           lint_warn "${rel}: needs '${n}' unknown here (shallow history) — typo or merged, cannot tell"
         else
-          lint_red "${rel}: needs '${n}' — no such plan, never existed. Typo?"
+          lint_red "${rel}: needs '${n}' — no such plan or requirement, never existed. Typo?"
         fi
       done
     fi
@@ -4554,9 +4565,10 @@ retro_candidates() {
 # The sample: the N candidates whose sha1(<session URL>) sorts lowest, so a
 # re-run picks the same set; `<branch> <session URL> <sha>:<path>` each, the
 # path the workstream file as that session left it. N = 0 = any one. `?`
-# alone = unreadable.
+# alone = unreadable. <first>, a session URL, leads the sample when it is a
+# candidate: the session whose queue block made the run due is always read.
 retro_sample() {
-  local n="$1" cands b s f h got=0 limit=1
+  local n="$1" first="${2:-}" cands b s f h got=0 limit=1
   cands="$(retro_candidates)"
   case "$cands" in '?') printf '?\n'; return 0 ;; '') return 0 ;; esac
   if [ "$n" -gt 0 ]; then
@@ -4565,6 +4577,8 @@ retro_sample() {
     cands="$(while IFS=$'\t' read -r b s f; do
       [ -n "$s" ] || continue
       h="$(printf '%s' "$s" | conduct_sha1)"
+      # `0` sorts before every hex digest: the lead row.
+      [ "$s" != "$first" ] || h=0
       printf '%s\t%s\t%s\t%s\n' "$h" "$b" "$s" "$f"
     done <<<"$cands" | LC_ALL=C sort | cut -f2-)"
   fi
@@ -4576,14 +4590,51 @@ retro_sample() {
   done <<<"$cands"
 }
 
+# A candidate whose block the QUEUE can resolve: its workstream file's
+# `next:` names an open plan or requirement on the base other than its own
+# `plan:` (issue #626 — a plan gated in prose on an unplanned requirement).
+# A human cannot answer that block any better than the queue can, so it
+# does not wait for the clock. The words are a session's text: only a token
+# that IS an open file's stem counts, nothing is acted on. One
+# `<branch>\t<session>\t<stem>` line, the first candidate found; empty =
+# none; `?` = unreadable.
+retro_queue_block() {
+  local base="refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" open cands b s k doc nx own t
+  open="$(git -C "$ROOT" ls-tree --name-only "$base" -- docs/plans/ docs/product/ \
+    </dev/null 2>/dev/null)" || { printf '?\n'; return 0; }
+  open="$(printf '%s\n' "$open" | sed -nE 's#^docs/(plans|product)/([A-Za-z0-9._-]*)\.md$#\2#p' |
+    grep -vxE 'README|TEMPLATE|RETIRED|SCOUT')"
+  [ -n "$open" ] || return 0
+  cands="$(retro_candidates)"
+  case "$cands" in '?') printf '?\n'; return 0 ;; '') return 0 ;; esac
+  while IFS=$'\t' read -r b s k; do
+    [ -n "$s" ] || continue
+    doc="$(git -C "$ROOT" show "$k" </dev/null 2>/dev/null)" || continue
+    { read -r nx; read -r own; } <<<"$(printf '%s\n' "$doc" | gr_fields next plan)"
+    [ -n "$nx" ] || continue
+    for t in $(printf '%s\n' "$nx" | tr -c 'A-Za-z0-9._-' ' '); do
+      t="${t%.md}"; t="${t%.}"
+      [ -n "$t" ] && [ "$t" != "$own" ] || continue
+      if grep -qxF -- "$t" <<<"$open"; then
+        printf '%s\t%s\t%s\n' "$b" "$s" "$t"
+        return 0
+      fi
+    done
+  done <<<"$cands"
+}
+
 # Is a retro reviewer due. RETRO_DUE = `<state> <why>`, states as
 # CONDUCT_DUE's; RETRO_ROWS = the reviewer branches in flight.
 RETRO_DUE=""
 RETRO_ROWS=""
+# The queue block that made the run due off the clock, retro_queue_block's
+# line; empty otherwise.
+RETRO_QB=""
 retro_due() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}" hours sample age why base_word
-  local refs rc b ts now drop cands landed
+  local refs rc b ts now drop cands landed qb
   RETRO_ROWS=""
+  RETRO_QB=""
   why="$(cycle_unreadable)"
   if [ -n "$why" ]; then
     RETRO_DUE="unreadable ${why}"
@@ -4640,7 +4691,19 @@ retro_due() {
     base_word='the repository began, no retro having run'
   fi
   if [ "$age" -lt "$hours" ]; then
-    RETRO_DUE="not-due ${age}h since ${base_word} (of ${hours}h)"
+    # Off the clock only for a block the queue can hold (retro_queue_block).
+    qb="$(retro_queue_block)"
+    case "$qb" in
+      '?') RETRO_DUE='unreadable the workstream files or the base branch could not be read'
+           RETRO_ROWS=""; return 0 ;;
+      '')  RETRO_DUE="not-due ${age}h since ${base_word} (of ${hours}h)"; return 0 ;;
+    esac
+    if [ -z "$(printf 'x' | conduct_sha1)" ]; then
+      RETRO_DUE='unreadable no sha1sum or shasum here: the sample cannot be drawn'
+      RETRO_ROWS=""; return 0
+    fi
+    RETRO_QB="$qb"
+    RETRO_DUE="due ${qb%%$'\t'*} is blocked on '${qb##*$'\t'}', an open item the queue can hold, not a human's question — ${age}h since ${base_word} (of ${hours}h)"
     return 0
   fi
   if [ -z "$(printf 'x' | conduct_sha1)" ]; then
@@ -4688,7 +4751,7 @@ cmd_retro() {
     esac
   fi
   printf '\n'
-  s="$(retro_sample "$sample")"
+  s="$(retro_sample "$sample" "$(printf '%s\n' "$RETRO_QB" | cut -f2)")"
   case "$s" in
     '?') printf 'sample    : UNREADABLE — take no session this run: a list that could not be read is no empty list\n' ;;
     '')  printf 'sample    : none — every session that blocked, was abandoned or was killed is in the ledger\n' ;;
