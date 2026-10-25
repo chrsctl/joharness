@@ -893,7 +893,7 @@ req_clause_count() {
   awk '
     /^(```|~~~)/ { fence = !fence; next }
     fence { next }
-    /^## / { sec = ($0 ~ /^## Satisfied when[[:space:]]*$/); next }
+    /^## / { sec = (tolower($0) ~ /^## satisfied when[[:space:]]*$/); next }
     /^# / { sec = 0; next }
     sec && /^([-*+]|[0-9]+[.)])[[:space:]]/ { n++ }
     END { print n + 0 }'
@@ -974,13 +974,15 @@ lint_serves_of() {
   done < <(lint_nodes docs/plans)
   # Retired: each deletion's last content. -G narrows to deletions whose
   # removed lines carry the stem; the exact compare below decides.
+  # --no-renames: a retire and a similar new plan in one commit read as a
+  # rename, and the retirement vanished (verifier r3).
   # --full-history: a plan retired on a merged side branch counts too.
   {
-    GIT_LITERAL_PATHSPECS=1 git -C "$ROOT" diff --diff-filter=D --name-only HEAD \
+    GIT_LITERAL_PATHSPECS=1 git -C "$ROOT" diff --no-renames --diff-filter=D --name-only HEAD \
       -- docs/plans 2>/dev/null | while IFS= read -r line; do
         printf 'HEAD\t%s\n' "$line"
       done
-    GIT_LITERAL_PATHSPECS=1 git -C "$ROOT" log --full-history --diff-filter=D \
+    GIT_LITERAL_PATHSPECS=1 git -C "$ROOT" log --full-history --no-renames --diff-filter=D \
       -G"^requirement:.*${r//./\\.}" --format='C %H' --name-only HEAD -- docs/plans \
       2>/dev/null | while IFS= read -r line; do
         case "$line" in
@@ -1024,7 +1026,7 @@ lint_req_deleted() {
     else
       lint_red "${rel}: deleted with clause(s) ${miss} of ${count} served by no plan's serves: — plan them, or a last plan serves them (.agents/docs/product/README.md)"
     fi
-  done < <(GIT_LITERAL_PATHSPECS=1 git -C "$ROOT" diff --diff-filter=D --name-only \
+  done < <(GIT_LITERAL_PATHSPECS=1 git -C "$ROOT" diff --no-renames --diff-filter=D --name-only \
              "$base" -- docs/product 2>/dev/null | gr_docs)
 }
 
@@ -8643,7 +8645,8 @@ cmd_dispatch() {
     # manager: decomposition is one session's job, not a fleet's.
     case "$req" in
       *'PARTLY PLANNED: '*)
-        printf '  %s — PARTLY PLANNED: one planning manager (agent: fable, effort xhigh) first, for the unserved clauses\n' "${req%% *}" ;;
+        printf '  %s — PARTLY PLANNED: one planning manager (agent: fable, effort xhigh) first, for %s\n' "${req%% *}" \
+          "$(printf '%s' "$req" | sed -n 's/.*PARTLY PLANNED: \(clauses* [0-9, ]* unserved\).*/\1/p')" ;;
       *)
         printf '  %s — UNPLANNED: one planning manager (agent: fable, effort xhigh) first\n' "${req%% *}" ;;
     esac

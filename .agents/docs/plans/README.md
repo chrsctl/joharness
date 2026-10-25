@@ -50,7 +50,7 @@ Frontmatter: `plan`, `urgency` (`normal` | `urgent`), `agent` (`haiku` |
   items of its `## Satisfied when`, numbered by position) or `all`. Absent =
   `all`, today's meaning; `serves:` with no number is red, never `all`.
   Integers within the clause count or `all` alone, else `ci` reds. Union over
-  a requirement's open plans missing a clause = PARTLY PLANNED, offered for
+  a requirement's plans, open and retired, missing a clause = PARTLY PLANNED, offered for
   planning; a branch deleting the requirement while the plans that named it,
   open or retired, leave a clause unserved is red
   ([`../product/README.md`](../product/README.md), Clauses).

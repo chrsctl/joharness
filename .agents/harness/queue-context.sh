@@ -205,7 +205,7 @@ qc_clause_count() {
   awk '
     /^(```|~~~)/ { fence = !fence; next }
     fence { next }
-    /^## / { sec = ($0 ~ /^## Satisfied when[[:space:]]*$/); next }
+    /^## / { sec = (tolower($0) ~ /^## satisfied when[[:space:]]*$/); next }
     /^# / { sec = 0; next }
     sec && /^([-*+]|[0-9]+[.)])[[:space:]]/ { n++ }
     END { print n + 0 }'
@@ -399,7 +399,8 @@ qc_srv="$(awk -F'\t' '$1 == "SRV" { print $2 "\t" $3 }' <<<"$rows_raw")"
 # r1). -G narrows to deletions carrying the stem; the exact compare decides.
 qc_retired_serves() {
   local line c="" pf pdoc
-  git log --full-history --diff-filter=D -G"^requirement:.*${1//./\\.}" \
+  git log --full-history --no-renames --diff-filter=D \
+    -G"^requirement:.*${1//./\\.}" \
     --format='C %H' --name-only "$ref" -- "$PLANS_DIR" 2>/dev/null |
     while IFS= read -r line; do
       case "$line" in
@@ -444,6 +445,23 @@ qc_unserved() {
   grep -qx 'all' <<<"$sv" && return 0
   qc_missing "$count" "$sv"
 }
+
+# A requirement NO open plan names, from the requirement on stdin: the
+# clauses its retired plans left unserved, when those plans declared some
+# and built at least one; else empty, and it reads UNPLANNED as before. The
+# last partial plan cannot delete the requirement, so it retires alone, and
+# the planner must still be told which clauses stand built (verifier r1).
+qc_unserved_retired() {
+  local sv count miss
+  sv="$(qc_retired_serves "$1")"
+  [ -n "${sv//[[:space:]]/}" ] || return 0
+  grep -qx 'all' <<<"$sv" && return 0
+  count="$(qc_clause_count)"
+  miss="$(qc_missing "$count" "$sv")"
+  [ -n "$miss" ] || return 0
+  [ "$(awk -F', ' '{ print NF }' <<<"$miss")" -lt "$count" ] || return 0
+  printf '%s' "$miss"
+}
 unplanned=""
 if [ -n "$reqs" ]; then
   qc_item_stems="$(printf '%s\n%s\n' "$plans" "$research" |
@@ -461,6 +479,8 @@ if [ -n "$reqs" ]; then
       if grep -qxF -- "$rs" <<<"$served"; then
         rpartly="$(printf '%s\n' "$rdoc" | qc_unserved "$rs")"
         [ -n "$rpartly" ] || continue
+      else
+        rpartly="$(printf '%s\n' "$rdoc" | qc_unserved_retired "$rs")"
       fi
       { read -r rprio; read -r rneeds; read -r rhold; } \
         <<<"$(printf '%s\n' "$rdoc" | fields priority needs hold)"

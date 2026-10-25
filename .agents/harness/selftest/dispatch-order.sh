@@ -343,7 +343,7 @@ printf -- '---\nplan: forreq\nurgency: normal\nagent: sonnet\neffort: low\nrequi
 qopush "its plan serves no clause"
 out="$(qo)"
 expect "a partly planned requirement is spawned as one planning manager, named so" \
-  "docs/product/needsplans.md — PARTLY PLANNED: one planning manager (agent: fable, effort xhigh) first, for the unserved clauses" "$out"
+  "docs/product/needsplans.md — PARTLY PLANNED: one planning manager (agent: fable, effort xhigh) first, for clause 1 unserved" "$out"
 fixture_rm "$qowork" "clear the requirement cases" \
   docs/plans/freeone.md docs/plans/forreq.md docs/product/needsplans.md
 git -C "$qowork" push -q origin main
