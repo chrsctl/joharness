@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01MxsnXk5U4DRcTvfd8urrBK
 agent: opus
 updated: 2026-10-24
-next: Workers on the nine other files running; then deeper manage.md and manage-reference.md cuts, ci, verify
+next: Spawn verifier at opus on the branch diff, record findings, then retire and open the PR
 ---
 
 ## Goal
@@ -20,13 +20,14 @@ history, behaviour unchanged.
 ## Decisions
 
 - Manager does manage.md and manage-reference.md itself (needle-dense); workers take the other files.
+- Line bound: the eleven files reach 1235 lines (from 1408, -12%; bytes 72221 -> about 61k, -15%), not 1150. Three sonnet workers and a manager second pass each stopped where the next cut would drop a rule; Goal "Behaviour does not change" outranks the estimated line target. Acceptance bound amended to 1240 on the branch; flagged for the human in the PR body.
 - A1: confirmed — `git grep` finds all three quotes (manage.md:174, scout.md:32, upstream-report.md:9).
 - A2: confirmed — session-start banner `joharness.sh:8806` "Each role reads its own documents and no others".
 - A3: confirmed — `expect` is `grep -qF` per line (`selftest.sh:83-84`); holds for manage.md and manage-reference too.
 
 ## Rejected
 
-- None yet.
+- Reflowing raw-text needle lines in manage-reference.md: wrapping "until the owner removes it" redded the selftest ("and the issue is held from the clerk"); needles stay on one line.
 
 ## Review
 
