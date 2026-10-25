@@ -30,7 +30,7 @@ semantic, summary — convergent, not copied.
 
 | Edge | Domain → range | Carried by |
 | --- | --- | --- |
-| `needs` | plan → plan; requirement → plan, research or requirement | plan or requirement frontmatter. Open target file = blocked (a requirement: held). |
+| `needs` | plan → plan or requirement; requirement → plan, research or requirement | plan or requirement frontmatter. Open target file = blocked (a requirement: held). A plan names a requirement only while no plan builds what it reads. |
 | `research` | plan → research | plan frontmatter. Open target file = blocked. |
 | `graduates` | research → `AGENTS.md` / `docs/` file | research frontmatter. Declared target; the `graduated` edge below completes it. |
 | `requirement` | plan → requirement | plan frontmatter. Requirement nobody serves = unplanned, `dispatch` flags. |

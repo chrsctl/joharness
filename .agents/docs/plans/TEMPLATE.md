@@ -13,7 +13,8 @@ scope: none
 Copy to docs/plans/<plan>.md. Rules: .agents/docs/plans/README.md (Shape).
 Write for a literal reader: scope and out-of-scope explicit, acceptance =
 runnable commands with expected output.
-needs: plan names whose RESULT this plan reads; else none.
+needs: plan names whose RESULT this plan reads, or a requirement no plan
+  builds yet; else none. Never a gate in prose: dispatch cannot read it.
 requirement: the one this plan serves; its last plan's PR deletes it.
 issue: GitHub issue a clerk turned into this plan; manager's PR says Closes #N
   (Refs #N when another plan names it or `## Issue remainder` exists).

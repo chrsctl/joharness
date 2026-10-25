@@ -129,6 +129,16 @@ stems="$(
   done <<<"$plans"
 )"
 
+# Open requirement names: a plan's `needs:` may name one nobody has planned
+# yet, and is blocked while its file exists (.agents/docs/graph.md, `needs`).
+qstems="$(
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    stem "$f"
+    printf '\n'
+  done <<<"$reqs"
+)"
+
 # Open question names, for the `research:` edge.
 rstems="$(
   while IFS= read -r f; do
@@ -208,8 +218,11 @@ rows_raw="$(
         n="$(stem "$n")"
         # 'none' = the template's explicit no-dependencies value.
         { [ -n "$n" ] && [ "$n" != "none" ]; } || continue
-        grep -qxF -- "$n" <<<"$stems" &&
+        if grep -qxF -- "$n" <<<"$stems"; then
           blockers="${blockers:+${blockers}, }${n}"
+        elif grep -qxF -- "$n" <<<"$qstems"; then
+          blockers="${blockers:+${blockers}, }${n} (open requirement)"
+        fi
       done
     fi
 
