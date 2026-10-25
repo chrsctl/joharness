@@ -6,7 +6,7 @@ effort: high
 needs: none
 requirement: none
 issue: 626
-scope: shared:joharness.sh, shared:.agents/harness/selftest/dispatch.sh, shared:.agents/harness/selftest/guard.sh, shared:.agents/docs/orchestrated.md, shared:.agents/docs/orchestrate-reference.md, shared:.claude/commands/orchestrate.md, shared:.agents/docs/handover/README.md
+scope: shared:joharness.sh, shared:.agents/harness/selftest/dispatch.sh, shared:.agents/harness/selftest/guard.sh, shared:.agents/docs/orchestrated.md, shared:.agents/docs/orchestrate-reference.md, shared:.claude/commands/orchestrate.md, shared:.agents/docs/handover/README.md, shared:.agents/harness/AGENTS.md, shared:.agents/harness/selftest/orchestrated.sh
 ---
 
 ## Goal
@@ -31,27 +31,35 @@ the case below. The claim's session stays alive and may set the word back
 
 ## Scope
 
-- `joharness.sh` dispatch, parked-claim row (near `BLOCKED: the human's`):
+- `joharness.sh` dispatch, parked-claim row (the workstream-claim
+  `BLOCKED: the human's` in the `blocked` branch, not the `free-` row):
   a claim is RELEASABLE when all three hold:
   - its `next:` reason is one the queue can answer, not money, credentials,
     hardware, core path, github, respawns or defect (the set
     `retro_queue_block` uses);
   - its plan on the base is now `blocked by:` an open `needs:` target in the
     queue labels;
-  - that edge was added AFTER the block: the commit adding the stem to the
-    plan's `needs:` is newer than `dispatch_block_age_min`'s block commit.
+  - that edge was added AFTER the block: the first-parent base commit adding
+    the stem to the plan's `needs:` has an author timestamp later than the
+    commit that parked the claim (the timestamp `dispatch_block_age_min`
+    reads). Either timestamp unreadable = not releasable;
+  - its claim names no `pr:`.
   The row prints `RELEASABLE: held by needs: <stem> since <date>`, and a
   tail line `release DUE: <branch>...`.
 - `joharness.sh release <branch>...`: writes `status: abandoned`, `next:
-  released: held by needs: <stem>`, through `guard release <branch> --expect
-  <sha>` and a `--force-with-lease` push, as `halt` does. It refuses any
-  branch dispatch does not print RELEASABLE on the same read.
-- `guard`: a `release` mode, the KILL/LOOP checks. `orchestrate.md` and
+  released: held by needs: <stem>; <release_why>`, through `guard release
+  <branch> --expect <sha>` and a `--force-with-lease` push, as `halt` does.
+  It refuses any branch dispatch does not print RELEASABLE on the same read.
+- `guard`: a `release` mode, the KILL/LOOP checks plus the janitor's `pr:`
+  refusal (Traps). `.agents/harness/AGENTS.md` names `release` beside
+  `halt` where `--force-with-lease` is allowed. `orchestrate.md` and
   `orchestrate-reference.md`: the orchestrator runs `release` on a `release
   DUE` line, records it in its ledger and reports it once.
-- Selftests: `dispatch.sh` (RELEASABLE only when all three hold, each
-  negative case; a block newer than the edge stays the human's) and
-  `guard.sh` (release refused off the list, lease honoured).
+- Selftests: `dispatch.sh` (RELEASABLE only when all conditions hold, each
+  negative case; a block newer than the edge stays the human's; `release`
+  writes the RELEASABLE claim and refuses one off the list) and `guard.sh`
+  (the `release` verb passes a clean claim, refuses an open `pr:` and a
+  moved head). `orchestrated.sh` pins the orchestrator's release rule.
 
 ## Assumptions
 
@@ -74,10 +82,12 @@ the case below. The claim's session stays alive and may set the word back
 - `./joharness.sh ci`: expect `ci: pass`; red is any other final line.
 - `./joharness.sh verify`: expect `0 failed`; red is any failure count
   above 0.
-- Fixture: a claim parked on `product: x has not landed`, then its plan
-  gains `needs: x`. Expect dispatch to print `RELEASABLE` and
-  `release DUE`; after `release`, the claim reads `abandoned` and the plan
-  reads `blocked by: x`, not claimed. Each negative case prints neither.
+- Cases in `dispatch.sh`, run by `./joharness.sh verify`: a
+  claim parked on `product: x has not landed`, then its plan gains `needs:
+  x` (`x` a plan; again with `x` a requirement). Expect dispatch to print
+  `RELEASABLE` and `release DUE`; after `release`, the claim reads
+  `abandoned` and the plan reads `blocked by: x`, not claimed. Each
+  negative case prints neither.
 
 ## Where to look
 
