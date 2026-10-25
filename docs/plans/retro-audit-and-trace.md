@@ -3,11 +3,11 @@ plan: retro-audit-and-trace
 urgency: normal
 agent: opus
 effort: high
-needs: conduct-recent-sample, c1-at-the-gates
+needs: conduct-recent-sample, c1-at-the-gates, drop-curator-session
 research: conduct-c2-design
 requirement: none
 issue: none
-scope: joharness.sh, .claude/commands/retro.md, .claude/commands/conduct.md, .claude/commands/retro-audit.md, .claude/commands/orchestrate.md, .agents/docs/orchestrated.md, .agents/docs/orchestrate-reference.md, .agents/docs/glossary.md, .agents/harness/AGENTS.md, README.md, docs/conduct-log.md, .agents/scripts/bootstrap-consumer.sh, .agents/scripts/conf-keys.sh, .agents/harness/selftest/retro.sh, .agents/harness/selftest/scout.sh, .agents/harness/selftest/role.sh, .agents/harness/selftest/orchestrated.sh, .agents/harness/selftest/reading-budget.sh, .agents/harness/selftest.sh
+scope: shared:joharness.sh, .claude/commands/retro.md, .claude/commands/conduct.md, .claude/commands/retro-audit.md, shared:.claude/commands/orchestrate.md, shared:.agents/docs/orchestrated.md, shared:.agents/docs/orchestrate-reference.md, .agents/docs/glossary.md, shared:.agents/harness/AGENTS.md, shared:README.md, docs/conduct-log.md, .agents/scripts/bootstrap-consumer.sh, .agents/scripts/conf-keys.sh, .agents/harness/selftest/retro.sh, shared:.agents/harness/selftest/scout.sh, .agents/harness/selftest/role.sh, shared:.agents/harness/selftest/orchestrated.sh, .agents/harness/selftest/reading-budget.sh, shared:.agents/harness/selftest.sh
 ---
 
 ## Goal
