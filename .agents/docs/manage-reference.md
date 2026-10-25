@@ -148,11 +148,17 @@ no retry, no second transport. Run no queue command.
    with the fresh reproduction (command, count, `origin/main` sha) beside it.
    Then ask: does this defect stop your item meeting its Acceptance?
    - **No:** steps 3–5 as written.
-   - **Yes, and step 2 found M:** park on M. M carries `human-review`? Say so
-     in `next:`; `defect-resume`'s UNPLANNED row then reaches the human.
+   - **Yes, and step 2 found M:** park on M. M's body does not open
+     `blocking:`? Prepend `blocking: <your branch>` (`issue_write` `update`),
+     so the clerk takes it first and plans it urgent. M carries
+     `human-review`? Say so in `next:`; `defect-resume`'s UNPLANNED row then
+     reaches the human.
    - **Yes, nothing found:** file the issue as step 3 does, its body's
-     first line `blocking: <your branch>`, then park. The clerk plans it
-     urgent (`.claude/commands/clerk.md` §3).
+     first line `blocking: <your branch>`, then park. The clerk takes it
+     first and plans it urgent (`.claude/commands/clerk.md` §2, §3). Its fix
+     needs a human's call (step 3)? Then it is not a `defect:` park: file it
+     with `human-review` and block on that reason (`product:`, `money:`, …;
+     `.claude/commands/manage.md` §3).
    - **Park** = `status: blocked`, `next:` = `defect: #<n>: <one line>`, push,
      exit. No `human-review` on the pull request or the plan's issue.
    - `issue_write` fails: block `github: defect not filed: <error, 40 chars>`,

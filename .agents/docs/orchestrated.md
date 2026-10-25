@@ -273,7 +273,8 @@ The rules that bind every session.
   `scout:` comment; closing the issue declines it.
 - **`human-review` label.** An agent applies it when it blocks on a human (never a `defect:` block),
   after a clerk HUMAN verdict or a clerk NARROWER verdict with a human
-  remainder, and to the `human/<stem>` pull request holding its plan's human remainder
+  remainder, to a `defect:` issue a manager files whose fix needs a human's
+  call (`.agents/docs/manage-reference.md` § Defect step 3), and to the `human/<stem>` pull request holding its plan's human remainder
   (`.agents/docs/plans/README.md`, "A human remainder"); a human applies it
   to hold an issue or pull request. It stops the clerk
   planning that issue and any session merging that pull request. Only a human

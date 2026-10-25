@@ -37,7 +37,9 @@ request; any other `STOP:` = report it, exit.
 
 ## 2. Read
 
-Open issues on this repository through the GitHub MCP tools, OLDEST first.
+Open issues on this repository through the GitHub MCP tools, OLDEST first,
+except that every `defect:` issue whose body opens `blocking:` goes ahead of
+the rest (a manager is parked on it).
 Take at most `JOHARNESS_CLERK_BATCH` (`./joharness.sh clerk` prints it; 3 by
 default). First THE SCOUT GATE, below; then skip, uncounted toward the batch:
 

@@ -6,7 +6,7 @@ effort: high
 needs: none
 requirement: none
 issue: 627
-scope: .agents/docs/manage-reference.md, .agents/docs/feedback.md, .claude/commands/clerk.md, .agents/harness/selftest/orchestrated.sh
+scope: .agents/docs/manage-reference.md, .agents/docs/orchestrated.md, .agents/docs/feedback.md, .claude/commands/clerk.md, .agents/harness/selftest/orchestrated.sh
 ---
 
 ## Goal
@@ -28,8 +28,11 @@ applies `human-review` itself on HUMAN.
   blocking defect's body opens `blocking: <branch>`; drop the closing
   "label holds the issue" paragraph.
 - `.agents/docs/feedback.md` §8 — same rule, one sentence.
-- `.claude/commands/clerk.md` §3 HOLDS — urgency read from the
-  `blocking:` body line, no longer from the label's absence.
+- `.claude/commands/clerk.md` §2 — a `blocking:` defect is read ahead of
+  older issues; §3 HOLDS — urgency read from the `blocking:` body line, no
+  longer from the label's absence.
+- `.agents/docs/orchestrated.md` — the `human-review` list names the
+  manager's defect filing.
 - `.agents/harness/selftest/orchestrated.sh` — the pin on the old sentence
   replaced by pins on the new rule.
 
@@ -46,7 +49,9 @@ applies `human-review` itself on HUMAN.
 
 ## Acceptance
 
-- `./joharness.sh ci` — `ci: pass`.
+- `./joharness.sh ci` — `ci: pass`; its harness selftest carries the new
+  pins in `orchestrated.sh`, which a consumer's `./joharness.sh ci` runs
+  after the sync (the consumer-side check).
 - `./joharness.sh verify` — green.
 
 ## Where to look
