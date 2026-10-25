@@ -1564,3 +1564,88 @@ out="$(dfx)"
 refute "awaited PR merged before the block: no RESUME" "PARKED #79 RESUME" "$out"
 refute "awaited PR named only in a merge commit's body: no RESUME" "PARKED #78 RESUME" "$out"
 refute "awaited PR from a branch not human/: no RESUME" "PARKED #80 RESUME" "$out"
+
+# --- a block the queue has since absorbed is RELEASABLE (#626) ---------------
+# A claim parked on a reason the queue can answer, whose plan the base then
+# holds by a needs: edge added AFTER the park: the orchestrator releases it
+# with `release`. Every other parked claim stays the human's.
+# <plan> <needs stem> <hours ago> [merge]: the base adds the edge, directly or
+# through a first-parent merge commit (a pull request).
+dfneeds() {
+  if [ -n "${4:-}" ]; then
+    git -C "$dfwork" checkout -qb "needs-$1" main
+    sed -i "s/^effort: high\$/effort: high\nneeds: $2/" "${dfwork}/docs/plans/${1}.md"
+    dfcommit "$3" "needs: $2 on $1"
+    git -C "$dfwork" checkout -q main
+    GIT_AUTHOR_DATE="@$((dfnow - $3 * 3600)) +0000" \
+      GIT_COMMITTER_DATE="@$((dfnow - $3 * 3600)) +0000" \
+      git -C "$dfwork" merge -q --no-ff -m "Merge pull request #9$3 from example/needs-$1" "needs-$1"
+    git -C "$dfwork" push -q origin main
+  else
+    sed -i "s/^effort: high\$/effort: high\nneeds: $2/" "${dfwork}/docs/plans/${1}.md"
+    dfpush "$3" "needs: $2 on $1"
+  fi
+}
+# <plan stem>: its row line.
+dfrow() { printf '%s\n' "$out" | grep "^  docs/plans/${1}\.md  "; }
+dfplan rel-a none; dfplan rel-b none; dfplan rel-c none; dfplan rel-d none
+dfplan rel-e none; dfplan rel-f none; dfplan dep-a none
+mkdir -p "${dfwork}/docs/product"
+printf -- '---\nrequirement: req-b\n---\n\n## Goal\nFixture.\n' >"${dfwork}/docs/product/req-b.md"
+dfpush 8 "rel plans, dep-a, req-b"
+dfpark park-rel-a rel-a 'product: dep-a has not landed' 4
+dfpark park-rel-b rel-b 'product: req-b is not planned' 4
+dfpark park-rel-c rel-c 'product: dep-a has not landed' 2
+dfpark park-rel-d rel-d 'money: dep-a needs a paid runner' 4
+dfpark park-rel-e rel-e 'product: dep-a has not landed' 4
+dfpark park-rel-f rel-f 'product: dep-a has not landed' 4
+git -C "$dfwork" checkout -q park-rel-e
+sed -i 's/^agent: sonnet$/agent: sonnet\npr: 41/' "${dfwork}/docs/handover/rel-e.md"
+dfcommit 3 "rel-e opens a pull request"
+git -C "$dfwork" push -q origin park-rel-e
+git -C "$dfwork" checkout -q main
+dfneeds rel-a dep-a 1 merge
+dfneeds rel-b req-b 1
+dfneeds rel-c dep-a 3
+dfneeds rel-d dep-a 1
+dfneeds rel-e dep-a 1
+out="$(dfx)"
+expect "a needs: edge newer than a product: block: RELEASABLE, dated by the edge" \
+  "RELEASABLE: held by needs: dep-a since $(date -u -d "@$((dfnow - 3600))" +%Y-%m-%d)" "$(dfrow rel-a)"
+expect "a requirement as the needs: target: RELEASABLE" \
+  "RELEASABLE: held by needs: req-b since" "$(dfrow rel-b)"
+expect "and the tail line names both branches" "release DUE: park-rel-a park-rel-b" "$out"
+expect "an edge older than the block: still the human's" "BLOCKED: the human's" "$(dfrow rel-c)"
+expect "a money: block under a newer edge: still the human's" "BLOCKED: the human's" "$(dfrow rel-d)"
+expect "a claim naming a pr: under a newer edge: still the human's" "BLOCKED: the human's" "$(dfrow rel-e)"
+expect "a plan with no needs: edge: still the human's" "BLOCKED: the human's" "$(dfrow rel-f)"
+for s in rel-c rel-d rel-e rel-f; do
+  refute "${s}: no RELEASABLE" "RELEASABLE" "$(dfrow "$s")"
+done
+refute "and none of them is due" "park-rel-c" "$(printf '%s\n' "$out" | grep 'release DUE:')"
+refute "the human's count leaves the releasable out" "6 manager(s) blocked" "$out"
+# A session's next: is data: a stem it names that the plan does not need is
+# nothing; dep-a is in rel-f's next: and rel-f stays the human's above.
+dfrel() { ( cd "$dfwork" && JOHARNESS_CONF="$dfconf" DRAIN_FETCH=0 \
+  DISPATCH_FETCH=0 ./joharness.sh release "$@" 2>&1 ); }
+dfhead_c="$(git -C "$dforigin" rev-parse park-rel-c)"
+out="$(dfrel park-rel-a park-rel-c)"; rc=$?
+expect "release writes the RELEASABLE claim" "release   : park-rel-a  docs/handover/rel-a.md  held by needs: dep-a" "$out"
+expect "release pushes it" "pushed    : park-rel-a" "$out"
+expect "release refuses a branch off the list" \
+  "refused   : park-rel-c — dispatch does not print it RELEASABLE on this read" "$out"
+if [ "$rc" -ne 0 ]; then pass "a refused branch makes release exit non-zero"
+else fail "a refused branch makes release exit non-zero"; fi
+if [ "$(git -C "$dforigin" rev-parse park-rel-c)" = "$dfhead_c" ]; then
+  pass "the refused branch is untouched on origin"
+else fail "the refused branch is untouched on origin"; fi
+reldoc="$(git -C "$dforigin" show park-rel-a:docs/handover/rel-a.md)"
+expect "the released claim reads abandoned" "status: abandoned" "$reldoc"
+expect "and next: says why" "next: released: held by needs: dep-a;" "$reldoc"
+git -C "$dfwork" fetch -q origin "+refs/heads/park-rel-a:refs/remotes/origin/park-rel-a"
+out="$(dfx)"
+expect "after release the plan reads blocked by its edge, not claimed" \
+  "docs/plans/rel-a.md  [normal, agent: sonnet, effort: high, blocked by: dep-a]" "$out"
+refute "and it is due no more" "park-rel-a" "$(printf '%s\n' "$out" | grep 'release DUE:')"
+out="$(dfrel park-rel-a)"; rc=$?
+expect "a second release of it is refused: no longer on the list" "refused   : park-rel-a" "$out"

@@ -8,7 +8,7 @@ issue: 626
 session: https://claude.ai/code/session_012hikkNfLjLPU4pMwpU4VZG
 agent: opus
 updated: 2026-10-25
-next: Build dispatch RELEASABLE, release command, guard release, selftests, docs
+next: Run dispatch selftest, then ci and verify; fix any red; then verifier
 ---
 
 ## Goal
