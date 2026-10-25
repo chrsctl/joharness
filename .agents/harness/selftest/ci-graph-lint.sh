@@ -1139,13 +1139,17 @@ out="$(lint_section "$(lint_ci)")"
 refute "serves: naming a clause in range is no red" "serves-one.md: serves" "$out"
 # The value lint: out of range, empty, not a number, mixed with all, and
 # serves: with no requirement: are each red.
+# Plans reading `all` name another requirement: retired, they would still
+# serve every clause of three-clause in the deletion cases below.
+printf -- '---\nrequirement: other-clause\npriority: normal\n---\n\n## Satisfied when\n\n- one\n' \
+  >"${lwork}/docs/product/other-clause.md"
 printf -- '---\nplan: sv-range\nurgency: normal\nagent: sonnet\neffort: high\nrequirement: three-clause\nserves: 4\n---\n' \
   >"${lwork}/docs/plans/sv-range.md"
 printf -- '---\nplan: sv-empty\nurgency: normal\nagent: sonnet\neffort: high\nrequirement: three-clause\nserves:\n---\n' \
   >"${lwork}/docs/plans/sv-empty.md"
 printf -- '---\nplan: sv-word\nurgency: normal\nagent: sonnet\neffort: high\nrequirement: three-clause\nserves: 1, two\n---\n' \
   >"${lwork}/docs/plans/sv-word.md"
-printf -- '---\nplan: sv-mixed\nurgency: normal\nagent: sonnet\neffort: high\nrequirement: three-clause\nserves: all, 2\n---\n' \
+printf -- '---\nplan: sv-mixed\nurgency: normal\nagent: sonnet\neffort: high\nrequirement: other-clause\nserves: all, 2\n---\n' \
   >"${lwork}/docs/plans/sv-mixed.md"
 printf -- '---\nplan: sv-zero\nurgency: normal\nagent: sonnet\neffort: high\nrequirement: three-clause\nserves: 0\n---\n' \
   >"${lwork}/docs/plans/sv-zero.md"
@@ -1153,7 +1157,7 @@ printf -- '---\nplan: sv-noreq\nurgency: normal\nagent: sonnet\neffort: high\nse
   >"${lwork}/docs/plans/sv-noreq.md"
 printf -- '---\nplan: sv-tmpl\nurgency: normal\nagent: sonnet\neffort: high\nrequirement: none\nserves: all\n---\n' \
   >"${lwork}/docs/plans/sv-tmpl.md"
-printf -- '---\nplan: sv-all\nurgency: normal\nagent: sonnet\neffort: high\nrequirement: three-clause\nserves: all\n---\n' \
+printf -- '---\nplan: sv-all\nurgency: normal\nagent: sonnet\neffort: high\nrequirement: other-clause\nserves: all\n---\n' \
   >"${lwork}/docs/plans/sv-all.md"
 commit_all "$lwork" "serves: values"
 full="$(lint_ci)"; rc=$?
@@ -1176,7 +1180,7 @@ if [ "$rc" -ne 0 ]; then pass "a bad serves: fails ci"; else fail "a bad serves:
 fixture_rm "$lwork" "drop the serves: value fixtures" docs/plans/sv-range.md \
   docs/plans/sv-empty.md docs/plans/sv-word.md docs/plans/sv-mixed.md \
   docs/plans/sv-zero.md docs/plans/sv-noreq.md docs/plans/sv-all.md \
-  docs/plans/sv-tmpl.md
+  docs/plans/sv-tmpl.md docs/product/other-clause.md
 
 # The same fixture through the queue hook: listed and offered, the label
 # naming the unserved clauses. origin/main is set here and dropped at the
@@ -1185,8 +1189,8 @@ git -C "$lwork" update-ref refs/remotes/origin/main HEAD
 qout="$(CLAUDE_PROJECT_DIR="$lwork" bash "${ROOT}/.agents/harness/queue-context.sh" 2>&1)"
 expect "a requirement one plan partly serves is listed PARTLY PLANNED" \
   "docs/product/three-clause.md  [normal, PARTLY PLANNED: clauses 2, 3 unserved]" "$qout"
-expect "and offered: a planning session is sent to it" \
-  "Plus one planning session for the UNPLANNED requirements above" "$qout"
+expect "and offered: the entrypoint sends a session to plan it" \
+  "Entrypoint: GitHub issues, then UNPLANNED requirements above" "$qout"
 
 # A branch that retires that plan and deletes the requirement is red: two
 # clauses would go with it, unbuilt.
