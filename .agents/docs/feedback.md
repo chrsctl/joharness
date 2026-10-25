@@ -145,8 +145,9 @@ Then check the thing that bit you is gone.
 Nowhere new: one with a fix path is served by `feedback` on that path; one
 without (`wontfix`, no-change) no path-keyed destination can reach. A defect
 OUTSIDE the edge's change = a `defect:` issue on the consumer's repo
-(`.claude/commands/manage.md`, "A DEFECT"), held by `human-review` until the
-owner releases it; a BLOCKING one is filed unlabelled, so the clerk plans it urgent.
+(`.claude/commands/manage.md`, "A DEFECT"), filed unlabelled so the clerk
+plans it; a BLOCKING one opens `blocking: <branch>`, so the clerk plans it urgent.
+`human-review` only when its fix needs a human's call (Loop, Decide alone).
 
 ## What this cannot see
 

@@ -148,10 +148,17 @@ no retry, no second transport. Run no queue command.
    with the fresh reproduction (command, count, `origin/main` sha) beside it.
    Then ask: does this defect stop your item meeting its Acceptance?
    - **No:** steps 3–5 as written.
-   - **Yes, and step 2 found M:** park on M. M carries `human-review`? Say so
-     in `next:`; `defect-resume`'s UNPLANNED row then reaches the human.
-   - **Yes, nothing found:** file the issue as step 3 does, with NO labels,
-     then park. The clerk plans it urgent (`.claude/commands/clerk.md` §3).
+   - **Yes, and step 2 found M:** park on M. M's body does not open
+     `blocking:`? Prepend `blocking: <your branch>` (`issue_write` `update`),
+     so the clerk takes it first and plans it urgent. M carries
+     `human-review`? Say so in `next:`; `defect-resume`'s UNPLANNED row then
+     reaches the human.
+   - **Yes, nothing found:** file the issue as step 3 does, its body's
+     first line `blocking: <your branch>`, then park. The clerk takes it
+     first and plans it urgent (`.claude/commands/clerk.md` §2, §3). Its fix
+     needs a human's call (step 3)? Then it is not a `defect:` park: file it
+     with `human-review` and block on that reason (`product:`, `money:`, …;
+     `.claude/commands/manage.md` §3).
    - **Park** = `status: blocked`, `next:` = `defect: #<n>: <one line>`, push,
      exit. No `human-review` on the pull request or the plan's issue.
    - `issue_write` fails: block `github: defect not filed: <error, 40 chars>`,
@@ -159,9 +166,11 @@ no retry, no second transport. Run no queue command.
 3. Otherwise ONE issue per session (`issue_write` `create`) on this
    repository, before the retire commit: title
    `defect: <test or command>: <symptom, one line>`; body = the command, at
-   most 20 lines of output, the `origin/main` sha, your branch; label
-   `human-review` (none when blocking, step 2). Pull request body: `Refs #N`,
-   never `Closes`.
+   most 20 lines of output, the `origin/main` sha, your branch; no labels.
+   The clerk verifies and plans it like any issue; a defect is not a human's
+   call. Its fix needs money, credentials, hardware or product direction
+   (Loop, Decide alone)? Name that question in the body and label it
+   `human-review`. Pull request body: `Refs #N`, never `Closes`.
 4. A second defect in the same session: step 2 runs for EVERY defect. A
    match = step 2's `Refs #M` line. Only an unmatched second or later defect
    is pull request body only, one line each.
@@ -170,7 +179,3 @@ no retry, no second transport. Run no queue command.
    delay the item.
 6. Not for harness defects found in a consumer (canonical's,
    `.agents/docs/feedback.md` §4) nor core-path edits (§ Human remainder).
-
-For a non-blocking defect the
-label holds the issue from the clerk until the owner removes it; no session
-removes it.

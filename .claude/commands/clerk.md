@@ -37,7 +37,9 @@ request; any other `STOP:` = report it, exit.
 
 ## 2. Read
 
-Open issues on this repository through the GitHub MCP tools, OLDEST first.
+Open issues on this repository through the GitHub MCP tools, OLDEST first,
+except that every `defect:` issue whose body opens `blocking:` goes ahead of
+the rest (a manager is parked on it).
 Take at most `JOHARNESS_CLERK_BATCH` (`./joharness.sh clerk` prints it; 3 by
 default). First THE SCOUT GATE, below; then skip, uncounted toward the batch:
 
@@ -103,7 +105,8 @@ whole first; quote it in the verdict, the claim stays unchecked. Then ONE verdic
 the pull request body with the evidence, one line each:
 
 - **HOLDS** — write the plan with `/plan`. Frontmatter `issue: <N>`; an issue
-  titled `defect:` without `human-review` is `urgency: urgent`. Tier and
+  titled `defect:` whose body opens `blocking:` is `urgency: urgent`, any
+  other `defect:` `urgency: normal`. Tier and
   effort by `.agents/docs/agent-selection.md`. A plan whose `scope:` would be
   core paths only (`./joharness.sh protocol-paths`) is never written (`ci`
   fails it; only a human can build it): verdict HUMAN instead. A plan
