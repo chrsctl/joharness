@@ -119,16 +119,30 @@ the pull request body with the evidence, one line each:
   After the comment, apply `human-review` to the issue (visibility only;
   the manager does not read it). When any part needs a human, the plan carries a
   `## Issue remainder` section: one line per such part, naming the question.
-  A plan without the section left no human remainder.
+  A plan without the section left no human remainder. NARROWER never
+  closes the issue: its plan's pull request does (`Closes`/`Refs`, below).
 - **DOES NOT HOLD** — comment with the evidence: the command, its output,
-  the line read. Do not close the issue; a human closes it.
+  the line read. Then close the issue (`issue_write` `update`,
+  `state: closed`), saying which reason in the comment:
+  `state_reason: completed` when the evidence names the base-branch
+  commit that fixed it, `not_planned` when the claim never held. Never
+  closed: a scout issue (§2), or a `defect:` whose body opens `blocking:`
+  (its parked manager reaches a human through `defect-resume`'s
+  UNPLANNED row; the issue stays where that human looks). A maintainer
+  who disagrees reopens it AND comments by hand: the comment is newer than
+  your verdict, so the next pass reads it (§2). A bare reopen, or a footed
+  comment, leaves your verdict newest and is not read.
 - **HUMAN** — it needs product direction, money, credentials or hardware
   (`.agents/harness/AGENTS.md`, Decide alone), or its author failed the gate
   in §2. Comment naming the question, then 2 to 4 numbered options, one line
   each, the recommended one marked `(recommended)` (the author gate's comment
   is its one sentence, no options). Write no plan. After the comment, apply
   `human-review` to the issue.
-- **DUPLICATE** — comment naming the issue or plan it duplicates.
+- **DUPLICATE** — comment naming the issue or plan it duplicates. Then
+  close it `state_reason: duplicate`, `duplicate_of` that issue (for a
+  plan, its `issue:`; a plan with `issue: none` = close `not_planned`,
+  the comment naming the plan). Never closed: the same two as DOES NOT
+  HOLD.
 - **UPSTREAM** — CONSUMER only (`JOHARNESS_CANONICAL=1` absent from
   `joharness.conf`). The issue asks a change to a path the sync ships or a
   rule in `.agents/harness/AGENTS.md`, `.agents/docs/` or
@@ -190,8 +204,8 @@ written, comments posted (link comments counted).
 - Write code, a requirement, or a research file. Plans only.
 - Edit anything under `./joharness.sh protocol-paths`, or any plan you did
   not write this pass.
-- Close an issue, open an issue, or edit an issue's labels or body. Three
-  carve-outs: `human-review` goes on after a HUMAN verdict or a NARROWER
+- Close an issue, open an issue, or edit an issue's labels or body. Four
+  carve-outs: DOES NOT HOLD and DUPLICATE close the issue they decide (§3); `human-review` goes on after a HUMAN verdict or a NARROWER
   verdict with a human remainder, never off
   (`.agents/docs/orchestrated.md`, Bounds); the UPSTREAM route closes the
   consumer issue it routed and opens or reads issues on `CANONICAL_REPO`;
