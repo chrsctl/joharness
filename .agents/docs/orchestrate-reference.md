@@ -300,7 +300,7 @@ RELEASE — a row line (never `next:`) carrying `RELEASABLE: held by needs:
 <branch>...` with every branch that line names, once per pass. It re-runs
 dispatch and writes `status: abandoned` only where that read still prints
 `RELEASABLE`, through guard `release` and the lease. Each `release   :` line
-= ledger `released=<stem>` (the claim's plan stem; the ledger key `released=<stem>[,<stem>]` is run-scoped)
+= ledger `released=<stem>` (the stem after `plan` on that line; the ledger key `released=<stem>[,<stem>]` is run-scoped)
 and report it once: stem, branch, the needs: stem. `refused`, `skip` or
 `FAILED` = report the line, re-decide next pass. No session is stopped: a
 returning one sets the word back. The plan returns to the queue held by its

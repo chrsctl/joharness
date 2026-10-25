@@ -34,14 +34,15 @@ the case below. The claim's session stays alive and may set the word back
 - `joharness.sh` dispatch, parked-claim row (the workstream-claim
   `BLOCKED: the human's` in the `blocked` branch, not the `free-` row):
   a claim is RELEASABLE when all three hold:
-  - its `next:` reason is one the queue can answer, not money, credentials,
+  - its `next:` opens with a reason word (`block_reason_ok`) the queue can
+    answer and names the needs: stem as a token; not money, credentials,
     hardware, core path, github, respawns or defect (the set
     `retro_queue_block` uses);
   - its plan on the base is now `blocked by:` an open `needs:` target in the
     queue labels;
   - that edge was added AFTER the block: the first-parent base commit adding
     the stem to the plan's `needs:` has an author timestamp later than the
-    commit that parked the claim (the timestamp `dispatch_block_age_min`
+    commit that parked the claim (the timestamp `dispatch_block_ts`
     reads). Either timestamp unreadable = not releasable;
   - its claim names no `pr:`.
   The row prints `RELEASABLE: held by needs: <stem> since <date>`, and a
@@ -82,20 +83,20 @@ the case below. The claim's session stays alive and may set the word back
 - `./joharness.sh ci`: expect `ci: pass`; red is any other final line.
 - `./joharness.sh verify`: expect `0 failed`; red is any failure count
   above 0.
-- Cases in `dispatch.sh`, run by `./joharness.sh verify`: a
+- Cases in `dispatch.sh`, run by `./joharness.sh ci`: a
   claim parked on `product: x has not landed`, then its plan gains `needs:
   x` (`x` a plan; again with `x` a requirement). Expect dispatch to print
   `RELEASABLE` and `release DUE`; after `release`, the claim reads
   `abandoned` and the plan reads `blocked by: x`, not claimed. Each
   negative case prints neither.
-- Consumer side: a consumer's `./joharness.sh ci` runs the synced
-  selftest pins (`orchestrated.sh`, the `released=` ledger key); expect
-  `ci: pass`.
+- Consumer side: no consumer check can run it — `.agents/harness/selftest`
+  is canonical-only (`sync-to-consumer.sh`, `CANONICAL_ONLY_DIRS`); the
+  shipped code is proven here by `ci`.
 
 ## Where to look
 
 - `joharness.sh`: the parked-claim branch near `BLOCKED: the human's`,
-  `dispatch_block_age_min`, `cmd_halt`, `cmd_janitor`, `cmd_guard`,
+  `dispatch_block_ts`, `cmd_halt`, `cmd_janitor`, `cmd_guard`,
   `retro_queue_block` (the reason set).
 - `.agents/docs/orchestrated.md`: the janitor and `halt` rows, Bounds.
 

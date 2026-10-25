@@ -3285,7 +3285,7 @@ cmd_halt() {
 # dispatch prints RELEASABLE, through guard and the lease; git only.
 cmd_release() {
   local want out rows tip f plan st today n wrote=0 rc=0 idx blob newblob tree commit
-  local rplan rstem
+  local rplan rstem rpr rnext
   [ "$#" -gt 0 ] || die "usage: $0 release <branch>... (each printed RELEASABLE by dispatch)"
   for want in "$@"; do
     case "$want" in -* | '') die "usage: $0 release <branch>... (each printed RELEASABLE by dispatch)" ;; esac
@@ -3320,19 +3320,27 @@ cmd_release() {
     while IFS= read -r f; do
       [ -n "$f" ] || continue
       blob="$(git -C "$ROOT" show "${tip}:${f}" 2>/dev/null)" || continue
-      { read -r plan; read -r st; } <<<"$(printf '%s\n' "$blob" | gr_fields plan status)"
+      { read -r plan; read -r st; read -r rpr; } <<<"$(printf '%s\n' "$blob" | gr_fields plan status pr)"
       [ "$st" = blocked ] || continue
+      case "$rpr" in '' | none) ;; *) continue ;; esac
       plan="$(lint_stem "$plan")"
       # The claim on THIS branch whose plan dispatch printed RELEASABLE.
       rstem="$(printf '%s\n' "$rows" | awk -F'\t' -v b="$want" -v p="$plan" \
         '$1 == b && $2 == p { print $3; exit }')"
       [ -n "$rstem" ] || continue
+      # The file written is judged on its own words, not only its branch's
+      # row: a branch can carry two claims.
+      rnext="$(printf '%s\n' "$blob" | gr_field_raw next)"
+      if ! release_reason_ok "$rnext" || ! next_names "$rnext" "$rstem"; then
+        printf 'skip      : %s  %s — its own next: is not a block on %s the queue can answer\n' "$want" "$f" "$rstem"
+        continue
+      fi
       newblob="$(printf '%s\n' "$blob" |
         release_rewrite "released: held by needs: ${rstem}; the queue holds the plan, the claim was released ${today}; $(release_why)" |
         git -C "$ROOT" hash-object -w --stdin)" || continue
       GIT_INDEX_FILE="$idx" git -C "$ROOT" update-index --cacheinfo "100644,${newblob},${f}" || continue
       n=$((n + 1)); rplan="$plan"
-      printf 'release   : %s  %s  held by needs: %s\n' "$want" "$f" "$rstem"
+      printf 'release   : %s  %s  plan %s  held by needs: %s\n' "$want" "$f" "$plan" "$rstem"
     done < <(guard_workstreams "$tip")
     if [ "$n" -eq 0 ]; then
       rm -f "$idx"
@@ -6270,10 +6278,32 @@ needs_has() {
   done
   return 1
 }
-# <plan path> <queue label> <block ts>: the first needs: stem the queue
-# blocks the plan on whose edge is newer than the block, as `<stem>\t<edge
-# ts>`; empty = none. Stems come from the queue's label and are checked
-# against the plan's own `needs:`, never read from a session's text.
+# <next:>: a parked claim's reason is one the queue can answer — a reason
+# word manage.md §3 accepts, and not one only a human or a defect's fix
+# answers (the set retro_queue_block excludes).
+release_reason_ok() {
+  block_reason_ok "$1" || return 1
+  case "${1#[\"\']}" in
+    money:* | credentials:* | hardware:* | "core path:"* | github:* | \
+    respawns:* | defect:*) return 1 ;;
+  esac
+  return 0
+}
+# <next:> <stem>: the block names <stem> as a whole token. The words are a
+# session's text: only a token equal to a stem the queue already holds the
+# plan on counts, as retro_queue_block reads it.
+next_names() {
+  local t
+  for t in $(printf '%s\n' "$1" | tr -c 'A-Za-z0-9._-' ' '); do
+    t="${t%.}"; t="${t%.md}"
+    [ "$t" != "$2" ] || return 0
+  done
+  return 1
+}
+# <plan path> <queue label> <block ts> <next:>: the first needs: stem the
+# queue blocks the plan on, that the block names, whose edge is newer than
+# the block, as `<stem>\t<edge ts>`; empty = none. Stems come from the
+# queue's label and are checked against the plan's own `needs:`.
 release_edge() {
   local dstems s ets
   case "$2" in *', blocked by: '*) ;; *) return 0 ;; esac
@@ -6282,6 +6312,7 @@ release_edge() {
   while IFS= read -r s; do
     s="${s# }"; s="${s% (open requirement)}"
     case "$s" in '' | *' '*) continue ;; esac
+    next_names "$4" "$s" || continue
     ets="$(needs_edge_ts "$1" "$s")"
     if [ -n "$ets" ] && [ "$ets" -gt "$3" ]; then
       printf '%s\t%s\n' "$s" "$ets"
@@ -8314,15 +8345,14 @@ cmd_dispatch() {
             # a needs: edge added after the park, for a reason the queue can
             # answer. Only the reason word is read from next:, never a stem.
             redge=""
-            case "${next#[\"\']}" in
-              money:* | credentials:* | hardware:* | "core path:"* | github:* | \
-              respawns:* | defect:*) ;;
-              *)
-                case "$pr:$path" in
-                  :docs/plans/* | none:docs/plans/*)
-                    redge="$(release_edge "$path" "$label" "$bts")" ;;
-                esac ;;
-            esac
+            if release_reason_ok "$next"; then
+              case "$pr:$path" in
+                :docs/plans/* | none:docs/plans/*)
+                  # Raw: the parsed next: stops at ` #`.
+                  redge="$(release_edge "$path" "$label" "$bts" \
+                    "$(printf '%s\n' "$doc" | gr_field_raw next)")" ;;
+              esac
+            fi
             if [ -n "$redge" ]; then
               n_release=$((n_release + 1))
               release_due="${release_due} ${branch}"

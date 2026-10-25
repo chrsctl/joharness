@@ -1590,6 +1590,7 @@ dfneeds() {
 dfrow() { printf '%s\n' "$out" | grep "^  docs/plans/${1}\.md  "; }
 dfplan rel-a none; dfplan rel-b none; dfplan rel-c none; dfplan rel-d none
 dfplan rel-e none; dfplan rel-f none; dfplan dep-a none
+dfplan rel-g none; dfplan rel-h none; dfplan rel-i none
 mkdir -p "${dfwork}/docs/product"
 printf -- '---\nrequirement: req-b\n---\n\n## Goal\nFixture.\n' >"${dfwork}/docs/product/req-b.md"
 dfpush 8 "rel plans, dep-a, req-b"
@@ -1599,6 +1600,9 @@ dfpark park-rel-c rel-c 'product: dep-a has not landed' 2
 dfpark park-rel-d rel-d 'money: dep-a needs a paid runner' 4
 dfpark park-rel-e rel-e 'product: dep-a has not landed' 4
 dfpark park-rel-f rel-f 'product: dep-a has not landed' 4
+dfpark park-rel-g rel-g 'interface: which signature for dep-z' 4
+dfpark park-rel-h rel-h 'waiting on dep-a' 4
+dfpark park-rel-i rel-i 'Money: dep-a needs a paid runner' 4
 git -C "$dfwork" checkout -q park-rel-e
 sed -i 's/^agent: sonnet$/agent: sonnet\npr: 41/' "${dfwork}/docs/handover/rel-e.md"
 dfcommit 3 "rel-e opens a pull request"
@@ -1609,6 +1613,9 @@ dfneeds rel-b req-b 1
 dfneeds rel-c dep-a 3
 dfneeds rel-d dep-a 1
 dfneeds rel-e dep-a 1
+dfneeds rel-g dep-a 1
+dfneeds rel-h dep-a 1
+dfneeds rel-i dep-a 1
 out="$(dfx)"
 expect "a needs: edge newer than a product: block: RELEASABLE, dated by the edge" \
   "RELEASABLE: held by needs: dep-a since $(date -u -d "@$((dfnow - 3600))" +%Y-%m-%d)" "$(dfrow rel-a)"
@@ -1619,18 +1626,22 @@ expect "an edge older than the block: still the human's" "BLOCKED: the human's" 
 expect "a money: block under a newer edge: still the human's" "BLOCKED: the human's" "$(dfrow rel-d)"
 expect "a claim naming a pr: under a newer edge: still the human's" "BLOCKED: the human's" "$(dfrow rel-e)"
 expect "a plan with no needs: edge: still the human's" "BLOCKED: the human's" "$(dfrow rel-f)"
-for s in rel-c rel-d rel-e rel-f; do
+expect "a newer edge the block does not name: still the human's" "BLOCKED: the human's" "$(dfrow rel-g)"
+expect "a block with no reason word: still the human's, and marked invalid" "INVALID BLOCK?" "$(dfrow rel-h)"
+expect "a capitalised Money: block: still the human's" "BLOCKED: the human's" "$(dfrow rel-i)"
+for s in rel-c rel-d rel-e rel-f rel-g rel-h rel-i; do
   refute "${s}: no RELEASABLE" "RELEASABLE" "$(dfrow "$s")"
+  refute "${s}: not due" "park-${s} " "$(printf '%s\n' "$out" | grep 'release DUE:') "
 done
-refute "and none of them is due" "park-rel-c" "$(printf '%s\n' "$out" | grep 'release DUE:')"
-refute "the human's count leaves the releasable out" "6 manager(s) blocked" "$out"
+# The human's count holds the releasable out: releasing one moves nothing.
+dfblk_before="$(printf '%s\n' "$out" | grep 'manager(s) blocked: report to the human')"
 # A session's next: is data: a stem it names that the plan does not need is
 # nothing; dep-a is in rel-f's next: and rel-f stays the human's above.
 dfrel() { ( cd "$dfwork" && JOHARNESS_CONF="$dfconf" DRAIN_FETCH=0 \
   DISPATCH_FETCH=0 ./joharness.sh release "$@" 2>&1 ); }
 dfhead_c="$(git -C "$dforigin" rev-parse park-rel-c)"
 out="$(dfrel park-rel-a park-rel-c)"; rc=$?
-expect "release writes the RELEASABLE claim" "release   : park-rel-a  docs/handover/rel-a.md  held by needs: dep-a" "$out"
+expect "release writes the RELEASABLE claim" "release   : park-rel-a  docs/handover/rel-a.md  plan rel-a  held by needs: dep-a" "$out"
 expect "release pushes it" "pushed    : park-rel-a" "$out"
 expect "release refuses a branch off the list" \
   "refused   : park-rel-c — dispatch does not print it RELEASABLE on this read" "$out"
@@ -1644,6 +1655,13 @@ expect "the released claim reads abandoned" "status: abandoned" "$reldoc"
 expect "and next: says why" "next: released: held by needs: dep-a;" "$reldoc"
 git -C "$dfwork" fetch -q origin "+refs/heads/park-rel-a:refs/remotes/origin/park-rel-a"
 out="$(dfx)"
+if [ -n "$dfblk_before" ] &&
+   [ "$(printf '%s\n' "$out" | grep 'manager(s) blocked: report to the human')" = "$dfblk_before" ]; then
+  pass "a release leaves the human's blocked count unchanged"
+else
+  fail "a release leaves the human's blocked count unchanged (before: ${dfblk_before:-none})"
+  printf '%s\n' "$out" | grep 'manager(s) blocked' | indent
+fi
 out_q="$( cd "$dfwork" && CLAUDE_PROJECT_DIR="$dfwork" HANDOVER_FETCH=0 \
   QUEUE_MAX_ENTRIES=10000 ./.agents/harness/queue-context.sh 2>/dev/null )"
 expect "after release the plan reads blocked by its edge, not claimed" \
@@ -1652,3 +1670,13 @@ refute "and dispatch has no in-flight row for it" "  docs/plans/rel-a.md  park-r
 refute "and it is due no more" "park-rel-a" "$(printf '%s\n' "$out" | grep 'release DUE:')"
 out="$(dfrel park-rel-a)"; rc=$?
 expect "a second release of it is refused: no longer on the list" "refused   : park-rel-a" "$out"
+out="$(dfrel park-rel-b)"
+expect "a requirement-held claim is released too" \
+  "release   : park-rel-b  docs/handover/rel-b.md  plan rel-b  held by needs: req-b" "$out"
+expect "and reads abandoned on origin" "status: abandoned" \
+  "$(git -C "$dforigin" show park-rel-b:docs/handover/rel-b.md)"
+git -C "$dfwork" fetch -q origin "+refs/heads/park-rel-b:refs/remotes/origin/park-rel-b"
+out_q="$( cd "$dfwork" && CLAUDE_PROJECT_DIR="$dfwork" HANDOVER_FETCH=0 \
+  QUEUE_MAX_ENTRIES=10000 ./.agents/harness/queue-context.sh 2>/dev/null )"
+expect "and its plan reads blocked by the open requirement, not claimed" \
+  "docs/plans/rel-b.md  [normal, agent: sonnet, effort: high, blocked by: req-b (open requirement)]" "$out_q"
