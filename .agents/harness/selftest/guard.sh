@@ -178,8 +178,27 @@ out="$(grun halt main)"; rc=$?
 expect "halt on the base branch: refused at protected" "protected : REFUSED — main is the base branch" "$out"
 grefused "halt on the base branch" "$out" "$rc"
 
-# --- usage ------------------------------------------------------------------
+# --- release: the orchestrator's release of a parked claim (#626) ----------
+# The kill/loop checks plus the janitor's pr: refusal: review state is never
+# a parked block.
 out="$(grun release g-clean)"; rc=$?
+expect "release, untouched: the pr: check passes" "protected : pass — no workstream file names a pr:" "$out"
+expect "release, untouched: the verdict" "guard     : pass — release may push" "$out"
+if [ "$rc" -eq 0 ]; then pass "release, untouched: exit 0"
+else fail "release, untouched: exit 0 (rc ${rc})"; fi
+out="$(grun release g-withpr)"; rc=$?
+expect "pr: set, release: refused at protected" \
+  "protected : REFUSED — docs/handover/g-withpr.md names pr: 77 at live head" "$out"
+grefused "pr: set, release" "$out" "$rc"
+out="$(grun release g-moved)"; rc=$?
+expect "moved head, release: refused at head" "head      : REFUSED — live" "$out"
+grefused "moved head, release" "$out" "$rc"
+out="$(grun release main)"; rc=$?
+expect "release on the base branch: refused at protected" "protected : REFUSED — main is the base branch" "$out"
+grefused "release on the base branch" "$out" "$rc"
+
+# --- usage ------------------------------------------------------------------
+out="$(grun bogus g-clean)"; rc=$?
 if [ "$rc" -ne 0 ]; then pass "an unknown verb is a usage error"
 else fail "an unknown verb is a usage error"; fi
 out="$(grun janitor)"; rc=$?

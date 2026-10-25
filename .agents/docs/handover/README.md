@@ -115,7 +115,9 @@ does). An edge branch leads the block; whether it is yours is `/who`'s
 answer. Merged branches are filtered by ancestry first.
 
 `abandoned` is written only by `./joharness.sh janitor --apply` (session
-ARCHIVED or not found) and by `./joharness.sh halt` on a human's order. The
+ARCHIVED or not found), by `./joharness.sh release` (a block the queue has
+since absorbed: dispatch prints it `RELEASABLE`) and by `./joharness.sh halt`
+on a human's order. The
 claim is released (plan free, scope holds nothing); the file stays; a
 returning session sets the word back. Not `blocked`: a block is owed an
 answer.

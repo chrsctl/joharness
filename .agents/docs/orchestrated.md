@@ -22,6 +22,7 @@ commit `649b832` — docs only, no text reproduced (`.agents/NOTICE`).
 | `./joharness.sh curate` + `curate :` line | Whether the plan queue's declarations are still true; repairs are `curate --apply`, a curator session only for PROPOSE findings. Due on plan churn or the clock, dated from git (`joharness.sh:cmd_curate`, `.claude/commands/curate.md`). Orthogonal to the verdict. |
 | `./joharness.sh janitor` + `janitor :` line | Claims whose session is gone. Mechanical: `./joharness.sh janitor --apply` writes `status: abandoned` into the claim's own file — only where the session is ARCHIVED or not found, never a claim with `pr:` — and deletes nothing. No session, no pull request. Listed only when stale claims exist; the caller proves each session gone and passes the branches: `janitor --apply <branch>...`. |
 | `./joharness.sh halt <branch>...` | A human's order, never a session's judgement. Writes `status: abandoned` through the guard and the lease at any age, `pr:` or not; on an edge branch it restores the branch's own retired record, released. The item returns to the queue. Deletes nothing; git only, never the GitHub API: the session and any pull request stay the control plane's and the human's. |
+| `./joharness.sh release <branch>...` + `RELEASABLE` / `release DUE` | A block the queue has since absorbed (#626). Dispatch prints a parked claim `RELEASABLE: held by needs: <stem> since <date>` when its `next:` opens with a reason word the queue can answer (a manage.md §3 reason, not `money:`, `credentials:`, `hardware:`, `core path:`, `github:`, `respawns:`, `defect:`), names `<stem>` as a token, and carries no `pr:`, and its plan on the base is `blocked by:` that `needs: <stem>` edge, added after the park. The orchestrator runs `release` on the `release DUE` line: it writes `status: abandoned` through the guard and the lease, only for a claim that same read prints `RELEASABLE`. The session stays alive and may set the word back. Every other block stays the human's. |
 | `./joharness.sh clerk` + `clerk :` line | Open issues become plans only through the clerk (`dispatch` reads `docs/plans/` only). Clock-driven, dated from git, at most one in flight (`joharness.sh:cmd_clerk`, `.claude/commands/clerk.md`). Orthogonal to the verdict. |
 | `./joharness.sh analysis` | One unmerged branch's condition (BLOCKED / STALL? / LOOP?) beside the base branch's current conf. Read by hand; spawns nothing. |
 | `./joharness.sh scout` + `scout :` line | No clock, no backlog trigger, no DRAINED gate: a pass runs on the reviewer's order or on a `scout` issue waiting on the scout (`orchestrate-reference.md`, "A scout issue needs the scout"). Every misread fails closed — never a second scout (`joharness.sh:cmd_scout`, `.claude/commands/scout.md`). |
@@ -121,12 +122,12 @@ The branch is the claim and the claim survives the kill.
 
 A harness write onto a branch the session does not own is decided on one
 read and pushed later, after the read may have stopped being true.
-`./joharness.sh guard janitor|kill|loop|halt <branch> --expect <sha>` re-reads
+`./joharness.sh guard janitor|kill|loop|halt|release <branch> --expect <sha>` re-reads
 origin right before the push — base branch by name, branch still on origin,
 head still the decision's read (on a move it prints the claim's `session:`
-and `status:` both sides), and for the janitor no `pr:` at live head — and
+and `status:` both sides), and for the janitor and `release` no `pr:` at live head — and
 refuses on the first that fails. It writes nothing. Its callers: `janitor
---apply` and `halt` before their leased push, and the orchestrator's KILL and LOOP
+--apply`, `halt` and `release` before their leased push, and the orchestrator's KILL and LOOP
 records, a relayed human answer and the respawn-limit hand-off
 (`.agents/docs/orchestrate-reference.md`, GUARD). `kill`, `loop` and `halt` skip the `pr:`
 check: a stalled manager with an open pull request stays killable, its
@@ -282,8 +283,8 @@ The rules that bind every session.
 
 ### Bounds, orchestrator
 
-`janitor --apply` and, on a human's order, `halt` (How the harness runs) are
-its writers to a branch it does not own. `./joharness.sh env <name>` writes `joharness.conf` (core path), so switching
+`janitor --apply`, `release` (a claim dispatch prints `RELEASABLE`) and, on a
+human's order, `halt` (How the harness runs) are its writers to a branch it does not own. `./joharness.sh env <name>` writes `joharness.conf` (core path), so switching
 layers is a human's call.
 
 ## The one stop

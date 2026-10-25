@@ -30,10 +30,14 @@
 #   halt <branch>...
 #                   a human's order: release the named claims at any age, pr:
 #                   or not, through guard and the lease. git only
+#   release <branch>...
+#                   release the parked claims dispatch prints RELEASABLE on
+#                   this read (held by a needs: edge newer than the block),
+#                   through guard and the lease. git only
 #   free <branch>   merge a doc-only branch whose author is gone into this
 #                   claimed branch: drops its workstream files and done plans,
 #                   curate --apply, ci, commit. Never pushes
-#   guard janitor|kill|loop|halt <branch> [--expect <sha>]
+#   guard janitor|kill|loop|halt|release <branch> [--expect <sha>]
 #                   re-read live state right before a harness push onto a
 #                   branch the session does not own. Report-only; non-zero =
 #                   refused, do not push
@@ -3226,8 +3230,8 @@ guard_workstreams() {
 cmd_guard() {
   local verb="${1:-}" branch="${2:-}" expect="" base_branch="${HANDOVER_BASE_BRANCH:-main}"
   local live rc f doc pr s_was t_was s_now t_now files raw=""
-  local usage="usage: $0 guard janitor|kill|loop|halt <branch> [--expect <sha>]"
-  case "$verb" in janitor | kill | loop | halt) ;; *) die "$usage" ;; esac
+  local usage="usage: $0 guard janitor|kill|loop|halt|release <branch> [--expect <sha>]"
+  case "$verb" in janitor | kill | loop | halt | release) ;; *) die "$usage" ;; esac
   [ -n "$branch" ] || die "$usage"
   shift 2
   if [ "$#" -gt 0 ]; then
@@ -3294,7 +3298,8 @@ cmd_guard() {
   # 5. A claim at the edge (pr: set) is never released. kill/loop skip it: a
   # stalled manager with an open pull request stays killable, and its record
   # is a handover, not a release. halt skips it: a human's order, any claim.
-  if [ "$verb" = janitor ]; then
+  # release keeps it: a parked block is released, review state never is.
+  if [ "$verb" = janitor ] || [ "$verb" = release ]; then
     while IFS= read -r f; do
       [ -n "$f" ] || continue
       doc="$(git -C "$ROOT" show "${live}:${f}" </dev/null 2>/dev/null)" || {
@@ -3516,6 +3521,91 @@ cmd_halt() {
     fi
   done
   [ "$wrote" -eq 1 ] && printf 'the session is the control plane'"'"'s to stop and an open pull request is the human'"'"'s to close: halt wrote git only\n'
+  return "$rc"
+}
+
+# `release <branch>...`: the orchestrator's release of a parked claim whose
+# block the queue has since absorbed (#626). Only a claim this read of
+# dispatch prints RELEASABLE, through guard and the lease; git only.
+cmd_release() {
+  local want out rows tip f plan st today n wrote=0 rc=0 idx blob newblob tree commit
+  local rplan rstem rpr rnext
+  [ "$#" -gt 0 ] || die "usage: $0 release <branch>... (each printed RELEASABLE by dispatch)"
+  for want in "$@"; do
+    case "$want" in -* | '') die "usage: $0 release <branch>... (each printed RELEASABLE by dispatch)" ;; esac
+  done
+  # The same read: dispatch decides, and its refs are the decision read.
+  out="$(cmd_dispatch 2>/dev/null)" || :
+  # `<branch>\t<plan stem>\t<needs stem>`, from claimed plan rows only: the
+  # row line is dispatch's, never a line a branch writes.
+  rows="$(printf '%s\n' "$out" | awk '
+    /^  docs\/plans\/[^ ]*\.md  [^ ]+  blocked  / && index($0, "  RELEASABLE: held by needs: ") {
+      p = $1; sub(/^docs\/plans\//, "", p); sub(/\.md$/, "", p)
+      r = substr($0, index($0, "  RELEASABLE: held by needs: ") + 29); sub(/ .*/, "", r)
+      print $2 "\t" p "\t" r }')"
+  today="$(date -u +%Y-%m-%d)"
+  for want in "$@"; do
+    if ! printf '%s\n' "$rows" | awk -F'\t' -v b="$want" '$1 == b { f = 1 } END { exit !f }'; then
+      printf 'refused   : %s — dispatch does not print it RELEASABLE on this read; nothing written\n' "$want"
+      rc=1; continue
+    fi
+    tip="$(git -C "$ROOT" rev-parse -q --verify "refs/remotes/origin/${want}^{commit}" 2>/dev/null)" || {
+      printf 'skip      : %s — no such branch on origin\n' "$want"; rc=1; continue; }
+    cmd_guard release "$want" --expect "$tip"
+    case $? in
+      0) ;;
+      2) printf 'skip      : %s — gone on origin\n' "$want"; continue ;;
+      *) printf 'skip      : %s — guard refused; nothing released\n' "$want"
+         rc=1; continue ;;
+    esac
+    idx="$(mktemp)"
+    GIT_INDEX_FILE="$idx" git -C "$ROOT" read-tree "$tip" || { rm -f "$idx"; rc=1; continue; }
+    n=0
+    while IFS= read -r f; do
+      [ -n "$f" ] || continue
+      blob="$(git -C "$ROOT" show "${tip}:${f}" 2>/dev/null)" || continue
+      { read -r plan; read -r st; read -r rpr; } <<<"$(printf '%s\n' "$blob" | gr_fields plan status pr)"
+      [ "$st" = blocked ] || continue
+      case "$rpr" in '' | none) ;; *) continue ;; esac
+      plan="$(lint_stem "$plan")"
+      # The claim on THIS branch whose plan dispatch printed RELEASABLE.
+      rstem="$(printf '%s\n' "$rows" | awk -F'\t' -v b="$want" -v p="$plan" \
+        '$1 == b && $2 == p { print $3; exit }')"
+      [ -n "$rstem" ] || continue
+      # The file written is judged on its own words, not only its branch's
+      # row: a branch can carry two claims.
+      rnext="$(printf '%s\n' "$blob" | gr_field_raw next)"
+      if ! release_reason_ok "$rnext" || ! next_names "$rnext" "$rstem"; then
+        printf 'skip      : %s  %s — its own next: is not a block on %s the queue can answer\n' "$want" "$f" "$rstem"
+        continue
+      fi
+      newblob="$(printf '%s\n' "$blob" |
+        release_rewrite "released: held by needs: ${rstem}; the queue holds the plan, the claim was released ${today}; $(release_why)" |
+        git -C "$ROOT" hash-object -w --stdin)" || continue
+      GIT_INDEX_FILE="$idx" git -C "$ROOT" update-index --cacheinfo "100644,${newblob},${f}" || continue
+      n=$((n + 1)); rplan="$plan"
+      printf 'release   : %s  %s  plan %s  held by needs: %s\n' "$want" "$f" "$plan" "$rstem"
+    done < <(guard_workstreams "$tip")
+    if [ "$n" -eq 0 ]; then
+      rm -f "$idx"
+      printf 'skip      : %s — no blocked claim of a RELEASABLE plan at the tip; nothing written\n' "$want"
+      rc=1; continue
+    fi
+    tree="$(GIT_INDEX_FILE="$idx" git -C "$ROOT" write-tree)"
+    rm -f "$idx"
+    commit="$(git -C "$ROOT" commit-tree "$tree" -p "$tip" \
+      -m "release: the queue holds ${rplan} by a needs: edge (${today})")" || { rc=1; continue; }
+    # The lease refuses a branch deleted or moved since the guard read.
+    if git -C "$ROOT" push -q --force-with-lease="refs/heads/${want}:${tip}" \
+      origin "${commit}:refs/heads/${want}" 2>/dev/null; then
+      printf 'pushed    : %s %s\n' "$want" "${commit:0:12}"
+      wrote=1
+    else
+      printf 'FAILED    : %s — push refused (the branch moved?); nothing released\n' "$want"
+      rc=1
+    fi
+  done
+  [ "$wrote" -eq 0 ] || printf 'the session stays the control plane'"'"'s: a returning session sets the word back. release wrote git only\n'
   return "$rc"
 }
 
@@ -6371,11 +6461,11 @@ dispatch_age_min() {
   now="$(date +%s)"
   printf '%s' "$(( (now - ts) / 60 ))"
 }
-# Minutes since a workstream file was last PARKED on a remote branch: the
-# commit whose diff moved the frontmatter status from anything else to blocked,
-# not the last push.
-dispatch_block_age_min() {
-  local ts now range
+# When a workstream file was last PARKED on a remote branch, as the author
+# timestamp of the commit whose diff moved the frontmatter status from anything
+# else to blocked, not the last push; empty = unknown.
+dispatch_block_ts() {
+  local ts range
   range="refs/remotes/origin/$1"
   [ -z "${3:-}" ] || range="${3}..${range}"
   # `</dev/null`: same reason as dispatch_age_min above.
@@ -6417,9 +6507,73 @@ dispatch_block_age_min() {
         }
       }
       END { if (!found) judge() }')"
-  [ -n "$ts" ] || return 0
-  now="$(date +%s)"
-  printf '%s' "$(( (now - ts) / 60 ))"
+  printf '%s' "$ts"
+}
+# <plan path> <stem>: the author timestamp of the base's first-parent commit
+# that last added <stem> to the plan's `needs:` (its first parent's plan
+# lacks it); empty = not there, or unreadable.
+needs_edge_ts() {
+  local base="refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" h t
+  needs_has "${base}:${1}" "$2" || return 0
+  while read -r h t; do
+    [ -n "$t" ] || continue
+    if ! needs_has "${h}^1:${1}" "$2"; then
+      printf '%s' "$t"
+      return 0
+    fi
+  done < <(git -C "$ROOT" log --first-parent -m --format='%H %at' "$base" -- "$1" \
+    </dev/null 2>/dev/null)
+}
+# <rev:path> <stem>: the plan there names <stem> in `needs:`.
+needs_has() {
+  local n
+  for n in $(git -C "$ROOT" show "$1" </dev/null 2>/dev/null | gr_field needs | tr ',' ' '); do
+    [ "$(lint_stem "$n")" = "$2" ] && return 0
+  done
+  return 1
+}
+# <next:>: a parked claim's reason is one the queue can answer — a reason
+# word manage.md §3 accepts, and not one only a human or a defect's fix
+# answers (the set retro_queue_block excludes).
+release_reason_ok() {
+  block_reason_ok "$1" || return 1
+  case "${1#[\"\']}" in
+    money:* | credentials:* | hardware:* | "core path:"* | github:* | \
+    respawns:* | defect:*) return 1 ;;
+  esac
+  return 0
+}
+# <next:> <stem>: the block names <stem> as a whole token after its reason
+# word (a stem spelled like the reason word is not named by it). The words
+# are a session's text: only a token equal to a stem the queue already holds
+# the plan on counts, as retro_queue_block reads it.
+next_names() {
+  local t
+  for t in $(printf '%s\n' "${1#*:}" | tr -c 'A-Za-z0-9._-' ' '); do
+    t="${t%.}"; t="${t%.md}"
+    [ "$t" != "$2" ] || return 0
+  done
+  return 1
+}
+# <plan path> <queue label> <block ts> <next:>: the first needs: stem the
+# queue blocks the plan on, that the block names, whose edge is newer than
+# the block, as `<stem>\t<edge ts>`; empty = none. Stems come from the
+# queue's label and are checked against the plan's own `needs:`.
+release_edge() {
+  local dstems s ets
+  case "$2" in *', blocked by: '*) ;; *) return 0 ;; esac
+  case "$3" in '' | *[!0-9]*) return 0 ;; esac
+  dstems="${2##*, blocked by: }"; dstems="${dstems%%, claimed on*}"; dstems="${dstems%%]*}"
+  while IFS= read -r s; do
+    s="${s# }"; s="${s% (open requirement)}"
+    case "$s" in '' | *' '*) continue ;; esac
+    next_names "$4" "$s" || continue
+    ets="$(needs_edge_ts "$1" "$s")"
+    if [ -n "$ets" ] && [ "$ets" -gt "$3" ]; then
+      printf '%s\t%s\n' "$s" "$ets"
+      return 0
+    fi
+  done < <(printf '%s\n' "$dstems" | tr ',' '\n')
 }
 # Does a plan file's frontmatter at <rev>:<path> name issue <n>? Its reader is
 # issue_verdict, the one `ci` lints with.
@@ -8023,6 +8177,7 @@ cmd_dispatch() {
   local inflight="" free="" questions=""
   local n_parked=0 n_fixed=0 n_resume=0 n_recheck=0 parked_lines="" dst dn dplan dage di ri rtext dresume=0
   local fx_label fx_wait fx_k fx_r fx_c fx_slot fx_lim
+  local bts redge rstem rts n_release=0 release_due=""
   local -a fx_rows=() fx_lines=() fx_n=() fx_plan=() fx_di=() fx_kind=()
 
   cap="$(num_knob JOHARNESS_MAX_MANAGERS)"
@@ -8427,8 +8582,11 @@ cmd_dispatch() {
           # (manage.md §3) comes back once the base's first parent carries
           # that PR's merge commit: a RESUME row, as a retired fix's, and
           # its scope stays held.
-          # How long it has stood.
-          bage="$(dispatch_block_age_min "$branch" "$ws" "$base")"
+          # How long it has stood: one history read, the age and the
+          # release test both from its timestamp.
+          bts="$(dispatch_block_ts "$branch" "$ws" "$base")"
+          bage=""
+          [ -z "$bts" ] || bage="$(( ($(date +%s) - bts) / 60 ))"
           # The raw line: the parsed one stops at ` #`, a YAML comment.
           dn="$(awaited_pr "$(printf '%s\n' "$doc" | gr_field_raw next)")"
           if [ -n "$dn" ] && awaited_pr_merged "$dn" "$bage"; then
@@ -8438,9 +8596,30 @@ cmd_dispatch() {
             fx_n+=("$dn"); fx_plan+=("-"); fx_di+=("$di"); fx_kind+=(MERGED)
           else
             blocked_claims="${blocked_claims} $(basename "$path" .md)@${branch} "
-            flag="  BLOCKED: the human's, holds no slot"
-            block_reason_ok "$next" ||
-              flag="${flag}  INVALID BLOCK? next: opens with no reason word (manage.md §3): ask, order nothing"
+            # A block the queue has since absorbed (#626): the plan is held by
+            # a needs: edge added after the park, for a reason the queue can
+            # answer, on a stem the block names. Stems come from the queue's
+            # label; next: only decides which of them counts.
+            redge=""
+            if release_reason_ok "$next"; then
+              case "$pr:$path" in
+                :docs/plans/* | none:docs/plans/*)
+                  # Raw: the parsed next: stops at ` #`.
+                  redge="$(release_edge "$path" "$label" "$bts" \
+                    "$(printf '%s\n' "$doc" | gr_field_raw next)")" ;;
+              esac
+            fi
+            if [ -n "$redge" ]; then
+              n_release=$((n_release + 1))
+              release_due="${release_due} ${branch}"
+              IFS=$'\t' read -r rstem rts <<<"$redge"
+              flag="  RELEASABLE: held by needs: ${rstem} since $(date -u -d "@${rts}" +%Y-%m-%d 2>/dev/null ||
+                date -u -r "$rts" +%Y-%m-%d 2>/dev/null), holds no slot"
+            else
+              flag="  BLOCKED: the human's, holds no slot"
+              block_reason_ok "$next" ||
+                flag="${flag}  INVALID BLOCK? next: opens with no reason word (manage.md §3): ask, order nothing"
+            fi
             if [ -n "$bage" ]; then
               flag="${flag}, parked $(dispatch_age_text "$bage") ago"
             else
@@ -8996,8 +9175,10 @@ EOF_CW
     printf '            %s manager(s) rewriting one file past the churn threshold: health pass FIRST\n' "$n_loop"
   [ "$n_ceiling" -eq 0 ] ||
     printf '            %s manager(s) past the ceiling with no pr: in the claim file: report, never kill on this alone\n' "$n_ceiling"
-  [ $((n_blocked - n_parked)) -eq 0 ] ||
-    printf '            %s manager(s) blocked: report to the human, never respawn\n' "$((n_blocked - n_parked))"
+  [ $((n_blocked - n_parked - n_release)) -eq 0 ] ||
+    printf '            %s manager(s) blocked: report to the human, never respawn\n' "$((n_blocked - n_parked - n_release))"
+  [ "$n_release" -eq 0 ] ||
+    printf '            release DUE:%s — ./joharness.sh release on them: the queue holds each plan by a needs: edge newer than its block; never the human'"'"'s, never respawn\n' "$release_due"
   [ "$n_hold" -eq 0 ] ||
     printf '            %s plan(s) on HOLD behind work in flight: not counted as free\n' "$n_hold"
   # Roles run beyond the cap: a full fleet of managers holds none of them.
@@ -9262,6 +9443,7 @@ main() {
     analysis)       cmd_analysis "$@" ;;
     janitor)        cmd_janitor "$@" ;;
     halt)           cmd_halt "$@" ;;
+    release)        cmd_release "$@" ;;
     free)           cmd_free "$@" ;;
     guard)          cmd_guard "$@" ;;
     scout)          cmd_scout "$@" ;;

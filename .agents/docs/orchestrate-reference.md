@@ -293,6 +293,19 @@ it, THEN fix once." Raise `agent:` one tier (opus/fable stay, prompt adds
 RESPAWN prompt adds "The last session looped. Read Blockers first; do the
 research step before any edit." Counts against the respawn limit.
 
+## Release
+
+RELEASE — a row line (never `next:`) carrying `RELEASABLE: held by needs:
+<stem>`, its branch on the `release DUE` line: run `./joharness.sh release
+<branch>...` with every branch that line names, once per pass. It re-runs
+dispatch and writes `status: abandoned` only where that read still prints
+`RELEASABLE`, through guard `release` and the lease. Each `release   :` line
+= ledger `released=<stem>` (the stem after `plan` on that line; the ledger key `released=<stem>[,<stem>]` is run-scoped)
+and report it once: stem, branch, the needs: stem. `refused`, `skip` or
+`FAILED` = report the line, re-decide next pass. No session is stopped: a
+returning one sets the word back. The plan returns to the queue held by its
+edge; ordinary dispatch offers it once that edge clears.
+
 ## Respawn limit
 
 Past `JOHARNESS_RESPAWN_LIMIT`: check out the
