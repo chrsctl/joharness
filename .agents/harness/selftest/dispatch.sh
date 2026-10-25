@@ -1644,8 +1644,11 @@ expect "the released claim reads abandoned" "status: abandoned" "$reldoc"
 expect "and next: says why" "next: released: held by needs: dep-a;" "$reldoc"
 git -C "$dfwork" fetch -q origin "+refs/heads/park-rel-a:refs/remotes/origin/park-rel-a"
 out="$(dfx)"
+out_q="$( cd "$dfwork" && CLAUDE_PROJECT_DIR="$dfwork" HANDOVER_FETCH=0 \
+  QUEUE_MAX_ENTRIES=10000 ./.agents/harness/queue-context.sh 2>/dev/null )"
 expect "after release the plan reads blocked by its edge, not claimed" \
-  "docs/plans/rel-a.md  [normal, agent: sonnet, effort: high, blocked by: dep-a]" "$out"
+  "docs/plans/rel-a.md  [normal, agent: sonnet, effort: high, blocked by: dep-a]" "$out_q"
+refute "and dispatch has no in-flight row for it" "  docs/plans/rel-a.md  park-rel-a  " "$out"
 refute "and it is due no more" "park-rel-a" "$(printf '%s\n' "$out" | grep 'release DUE:')"
 out="$(dfrel park-rel-a)"; rc=$?
 expect "a second release of it is refused: no longer on the list" "refused   : park-rel-a" "$out"

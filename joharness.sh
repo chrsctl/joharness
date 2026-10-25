@@ -6199,17 +6199,9 @@ dispatch_age_min() {
   now="$(date +%s)"
   printf '%s' "$(( (now - ts) / 60 ))"
 }
-# Minutes since a workstream file was last PARKED on a remote branch: the
-# commit whose diff moved the frontmatter status from anything else to blocked,
-# not the last push.
-dispatch_block_age_min() {
-  local ts now
-  ts="$(dispatch_block_ts "$@")"
-  [ -n "$ts" ] || return 0
-  now="$(date +%s)"
-  printf '%s' "$(( (now - ts) / 60 ))"
-}
-# The author timestamp of that parking commit; empty = unknown.
+# When a workstream file was last PARKED on a remote branch, as the author
+# timestamp of the commit whose diff moved the frontmatter status from anything
+# else to blocked, not the last push; empty = unknown.
 dispatch_block_ts() {
   local ts range
   range="refs/remotes/origin/$1"
@@ -6291,9 +6283,10 @@ release_edge() {
     s="${s# }"; s="${s% (open requirement)}"
     case "$s" in '' | *' '*) continue ;; esac
     ets="$(needs_edge_ts "$1" "$s")"
-    [ -n "$ets" ] && [ "$ets" -gt "$3" ] || continue
-    printf '%s\t%s\n' "$s" "$ets"
-    return 0
+    if [ -n "$ets" ] && [ "$ets" -gt "$3" ]; then
+      printf '%s\t%s\n' "$s" "$ets"
+      return 0
+    fi
   done < <(printf '%s\n' "$dstems" | tr ',' '\n')
 }
 # Does a plan file's frontmatter at <rev>:<path> name issue <n>? Its reader is
@@ -7898,7 +7891,7 @@ cmd_dispatch() {
   local inflight="" free="" questions=""
   local n_parked=0 n_fixed=0 n_resume=0 n_recheck=0 parked_lines="" dst dn dplan dage di ri rtext dresume=0
   local fx_label fx_wait fx_k fx_r fx_c fx_slot fx_lim
-  local redge rstem rts n_release=0 release_due=""
+  local bts redge rstem rts n_release=0 release_due=""
   local -a fx_rows=() fx_lines=() fx_n=() fx_plan=() fx_di=() fx_kind=()
 
   cap="$(num_knob JOHARNESS_MAX_MANAGERS)"
@@ -8303,8 +8296,11 @@ cmd_dispatch() {
           # (manage.md §3) comes back once the base's first parent carries
           # that PR's merge commit: a RESUME row, as a retired fix's, and
           # its scope stays held.
-          # How long it has stood.
-          bage="$(dispatch_block_age_min "$branch" "$ws" "$base")"
+          # How long it has stood: one history read, the age and the
+          # release test both from its timestamp.
+          bts="$(dispatch_block_ts "$branch" "$ws" "$base")"
+          bage=""
+          [ -z "$bts" ] || bage="$(( ($(date +%s) - bts) / 60 ))"
           # The raw line: the parsed one stops at ` #`, a YAML comment.
           dn="$(awaited_pr "$(printf '%s\n' "$doc" | gr_field_raw next)")"
           if [ -n "$dn" ] && awaited_pr_merged "$dn" "$bage"; then
@@ -8324,7 +8320,7 @@ cmd_dispatch() {
               *)
                 case "$pr:$path" in
                   :docs/plans/* | none:docs/plans/*)
-                    redge="$(release_edge "$path" "$label" "$(dispatch_block_ts "$branch" "$ws" "$base")")" ;;
+                    redge="$(release_edge "$path" "$label" "$bts")" ;;
                 esac ;;
             esac
             if [ -n "$redge" ]; then

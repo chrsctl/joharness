@@ -8,7 +8,7 @@ issue: 626
 session: https://claude.ai/code/session_012hikkNfLjLPU4pMwpU4VZG
 agent: opus
 updated: 2026-10-25
-next: Run dispatch selftest, then ci and verify; fix any red; then verifier
+next: Re-run ci after r12-r14; green = spawn the opus verifier
 ---
 
 ## Goal
@@ -42,6 +42,9 @@ through a `needs:` edge should release itself, without a human's `halt`.
 - r9: (plan-checker) two BLOCKED rows, anchor ambiguous (fixed)
 - r10: (plan-checker) fixture acceptance not runnable, plan vs requirement unstated (fixed)
 - r11: (plan-checker) README quote spans a line break (wontfix: content correct, grep is not the reader)
+- r12: shellcheck SC2015 on the edge comparison in release_edge (fixed)
+- r13: dispatch read each parked row's block history twice, past dispatch-order's one-query bound; one read now, dispatch_block_age_min folded into dispatch_block_ts (fixed)
+- r14: the post-release label was asserted on dispatch output, which never prints a held plan's label; read from the queue hook now (fixed)
 
 ## Blockers
 

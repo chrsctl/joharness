@@ -88,6 +88,9 @@ the case below. The claim's session stays alive and may set the word back
   `RELEASABLE` and `release DUE`; after `release`, the claim reads
   `abandoned` and the plan reads `blocked by: x`, not claimed. Each
   negative case prints neither.
+- Consumer side: a consumer's `./joharness.sh ci` runs the synced
+  selftest pins (`orchestrated.sh`, the `released=` ledger key); expect
+  `ci: pass`.
 
 ## Where to look
 
