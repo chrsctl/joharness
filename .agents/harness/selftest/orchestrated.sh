@@ -720,11 +720,15 @@ expect "the sender is told the stem must be a queue item's name" \
   "The stem must be a QUEUE ITEM's name" "$mgrreftext"
 expect "and where a lead with no stem goes instead" \
   "goes in your pull request body" "$mgrreftext"
-# A defect outside the item has a home: one held issue per session.
+# A defect outside the item has a home: one issue per session, filed for
+# the clerk to plan; a human's label only when the fix needs a human's call.
 expect "a defect outside the item is filed as an issue" \
   'defect: <test or command>' "$mgrreftext"
-expect "and the issue is held from the clerk" \
-  "label holds the issue from the clerk until the owner removes it" "$mgrreftext"
+expect "and the issue goes to the clerk, not held for a human" \
+  "your branch; no labels." "$mgrreftext"
+# shellcheck disable=SC2016 # literal backticks in the needle
+expect "and a blocking one says so in its body" \
+  'first line `blocking: <your branch>`' "$mgrreftext"
 expect "and capped at one per session" \
   "ONE issue per session" "$mgrreftext"
 expect "and only when it reproduces on origin/main" \
@@ -738,6 +742,9 @@ expect "one comment per named issue" \
   "post ONE comment on that issue" "$mgrreftext"
 # A consumer with the clerk off carries no clerk.md; nothing to pin there.
 if [ -n "$clerktext" ]; then
+# shellcheck disable=SC2016 # literal backticks in the needle
+expect "the clerk plans a blocking defect urgent" \
+  'body opens `blocking:` is `urgency: urgent`' "$clerktext"
 expect "the clerk's HOLDS verdict names the plan-only pull request" \
   "clerk: HOLDS — plan" "$clerktext"
 expect "the clerk comments after its pull request opens" \

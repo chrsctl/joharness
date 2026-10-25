@@ -103,7 +103,8 @@ whole first; quote it in the verdict, the claim stays unchecked. Then ONE verdic
 the pull request body with the evidence, one line each:
 
 - **HOLDS** — write the plan with `/plan`. Frontmatter `issue: <N>`; an issue
-  titled `defect:` without `human-review` is `urgency: urgent`. Tier and
+  titled `defect:` whose body opens `blocking:` is `urgency: urgent`, any
+  other `defect:` `urgency: normal`. Tier and
   effort by `.agents/docs/agent-selection.md`. A plan whose `scope:` would be
   core paths only (`./joharness.sh protocol-paths`) is never written (`ci`
   fails it; only a human can build it): verdict HUMAN instead. A plan
