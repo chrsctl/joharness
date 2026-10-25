@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01MxsnXk5U4DRcTvfd8urrBK
 agent: opus
 updated: 2026-10-24
-next: Spawn verifier at opus on the branch diff, record findings, then retire and open the PR
+next: Retire commit (delete plan + workstream file), open PR, finish, merge
 ---
 
 ## Goal
@@ -20,7 +20,7 @@ history, behaviour unchanged.
 ## Decisions
 
 - Manager does manage.md and manage-reference.md itself (needle-dense); workers take the other files.
-- Line bound: the eleven files reach 1235 lines (from 1408, -12%; bytes 72221 -> about 61k, -15%), not 1150. Three sonnet workers and a manager second pass each stopped where the next cut would drop a rule; Goal "Behaviour does not change" outranks the estimated line target. Acceptance bound amended to 1240 on the branch; flagged for the human in the PR body.
+- Line bound: the eleven files reach 1259 lines against 1423 on origin/main 0f-merge (main's #624 added 15), not 1150. Three sonnet workers and a manager second pass each stopped where the next cut would drop a rule, and the verifier's behaviour fixes put lines back; Goal "Behaviour does not change" outranks the estimated target (same call as #591 r1). Acceptance bound amended to 1260 on the branch; flagged for the human in the PR body.
 - A1: confirmed — `git grep` finds all three quotes (manage.md:174, scout.md:32, upstream-report.md:9).
 - A2: confirmed — session-start banner `joharness.sh:8806` "Each role reads its own documents and no others".
 - A3: confirmed — `expect` is `grep -qF` per line (`selftest.sh:83-84`); holds for manage.md and manage-reference too.
@@ -54,6 +54,17 @@ history, behaviour unchanged.
 - r21: (plan-checker) plan's "ref § Free states" was false on a1f5af79 (no change: branch edit adds the restore clause to § Free)
 - r22: (plan-checker) "(curate.md 0.4)" citation in joharness.sh dangles (wontfix: predates this plan; code is out of scope)
 - r23: (plan-checker) Acceptance lines do not say what failure looks like (wontfix: each comment states the one passing output; anything else fails)
+- r24: (verifier) deleting the "A DEFECT outside your item" stub left no trigger for a non-blocking defect (§3's pointer only covers blocking) (fixed: §4 line restored, "blocking or not: ref § Defect.")
+- r25: (verifier) merge conflict with #624 at manage.md §4 "At merge" (fixed: merged origin/main, kept main's ref § Label at merge)
+- r26: (verifier) clerk.md lost the definition of "counting comment" that orchestrate-reference and scout.md cite at clerk.md §2 (fixed: COUNTING comments defined in §2)
+- r27: (verifier) feedback.md cites manage.md "A DEFECT", deleted by the branch (fixed: string restored by r24)
+- r28: (verifier) manage-reference § Defect "Body:" lost "pull request", reads as the issue body; step 4 kept `#N` after step 2 became `#M` (fixed)
+- r29: (verifier) §4 "Carried plan" retire-time pointer deleted (fixed: restored)
+- r30: (verifier) § Human remainder "Your own body … that pull request" binds to the core PR (fixed)
+- r31: (verifier) upstream-report §1 lost "read the doubts BEFORE you weigh the text" order and the § name (fixed)
+- r32: (verifier) clerk.md §4 re-run of `./joharness.sh clerk` after merge became implied (fixed)
+- r33: (verifier) scout.md dropped "never by a session's decision" (fixed)
+- r34: (verifier) manage.md §3 dropped the INVALID BLOCK? note; joharness.sh citations still land on the reason list (no change)
 
 ## Blockers
 

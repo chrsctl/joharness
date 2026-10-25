@@ -63,7 +63,7 @@ Target: 1150 lines or fewer. Per-file targets below. Not listed there: conduct a
 ## Acceptance
 
 ```bash
-cat .claude/commands/{manage,clerk,scout,conduct,retro,curate,upstream-report,plan,handover,who}.md .agents/docs/manage-reference.md | wc -l   # <= 1240 (was 1150; amended at build, see PR body)
+cat .claude/commands/{manage,clerk,scout,conduct,retro,curate,upstream-report,plan,handover,who}.md .agents/docs/manage-reference.md | wc -l   # <= 1260 (was 1150 on a 1408 base; amended at build: base now 1423, see PR body)
 ./joharness.sh ci       # ci: pass
 ./joharness.sh verify   # 0 failed
 git diff --name-only origin/main...HEAD | grep -v '\.md$'   # empty
