@@ -7,7 +7,7 @@ needs: none
 requirement: none
 serves: all
 issue: none
-scope: .claude/agents/verifier.md, .claude/agents/plan-checker.md, .agents/docs/subagents.md, .agents/docs/agent-selection.md, .claude/commands/manage.md
+scope: .claude/agents/verifier.md, .claude/agents/plan-checker.md, .agents/docs/subagents.md, .agents/docs/agent-selection.md, shared:.claude/commands/manage.md
 ---
 
 ## Goal
