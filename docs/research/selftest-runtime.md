@@ -13,14 +13,15 @@ cut that time most without dropping a case that fails without its fix?
 
 ## Echo
 
-The selftests are about 24.8k lines, 1.6 times the code they test. The full
-suite measured `real 8m13.848s` (verifier, 2026-10-25, `time bash
-.agents/harness/selftest.sh`, cloud container). Two written numbers
-disagree with that measurement:
-- `ci-selftest-scope.sh` claims "16s of a 22s ci run";
-- `JOHARNESS_SELFTEST_GIT_PER_CASE` budgets git execs per case.
+The selftests are about 24.8k lines (`cat .agents/harness/selftest.sh
+.agents/harness/selftest/*.sh | wc -l`), about 1.6 times the code they
+test. Two verifier runs of `time bash .agents/harness/selftest.sh` in a
+cloud container with 4 CPUs and the default `JOHARNESS_SELFTEST_JOBS`
+measured `real 8m13.848s` and `real 8m51.963s`. `ci-selftest-scope.sh`
+writes "16s of a 22s ci run", which these measurements contradict.
 
-Every manager pays this on each `ci` and `finish`. On a busy base, `finish`
+Every branch whose diff touches harness code pays this on each `ci` and
+`finish` (`ci-selftest-scope.sh` skips the suite otherwise). On a busy base, `finish`
 had to be re-run three times in one session while main kept moving.
 Rule: no case is skipped, disabled or quarantined to save time.
 

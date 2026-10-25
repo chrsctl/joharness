@@ -6,17 +6,18 @@ effort: high
 needs: none
 requirement: none
 issue: none
-scope: shared:joharness.sh, .claude/commands/curate.md, shared:.claude/commands/orchestrate.md, shared:.agents/docs/orchestrated.md, shared:.agents/docs/orchestrate-reference.md, .agents/docs/glossary.md, .agents/docs/plans/README.md, README.md, .agents/scripts/conf-keys.sh, .agents/scripts/bootstrap-consumer.sh, .agents/scripts/sync-to-consumer.sh, shared:.agents/harness/selftest.sh, .agents/harness/selftest/dispatch-curate.sh, .agents/harness/selftest/curate-apply.sh, .agents/harness/selftest/role.sh, shared:.agents/harness/selftest/scout.sh, shared:.agents/harness/selftest/orchestrated.sh, .agents/harness/selftest/reading-budget.sh, .agents/harness/selftest/knobs-declared.sh, .agents/harness/selftest/clerk.sh, .agents/harness/selftest/dispatch-order.sh, .agents/harness/selftest/retro.sh
+scope: shared:joharness.sh, .claude/commands/curate.md, shared:.claude/commands/orchestrate.md, shared:.agents/docs/orchestrated.md, shared:.agents/docs/orchestrate-reference.md, .agents/docs/glossary.md, .agents/docs/plans/README.md, shared:README.md, .agents/scripts/conf-keys.sh, .agents/scripts/bootstrap-consumer.sh, .agents/harness/selftest/sync-to-consumer.sh, shared:.agents/harness/selftest.sh, .agents/harness/selftest/dispatch-curate.sh, .agents/harness/selftest/curate-apply.sh, .agents/harness/selftest/role.sh, shared:.agents/harness/selftest/scout.sh, shared:.agents/harness/selftest/orchestrated.sh, .agents/harness/selftest/reading-budget.sh, .agents/harness/selftest/knobs-declared.sh, .agents/harness/selftest/clerk.sh, .agents/harness/selftest/dispatch-order.sh, .agents/harness/selftest/retro.sh
 ---
 
 ## Goal
 
-The user asked to remove the curator session. Its six merged runs:
+The user asked to remove the curator session. Its seven merged runs:
 
 - five (#420, #436, #490, #514, #599) changed nothing but their own
   workstream file;
-- one (#340) made repairs that `curate --apply` now does;
-- none of its decompose or order proposals was followed.
+- two (#313, #340) made scope repairs that `curate --apply` now does;
+- of the decompose and order proposals checked in planning, none was
+  followed. There is no proposal ledger, so this is a sample, not a count.
 
 The mechanical part stays: `./joharness.sh curate [--apply]`, which plan
 authors and the clerk run, and which ci's `lint_plans_in_diff` reuses.
@@ -28,7 +29,11 @@ Remove only the session role and the clock that schedules it.
 
 - `.claude/commands/curate.md`.
 - `curate` from `role`: usage lines, `role_start_stop`'s curate case, the
-  twin STOP, `scout|curate`.
+  twin STOP, `scout|curate`. One thing stays: `role curate` prints the last
+  line `STOP: the curator role was removed; run ./joharness.sh curate` and
+  exits 0. Sync never deletes a consumer's stale `curate.md`
+  (`.agents/scripts/sync-to-consumer.sh`, "Removals are not handled"), and
+  that file's §0 runs `role curate`.
 - The cadence functions: `cycle_landed_sha`, `cycle_landed_ts`,
   `cycle_age_h`, `dispatch_curate_plan_churn`, `curate_noop`,
   `dispatch_curate_due`, `dispatch_curate_branches`. Keep
@@ -49,8 +54,8 @@ and the knobs `_REGISTRY`, `_SPLIT` and `_LAYERS`.
 
 - "REPAIR (the curator fixes these in place)" names no one; reword it to
   "`--apply` fixes these".
-- The stale "curate.md 0.4" reference goes. Its needle in
-  `dispatch-curate.sh` changes with it.
+- The stale "(curate.md 0.4) Still land the date" instruction goes whole:
+  it addresses the deleted session.
 - `judgement :` loses its only reader; delete it unless another reader is
   found.
 
@@ -113,7 +118,7 @@ and ignored), and record that in `## Decisions`.
 test ! -e .claude/commands/curate.md   # exit 0
 ./joharness.sh dispatch | grep -c '^curate    :\|curate DUE'   # 0
 ./joharness.sh curate | grep -c 'verdict   :'   # 1: the command still reports
-./joharness.sh role curate; echo $?   # non-zero, "unknown role"
+./joharness.sh role curate | tail -1   # STOP: the curator role was removed; run ./joharness.sh curate
 ./joharness.sh ci       # ci: pass
 ./joharness.sh verify   # 0 failed
 ```
@@ -133,10 +138,13 @@ test ! -e .claude/commands/curate.md   # exit 0
 
 ## Traps
 
-- Plans one-release-command and retro-audit-and-trace also edit
-  joharness.sh and the orchestration docs, including the conduct and retro
-  suppression lines this plan rewords. dispatch holds overlapping plans
-  apart; reconcile by merge.
+- retro-audit-and-trace also rewords the conduct and retro suppression
+  lines this plan edits. It waits on this plan (`needs:`).
+- one-release-command also edits `role_will_spawn`, for the freer terms.
+  Both plans mark joharness.sh `shared:`, so expect a reconcile merge.
+- After this plan and one-release-command both land, the DRAINED "a role
+  is due" check reduces to the clerk's terms: keep it working for that
+  case.
 - Never skip, disable or quarantine a test to get green: a removed case
   tests a removed behaviour, named in the pull request body.
 - Glossary lint bans `handover file`, `model tier`, `env layer`, `rescope

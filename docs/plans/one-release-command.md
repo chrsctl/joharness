@@ -6,7 +6,7 @@ effort: high
 needs: none
 requirement: none
 issue: none
-scope: shared:joharness.sh, shared:.claude/commands/orchestrate.md, .claude/commands/manage.md, .agents/docs/manage-reference.md, shared:.agents/docs/orchestrated.md, shared:.agents/docs/orchestrate-reference.md, .agents/docs/handover/README.md, .agents/harness/AGENTS.md, .agents/harness/handover-context.sh, shared:.agents/harness/selftest.sh, .agents/harness/selftest/janitor.sh, .agents/harness/selftest/halt.sh, .agents/harness/selftest/free.sh, .agents/harness/selftest/guard.sh, .agents/harness/selftest/dispatch.sh, .agents/harness/selftest/dispatch-branch-plans.sh, .agents/harness/selftest/dispatch-rescope.sh, .agents/harness/selftest/fast-lane.sh
+scope: shared:README.md, shared:joharness.sh, shared:.claude/commands/orchestrate.md, .claude/commands/manage.md, .agents/docs/manage-reference.md, shared:.agents/docs/orchestrated.md, shared:.agents/docs/orchestrate-reference.md, .agents/docs/handover/README.md, shared:.agents/harness/AGENTS.md, .agents/harness/handover-context.sh, shared:.agents/harness/selftest.sh, .agents/harness/selftest/janitor.sh, .agents/harness/selftest/halt.sh, .agents/harness/selftest/free.sh, .agents/harness/selftest/guard.sh, .agents/harness/selftest/dispatch.sh, .agents/harness/selftest/dispatch-branch-plans.sh, .agents/harness/selftest/dispatch-rescope.sh, .agents/harness/selftest/fast-lane.sh
 ---
 
 ## Goal
@@ -29,57 +29,84 @@ command, and remove `free` and the freer role.
 
 **Interface (fixed here):**
 
-- `./joharness.sh release <branch>...` releases each named claim that
-  dispatch lists as releasable on this read. Otherwise it refuses with the
-  reason. Two reasons qualify:
-  - `stale, session gone`, which is janitor's eligibility. The caller still
-    proves the session ARCHIVED or not found, as today.
-  - `queue holds it by needs: <stem>`, which is today's `RELEASABLE`.
-- `./joharness.sh release --human <branch>...` is halt's path: any age, any
-  status, `pr:` allowed, the edge-record restore, and "already released"
-  idempotence.
-- `halt <branch>` stays as an alias of `release --human`, because a human
-  types it. `janitor --apply` is removed. Plain `janitor` (report) is
-  removed: its stale-claim rows already print in dispatch, and its
-  leftovers and merged-still-standing sections move to `cleanup`'s report.
-- Commit subjects become `release: <reason>`, and the `next:` text keeps
-  `release_why`.
-- `guard` verbs become `release` (checks `pr:` unless `--human`) and
-  `record` (today's `kill` and `loop`, no `pr:` check). Its checks 1-4 and
-  exit codes are unchanged.
+- **`./joharness.sh release`, no argument: the report.** It prints every
+  releasable branch, one per line:
+  `release   : <branch>  <reason>  <detail>`. It takes over plain
+  `janitor`'s report, keeping its per-claim detail: `holds:`, the session
+  line, `pr:` exempt, and push age. Two reasons qualify:
+  - `stale, session gone?`: janitor's test (`janitor_releasable` over
+    `claim_branches`), including `plan: none`, fast-lane and branch-only
+    plans. The caller still proves the session ARCHIVED or not found, as
+    today.
+  - `queue holds it by needs: <stem>`: today's `RELEASABLE` test.
+- **`./joharness.sh release <branch>...`: the write.** It releases each
+  branch the report lists, and refuses any other with the reason.
+- **`./joharness.sh release --human <branch>...`: halt's path.** Any age,
+  any status, `pr:` allowed, the edge-record restore, and the
+  "already released" idempotence (exit 0 when the branch is gone on origin
+  after guard).
+- **Names that change:**
+  - `halt <branch>` stays as an alias of `release --human`, because a human
+    types it.
+  - `janitor` and `janitor --apply` are removed.
+  - The janitor report's leftovers and merged-still-standing sections move
+    to `cleanup`'s report.
+- **Commit subjects:**
+  - `release: session gone` and `release: the queue holds <plan> by a
+    needs: edge`;
+  - `release: a human released the claim`, keeping halt's `next:` wording.
+- **guard:** `guard release <branch> [--human] [--expect <sha>]`, where
+  `--human` skips the `pr:` check, and `guard record <branch> [--expect
+  <sha>]` for today's `kill`/`loop`. The other checks (not the base branch,
+  live on origin, expected head) and the exit codes are unchanged.
 
-**dispatch:** one row flag, `RELEASE: <reason>`, and one tail line,
-`release DUE: <branches>`. These replace the `janitor   :` stale-claim line,
-the `RELEASABLE:` flag and the `freer DUE` / `FREEABLE` rows.
+**dispatch:**
+- The `release   :` report lines replace the `janitor   :` line and the
+  `RELEASABLE:` row flag.
+- One tail line, `release DUE: <branches>`.
+- The `freer DUE` and `FREEABLE` rows go.
 
 **Removed:**
 
 - `cmd_free`, `free_key`, `free_path_ok`, `free_owner_held`,
-  `free_plan_claimed`, `dispatch_freeable`, `free_claimed_ever`;
-- the `free-*` handling in rescope, and the `n_freer` count;
-- the freer's Lineup row and spawn-table row;
-- manage.md's free route and manage-reference.md § Free;
-- `.agents/harness/selftest/free.sh`.
+  `free_plan_claimed`, `dispatch_freeable` and `free_claimed_ever`.
+- The `free-*` handling in rescope, the `n_freer` count, and the freer's
+  terms in `role_will_spawn`.
+- The freer's Lineup row and spawn-table row, and README.md's Freer row.
+- manage.md's free route, manage-reference.md § Free (with its `ref §`
+  pointer: `orchestrated.sh` pointer test), and
+  `.agents/harness/selftest/free.sh`.
 
-Each manage-reference section must keep a `ref §` pointer, so drop
-§ Free's pointer with it (`orchestrated.sh` pointer test).
+**Behaviour lost (record each in `## Decisions`). The freer never ran: no
+merged `free-*` branch on origin/main.**
 
-**Accepted loss, record it in `## Decisions`:** a doc-only branch whose
-author left now gets released, not merged. Its plans stay on the branch,
-and dispatch's `RELEASE:` row names them: `plans not landed: <stems>`. A
-human or the clerk re-files them. The freer never ran (no merged `free-*`
-branch on origin/main).
+1. **A doc-only branch with a claim whose author left** is released, not
+   merged. Its plans stay on the branch. The `release   :` line names them
+   as `plans not landed: <stems>`, and a human re-files them.
+2. **A `done` branch** (only diff: a `status: done, pr: none` workstream
+   file) gains the release reason `done, no pull request`. Released, its
+   plan is offered again, so the work is redone rather than landed.
+3. **A doc-only branch with no claim** (a clerk branch that never opened
+   its pull request) prints in the report as `no claim: plans not landed:
+   <stems>`. Nothing is written: there is no claim to release, and deleting
+   branches stays human-only.
 
-**Docs:** every janitor, halt, release, free and freer mention in
-orchestrate.md, orchestrated.md, orchestrate-reference.md (§GUARD, spawn
-table), handover/README.md, AGENTS.md (`--force-with-lease` only in
-"orchestrate GUARD, janitor, halt" becomes "orchestrate GUARD, release"),
-and the handover-context.sh comment.
+**Docs:**
 
-**Tests:** fold janitor.sh and halt.sh cases into one release topic
-(`selftest.sh` topic list). Rewrite the release, FREEABLE and janitor
-needles in dispatch.sh, dispatch-branch-plans.sh, dispatch-rescope.sh and
-fast-lane.sh. guard.sh keeps its cases, with the verbs renamed.
+- Every janitor, halt, release, free and freer mention in orchestrate.md,
+  orchestrated.md, orchestrate-reference.md (§GUARD, spawn table),
+  handover/README.md, README.md, and the handover-context.sh comment.
+- AGENTS.md: "orchestrate GUARD, janitor, halt, release" becomes
+  "orchestrate GUARD, release".
+
+**Tests:**
+
+- Fold the janitor.sh and halt.sh cases into one release topic in the
+  `selftest.sh` topic list. The report cases (`holds:`, `pr:` exempt,
+  candidates) move to `./joharness.sh release` output.
+- Rewrite the release, FREEABLE and janitor needles in dispatch.sh,
+  dispatch-branch-plans.sh, dispatch-rescope.sh and fast-lane.sh.
+- guard.sh keeps its cases, with the verbs renamed.
 
 ## Assumptions
 
@@ -107,19 +134,24 @@ fast-lane.sh. guard.sh keeps its cases, with the verbs renamed.
 
 ```bash
 ./joharness.sh help | grep -cE '^#?\s+(janitor|free) '   # 0
-./joharness.sh dispatch | grep -c 'FREEABLE\|freer DUE\|^janitor   :'   # 0
-./joharness.sh release --human no-such-branch; echo $?   # non-zero, names the branch as gone on origin
+./joharness.sh dispatch | grep -c 'FREEABLE\|freer DUE\|^janitor   :\|RELEASABLE:'   # 0
+./joharness.sh release --human no-such-branch; echo $?   # prints "no such branch on origin", 1
 ./joharness.sh halt no-such-branch; echo $?             # same output and exit as the line above
 ./joharness.sh ci       # ci: pass
 ./joharness.sh verify   # 0 failed
 ```
 
-- Every janitor, halt and release behaviour case is kept under the new
-  names, and its count is stated in the pull request body (before → after).
+- Every janitor, halt and release case is kept under the new names. The
+  report cases move to `release` with no argument. The pull request body
+  states the counts before and after, and names each case removed with the
+  behaviour it tested (`free`, freer).
 - New cases, each failing on origin/main:
   - `release` refuses a stale claim that dispatch does not list;
   - `release --human` releases one at any age;
-  - `RELEASE:` names `plans not landed:` for a doc-only branch;
+  - a stale `plan: none` claim is listed and released;
+  - the report names `plans not landed:` for a doc-only branch, and `no
+    claim:` for one without a workstream file;
+  - a `done` branch is listed with `done, no pull request`;
   - `halt` and `release --human` print the same output.
 - Consumer side (SHIPS): after its next sync a consumer runs
   `./joharness.sh ci` → `ci: pass`.

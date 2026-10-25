@@ -8,15 +8,16 @@ graduates: .agents/docs/orchestrated.md
 
 ## Question
 
-Which of the 49 `JOHARNESS_*` knobs no repository overrides, and can become
+Which of the `JOHARNESS_*` knobs no repository overrides, and can become
 fixed constants without changing behaviour for any consumer?
 
 ## Echo
 
-`joharness.sh` declares 49 knobs in its KNOBS table, with defaults and
-scopes. This repository's `joharness.conf` sets 6 of them. 35 appear in no
-doc or command beyond their own table row (counted 2026-10-25 with a grep
-over `.claude`, `.agents/docs` and harness AGENTS.md). Each knob costs a
+`joharness.sh` declares 50 `JOHARNESS_*` knobs in its KNOBS table
+(`sed -n '/# KNOBS-BEGIN/,/# KNOBS-END/p' joharness.sh`), with defaults and
+scopes. This repository's `joharness.conf` sets 6 of them. Counted by
+`grep -rqw <key> .claude .agents/docs .agents/harness/AGENTS.md`: 14 appear
+in no doc at all, and 30 appear only in a markdown table row. Each knob costs a
 table row, a doc row and, for conf-scoped knobs, lines in
 `bootstrap-consumer.sh` and `conf-keys.sh`.
 
@@ -35,7 +36,7 @@ comprehensive: every row of the KNOBS table, each classified.
 
 ## What would settle it
 
-A table of all 49 knobs. Each row gives:
+A table of every knob. Each row gives:
 - set by this repository's conf (yes/no);
 - set by each known consumer's conf, which needs read access. gx is the
   known one; name each consumer read;
@@ -48,7 +49,11 @@ CONSTANT.
 
 ## Method
 
-Pending: the researching session fills it.
+Second context, named up front: each consumer's `joharness.conf`, read with
+the GitHub MCP `get_file_contents` on that repository (gx: `chrsctl/gx`,
+which needs `add_repo` read access). A consumer that cannot be read is
+named, and its knobs stay UNKNOWN. The rest is pending: the researching
+session fills it.
 
 ## Findings
 
