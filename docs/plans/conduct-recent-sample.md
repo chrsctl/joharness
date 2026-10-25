@@ -1,0 +1,125 @@
+---
+plan: conduct-recent-sample
+urgency: normal
+agent: opus
+effort: high
+needs: none
+requirement: none
+issue: none
+scope: joharness.sh, .claude/commands/conduct.md, .agents/docs/orchestrated.md, .agents/harness/selftest/scout.sh, .agents/harness/selftest/orchestrated.sh
+---
+
+## Goal
+
+The user chose to keep conduct as the independent audit of the gates
+(plan-checker, verifier, ci) and make it useful. Today its sample is every
+retired branch in history, ordered by sha1 of the stem, so it audits
+arbitrary old work. Its CONCERN rate prints only on `./joharness.sh conduct`.
+Make conduct sample the work merged since its last run, riskiest first, and
+show its rate where the orchestrator reads. Questions beyond C1 (research
+conduct-c2-design) and routing CONCERNs to retro (research
+conduct-concern-to-retro) are not this plan.
+
+## Scope
+
+1. **Window** (`joharness.sh:conduct_candidates`):
+   - Candidates are managers whose retire commit landed on the base branch
+     after the ledger's last landing, the same point `conduct_age_h` counts
+     from. A run that comes late therefore leaves no gap.
+   - No ledger on the base branch: the window is the last
+     `JOHARNESS_CONDUCT_HOURS` hours.
+   - Stems already in the ledger, still standing, or a role session's dated
+     stem stay excluded as today.
+2. **Risk order** (`joharness.sh:conduct_sample`). Sort the candidates by
+   these keys, compared in order:
+   1. Tier: the plan's `agent:` read at `<retire sha>^:docs/plans/<plan>.md`,
+      with `<plan>` taken from the workstream file's `plan:` at
+      `<retire sha>^`. `haiku` and `sonnet` sort first (no plan-checker ran),
+      `opus` and `fable` next. `plan: none`, research, requirement, or no plan
+      file at that commit sort last.
+   2. Touched harness code: the retire range changed `joharness.sh` or a path
+      under `.agents/harness/` (`git log --name-only` over the range conduct.md
+      §2 already uses) sorts before one that did not.
+   3. Tie-break: lowest sha1 of the stem, as today, so a re-run picks the same
+      set and a test can assert it.
+
+   `JOHARNESS_CONDUCT_SAMPLE` still caps the count; `0` is still off.
+3. **Rate on the dispatch line.** The `conduct   :` lines (`joharness.sh`,
+   the `conduct   : not due` / `DUE` printers) end with the tally's C1 rate:
+   `C1 CONCERN <n>% of <m>`. `<m>` counts FINE plus CONCERN only, because
+   NO EVIDENCE is not a verdict on the gates. With no ledger rows the lines
+   end with `no runs yet`.
+4. **Text that names the old order:**
+   - the `JOHARNESS_CONDUCT_SAMPLE` row in orchestrated.md;
+   - `cmd_conduct`'s printed "lowest sha1(<stem>) first";
+   - conduct.md, if it describes the sample.
+
+   Each now states the window and the three keys. The knob default and
+   meaning are unchanged.
+
+## Assumptions
+
+- A1: The sample is all retired history sorted by sha1 of the stem —
+  evidence: `joharness.sh:conduct_candidates`, `joharness.sh:conduct_sample`
+  — confidence: high.
+- A2: `conduct_age_h` dates the ledger's last landing on the base branch's
+  first-parent line — evidence: `joharness.sh:conduct_age_h` — confidence:
+  high.
+- A3: `conduct_rows` reads verdict columns by header name, so the rate can
+  reuse `conduct_tally`'s parse — evidence: `joharness.sh:conduct_rows` —
+  confidence: high.
+- A4: The conduct selftest cases sit in scout.sh. One needle pins the old
+  order: "the sample is the three lowest sha1(<stem>)" — evidence:
+  `grep -n 'lowest sha1' .agents/harness/selftest/scout.sh` — confidence: high.
+
+## Out of scope
+
+- New questions (C2) and any test running: research conduct-c2-design.
+- Retro reading conduct rows: research conduct-concern-to-retro.
+- A due-early alarm on the rate. Its back-to-back cost needs the research
+  first.
+- `docs/conduct-log.md` format: unchanged.
+- Core paths, new knobs.
+
+## Acceptance
+
+```bash
+./joharness.sh dispatch | grep '^conduct'   # ends with "C1 CONCERN 0% of 3" on today's ledger (3 FINE rows); anything else = not done
+./joharness.sh ci       # ci: pass
+./joharness.sh verify   # 0 failed
+```
+
+- New selftest cases in `.agents/harness/selftest/scout.sh`, each failing
+  without its change:
+  - a stem retired before the ledger's last landing is not sampled;
+  - with no ledger, a stem retired outside `JOHARNESS_CONDUCT_HOURS` is not
+    sampled;
+  - a sonnet-tier stem sorts before an opus one;
+  - between two of the same tier, a stem that touched `joharness.sh` sorts
+    first;
+  - a `plan: none` stem sorts last;
+  - the dispatch line prints the rate, and excludes NO EVIDENCE from `<m>`.
+- The old sha1 needle is rewritten to the new order, never deleted.
+- Consumer side (SHIPS): after its next sync a consumer runs
+  `./joharness.sh ci` → `ci: pass`.
+
+## Where to look
+
+- `joharness.sh:conduct_candidates`: the candidate source.
+- `joharness.sh:conduct_sample`: the ordering.
+- `joharness.sh:conduct_age_h`: the ledger landing the window starts at.
+- `joharness.sh:conduct_tally`: the rate's parse.
+- `.claude/commands/conduct.md:Read, per sampled stem`: how a stem's plan
+  is found at `retire^`.
+- `.agents/harness/selftest/scout.sh:conduct cycle`: the existing cases.
+
+## Traps
+
+- `.agents/harness/selftest/orchestrated.sh` folds orchestrated.md into
+  needles. Change a pinned row's needle with the row, never skip it.
+- `knobs-declared.sh` compares the knob table's default to KNOBS exactly:
+  leave the `| \`JOHARNESS_CONDUCT_SAMPLE\` | 3 |` cells intact.
+- conduct.md is under a reading budget (6668 + 10%).
+- Never skip, disable or quarantine a test to get green.
+- Glossary lint bans `handover file`, `model tier`, `env layer`, `rescope
+  manager`, `bare role title`.

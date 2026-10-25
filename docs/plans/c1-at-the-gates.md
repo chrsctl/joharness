@@ -26,8 +26,9 @@ do (plan conduct-audits-the-gates).
 - `.claude/agents/verifier.md`, `## Did the branch do what it was for`: one
   line. An Acceptance item that asserts what the Goal says must be refused
   is a finding, whatever its COVERED status.
-- Wording follows conduct's C1 (`.claude/commands/conduct.md`, "The ONE
-  question") so the three readers ask one question.
+- Wording follows conduct's C1 (`.claude/commands/conduct.md`, "C1
+  criterion") so the three readers ask one question. Keep the phrase
+  "must be refused" whole: Acceptance greps for it.
 
 ## Assumptions
 
@@ -41,14 +42,14 @@ do (plan conduct-audits-the-gates).
 
 ## Out of scope
 
-- `.claude/commands/conduct.md` and anything in plan
-  conduct-audits-the-gates.
+- `.claude/commands/conduct.md`, and anything in plan conduct-recent-sample
+  or research conduct-c2-design / conduct-concern-to-retro.
 - Making the plan-checker run on sonnet or haiku plans.
 
 ## Acceptance
 
 ```bash
-grep -c 'must be refused' .claude/agents/plan-checker.md .claude/agents/verifier.md   # each >= 1
+for f in .claude/agents/plan-checker.md .claude/agents/verifier.md; do tr -s ' \n' '  ' < "$f" | grep -c 'must be refused'; done   # each prints 1 (line wraps folded); 0 = not done
 ./joharness.sh ci       # ci: pass
 ./joharness.sh verify   # 0 failed
 ```
@@ -61,7 +62,7 @@ grep -c 'must be refused' .claude/agents/plan-checker.md .claude/agents/verifier
 - `.claude/agents/plan-checker.md:What you check`: the numbered list.
 - `.claude/agents/verifier.md:Did the branch do what it was for`: the
   Goal/Acceptance lens.
-- `.claude/commands/conduct.md:The ONE question`: C1's wording.
+- `.claude/commands/conduct.md:C1 criterion`: C1's wording.
 
 ## Traps
 
