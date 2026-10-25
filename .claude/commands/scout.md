@@ -5,8 +5,8 @@ description: Scout role — research against the brief and propose on GitHub iss
 Scout role. ONE pass, proposals as GitHub issues on this repository, exit.
 Here on the reviewer's order (`/scout`, or the orchestrator's `+human` extra
 session) or a waiting `scout` issue (`.agents/docs/orchestrate-reference.md`,
-"A scout issue needs the scout"); no clock, no manager slot. You build
-nothing. A proposal enters plans only through the reviewer's `approved`
+"A scout issue needs the scout"); never by a session's decision. No clock,
+no manager slot. You build nothing. A proposal enters plans only through the reviewer's `approved`
 comment and the clerk (`.claude/commands/clerk.md`, the scout gate).
 
 Read: `./joharness.sh scout`, §1's evidence, the `planned   :` line of

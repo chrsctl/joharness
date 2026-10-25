@@ -49,8 +49,8 @@ opened before the retire commit, ready for a human to merge:
    it, relabel it, or push to it again unless the human asks.
 4. `git worktree remove ../<repo>-human`.
 
-Your own body says `Refs #<core PR>`; that pull request carries the plan's
-carve-out, nothing new. Push, `create_pull_request` or label fails = step 4,
+Your own pull request body says `Refs #<core PR>`. The core pull request
+carries the plan's carve-out, nothing new. Push, `create_pull_request` or label fails = step 4,
 then `status: blocked`, `next:` = `github: human PR not opened: <error, 40
 chars>`, push, exit — never retire with it unopened or unlabelled.
 
@@ -82,6 +82,22 @@ file; `ci` then refuses the owner's later merge re-adding it. Found it
 already done? Still a pull request: the ledger line, the plan copy's and the
 workstream file's deletion, step 7 whole — never `pr: none` and exit, which
 leaves the retire on a branch only.
+
+## Label at merge
+
+The pull request carries `human-review` at merge. The retire commit already
+deleted your workstream file, and a branch past it holds a slot until it
+merges. Restore the file from before that commit:
+
+    c="$(git log -1 --format=%H --diff-filter=D -- docs/handover/<file>)"
+    git checkout "$c^" -- docs/handover/<file>
+
+Set `status: blocked`, `next:` = `product: human-review label on PR #<n>:
+remove it so this merges?`, commit, push, exit. Blocked holds no slot and is
+never respawned until the human answers. The answer reaches the branch as
+any block's does (orchestrate-reference.md, Relay); resumed with the
+label gone, delete the file again in one commit, push, merge under Loop
+step 7.
 
 ## Plan issue
 
@@ -128,8 +144,8 @@ no retry, no second transport. Run no queue command.
 1. It reproduces on fresh-fetched `origin/main` (run the same command on a
    checkout of it). No reproduction = it is your branch's: fix it in your item.
 2. Search this repository's open issues for the same failing command or
-   test name. Found issue M = file nothing; body says `Refs #M` with the
-   fresh reproduction (command, count, `origin/main` sha) beside it.
+   test name. Found issue M = file nothing; pull request body says `Refs #M`
+   with the fresh reproduction (command, count, `origin/main` sha) beside it.
    Then ask: does this defect stop your item meeting its Acceptance?
    - **No:** steps 3–5 as written.
    - **Yes, and step 2 found M:** park on M. M carries `human-review`? Say so
@@ -144,12 +160,14 @@ no retry, no second transport. Run no queue command.
    repository, before the retire commit: title
    `defect: <test or command>: <symptom, one line>`; body = the command, at
    most 20 lines of output, the `origin/main` sha, your branch; label
-   `human-review` (none when blocking, step 2). Body: `Refs #N`, never `Closes`.
+   `human-review` (none when blocking, step 2). Pull request body: `Refs #N`,
+   never `Closes`.
 4. A second defect in the same session: step 2 runs for EVERY defect. A
-   match = step 2's `Refs #N` line. Only an unmatched second or later defect
+   match = step 2's `Refs #M` line. Only an unmatched second or later defect
    is pull request body only, one line each.
-5. Non-blocking, `issue_write` fails: the issue text goes in the body under
-   `defect not filed: <error, 40 chars>`. Never block or delay the item.
+5. Non-blocking, `issue_write` fails: the issue text goes in the pull
+   request body under `defect not filed: <error, 40 chars>`. Never block or
+   delay the item.
 6. Not for harness defects found in a consumer (canonical's,
    `.agents/docs/feedback.md` §4) nor core-path edits (§ Human remainder).
 

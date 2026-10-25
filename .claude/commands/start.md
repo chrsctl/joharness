@@ -4,19 +4,6 @@ description: Start the role this session's prompt calls for: manager, keeper or 
 
 Run `./joharness.sh start`. Read the file it names WHOLE. Do what it says.
 
-That is the whole command. Three routes, nothing else — the
-session-start banner's rule, role from the prompt:
-
-- Prompt names `/manage <item>`: you are a manager of that item.
-  `.claude/commands/manage.md` is your file.
-- Prompt is `/keeper`: you are the keeper. `.claude/commands/keeper.md` is
-  your file.
-- Anything else, a human's hand-started session included: you are the
-  orchestrator. `.claude/commands/orchestrate.md` is your file.
-
-A session routed to `orchestrate.md` but titled `🔑 keeper: <owner/repo>`
-runs the keeper: the title guard at the top of that file.
-
 Never guess the role. What decides it is in the output — read that
 before the file it names.
 

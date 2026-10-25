@@ -42,8 +42,7 @@ Why work exists, in requester's words. One paragraph.
 
 ## Rejected
 
-- Approach, and what exactly broke. Highest-value section: only thing stopping
-  next session walking same dead end.
+- Approach, and what exactly broke.
 
 ## Review
 

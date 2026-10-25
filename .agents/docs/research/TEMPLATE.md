@@ -7,20 +7,10 @@ graduates: .agents/docs/some-file.md
 ---
 
 <!--
-Copy to docs/research/<question>.md. Queue rules:
-.agents/docs/research/README.md.
-
-A research node settles ONE question and writes no code. A research file
-that edits code is a plan wearing the wrong frontmatter.
-
-`research` = the stem, as `plan:` is for plans.
-`graduates` = the file the answer lands in when the question closes. The
-edge is declared here and completed by the merge that deletes this file.
-A question with no such file is a question nobody will act on.
-
-A plan blocked on this question carries `research: <stem>` and stays
-blocked while this file exists — same machinery as `needs`, same reason:
-file existence is the state, no status field to rot.
+Copy to docs/research/<question>.md. Rules: .agents/docs/research/README.md.
+A research node settles ONE question and writes no code.
+`research` = the stem. `graduates` = the file the answer lands in; the merge
+that deletes this file completes the edge.
 -->
 
 ## Question
@@ -29,18 +19,15 @@ One sentence, answerable. Not a topic.
 
 ## Echo
 
-The question restated in your own words, before any method runs. What you
-believe it is asking, and what rests on the answer.
+The question in your own words, before any method runs, and what rests on the answer.
 
 ## Sweep
 
-`comprehensive` or `goal-directed`, named. Then one line saying what that
-choice means here — everything there is, or everything needed for what.
+`comprehensive` or `goal-directed`, named, with one line on what it means here.
 
 ## What would settle it
 
-The evidence that closes the question EITHER WAY. Written before the method
-runs, so the answer cannot be fitted to what was found.
+Evidence that closes the question EITHER WAY, written before the method runs.
 
 ## Method
 
@@ -53,16 +40,13 @@ The commands run, verbatim. Web queries count as commands: quote them.
 
 ## Consequence for the queue
 
-Which plan changes, in what way, or none. This is the hop a plan reader
-acts on.
+Which plan changes, in what way, or none.
 
 ## Verification
 
-Who checked, and from where — a context that did not produce the findings
-above. Each claim marked GROUNDED, WEAK or UNGROUNDED, with what the second
-context actually read. No date: the commit carries when.
+Who checked, from a context that did not produce the findings. Each claim
+marked GROUNDED, WEAK or UNGROUNDED, with what that context read. No date.
 
 ## Graduates to
 
-The file named in `graduates:`, and one line on why the answer belongs
-there rather than in a rule line alone.
+The file named in `graduates:`, and one line on why the answer belongs there.

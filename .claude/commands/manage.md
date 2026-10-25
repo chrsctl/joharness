@@ -133,8 +133,9 @@ Loop step 5 at your tier (`.claude/agents/verifier.md`, findings tagged
 `(verifier)`), Loop step 7, exit. The orchestrator reads your merge from
 git; send nothing for it.
 
-`human-review` at merge (Loop step 7) = `status: blocked`, `next:` =
-`product: human-review label on PR #<n>`, push, exit.
+`human-review` at merge (Loop step 7) = do not merge: ref § Label at merge.
+
+Carried plan (§0 item 2)? ref § Carried plan at retire.
 
 Plan names `issue: N`? ref § Plan issue. A follow-up plan you filed as
 its own plan-only pull request is yours too: drive it to merged, step 7
@@ -150,6 +151,8 @@ GitHub lost at step 7:
   `github: GitHub MCP lost before PR: <error, 40 chars>`, push, exit. No retry.
 - **After it:** a GitHub call fails = keep the retire, push it, end with one
   line naming the failed call, exit.
+
+**A DEFECT outside your item**, blocking or not: ref § Defect.
 
 **A LEAD, when you have one.** Learned something about an item you do NOT
 own, or about an issue, a merged item or the harness itself? ref § Lead.

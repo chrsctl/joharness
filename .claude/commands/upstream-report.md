@@ -21,12 +21,8 @@ another branch.
 
 ## 1. Gate and measure every finding
 
-Gate each finding and carry its measurement per `feedback.md` steps 1 and 2.
-No measurement (command and output, cost here, when), or fails the gate =
-dropped. Say in the pull request body how many you dropped and why.
-
 `upstream` places findings on a file canonical owns: a filter, not a verdict.
-Read the two doubts it prints beside a finding:
+Read the two doubts it prints beside a finding BEFORE you weigh its text:
 
 - *its fix commit carried other findings too* — the path may belong to
   another finding. Open the commit.
@@ -38,6 +34,11 @@ An `unplaceable` finding (no path token), or one whose named paths are none
 of canonical's (own heading, came from prose): neither enters a report on
 its own. Place it by reading the edge and finding the file yourself; else
 it is not a report.
+
+Then gate each finding and carry its measurement per `feedback.md` § *When
+the consumer is the detector* steps 1 and 2. No measurement (command and
+output, cost here, when), or fails the gate = dropped. Say in the pull
+request body how many you dropped and why.
 
 ## 2. One pull request, one file, on the canonical
 
