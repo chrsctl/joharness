@@ -6378,12 +6378,13 @@ release_reason_ok() {
   esac
   return 0
 }
-# <next:> <stem>: the block names <stem> as a whole token. The words are a
-# session's text: only a token equal to a stem the queue already holds the
-# plan on counts, as retro_queue_block reads it.
+# <next:> <stem>: the block names <stem> as a whole token after its reason
+# word (a stem spelled like the reason word is not named by it). The words
+# are a session's text: only a token equal to a stem the queue already holds
+# the plan on counts, as retro_queue_block reads it.
 next_names() {
   local t
-  for t in $(printf '%s\n' "$1" | tr -c 'A-Za-z0-9._-' ' '); do
+  for t in $(printf '%s\n' "${1#*:}" | tr -c 'A-Za-z0-9._-' ' '); do
     t="${t%.}"; t="${t%.md}"
     [ "$t" != "$2" ] || return 0
   done
@@ -8432,7 +8433,8 @@ cmd_dispatch() {
             blocked_claims="${blocked_claims} $(basename "$path" .md)@${branch} "
             # A block the queue has since absorbed (#626): the plan is held by
             # a needs: edge added after the park, for a reason the queue can
-            # answer. Only the reason word is read from next:, never a stem.
+            # answer, on a stem the block names. Stems come from the queue's
+            # label; next: only decides which of them counts.
             redge=""
             if release_reason_ok "$next"; then
               case "$pr:$path" in

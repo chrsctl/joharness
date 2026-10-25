@@ -1680,3 +1680,39 @@ out_q="$( cd "$dfwork" && CLAUDE_PROJECT_DIR="$dfwork" HANDOVER_FETCH=0 \
   QUEUE_MAX_ENTRIES=10000 ./.agents/harness/queue-context.sh 2>/dev/null )"
 expect "and its plan reads blocked by the open requirement, not claimed" \
   "docs/plans/rel-b.md  [normal, agent: sonnet, effort: high, blocked by: req-b (open requirement)]" "$out_q"
+# Two claims on one branch, one plan: dispatch judges the branch on one file,
+# and release writes only a file whose OWN next: is an answerable block on
+# the stem — never the money: block beside it.
+dfplan rel-j none; dfplan interface none
+dfpush 8 "rel-j, a plan named like a reason word"
+git -C "$dfwork" checkout -qb park-rel-j origin/main
+for w in rj-a rj-b; do
+  printf -- '---\nworkstream: %s\nstatus: in-progress\nbranch: park-rel-j\nplan: rel-j\nsession: https://example.invalid/session_%s\nagent: sonnet\nupdated: 2026-01-02\nnext: Build it\n---\n\n## Goal\nFixture.\n' \
+    "$w" "$w" >"${dfwork}/docs/handover/${w}.md"
+done
+dfcommit 5 "claim rel-j twice"
+sed -i 's/^status: in-progress$/status: blocked/; s/^next: Build it$/next: product: dep-a has not landed/' \
+  "${dfwork}/docs/handover/rj-a.md"
+sed -i 's/^status: in-progress$/status: blocked/; s/^next: Build it$/next: money: dep-a needs a paid runner/' \
+  "${dfwork}/docs/handover/rj-b.md"
+dfcommit 4 "park both"
+git -C "$dfwork" push -qu origin park-rel-j
+git -C "$dfwork" checkout -q main
+dfneeds rel-j dep-a 1
+out="$(dfx)"
+expect "two claims, one plan: the judged product: block is RELEASABLE" \
+  "RELEASABLE: held by needs: dep-a" "$(dfrow rel-j)"
+out="$(dfrel park-rel-j)"
+expect "release writes the product: claim" "release   : park-rel-j  docs/handover/rj-a.md  plan rel-j" "$out"
+expect "and skips the money: claim on its own words" \
+  "skip      : park-rel-j  docs/handover/rj-b.md — its own next: is not a block on dep-a" "$out"
+expect "which stays blocked on origin" "status: blocked" \
+  "$(git -C "$dforigin" show park-rel-j:docs/handover/rj-b.md)"
+# A stem spelled like the reason word is not named by it.
+dfplan rel-k none
+dfpush 6 "rel-k"
+dfpark park-rel-k rel-k 'interface: which signature' 4
+dfneeds rel-k interface 1
+out="$(dfx)"
+expect "a stem equal to the reason word: still the human's" "BLOCKED: the human's" "$(dfrow rel-k)"
+

@@ -8,7 +8,7 @@ issue: 626
 session: https://claude.ai/code/session_012hikkNfLjLPU4pMwpU4VZG
 agent: opus
 updated: 2026-10-25
-next: Re-run ci after r15-r24, re-verify the delta, then finish
+next: Confirm trimmed dispatch run and r20 mutation fails; ci; then finish (PR, merge)
 ---
 
 ## Goal
@@ -56,6 +56,9 @@ through a `needs:` edge should release itself, without a human's `halt`.
 - r22: (verifier) no case for the requirement after release, negatives not refuted on release DUE (fixed); no case for a lease lost between guard and push (wontfix: the window cannot be entered from a test without a hook; guard's moved-head refusal is tested)
 - r23: (verifier) author time can predate a rebase-merged edge (wontfix: the error is a false not-releasable, the safe side; the plan names author time)
 - r24: (verifier) plan named dispatch_block_age_min; branch 2 behind main (fixed: renamed, merged origin/main)
+- r25: (verifier) r20's per-file re-check had no test failing without it; case with two claims on one branch, product: and money: (fixed)
+- r26: (verifier) stale comment said no stem is read from next: (fixed)
+- r27: (verifier) the reason word itself counted as the stem token; next_names reads after the first colon (fixed)
 
 ## Blockers
 
