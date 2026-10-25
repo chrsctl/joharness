@@ -6,7 +6,7 @@ effort: high
 needs: none
 requirement: none
 issue: none
-scope: joharness.sh, .claude/commands/conduct.md, .agents/docs/orchestrated.md, .agents/harness/selftest/scout.sh, .agents/harness/selftest/orchestrated.sh
+scope: shared:joharness.sh, .claude/commands/conduct.md, shared:.agents/docs/orchestrated.md, shared:.agents/harness/selftest/scout.sh, shared:.agents/harness/selftest/orchestrated.sh
 ---
 
 ## Goal

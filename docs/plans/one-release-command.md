@@ -6,7 +6,7 @@ effort: high
 needs: none
 requirement: none
 issue: none
-scope: joharness.sh, .claude/commands/orchestrate.md, .claude/commands/manage.md, .agents/docs/manage-reference.md, .agents/docs/orchestrated.md, .agents/docs/orchestrate-reference.md, .agents/docs/handover/README.md, .agents/harness/AGENTS.md, .agents/harness/handover-context.sh, .agents/harness/selftest.sh, .agents/harness/selftest/janitor.sh, .agents/harness/selftest/halt.sh, .agents/harness/selftest/free.sh, .agents/harness/selftest/guard.sh, .agents/harness/selftest/dispatch.sh, .agents/harness/selftest/dispatch-branch-plans.sh, .agents/harness/selftest/dispatch-rescope.sh, .agents/harness/selftest/fast-lane.sh
+scope: shared:joharness.sh, shared:.claude/commands/orchestrate.md, .claude/commands/manage.md, .agents/docs/manage-reference.md, shared:.agents/docs/orchestrated.md, shared:.agents/docs/orchestrate-reference.md, .agents/docs/handover/README.md, .agents/harness/AGENTS.md, .agents/harness/handover-context.sh, shared:.agents/harness/selftest.sh, .agents/harness/selftest/janitor.sh, .agents/harness/selftest/halt.sh, .agents/harness/selftest/free.sh, .agents/harness/selftest/guard.sh, .agents/harness/selftest/dispatch.sh, .agents/harness/selftest/dispatch-branch-plans.sh, .agents/harness/selftest/dispatch-rescope.sh, .agents/harness/selftest/fast-lane.sh
 ---
 
 ## Goal
@@ -59,7 +59,7 @@ the `RELEASABLE:` flag and the `freer DUE` / `FREEABLE` rows.
 - the `free-*` handling in rescope, and the `n_freer` count;
 - the freer's Lineup row and spawn-table row;
 - manage.md's free route and manage-reference.md § Free;
-- `selftest/free.sh`.
+- `.agents/harness/selftest/free.sh`.
 
 Each manage-reference section must keep a `ref §` pointer, so drop
 § Free's pointer with it (`orchestrated.sh` pointer test).
