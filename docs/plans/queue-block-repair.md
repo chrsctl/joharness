@@ -6,7 +6,7 @@ effort: high
 needs: none
 requirement: none
 issue: 626
-scope: shared:joharness.sh, shared:.agents/harness/queue-context.sh, shared:.claude/commands/retro.md, shared:.agents/docs/graph.md, shared:.agents/docs/plans/README.md, shared:.agents/docs/plans/TEMPLATE.md, shared:.agents/harness/selftest/retro.sh, shared:.agents/harness/selftest/ci-graph-lint.sh, shared:.agents/harness/selftest/dispatch.sh
+scope: shared:joharness.sh, shared:.agents/harness/queue-context.sh, shared:.claude/commands/retro.md, shared:.agents/docs/graph.md, shared:.agents/docs/plans/README.md, shared:.agents/docs/plans/TEMPLATE.md, shared:.agents/harness/selftest/retro.sh, shared:.agents/harness/selftest/ci-graph-lint.sh, shared:.agents/harness/selftest/queue-context-research-nodes.sh, shared:docs/handover/queue-block-repair.md
 ---
 
 ## Goal
@@ -45,10 +45,12 @@ position.
   stopped the gate being written in prose.
 - `.agents/docs/graph.md` edge table, `.agents/docs/plans/README.md`
   (Dependencies) and `TEMPLATE.md`'s `needs:` comment: the new edge.
-- Selftests: `ci-graph-lint.sh` (accept, warn), `dispatch.sh` or the
-  queue-context suite (blocked by an open requirement; unblocked once it
-  is deleted), `retro.sh` (due off-clock on a queue block; not on a block
-  naming no open stem; not when HOURS=0).
+- Selftests: `ci-graph-lint.sh` (accept, warn, self-need red);
+  `queue-context-research-nodes.sh` (blocked by an open requirement,
+  unblocked once it is deleted); `retro.sh` (due off the clock on a parked
+  queue block, the session leading the sample; not for its own plan or its
+  plan's requirement, a human-only reason, a block since answered, or
+  HOURS=0; `#` in `next:` read).
 
 ## Assumptions
 

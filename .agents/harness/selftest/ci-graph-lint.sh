@@ -1080,5 +1080,23 @@ expect "needs naming a requirement an open plan serves warns, naming the plan" \
   "needs requirement 'unplanned-layer', which open plan(s) one-clause serve" "$out"
 refute "and it is still no dead edge" \
   "needs 'unplanned-layer' — no such plan or requirement" "$out"
+printf -- '---\nplan: self-need\nurgency: normal\nagent: sonnet\neffort: high\nrequirement: docs/product/unplanned-layer.md\nneeds: unplanned-layer\n---\n' \
+  >"${lwork}/docs/plans/self-need.md"
+commit_all "$lwork" "a plan needing the requirement it serves"
+out="$(lint_section "$(lint_ci)")"
+expect "needs naming the requirement the plan serves is red, path form too" \
+  "self-need.md: needs 'unplanned-layer', the requirement it serves" "$out"
+fixture_rm "$lwork" "drop the self-need plan" docs/plans/self-need.md
 fixture_rm "$lwork" "drop the requirement fixtures" docs/plans/needs-layer.md \
   docs/plans/one-clause.md docs/product/unplanned-layer.md
+# A needed requirement since satisfied (deleted) is history, not a dead edge.
+printf -- '---\nrequirement: done-layer\npriority: normal\n---\n' >"${lwork}/docs/product/done-layer.md"
+commit_all "$lwork" "a requirement"
+fixture_rm "$lwork" "satisfied" docs/product/done-layer.md
+printf -- '---\nplan: after-done\nurgency: normal\nagent: sonnet\neffort: high\nneeds: done-layer\n---\n' \
+  >"${lwork}/docs/plans/after-done.md"
+commit_all "$lwork" "a plan that needed it"
+out="$(lint_section "$(lint_ci)")"
+refute "needs naming a satisfied requirement is no dead edge" \
+  "needs 'done-layer' — no such plan or requirement" "$out"
+fixture_rm "$lwork" "drop it" docs/plans/after-done.md

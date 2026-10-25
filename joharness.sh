@@ -1090,8 +1090,16 @@ lint_graph() {
         # blocked while its file exists (.agents/docs/graph.md, `needs`).
         # Once a plan serves it, that plan is the narrower edge.
         if [ -f "${ROOT}/docs/product/${n}.md" ]; then
-          p="$(grep -lx -- "requirement: ${n}" "${ROOT}"/docs/plans/*.md 2>/dev/null |
-            sed 's#.*/##; s#\.md$##' | paste -sd, -)"
+          # The requirement this plan serves is deleted by its last plan:
+          # needing it is a plan waiting on its own retirement, forever.
+          if [ "$(lint_stem "$r")" = "$n" ]; then
+            lint_red "${rel}: needs '${n}', the requirement it serves — blocked until it retires itself; name the plan it reads"
+            continue
+          fi
+          p="$(lint_nodes docs/plans | while IFS= read -r f; do
+              [ "$(lint_stem "$(gr_field requirement <"${ROOT}/${f}")")" = "$n" ] &&
+                lint_stem "$f" && printf '\n'
+            done | paste -sd, -)"
           [ -z "$p" ] ||
             lint_warn "${rel}: needs requirement '${n}', which open plan(s) ${p} serve — if one builds what this plan reads, name it instead"
           continue
@@ -4590,31 +4598,53 @@ retro_sample() {
   done <<<"$cands"
 }
 
-# A candidate whose block the QUEUE can resolve: its workstream file's
-# `next:` names an open plan or requirement on the base other than its own
-# `plan:` (issue #626 — a plan gated in prose on an unplanned requirement).
-# A human cannot answer that block any better than the queue can, so it
-# does not wait for the clock. The words are a session's text: only a token
-# that IS an open file's stem counts, nothing is acted on. One
-# `<branch>\t<session>\t<stem>` line, the first candidate found; empty =
-# none; `?` = unreadable.
+# A candidate whose block the QUEUE can resolve (issue #626 — a plan gated
+# in prose on an unplanned requirement): the claim is parked NOW (its branch
+# head still reads `status: blocked`; a block since answered, released or
+# merged is history, read on the clock), its reason is not one only a human
+# can answer, and its `next:` names an open plan or requirement on the base
+# other than its own `plan:` and the requirement that plan serves. A human
+# cannot answer that block any better than the queue can, so it does not
+# wait for the clock. The words are a session's text: only a token that IS
+# an open file's stem counts, nothing is acted on. One
+# `<branch>\t<session>\t<stem>` line, the first found; empty = none; `?` =
+# unreadable — never read as none.
 retro_queue_block() {
-  local base="refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" open cands b s k doc nx own t
-  open="$(git -C "$ROOT" ls-tree --name-only "$base" -- docs/plans/ docs/product/ \
+  local base="refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" open cands b s k p doc st nx own oreq t
+  open="$(git -C "$ROOT" ls-tree -r --name-only "$base" -- docs/plans/ docs/product/ \
     </dev/null 2>/dev/null)" || { printf '?\n'; return 0; }
-  open="$(printf '%s\n' "$open" | sed -nE 's#^docs/(plans|product)/([A-Za-z0-9._-]*)\.md$#\2#p' |
-    grep -vxE 'README|TEMPLATE|RETIRED|SCOUT')"
+  open="$(printf '%s\n' "$open" | grep -E '\.md$' |
+    grep -vE '/(TEMPLATE|README|VISION|SCOUT|RETIRED)\.md$' | sed 's#.*/##; s#\.md$##')"
   [ -n "$open" ] || return 0
   cands="$(retro_candidates)"
   case "$cands" in '?') printf '?\n'; return 0 ;; '') return 0 ;; esac
   while IFS=$'\t' read -r b s k; do
     [ -n "$s" ] || continue
-    doc="$(git -C "$ROOT" show "$k" </dev/null 2>/dev/null)" || continue
-    { read -r nx; read -r own; } <<<"$(printf '%s\n' "$doc" | gr_fields next plan)"
-    [ -n "$nx" ] || continue
+    p="${k#*:}"
+    # The branch head, not the qualifying commit: is it parked now? A branch
+    # or file gone is no parked claim.
+    git -C "$ROOT" rev-parse -q --verify "refs/remotes/origin/${b}:${p}" \
+      </dev/null >/dev/null 2>&1 || continue
+    doc="$(git -C "$ROOT" show "refs/remotes/origin/${b}:${p}" </dev/null 2>/dev/null | tr -d '\r')" ||
+      { printf '?\n'; return 0; }
+    st="$(printf '%s\n' "$doc" | gr_field status)"
+    [ "$st" = blocked ] || continue
+    # Raw: `next:` carries `#<n>` in its canonical shapes, which gr_fields
+    # reads as a comment.
+    nx="$(printf '%s\n' "$doc" | gr_field_raw next)"
+    case "${nx#[\"\']}" in
+      '' | money:* | credentials:* | hardware:* | "core path:"* | github:* | \
+      respawns:* | defect:*) continue ;;
+    esac
+    own="$(lint_stem "$(printf '%s\n' "$doc" | gr_field plan)")"
+    oreq=""
+    if [ -n "$own" ]; then
+      oreq="$(lint_stem "$(git -C "$ROOT" show "${base}:docs/plans/${own}.md" \
+        </dev/null 2>/dev/null | gr_field requirement)")"
+    fi
     for t in $(printf '%s\n' "$nx" | tr -c 'A-Za-z0-9._-' ' '); do
-      t="${t%.md}"; t="${t%.}"
-      [ -n "$t" ] && [ "$t" != "$own" ] || continue
+      t="${t%.}"; t="${t%.md}"
+      { [ -n "$t" ] && [ "$t" != "$own" ] && [ "$t" != "$oreq" ]; } || continue
       if grep -qxF -- "$t" <<<"$open"; then
         printf '%s\t%s\t%s\n' "$b" "$s" "$t"
         return 0
@@ -4710,10 +4740,13 @@ retro_due() {
     RETRO_DUE='unreadable no sha1sum or shasum here: the sample cannot be drawn'
     RETRO_ROWS=""; return 0
   fi
+  # Due by the clock: a queue block still leads the sample.
+  qb="$(retro_queue_block)"
+  [ "$qb" = '?' ] || RETRO_QB="$qb"
   cands="$(retro_sample 0)"
   case "$cands" in
     '?') RETRO_DUE='unreadable the workstream files or the ledger could not be read'
-         RETRO_ROWS=""; return 0 ;;
+         RETRO_ROWS=""; RETRO_QB=""; return 0 ;;
     '')  RETRO_DUE="empty ${age}h since ${base_word} (>= ${hours}h), but every session that blocked, was abandoned or was killed is in the ledger" ;;
     *)   RETRO_DUE="due ${age}h since ${base_word} (>= ${hours}h)" ;;
   esac
@@ -8751,7 +8784,7 @@ EOF_CW
      [ "$n_curate_inflight" -gt 0 ] || [ "$n_clerk" -gt 0 ] || [ "$n_conduct" -gt 0 ]; }; then
     printf '            retro due, suppressed — a curate, clerk or conduct goes first: spawn none this pass\n'
   elif [ "$retro_due" -eq 1 ]; then
-    printf '            retro DUE: spawn ONE retro reviewer (agent: sonnet) on /retro — beyond the cap, holds no slot, at most one in flight. It traces each sampled session'"'"'s failures to the check that should have caught them, files plans, logs each session in %s and merges that pull request itself (JOHARNESS_RETRO_HOURS, JOHARNESS_RETRO_SAMPLE, JOHARNESS_RETRO_EVENTS)\n' "$RETRO_LEDGER"
+    printf '            retro DUE: spawn ONE retro reviewer (agent: sonnet) on /retro — beyond the cap, holds no slot, at most one in flight. It traces each sampled session'"'"'s failures to the check that should have caught them, files plans, adds a missing needs: edge (repair), logs each session in %s and merges that pull request itself (JOHARNESS_RETRO_HOURS, JOHARNESS_RETRO_SAMPLE, JOHARNESS_RETRO_EVENTS)\n' "$RETRO_LEDGER"
   fi
   [ "$n_edge" -eq 0 ] ||
     printf '            %s branch(es) at the edge with no claim file: each holds a slot because its item is STILL on %s, so that merge has not landed. The control plane says what to do about the session, never whether the slot is real\n' \

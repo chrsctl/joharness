@@ -91,6 +91,8 @@ a verifier finding the session fixed.
      open plan gated on it; edit nothing else in them. `<stem>` is the open
      plan that builds what they read, else the requirement's stem (`needs:`
      takes one; `dispatch` offers an unplanned requirement for planning).
+     Never onto a plan whose `requirement:` is that stem: it would wait on
+     its own retirement (`ci` reds it).
      Then route on: the check that should have refused the prose gate is a
      mechanism.
    - The fix is a mechanism (a check, a guard, a clearer message) = a new
