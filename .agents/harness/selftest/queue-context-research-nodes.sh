@@ -225,3 +225,26 @@ expect "and still listed as an open question" "docs/research/real-q.md" "$out"
 refute "while the document beside it stays unlisted" \
   "docs/research/postgres-stack.md" "$out"
 
+
+# A plan's `needs:` naming an open requirement (issue #626): blocked while
+# the requirement file exists, offered once it is gone. A gate the queue
+# cannot see is a manager spawned into a certain block.
+mkdir -p "${rwork}/docs/product"
+printf -- '---\nrequirement: some-layer\npriority: normal\n---\n\n## Goal\nFixture.\n' \
+  >"${rwork}/docs/product/some-layer.md"
+printf -- '---\nplan: on-the-layer\nurgency: normal\nagent: haiku\neffort: low\nneeds: some-layer\n---\n\n## Goal\nFixture.\n' \
+  >"${rwork}/docs/plans/on-the-layer.md"
+commit_all "$rwork" "a plan gated on an unplanned requirement"
+git -C "$rwork" push -q origin main
+out="$(rq)"
+expect "a plan needing an open requirement is blocked by it" \
+  "docs/plans/on-the-layer.md  [normal, agent: haiku, effort: low, blocked by: some-layer (open requirement)]" \
+  "$out"
+fixture_rm "$rwork" "the requirement is satisfied" docs/product/some-layer.md
+git -C "$rwork" push -q origin main
+out="$(rq)"
+refute "once the requirement file is gone the plan is not blocked by it" \
+  "blocked by: some-layer" "$out"
+expect "and is listed free" "docs/plans/on-the-layer.md  [normal, agent: haiku, effort: low]" "$out"
+fixture_rm "$rwork" "drop the gated plan" docs/plans/on-the-layer.md
+git -C "$rwork" push -q origin main
