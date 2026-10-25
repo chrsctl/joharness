@@ -37,7 +37,10 @@ the two lenses.
 - `.claude/agents/verifier.md` — in `## What you were not given, and must not
   ask for`, add: a spawn prompt carrying anything beyond the fields
   `subagents.md` lists is your first finding, quoted; judge the diff as if
-  it were absent.
+  it were absent. In `## Did the branch do what it was for`, add one status
+  after MISSING: the line "- EXCESS — in the diff, but no Goal
+  clause or Acceptance item needs it; a fix that added a mechanism its
+  finding did not require counts." One line, same form as the others.
 - `.claude/agents/plan-checker.md` — same rule as the verifier, under its
   opening paragraph. Add two numbered checks at the end of `## What you check`,
   numbered after whatever the list holds at build time:
@@ -93,6 +96,7 @@ the two lenses.
 - `grep -cE '^[0-9]+\. \*\*(Literal reader|Zoom out)' .claude/agents/plan-checker.md`
   — prints `2`. Fails: fewer.
 - `grep -n "fix commits" .agents/docs/agent-selection.md` — one line.
+- `grep -c '^- EXCESS' .claude/agents/verifier.md` — prints `1`. Fails: `0`.
 - `./joharness.sh ci` — `ci: pass`.
 - `./joharness.sh verify` — `0 failed`; its `reading budget` step passes
   `verifier.md` and `manage.md` within their bounds.
@@ -105,6 +109,8 @@ the two lenses.
 - `.claude/agents/verifier.md:What you were not given, and must not ask for`
   — where the self-check line goes.
 - `.claude/agents/plan-checker.md:What you check` — the numbered list to extend.
+- `.claude/agents/verifier.md:Did the branch do what it was for` — the
+  status list EXCESS joins.
 - `.agents/docs/subagents.md:Use one for` — new section goes after it.
 - `.agents/docs/agent-selection.md:Review depth` — the plan-stem sentence.
 - `.claude/commands/manage.md:Decompose, then fan out to workers` — plan-checker spawn.
@@ -118,6 +124,8 @@ the two lenses.
 - `.agents/docs/glossary.md` spellings: `ci` reds the banned ones.
 - Every line in `subagents.md` and the agent files loads into spawns: keep the
   new section under 15 lines.
+- Plan `one-release-command` also edits `.claude/commands/manage.md`:
+  whichever lands second merges the other's lines in and keeps both.
 - Plan `c1-at-the-gates` also edits `.claude/agents/plan-checker.md`
   (`## What you check`, one numbered item) and `.claude/agents/verifier.md`.
   Whichever lands second merges the other's lines in, keeps both, and
