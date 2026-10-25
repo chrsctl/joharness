@@ -82,6 +82,22 @@ already done? Still a pull request: the ledger line, the plan copy's and the
 workstream file's deletion, step 7 whole — never `pr: none` and exit, which
 leaves the retire on a branch only.
 
+## Label at merge
+
+The pull request carries `human-review` at merge. The retire commit already
+deleted your workstream file, and a branch past it holds a slot until it
+merges. Restore the file from before that commit:
+
+    c="$(git log -1 --format=%H --diff-filter=D -- docs/handover/<file>)"
+    git checkout "$c^" -- docs/handover/<file>
+
+Set `status: blocked`, `next:` = `product: human-review label on PR #<n>:
+remove it so this merges?`, commit, push, exit. Blocked holds no slot and is
+never respawned until the human answers. The answer reaches the branch as
+any block's does (orchestrate-reference.md, Relay); resumed with the
+label gone, delete the file again in one commit, push, merge under Loop
+step 7.
+
 ## Plan issue
 
 Plan names `issue: N`? Plan carries a `## Issue remainder` section: body

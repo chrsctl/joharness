@@ -687,6 +687,41 @@ out="$(dsp env JOHARNESS_MAX_MANAGERS=8)"
 refute "a branch that never wrote a workstream file holds no slot" "mgr-nofile" "$out"
 expect "so the count does not move for it" "slots     : 3 of 8 free" "$out"
 
+# A `human-review` label found at merge (manage-reference.md, Label at
+# merge): the manager restores its retired workstream file as blocked. The
+# retired row above holds a slot; the restored blocked file must not, or a
+# pull request waiting days on a human starves the fleet. Retired again after,
+# so the cases below read the branch as they did.
+# The reference's own commands, so the case runs the procedure as written.
+lbl="$(sed -n '/^## Label at merge/,/^## /p' "${ROOT}/.agents/docs/manage-reference.md")"
+# shellcheck disable=SC2016  # literal text the reference prints
+expect "the reference finds the retire commit by the file's deletion" \
+  'c="$(git log -1 --format=%H --diff-filter=D -- docs/handover/<file>)"' "$lbl"
+# shellcheck disable=SC2016  # literal text the reference prints
+expect "and restores the file from its parent" \
+  'git checkout "$c^" -- docs/handover/<file>' "$lbl"
+git -C "$dspwork" checkout -q mgr-eta
+c="$(git -C "$dspwork" log -1 --format=%H --diff-filter=D -- docs/handover/eta.md)"
+git -C "$dspwork" checkout -q "$c^" -- docs/handover/eta.md
+sed -i 's/^status: review$/status: blocked/; s/^next: .*$/next: product: human-review label on PR #9: remove it so this merges?/' \
+  "${dspwork}/docs/handover/eta.md"
+commit_all "$dspwork" "human-review at merge: restore the workstream file, blocked"
+git -C "$dspwork" push -q origin mgr-eta
+git -C "$dspwork" checkout -q main
+out="$(dsp env JOHARNESS_MAX_MANAGERS=8)"
+expect "a label at merge: the restored file reads as blocked" \
+  "mgr-eta  blocked  pushed" "$out"
+refute "and not as a retired row" "mgr-eta  retired" "$out"
+expect "so it gives its slot back while the human decides" "slots     : 4 of 8 free" "$out"
+refute "and its item is not offered" "  docs/plans/eta.md (agent" "$out"
+git -C "$dspwork" checkout -q mgr-eta
+fixture_rm "$dspwork" "label removed: retire the workstream file again" \
+  docs/handover/eta.md
+git -C "$dspwork" push -q origin mgr-eta
+git -C "$dspwork" checkout -q main
+out="$(dsp env JOHARNESS_MAX_MANAGERS=8)"
+expect "retired again it holds its slot until the merge" "slots     : 3 of 8 free" "$out"
+
 # Merged, the slot comes back: the case that must never hold one, since the
 # money stopped being committed when the branch landed.
 git -C "$dspwork" merge -q --no-ff -m "merge eta" mgr-eta

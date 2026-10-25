@@ -145,8 +145,7 @@ the last commit before the pull request, then exit. The orchestrator reads
 your merge from git; you send nothing for it.
 
 At merge, read the pull request's labels (`pull_request_read` `get`). It
-carries `human-review` = do not merge. Set `status: blocked`,
-`next:` = `product: human-review label on PR #<n>`, push, exit.
+carries `human-review` = do not merge: ref § Label at merge.
 
 Carried plan (§0 item 2)? ref § Carried plan at retire.
 
