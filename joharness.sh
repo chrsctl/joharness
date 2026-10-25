@@ -965,7 +965,7 @@ lint_serves() {
 # retired on HEAD's line: a `-` line per plan, then its values as
 # lint_serves_norm prints them. Nothing printed = no plan ever named it.
 lint_serves_of() {
-  local r="$1" f c line
+  local r="$1" f c line radd
   while IFS= read -r f; do
     [ -n "$f" ] || continue
     [ "$(lint_stem "$(gr_field requirement <"${ROOT}/${f}")")" = "$r" ] || continue
@@ -975,15 +975,20 @@ lint_serves_of() {
   # Retired: each deletion's last content. -G narrows to deletions whose
   # removed lines carry the stem; the exact compare below decides.
   # --no-renames: a retire and a similar new plan in one commit read as a
-  # rename, and the retirement vanished (verifier r3).
+  # rename, and the retirement vanished (r12).
   # --full-history: a plan retired on a merged side branch counts too.
+  # Only after the requirement file's last add: a reused stem inherits no
+  # clause from the old requirement's plans (r20).
+  radd="$(GIT_LITERAL_PATHSPECS=1 git -C "$ROOT" log -1 --full-history --no-renames \
+    --diff-filter=A --format=%H HEAD -- "docs/product/${r}.md" 2>/dev/null)"
   {
     GIT_LITERAL_PATHSPECS=1 git -C "$ROOT" diff --no-renames --diff-filter=D --name-only HEAD \
       -- docs/plans 2>/dev/null | while IFS= read -r line; do
         printf 'HEAD\t%s\n' "$line"
       done
     GIT_LITERAL_PATHSPECS=1 git -C "$ROOT" log --full-history --no-renames --diff-filter=D \
-      -G"^requirement:.*${r//./\\.}" --format='C %H' --name-only HEAD -- docs/plans \
+      -G"^requirement:.*${r//./\\.}" --format='C %H' --name-only \
+      "${radd:+${radd}..}HEAD" -- docs/plans \
       2>/dev/null | while IFS= read -r line; do
         case "$line" in
           'C '*) c="${line#C }" ;;
@@ -1026,6 +1031,8 @@ lint_req_deleted() {
     else
       lint_red "${rel}: deleted with clause(s) ${miss} of ${count} served by no plan's serves: — plan them, or a last plan serves them (.agents/docs/product/README.md)"
     fi
+  # --no-renames: a requirement moved to a similar new file is still deleted
+  # (r21).
   done < <(GIT_LITERAL_PATHSPECS=1 git -C "$ROOT" diff --no-renames --diff-filter=D --name-only \
              "$base" -- docs/product 2>/dev/null | gr_docs)
 }

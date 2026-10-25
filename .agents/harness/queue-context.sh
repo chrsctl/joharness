@@ -395,13 +395,18 @@ qc_srv="$(awk -F'\t' '$1 == "SRV" { print $2 "\t" $3 }' <<<"$rows_raw")"
 
 # `serves:` of the plans naming requirement <stem> that were retired on the
 # queue's line, one value per line as qc_serves prints it. A clause a merged
-# plan built is served: counting open plans alone re-offered it (plan-checker
-# r1). -G narrows to deletions carrying the stem; the exact compare decides.
+# plan built is served: counting open plans alone re-offered it (r1). Only
+# retirements after the requirement file's last add: a stem reused for a new
+# requirement inherits nothing from the old one's plans (r20). -G narrows to
+# deletions carrying the stem; the exact compare decides. --no-renames: a
+# retire beside a similar new plan reads as a rename otherwise (r12).
 qc_retired_serves() {
-  local line c="" pf pdoc
+  local line c="" pf pdoc radd
+  radd="$(git log -1 --full-history --no-renames --diff-filter=A --format=%H \
+    "$ref" -- "${PRODUCT_DIR}/${1}.md" 2>/dev/null)"
   git log --full-history --no-renames --diff-filter=D \
     -G"^requirement:.*${1//./\\.}" \
-    --format='C %H' --name-only "$ref" -- "$PLANS_DIR" 2>/dev/null |
+    --format='C %H' --name-only "${radd:+${radd}..}${ref}" -- "$PLANS_DIR" 2>/dev/null |
     while IFS= read -r line; do
       case "$line" in
         'C '*) c="${line#C }"; continue ;;
@@ -432,8 +437,9 @@ qc_missing() {
 # requirement on stdin; empty when every clause is served. PARTLY PLANNED is
 # a requirement some open plan names whose union of `serves:` misses a
 # clause; one plan reading `all` serves every clause. Retired plans count,
-# read only for a requirement its open plans leave partial: history is the
-# expensive read, and most requirements never get there.
+# read only when the open plans leave it partial (0.25s on 3237 commits,
+# measured 2026-10-25; qc_unserved_retired reads them for a requirement no
+# open plan names).
 qc_unserved() {
   local sv count miss
   sv="$(awk -F'\t' -v s="$1" '$1 == s { print $2 }' <<<"$qc_srv")"
@@ -450,7 +456,9 @@ qc_unserved() {
 # clauses its retired plans left unserved, when those plans declared some
 # and built at least one; else empty, and it reads UNPLANNED as before. The
 # last partial plan cannot delete the requirement, so it retires alone, and
-# the planner must still be told which clauses stand built (verifier r1).
+# the planner must still be told which clauses stand built (r10). Every
+# clause built and the file still standing reads UNPLANNED, as before: that
+# planning pass is exit 3's (r22).
 qc_unserved_retired() {
   local sv count miss
   sv="$(qc_retired_serves "$1")"

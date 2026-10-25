@@ -67,7 +67,12 @@ retire with clauses unbuilt.
 - r16: (verifier) `## Satisfied When` counted 0 clauses (fixed: heading matched case-blind in both readers; selftest case, mutant reds it)
 - r17: (verifier) clause numbers are positions, an edit renumbers silently (wontfix: the recorded default; product README tells the PR that edits the clauses to re-check open plans' `serves:`)
 - r18: (verifier) refute-only queue cases pass on an early exit (fixed: each carries a positive control on the listed plan)
-- r19: fixture history poisoned the history cases: a retired no-`serves:` plan and `sv-word` (`serves: 1, two`) served clause 1 for every later read, so they passed without the fix (fixed: no-`serves:` case moved last, `sv-word` names no in-range clause; mutants for `--no-renames`, retired reads and retired-alone each red the run)
+- r19: (self) fixture history poisoned the history cases: a retired no-`serves:` plan and `sv-word` (`serves: 1, two`) served clause 1 for every later read, so they passed without the fix (fixed: no-`serves:` case moved last, `sv-word` names no in-range clause; mutants for `--no-renames`, retired reads and retired-alone each red the run)
+- r20: (verifier) a reused requirement stem inherited the old requirement's built clauses, in the queue and the deletion check (fixed: retired plans read only after the requirement file's last add, in both readers; selftest case, mutant reds it)
+- r21: (verifier) the deletion diff's `--no-renames` had no test; a requirement moved to a similar file escaped (fixed: selftest case asserts the rename, mutant reds it)
+- r22: (verifier) every clause built by retired plans, file standing, reads UNPLANNED (wontfix: unchanged from today; the planning pass is exit 3's, measure and delete, and the comment says so)
+- r23: (verifier) a comment said retired plans are read only for partial open plans (fixed: comment states both reads and the measured cost)
+- r24: (verifier) code comments cited review numbers that name other findings; r19 had no source tag (fixed: comments cite the record's numbers; r19 tagged)
 
 ## Blockers
 
