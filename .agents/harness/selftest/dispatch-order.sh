@@ -336,6 +336,14 @@ out="$(qo)"
 refute "a requirement WITH plans is no longer offered" \
   "docs/product/needsplans.md — UNPLANNED" "$out"
 expect "and the plan queue is reached again" "docs/plans/" "$(qofirst "$out")"
+# PARTLY PLANNED (#626): its one plan serves none of its clauses, so the
+# requirement is offered again, named as partly planned.
+printf -- '---\nplan: forreq\nurgency: normal\nagent: sonnet\neffort: low\nrequirement: needsplans\nserves:\n---\n\n## Goal\nFixture.\n' \
+  >"${qowork}/docs/plans/forreq.md"
+qopush "its plan serves no clause"
+out="$(qo)"
+expect "a partly planned requirement is spawned as one planning manager, named so" \
+  "docs/product/needsplans.md — PARTLY PLANNED: one planning manager (agent: fable, effort xhigh) first, for clause 1 unserved" "$out"
 fixture_rm "$qowork" "clear the requirement cases" \
   docs/plans/freeone.md docs/plans/forreq.md docs/product/needsplans.md
 git -C "$qowork" push -q origin main

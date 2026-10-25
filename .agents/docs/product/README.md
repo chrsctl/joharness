@@ -39,12 +39,44 @@ human work.
   session's call alone (Decide alone: product direction) and never inferred
   from a stale file; a decline the requester RECORDED, cited by link, IS the
   requester deciding (exit 4).
-- Requirement with open plans = silent in hook; its plans speak.
+- Requirement with open plans = silent in hook; its plans speak — unless
+  PARTLY PLANNED (Clauses, below).
+
+### Clauses
+
+A requirement's clauses are its `## Satisfied when` top-level list items,
+bullets or numbered, numbered by position from 1; indented lines and fenced
+blocks are not clauses. A plan naming `requirement:` may add `serves: <n>[,
+<n>]` or `serves: all`; absent = `all`, so every plan written before the key
+keeps its meaning. `serves:` with no number is red, never `all`.
+
+- **PARTLY PLANNED** = the plans naming the requirement declare `serves:`
+  and their union misses a clause. Open plans count; plans retired on the
+  base count too, so a clause a merged plan built is not offered again, and
+  a requirement whose partial plans all retired still names what stands
+  built. Listed and offered like an unplanned one, `PARTLY PLANNED: clauses
+  2, 4 unserved`; the planning pass plans the unserved clauses, or ends them
+  by exits 2–4. Retired = deleted: git cannot tell a built plan from one
+  deleted as obsolete, so deleting an obsolete partial plan is a planning
+  act, its clauses re-planned in the same PR. Shallow history may re-offer a
+  built clause: the safe direction.
+- **Numbers are positions.** Inserting, removing or reordering a clause
+  renumbers the rest; the PR that edits `## Satisfied when` re-checks every
+  open plan's `serves:`. The heading matches case-blind.
+- **Deletion** of the requirement on a branch is red while the union of
+  `serves:` over every plan that named it — open, retired on that branch, or
+  retired before it on that line — misses a clause. No plan ever, or one
+  reading `all`, is today's behaviour. Shallow history = warn. A clause
+  closed by exit 3 or 4 after partial plans: the last plan, verify plan
+  (exit 2) included, names it in `serves:` and carries the record.
+- **Rejected:** matching clause text in plan bodies. Prose is not an edge
+  (#626, the same rule `needs:` follows).
 
 ### A requirement no plan can serve
 
-The `UNPLANNED` test reads one field: the `requirement:` of every open plan on
-the base. A requirement finished with planning but not satisfied would be
+The `UNPLANNED` test reads the `requirement:` of every open plan on the base,
+and for PARTLY PLANNED their `serves:`, the clause count and the retired
+plans' `serves:` (Clauses, above). A requirement finished with planning but not satisfied would be
 offered again every pass, each one fable manager at xhigh. So a planning pass
 ends in these exits, each a tree change. They COMBINE per clause, and the
 requirement is deleted exactly ONCE, by the LAST PR: any plan or verify plan
