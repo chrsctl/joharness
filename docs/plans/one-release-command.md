@@ -6,7 +6,7 @@ effort: high
 needs: none
 requirement: none
 issue: none
-scope: shared:README.md, shared:joharness.sh, shared:.claude/commands/orchestrate.md, .claude/commands/manage.md, .agents/docs/manage-reference.md, shared:.agents/docs/orchestrated.md, shared:.agents/docs/orchestrate-reference.md, .agents/docs/handover/README.md, shared:.agents/harness/AGENTS.md, .agents/harness/handover-context.sh, shared:.agents/harness/selftest.sh, .agents/harness/selftest/janitor.sh, .agents/harness/selftest/halt.sh, .agents/harness/selftest/free.sh, .agents/harness/selftest/guard.sh, .agents/harness/selftest/dispatch.sh, .agents/harness/selftest/dispatch-branch-plans.sh, .agents/harness/selftest/dispatch-rescope.sh, .agents/harness/selftest/fast-lane.sh
+scope: shared:README.md, shared:joharness.sh, shared:.claude/commands/orchestrate.md, shared:.claude/commands/manage.md, .agents/docs/manage-reference.md, shared:.agents/docs/orchestrated.md, shared:.agents/docs/orchestrate-reference.md, .agents/docs/handover/README.md, shared:.agents/harness/AGENTS.md, .agents/harness/handover-context.sh, shared:.agents/harness/selftest.sh, .agents/harness/selftest/janitor.sh, .agents/harness/selftest/halt.sh, .agents/harness/selftest/free.sh, .agents/harness/selftest/guard.sh, .agents/harness/selftest/dispatch.sh, .agents/harness/selftest/dispatch-branch-plans.sh, .agents/harness/selftest/dispatch-rescope.sh, .agents/harness/selftest/fast-lane.sh
 ---
 
 ## Goal
