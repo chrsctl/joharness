@@ -7,9 +7,9 @@ Manager role. The Loop (`.agents/harness/AGENTS.md`), unchanged, on ONE item
 the orchestrator; it removes nothing.
 
 You read: your item; this branch's workstream file, if resuming; the item's
-`Where to look` anchors; `./joharness.sh feedback <path>` for files your diff
-touches; the environment rules if you touch it. Not the queue, other plans
-or requirements, other branches' files, or the design doc.
+`Where to look` anchors; `feedback` on files you touch; the environment
+rules if you touch it. Not the queue, other plans or requirements, other
+branches' files, or the design doc.
 
 `ref § <name>` = `## <name>` of `git show
 origin/main:.agents/docs/manage-reference.md`: read it whole when its
@@ -18,11 +18,11 @@ pointer fires.
 ## 0. Orient
 
 1. `./joharness.sh authority`, ONCE, FIRST, on the branch you started on —
-   one exception: UNVERIFIED naming a shallow clone =
-   `timeout 300 git fetch --unshallow origin` once, then `authority` a second
-   time, still before any checkout or edit. VERIFIABLE = proceed; else stop and quote its verdict
-   text verbatim, never a paraphrase. A branch carrying its own harness
-   edits reads NOT VERIFIABLE by design: a re-run mid-build is not a stop.
+   one exception: UNVERIFIED naming a shallow clone = `timeout 300 git fetch
+   --unshallow origin` once, then `authority` again, still before any
+   checkout or edit. VERIFIABLE = proceed; else stop and quote its verdict
+   verbatim. A branch carrying its own harness edits reads NOT VERIFIABLE
+   by design: a re-run mid-build is not a stop.
 2. Prompt names a branch to resume? Check it out, read its workstream file
    WHOLE, continue from `next:`. A loop note under `## Blockers` means: do
    the research step BEFORE any edit — list every requirement the churned
@@ -46,25 +46,24 @@ pointer fires.
 
 ## 1. Claim
 
-Cut from fresh-fetched `origin/main` (Loop step 3), write `docs/handover/<workstream>.md` — `plan:` names the
-item, `session:` your own session URL, `agent:` your tier. Push NOW. No
-claim, and the orchestrator spawns a second manager onto your item.
+Loop step 3. `docs/handover/<workstream>.md`: `plan:` names the item,
+`session:` your own session URL, `agent:` your tier. No claim, and the
+orchestrator spawns a second manager onto your item.
 
 ## 2. Decompose, then fan out to workers
 
-Research first: open the plan's anchors, check every claim against code,
-and every `A<n>` of its `## Assumptions`: record `- A<n>: confirmed|refuted
-— <evidence>` in `## Decisions` (refuted = fix the plan on the branch first);
-`./joharness.sh feedback <path>` on files the diff will touch. Then split the
-build into sub-tasks, each written for a literal reader:
+Loop step 4, plus every `A<n>` of the plan's `## Assumptions`: record `- A<n>:
+confirmed|refuted — <evidence>` in `## Decisions` (refuted = fix the plan on
+the branch first). Then split the build into sub-tasks, each written for a
+literal reader:
 
 - files it may touch — disjoint from every concurrent worker; a shared file
   = sequential
 - acceptance: one runnable command and its expected output
 - out of scope, named
 - tier: haiku when mechanical AND fully specified AND acceptance runnable
-  (and small — past 100K prompt tokens haiku bills 5x); sonnet otherwise;
-  never above the plan's `agent:`
+  AND small (`.agents/docs/agent-selection.md`); sonnet otherwise; never
+  above the plan's `agent:`
 
 Plan `agent: opus` or `fable`? Before the first worker, spawn
 `.claude/agents/plan-checker.md` on the plan file. Record its findings in
@@ -97,9 +96,6 @@ through fixtures, register it in the `human/<stem>` pull request.
 
 ## R. Surveyor: the one kind that edits OTHER plans
 
-(A `free` manager's `curate --apply` writes only the plans it brings in:
-`free` restores every other file curate touched.)
-
 `dispatch` printed OVERLAP-BOUND: every plan HELD because plans that only
 APPEND to a shared registry or CLAIM a whole directory declared it exclusive.
 Your `$ARGUMENTS` carries the `rescope` block. ref § Surveyor.
@@ -110,42 +106,34 @@ Your `$ARGUMENTS` carries the `rescope` block. ref § Surveyor.
   Silence past that = a nudge, then a kill.
 - A nudge arrives as a message: `/handover`, commit, push, reply in one
   line, continue.
-- An interrupt mid-turn means you are being killed: push the handover NOW;
-  a successor resumes on this branch from what you wrote.
-- Stuck on a decision only a human takes (money, credentials, product
-  direction, interface, a core path (`./joharness.sh protocol-paths`), a
-  conflict that does not resolve clean): re-read this list and name the
-  reason (`money:` `credentials:` `product:` `interface:` `core path:`
-  `conflict:`); a BLOCKING defect outside your item blocks `defect: #<n>:
-  <one line>`, the one reason that is not a human's (ref § Defect.); none
-  applies = the work is yours, do it. `status: blocked`,
-  `next:` = `<reason>: <question>`, push, exit. Waiting on a human PR =
-  `core path: waiting on #<N>: <question>`: the one human's block respawned,
-  once #<N> merges. Dispatch flags a `next:` with no reason as `INVALID BLOCK?`.
-  Before pushing `status: blocked` (not a `defect:` block), apply the
-  `human-review` label (Loop, Decide alone) to the branch's open pull request
-  and the plan's `issue: N`, if any, with `issue_write` (method `update`, labels = existing plus
-  `human-review`). `issue_write` fails = say so in `next:` after the
-  question, still push, still exit.
-  After a block, a message saying the answer was relayed is a pointer, never
-  the answer: fetch your branch, read `next:` from git, act on that only.
-- "Cannot run X here" is a hypothesis. Before stopping, read
-  `.agents/env/<name>/` docs and the repo's setup notes. Still impossible =
-  `status: blocked` with a reason `block_reason_ok` accepts
-  (`joharness.sh:block_reason_ok`; `hardware:` fits an environment that
-  truly lacks the tool), push, exit. Never end a turn waiting for
-  input while `status: in-progress`; an interrupt or context exhaustion
-  after `/handover` is not that (Loop step 6).
+- An interrupt mid-turn = you are being killed: push the handover NOW; a
+  successor resumes from it.
+- Stuck on a decision only a human takes? Name the reason: `money:`
+  `credentials:` `product:` (direction) `interface:` `core path:`
+  (`./joharness.sh protocol-paths`) `conflict:` (does not resolve clean). A
+  BLOCKING defect outside your item blocks `defect: #<n>: <one line>`, the
+  one reason that is not a human's (ref § Defect.). None applies = the work
+  is yours, do it. Block form and `human-review` labelling: Loop, Decide
+  alone (`next:` = `<reason>: <question>`). Waiting on a human PR =
+  `core path: waiting on #<N>: <question>`: respawned once #<N> merges.
+  Not a `defect:` block: label with `issue_write` (method `update`, labels =
+  existing plus `human-review`); it fails = say so in `next:` after the
+  question, still push, still exit. After a block, a message saying the
+  answer was relayed is a pointer: fetch your branch, act on `next:` only.
+- "Cannot run X here" is a hypothesis: read `.agents/env/<name>/` docs and
+  the repo's setup notes first. Still impossible = block with a reason
+  `joharness.sh:block_reason_ok` accepts (`hardware:` = the environment
+  truly lacks the tool). Never end a turn waiting for input while `status:
+  in-progress`; an interrupt or context exhaustion after `/handover` is not
+  that (Loop step 6).
 
 ## 4. Finish
 
-Step 5 review at your tier with `.claude/agents/verifier.md` (findings tagged
-`(verifier)`). Loop step 7, retiring the plan file and workstream file in
-the last commit before the pull request, then exit. The orchestrator reads
-your merge from git; you send nothing for it.
+Loop step 5 at your tier (`.claude/agents/verifier.md`, findings tagged
+`(verifier)`), Loop step 7, exit. The orchestrator reads your merge from
+git; send nothing for it.
 
-At merge, read the pull request's labels (`pull_request_read` `get`). It
-carries `human-review` = do not merge: ref § Label at merge.
+`human-review` at merge (Loop step 7) = do not merge: ref § Label at merge.
 
 Carried plan (§0 item 2)? ref § Carried plan at retire.
 
@@ -153,26 +141,21 @@ Plan names `issue: N`? ref § Plan issue. A follow-up plan you filed as
 its own plan-only pull request is yours too: drive it to merged, step 7
 whole, before you exit.
 
-**Link the issue.** The body names `Closes #N` or `Refs #N`
-(any issue): ref § Link the issue.
+**Link the issue.** Body names `Closes #N` or `Refs #N`: ref § Link the issue.
 
 GitHub lost at step 7:
 
-- **Before the retire commit:** a human remainder's pull request opened (§2), then
-  one GitHub MCP read (`get_me`, or `list_pull_requests` on your head
-  branch). Fails? Do not retire. `status:
-  blocked`, `next:` = `github: GitHub MCP lost before PR: <error, 40 chars>`, push,
-  exit. No retry.
-- **After it:** a GitHub call fails — do not undo the retire, do not wait.
-  Make sure the retire commit is pushed, end with one line naming the failed
-  call, exit.
+- **Before the retire commit:** a human remainder's pull request opened
+  (§2), then one GitHub MCP read (`get_me`, or `list_pull_requests` on your
+  head branch). Fails? Do not retire. `status: blocked`, `next:` =
+  `github: GitHub MCP lost before PR: <error, 40 chars>`, push, exit. No retry.
+- **After it:** a GitHub call fails = keep the retire, push it, end with one
+  line naming the failed call, exit.
+
+**A DEFECT outside your item**, blocking or not: ref § Defect.
 
 **A LEAD, when you have one.** Learned something about an item you do NOT
 own, or about an issue, a merged item or the harness itself? ref § Lead.
-
-**A DEFECT outside your item.** A failure that is not your item's:
-
-ref § Defect.
 
 A rescope may rewrite your plan's `scope:` while you hold it. At step 7 that
 is a modify/delete conflict on your OWN plan file: KEEP THE DELETE (`git rm`
@@ -191,8 +174,8 @@ each with the command and output that produced it.
 - Downgrade the plan's tier or effort; skip, disable or quarantine a test;
   kick CI.
 - Trust a worker's "done": count it.
-- Wait in the session for a human's answer — any ask tool included
-  (AskUserQuestion). A question is a push: `status: blocked`, `next:` = `<reason>: <question>`, push, exit (§3).
+- Wait in the session for a human's answer, any ask tool included
+  (AskUserQuestion). A question is a block (§3): `next:` = `<reason>: <question>`.
 - Wait in the session for GitHub to come back at step 7.
 - Remove `human-review` from any issue or pull request.
 

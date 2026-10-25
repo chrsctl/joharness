@@ -3,11 +3,11 @@ description: Curator role — propose decomposition and order for the plan queue
 ---
 
 Curator role. ONE pass over the plan queue, one pull request, exit. Spawned
-because `./joharness.sh dispatch` said `curate ... DUE` with proposals to
-make. You PROPOSE — decompose and order — and change no plan. Mechanical
-repairs (stale anchors, incomplete `scope:`, directory claims, unmarked
-registries) are `./joharness.sh curate --apply`, and `ci` fails a branch whose
-own added plans still need one.
+by `./joharness.sh dispatch` saying `curate ... DUE` with proposals to make.
+You PROPOSE — decompose and order — and change no plan. Mechanical repairs
+(stale anchors, incomplete `scope:`, directory claims, unmarked registries)
+are `./joharness.sh curate --apply`; `ci` fails a branch whose own added
+plans still need one.
 
 You read: `./joharness.sh curate` and the plan files it names. Not the queue
 order, a requirement, another branch, or the design doc.
@@ -16,12 +16,11 @@ order, a requirement, another branch, or the design doc.
 
 `./joharness.sh role curate --session <your URL> --agent <your tier>`; its
 LAST line decides. `STOP: <reason>` = report that line, exit. A STOP for
-`no PROPOSE findings` also pushes the no-op record, so the clock dates this
-pass: `git fetch origin main && git push origin
-"origin/main:refs/heads/curate-noop-$(date -u +%Y%m%dT%H%M%SZ)"` — a branch AT
-the base's head, merged by construction, dated by its name; name taken = run
-it again, never force. Any other STOP writes
-nothing. `GO <branch>` = on `curate-<UTC date>` (the workstream stem names the branch too), claim
+`no PROPOSE findings` also pushes the no-op record, dating this pass: `git
+fetch origin main && git push origin
+"origin/main:refs/heads/curate-noop-$(date -u +%Y%m%dT%H%M%SZ)"`; name taken
+= run it again, never force. Any other STOP writes nothing. `GO <branch>` =
+on `curate-<UTC date>` (the workstream stem names the branch too), claim
 `docs/handover/curate-<UTC date>.md` pushed (`plan: none`, the identity
 `dispatch` keys on). `(resumed)` = your claim already stands. No twin rule.
 
@@ -35,11 +34,11 @@ nothing. `GO <branch>` = on `curate-<UTC date>` (the workstream stem names the b
 Into your pull request body, one line each, and into no plan file:
 
 - **Decompose candidates.** The plan, its bullet count, and which separable
-  deliverables its own `## Scope` already names. NEVER split it — that
-  multiplies the queue; an author splits it, through `/plan`.
+  deliverables its own `## Scope` already names. NEVER split it; an
+  author splits it, through `/plan`.
 - **Order candidates.** Two plans claiming one path exclusively: which looks
   like it should go first and why, or that they read as one plan. NEVER
-  touch `urgency:` — priority is the human's.
+  touch `urgency:`.
 - **Obsolete candidates.** A plan whose work you find landed in merged
   history (`git log --oneline origin/main --grep '<stem>'`): name the merge.
   Deleting it is the human's or the next plan author's call.
@@ -47,11 +46,9 @@ Into your pull request body, one line each, and into no plan file:
 ## 3. Finish
 
 Step 5 review at your tier with `.claude/agents/verifier.md`, findings in
-`## Review`. Loop step 7, retiring the workstream file
-(`./joharness.sh role curate --retire`) as the LAST COMMIT BEFORE the pull
-request opens.
-The retire commit dates the cycle; the net diff is empty on purpose — the
-proposals are in the body.
+`## Review`. Loop step 7, retiring the workstream file (`./joharness.sh role
+curate --retire`) as the LAST COMMIT BEFORE the pull request opens. The net
+diff is empty; the proposals are in the body.
 
 Report: proposals written.
 
@@ -61,6 +58,6 @@ Report: proposals written.
   `effort:`, a requirement, a research file, or anything under
   `./joharness.sh protocol-paths`.
 - Hand-make a repair `curate --apply` makes.
-- Take a queue item, spawn a session, or run a second pass. One pass, exit.
+- Take a queue item, spawn a session, or run a second pass.
 
 $ARGUMENTS

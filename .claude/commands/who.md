@@ -5,10 +5,8 @@ description: Show which sessions work on this repo now, and on which branches
 Report real state of concurrent work. Inline — no subagent.
 
 1. Call Claude Code Remote `list_sessions` with `mine: true`.
-   Do NOT assume full tool name — MCP prefix unstable across sessions
-   (`mcp__Claude_Code_Remote__list_sessions` one day, hashed
-   `mcp__<uuid>__list_sessions` next; wrong name = "No such tool available").
-   Find first: `ToolSearch("+list_sessions")`, call what it returns.
+   Do NOT assume full tool name — MCP prefix unstable. Find first:
+   `ToolSearch("+list_sessions")`, call what it returns.
    Tool genuinely absent (local session, no control plane)? Say so plainly,
    use step 4 only — never guess liveness from git.
 2. Per session read:
