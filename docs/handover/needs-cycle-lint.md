@@ -8,7 +8,7 @@ issue: 626
 session: https://claude.ai/code/session_015PGhBa5Rc2c7ARnxTFtDau
 agent: sonnet
 updated: 2026-10-25
-next: Read lint_graph in joharness.sh, add needs-cycle walk, selftest, graph.md line
+next: ci and verify green, then retire files and open PR
 ---
 
 ## Goal
@@ -18,6 +18,11 @@ Plan `needs-cycle-lint`: red a `needs:`/`research:` cycle across plans, requirem
 ## Decisions
 
 ## Review
+
+- r1: unreadable node left a partial graph and no red (verifier) (fixed: lint_graph reds an unreadable plan/requirement)
+- r2: PR edges are dead, research nodes are sinks (verifier) (wontfix: plan asks for the edge; harmless)
+- r3: requirement self-need double-report untested (verifier) (fixed: assertion added)
+- r4: awk stderr merged into cycle text (verifier) (wontfix: still red, cosmetic)
 
 ## Blockers
 

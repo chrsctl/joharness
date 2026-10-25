@@ -1133,3 +1133,10 @@ commit_all "$lwork" "a chain"
 out="$(lint_section "$(lint_ci)")"
 refute "a chain with no cycle stays clean" "needs cycle" "$out"
 fixture_rm "$lwork" "drop the chain" docs/plans/chain-a.md docs/plans/chain-b.md docs/plans/chain-c.md
+# A requirement needing itself stays one red, not a cycle line too.
+printf -- '---\nrequirement: self-r\npriority: normal\nneeds: self-r\n---\n' >"${lwork}/docs/product/self-r.md"
+commit_all "$lwork" "a requirement needing itself"
+out="$(lint_section "$(lint_ci)")"
+expect "a requirement needing itself is red" "names itself" "$out"
+refute "and no cycle line repeats it" "needs cycle" "$out"
+fixture_rm "$lwork" "drop it" docs/product/self-r.md

@@ -1118,6 +1118,8 @@ lint_graph() {
       <<<"$(gr_fields urgency agent effort needs requirement research plan scope issue <"${ROOT}/${rel}")"
     lint_required "$rel" plan "$pstem"
     lint_not_fast "$rel"
+    [ -r "${ROOT}/${rel}" ] ||
+      lint_red "${rel}: unreadable — its edges are missing from the needs-cycle walk"
     cyc="${cyc}P${cyt}$(lint_stem "$rel")
 "
     while IFS= read -r cn; do
@@ -1307,6 +1309,8 @@ lint_graph() {
       <<<"$(gr_fields priority needs hold <"${ROOT}/${rel}")"
     lint_enum "$rel" priority "$val" normal urgent
     rfst="$(lint_stem "$rel")"
+    [ -r "${ROOT}/${rel}" ] ||
+      lint_red "${rel}: unreadable — its edges are missing from the needs-cycle walk"
     cyc="${cyc}Q${cyt}${rfst}
 "
     while IFS= read -r cn; do
