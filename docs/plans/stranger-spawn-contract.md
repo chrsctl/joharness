@@ -124,6 +124,8 @@ the two lenses.
 - `.agents/docs/glossary.md` spellings: `ci` reds the banned ones.
 - Every line in `subagents.md` and the agent files loads into spawns: keep the
   new section under 15 lines.
+- Plan `one-release-command` also edits `.claude/commands/manage.md`:
+  whichever lands second merges the other's lines in and keeps both.
 - Plan `c1-at-the-gates` also edits `.claude/agents/plan-checker.md`
   (`## What you check`, one numbered item) and `.claude/agents/verifier.md`.
   Whichever lands second merges the other's lines in, keeps both, and

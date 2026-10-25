@@ -7,7 +7,7 @@ needs: none
 requirement: none
 serves: all
 issue: none
-scope: joharness.sh, .agents/harness/selftest/ci-graph-lint.sh, .agents/docs/plans/README.md
+scope: shared:joharness.sh, .agents/harness/selftest/ci-graph-lint.sh, .agents/docs/plans/README.md
 ---
 
 ## Goal
@@ -99,8 +99,8 @@ plans README already forbids in prose.
 - `joharness.sh:lint_warn` — the warning call.
 - `.agents/harness/selftest/ci-graph-lint.sh:stale anchor warns` — the
   existing fixture and cases.
-- `.agents/docs/plans/README.md:Symbol, never line number` — the sentence to
-  rewrite.
+- `.agents/docs/plans/README.md:Where to look` — the `## Shape` bullet whose
+  sentence on `lint_anchors` gets rewritten.
 
 ## Traps
 
@@ -111,3 +111,6 @@ plans README already forbids in prose.
   `docs/research/selftest-runtime.md`.
 - Caveman style and `.agents/docs/glossary.md` spellings in the README edit.
 - NEVER skip, disable or quarantine a test to get green.
+- Plan `drop-curator-session` also edits `.agents/docs/plans/README.md`;
+  `joharness.sh` is shared with every plan marking it `shared:`. Whichever
+  lands second merges the other's lines in and keeps both.
