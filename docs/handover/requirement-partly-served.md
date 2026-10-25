@@ -45,7 +45,15 @@ retire with clauses unbuilt.
 
 ## Review
 
-- None yet.
+- r1: (plan-checker) listing counts open plans only, deletion counts retired too: a clause a merged plan built reads unserved and is re-offered (fixed: the listing adds retired plans' `serves:` from the base's history, read only for a requirement its open plans leave partial; selftest case)
+- r2: (plan-checker) fixture acceptance names no command and no expected output (fixed: plan Acceptance names the selftest strings `ci` runs)
+- r3: (plan-checker) both frontmatter readers print "" for absent and for empty `serves:` (fixed: `gr_has_field` and the hook's key test; selftest cases for both)
+- r4: (plan-checker) A2 evidence cites product README for `## Satisfied when`; only TEMPLATE.md names it (fixed: plan A2 evidence corrected; README now names the section, Clauses)
+- r5: (plan-checker) scope overlaps needs-cycle-lint on joharness.sh, ci-graph-lint.sh, graph.md, same function (no change: both mark the files `shared:`, a reconcile at finish is the declared cost; neither reads the other's result, so no `needs:`)
+- r6: (plan-checker) scope overlaps release-claim-held-by-edge on joharness.sh (no change: `shared:`, no shared function)
+- r7: (plan-checker) offering happens in dispatch, untested, and its spawn line says UNPLANNED (fixed: dispatch names PARTLY PLANNED; dispatch-order selftest case)
+- r8: (plan-checker) manage.md routes `docs/product/<r>.md` as UNPLANNED only (fixed: the route names PARTLY PLANNED, plan the unserved clauses)
+- r9: (plan-checker) product README still says a requirement with open plans is silent (fixed: the line names the PARTLY PLANNED exception)
 
 ## Blockers
 

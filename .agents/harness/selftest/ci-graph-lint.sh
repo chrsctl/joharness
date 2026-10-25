@@ -1230,8 +1230,8 @@ commit_all "$lwork" "serves-one again, serves-rest"
 fixture_rm "$lwork" "serves-one retired" docs/plans/serves-one.md
 git -C "$lwork" update-ref refs/remotes/origin/main HEAD
 qout="$(CLAUDE_PROJECT_DIR="$lwork" bash "${ROOT}/.agents/harness/queue-context.sh" 2>&1)"
-expect "a retired plan serves nothing in the queue: only open plans do" \
-  "three-clause.md  [normal, PARTLY PLANNED: clause 1 unserved]" "$qout"
+refute "a clause a retired plan served is not offered again (plan-checker r1)" \
+  "three-clause.md" "$qout"
 fixture_rm "$lwork" "retire serves-rest and the requirement" \
   docs/plans/serves-rest.md docs/product/three-clause.md
 out="$(lint_section "$(lint_ci)")"

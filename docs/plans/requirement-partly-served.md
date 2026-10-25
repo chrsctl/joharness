@@ -58,7 +58,7 @@ serves. Default answer:
 - A1: `served` in `queue-context.sh` is a stem set with no clause notion.
   Evidence: `served="$(awk -F'\t' '$5 != "" ...'`. Confidence: high.
 - A2: requirement files keep `## Satisfied when` as a bullet list.
-  Evidence: `.agents/docs/product/README.md` names the section.
+  Evidence: `.agents/docs/product/TEMPLATE.md` names the section.
   Confidence: medium; count the bullets at the top level only, and measure
   against the consumers' real files first.
 
@@ -73,10 +73,15 @@ serves. Default answer:
 - `./joharness.sh ci`: expect `ci: pass`; red is any other final line.
 - `./joharness.sh verify`: expect `0 failed`; red is any failure count
   above 0.
-- Fixture: a 3-clause requirement with one open plan `serves: 1`. Expect
-  the queue to list it `PARTLY PLANNED: clauses 2, 3 unserved` and offer
-  it. A branch that retires that plan and deletes the requirement is red.
-  The same with no `serves:` behaves exactly as today.
+- Fixture, run by `./joharness.sh ci` (selftest topic `ci-graph-lint`):
+  a 3-clause requirement with one open plan `serves: 1`. Expect `PASS a
+  requirement one plan partly serves is listed PARTLY PLANNED` (queue line
+  `[normal, PARTLY PLANNED: clauses 2, 3 unserved]`), `PASS and offered:
+  the entrypoint sends a session to plan it`, `PASS deleting a requirement
+  its plans served in part is red`. The same with no `serves:`: `PASS a
+  requirement served by a plan with no serves: is silent` and `PASS
+  deleting it with a no-serves: plan is today's satisfied case`. Any of
+  these as FAIL is red.
 
 ## Where to look
 

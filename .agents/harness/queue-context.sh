@@ -393,18 +393,56 @@ served="$(awk -F'\t' '$5 != "" && $5 != "none" { print $5 }' <<<"$rows")"
 # requirement<TAB>serves, one line per open plan naming a requirement.
 qc_srv="$(awk -F'\t' '$1 == "SRV" { print $2 "\t" $3 }' <<<"$rows_raw")"
 
-# The clauses of requirement <stem> no open plan serves, `2, 4`, from the
+# `serves:` of the plans naming requirement <stem> that were retired on the
+# queue's line, one value per line as qc_serves prints it. A clause a merged
+# plan built is served: counting open plans alone re-offered it (plan-checker
+# r1). -G narrows to deletions carrying the stem; the exact compare decides.
+qc_retired_serves() {
+  local line c="" pf pdoc
+  git log --full-history --diff-filter=D -G"^requirement:.*${1//./\\.}" \
+    --format='C %H' --name-only "$ref" -- "$PLANS_DIR" 2>/dev/null |
+    while IFS= read -r line; do
+      case "$line" in
+        'C '*) c="${line#C }"; continue ;;
+        "$PLANS_DIR"/*.md) pf="$line" ;;
+        *) continue ;;
+      esac
+      pdoc="$(git show "${c}^:${pf}" 2>/dev/null)" || continue
+      [ "$(stem "$(printf '%s\n' "$pdoc" | field requirement)")" = "$1" ] || continue
+      qc_serves "$(printf '%s\n' "$pdoc" | field serves)" \
+        "$(printf '%s\n' "$pdoc" | awk '
+          NR == 1 && $0 != "---" { exit }
+          NR > 1  && $0 == "---" { exit }
+          /^serves:/ { print 1; exit }')"
+      printf '\n'
+    done
+}
+
+# <clause count> <serves values, one per line>: the clause numbers none
+# names, `2, 4`; empty when every clause is named.
+qc_missing() {
+  awk -v n="$1" -v sv="$(paste -sd, - <<<"$2")" 'BEGIN {
+    split(sv, a, ","); for (i in a) h[a[i]] = 1
+    for (i = 1; i <= n; i++) if (!(i in h)) o = o (o == "" ? "" : ", ") i
+    print o }'
+}
+
+# The clauses of requirement <stem> no plan serves, `2, 4`, from the
 # requirement on stdin; empty when every clause is served. PARTLY PLANNED is
-# a requirement some plan names whose union of `serves:` misses a clause; one
-# plan reading `all` serves every clause.
+# a requirement some open plan names whose union of `serves:` misses a
+# clause; one plan reading `all` serves every clause. Retired plans count,
+# read only for a requirement its open plans leave partial: history is the
+# expensive read, and most requirements never get there.
 qc_unserved() {
-  local sv
+  local sv count miss
   sv="$(awk -F'\t' -v s="$1" '$1 == s { print $2 }' <<<"$qc_srv")"
   grep -qx 'all' <<<"$sv" && return 0
-  qc_clause_count | awk -v sv="$(paste -sd, - <<<"$sv")" '{
-    split(sv, a, ","); for (i in a) h[a[i]] = 1
-    for (i = 1; i <= $1; i++) if (!(i in h)) o = o (o == "" ? "" : ", ") i
-    print o }'
+  count="$(qc_clause_count)"
+  miss="$(qc_missing "$count" "$sv")"
+  [ -n "$miss" ] || return 0
+  sv="${sv}${NL}$(qc_retired_serves "$1")"
+  grep -qx 'all' <<<"$sv" && return 0
+  qc_missing "$count" "$sv"
 }
 unplanned=""
 if [ -n "$reqs" ]; then
