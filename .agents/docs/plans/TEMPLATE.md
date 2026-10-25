@@ -5,6 +5,7 @@ agent: sonnet
 effort: high
 needs: none
 requirement: none
+serves: all
 issue: none
 scope: none
 ---
@@ -16,6 +17,10 @@ runnable commands with expected output.
 needs: plan names whose RESULT this plan reads, or a requirement no plan
   builds yet; else none. Never a gate in prose: dispatch cannot read it.
 requirement: the one this plan serves; its last plan's PR deletes it.
+serves: which of its `## Satisfied when` clauses this plan builds, numbered
+  by position (`1, 3`), or `all`. No line = all. Fewer than all leaves the
+  requirement PARTLY PLANNED: offered for planning until every clause has a
+  plan.
 issue: GitHub issue a clerk turned into this plan; manager's PR says Closes #N
   (Refs #N when another plan names it or `## Issue remainder` exists).
 scope: comma-separated path prefixes; prefix `shared:` for routine reconcile;

@@ -1100,3 +1100,153 @@ out="$(lint_section "$(lint_ci)")"
 refute "needs naming a satisfied requirement is no dead edge" \
   "needs 'done-layer' — no such plan or requirement" "$out"
 fixture_rm "$lwork" "drop it" docs/plans/after-done.md
+
+# `serves:` (#626): a plan names which of its requirement's clauses it serves.
+# One 3-clause requirement feeds both readers below: the lint's clause count
+# and the queue hook's PARTLY PLANNED label. The clauses are the top-level
+# items of `## Satisfied when`; nested lines, fenced lines and items under
+# another heading are not clauses, so a reader counting them reads 4+.
+cat >"${lwork}/docs/product/three-clause.md" <<'EOF'
+---
+requirement: three-clause
+priority: normal
+---
+
+## Goal
+
+Fixture.
+
+## Satisfied when
+
+1. **First.** A numbered clause,
+   continued on an indented line.
+2. A second numbered clause.
+   - a nested bullet, not a clause
+- A third clause, a bullet.
+
+```
+- fenced, not a clause
+```
+
+## Constraints
+
+- not a clause
+EOF
+printf -- '---\nplan: serves-one\nurgency: normal\nagent: sonnet\neffort: high\nrequirement: three-clause\nserves: 1\n---\n' \
+  >"${lwork}/docs/plans/serves-one.md"
+commit_all "$lwork" "a requirement one plan partly serves"
+out="$(lint_section "$(lint_ci)")"
+refute "serves: naming a clause in range is no red" "serves-one.md: serves" "$out"
+# The value lint: out of range, empty, not a number, mixed with all, and
+# serves: with no requirement: are each red.
+printf -- '---\nplan: sv-range\nurgency: normal\nagent: sonnet\neffort: high\nrequirement: three-clause\nserves: 4\n---\n' \
+  >"${lwork}/docs/plans/sv-range.md"
+printf -- '---\nplan: sv-empty\nurgency: normal\nagent: sonnet\neffort: high\nrequirement: three-clause\nserves:\n---\n' \
+  >"${lwork}/docs/plans/sv-empty.md"
+printf -- '---\nplan: sv-word\nurgency: normal\nagent: sonnet\neffort: high\nrequirement: three-clause\nserves: 1, two\n---\n' \
+  >"${lwork}/docs/plans/sv-word.md"
+printf -- '---\nplan: sv-mixed\nurgency: normal\nagent: sonnet\neffort: high\nrequirement: three-clause\nserves: all, 2\n---\n' \
+  >"${lwork}/docs/plans/sv-mixed.md"
+printf -- '---\nplan: sv-zero\nurgency: normal\nagent: sonnet\neffort: high\nrequirement: three-clause\nserves: 0\n---\n' \
+  >"${lwork}/docs/plans/sv-zero.md"
+printf -- '---\nplan: sv-noreq\nurgency: normal\nagent: sonnet\neffort: high\nserves: 1\n---\n' \
+  >"${lwork}/docs/plans/sv-noreq.md"
+printf -- '---\nplan: sv-tmpl\nurgency: normal\nagent: sonnet\neffort: high\nrequirement: none\nserves: all\n---\n' \
+  >"${lwork}/docs/plans/sv-tmpl.md"
+printf -- '---\nplan: sv-all\nurgency: normal\nagent: sonnet\neffort: high\nrequirement: three-clause\nserves: all\n---\n' \
+  >"${lwork}/docs/plans/sv-all.md"
+commit_all "$lwork" "serves: values"
+full="$(lint_ci)"; rc=$?
+out="$(lint_section "$full")"
+expect "serves: past the clause count is red, naming the count" \
+  "sv-range.md: serves clause '4' — requirement 'three-clause' has 3 clause(s)" "$out"
+expect "serves: with no number is red, never read as all" \
+  "sv-empty.md: serves: names no clause" "$out"
+expect "a serves: value that is not a number is red" \
+  "sv-word.md: serves 'two' — not a clause number" "$out"
+expect "serves: mixing all and numbers is red" \
+  "sv-mixed.md: serves mixes 'all'" "$out"
+expect "serves: 0 is red: clauses count from 1" \
+  "sv-zero.md: serves clause '0'" "$out"
+expect "serves: with no requirement: is red" \
+  "sv-noreq.md: serves '1' but no requirement:" "$out"
+refute "serves: all is no red" "sv-all.md:" "$out"
+refute "the template's serves: all beside requirement: none is no red" "sv-tmpl.md:" "$out"
+if [ "$rc" -ne 0 ]; then pass "a bad serves: fails ci"; else fail "a bad serves: fails ci"; fi
+fixture_rm "$lwork" "drop the serves: value fixtures" docs/plans/sv-range.md \
+  docs/plans/sv-empty.md docs/plans/sv-word.md docs/plans/sv-mixed.md \
+  docs/plans/sv-zero.md docs/plans/sv-noreq.md docs/plans/sv-all.md \
+  docs/plans/sv-tmpl.md
+
+# The same fixture through the queue hook: listed and offered, the label
+# naming the unserved clauses. origin/main is set here and dropped at the
+# end of this block: every case above reads a tree with no base branch.
+git -C "$lwork" update-ref refs/remotes/origin/main HEAD
+qout="$(CLAUDE_PROJECT_DIR="$lwork" bash "${ROOT}/.agents/harness/queue-context.sh" 2>&1)"
+expect "a requirement one plan partly serves is listed PARTLY PLANNED" \
+  "docs/product/three-clause.md  [normal, PARTLY PLANNED: clauses 2, 3 unserved]" "$qout"
+expect "and offered: a planning session is sent to it" \
+  "Plus one planning session for the UNPLANNED requirements above" "$qout"
+
+# A branch that retires that plan and deletes the requirement is red: two
+# clauses would go with it, unbuilt.
+fixture_rm "$lwork" "retire serves-one and the requirement" \
+  docs/plans/serves-one.md docs/product/three-clause.md
+full="$(lint_ci)"; rc=$?
+out="$(lint_section "$full")"
+expect "deleting a requirement its plans served in part is red" \
+  "docs/product/three-clause.md: deleted with clause(s) 2, 3 of 3 served by no plan's serves:" "$out"
+if [ "$rc" -ne 0 ]; then pass "the partial deletion fails ci"; else fail "the partial deletion fails ci"; fi
+
+# The same with no serves: behaves exactly as today: silent in the queue,
+# and its deletion is the satisfied case.
+git -C "$lwork" reset -q --hard origin/main
+sed -i.bak '/^serves:/d' "${lwork}/docs/plans/serves-one.md" && rm -f "${lwork}/docs/plans/serves-one.md.bak"
+commit_all "$lwork" "no serves: means all"
+git -C "$lwork" update-ref refs/remotes/origin/main HEAD
+qout="$(CLAUDE_PROJECT_DIR="$lwork" bash "${ROOT}/.agents/harness/queue-context.sh" 2>&1)"
+refute "a requirement served by a plan with no serves: is silent" "three-clause.md" "$qout"
+fixture_rm "$lwork" "retire the plan and the requirement" \
+  docs/plans/serves-one.md docs/product/three-clause.md
+out="$(lint_section "$(lint_ci)")"
+refute "deleting it with a no-serves: plan is today's satisfied case" \
+  "three-clause.md: deleted" "$out"
+
+# A plan retired BEFORE the branch counts: clause 1 served by a plan retired
+# on the base, 2 and 3 by the plan this branch retires. History, read the
+# way lint_existed reads it.
+git -C "$lwork" reset -q --hard origin/main
+fixture_rm "$lwork" "serves-one retired on the base" docs/plans/serves-one.md
+printf -- '---\nplan: serves-rest\nurgency: normal\nagent: sonnet\neffort: high\nrequirement: three-clause\nserves: 2,3\n---\n' \
+  >"${lwork}/docs/plans/serves-rest.md"
+# serves-one back with serves: 1, then retired, so its last content serves 1.
+printf -- '---\nplan: serves-one\nurgency: normal\nagent: sonnet\neffort: high\nrequirement: three-clause\nserves: 1\n---\n' \
+  >"${lwork}/docs/plans/serves-one.md"
+commit_all "$lwork" "serves-one again, serves-rest"
+fixture_rm "$lwork" "serves-one retired" docs/plans/serves-one.md
+git -C "$lwork" update-ref refs/remotes/origin/main HEAD
+qout="$(CLAUDE_PROJECT_DIR="$lwork" bash "${ROOT}/.agents/harness/queue-context.sh" 2>&1)"
+expect "a retired plan serves nothing in the queue: only open plans do" \
+  "three-clause.md  [normal, PARTLY PLANNED: clause 1 unserved]" "$qout"
+fixture_rm "$lwork" "retire serves-rest and the requirement" \
+  docs/plans/serves-rest.md docs/product/three-clause.md
+out="$(lint_section "$(lint_ci)")"
+refute "a clause served by a plan retired before the branch counts" \
+  "three-clause.md: deleted" "$out"
+
+# Shallow: plans retired before the cut are invisible, so the red is a warn.
+lpshallow="${TMP}/lintpartlyshallow"
+# Two commits deep: the branch's retire and the base tip, which the cut makes
+# a root, so the base tip's own retirement of serves-one reads as nothing.
+if git clone -q --depth 2 --branch main "file://${lwork}" "$lpshallow" 2>/dev/null &&
+   git -C "$lpshallow" update-ref refs/remotes/origin/main HEAD^ 2>/dev/null; then
+  out="$(CLAUDE_PROJECT_DIR="$lpshallow" JOHARNESS_CONF="${lpshallow}/joharness.conf" \
+    GITHUB_ACTIONS='' "${lpshallow}/joharness.sh" ci 2>&1 |
+    sed -n '/== graph lint/,/^$/p')"
+  expect "shallow history degrades the partial-deletion red to a warning" \
+    "three-clause.md: deleted, clause(s) 1 unserved by the plans visible here (shallow history)" "$out"
+  refute "and calls nothing DEAD for it" "DEAD docs/product/three-clause.md" "$out"
+else
+  skip "shallow-history partial-deletion degrade" "file:// shallow clone unavailable here"
+fi
+git -C "$lwork" update-ref -d refs/remotes/origin/main

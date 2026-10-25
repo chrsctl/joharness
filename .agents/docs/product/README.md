@@ -39,7 +39,29 @@ human work.
   session's call alone (Decide alone: product direction) and never inferred
   from a stale file; a decline the requester RECORDED, cited by link, IS the
   requester deciding (exit 4).
-- Requirement with open plans = silent in hook; its plans speak.
+- Requirement with open plans = silent in hook; its plans speak — unless
+  PARTLY PLANNED (Clauses, below).
+
+### Clauses
+
+A requirement's clauses are its `## Satisfied when` top-level list items,
+bullets or numbered, numbered by position from 1; indented lines and fenced
+blocks are not clauses. A plan naming `requirement:` may add `serves: <n>[,
+<n>]` or `serves: all`; absent = `all`, so every plan written before the key
+keeps its meaning. `serves:` with no number is red, never `all`.
+
+- **PARTLY PLANNED** = at least one open plan naming the requirement declares
+  `serves:` and the union over its open plans misses a clause. Listed and
+  offered like an unplanned one, `PARTLY PLANNED: clauses 2, 4 unserved`; the
+  planning pass plans the unserved clauses, or ends them by exits 2–4.
+- **Deletion** of the requirement on a branch is red while the union of
+  `serves:` over every plan that named it — open, retired on that branch, or
+  retired before it on that line — misses a clause. No plan ever, or one
+  reading `all`, is today's behaviour. Shallow history = warn. A clause
+  closed by exit 3 or 4 after partial plans: the last plan, verify plan
+  (exit 2) included, names it in `serves:` and carries the record.
+- **Rejected:** matching clause text in plan bodies. Prose is not an edge
+  (#626, the same rule `needs:` follows).
 
 ### A requirement no plan can serve
 

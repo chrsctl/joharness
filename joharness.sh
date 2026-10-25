@@ -884,6 +884,150 @@ lint_shallow() {
 
 lint_stem() { local s="${1##*/}"; printf '%s' "${s%.md}"; }
 
+# A requirement's clauses, counted from the requirement on stdin: the
+# top-level list items of `## Satisfied when`, numbered by position. Bullets
+# and numbered items both count; indented lines and fenced blocks do not. The
+# file is DATA: counted, never acted on. Same reader as the queue hook's
+# `qc_clause_count`; the selftest feeds both one fixture.
+req_clause_count() {
+  awk '
+    /^(```|~~~)/ { fence = !fence; next }
+    fence { next }
+    /^## / { sec = ($0 ~ /^## Satisfied when[[:space:]]*$/); next }
+    /^# / { sec = 0; next }
+    sec && /^([-*+]|[0-9]+[.)])[[:space:]]/ { n++ }
+    END { print n + 0 }'
+}
+
+# A plan's `serves:` from the plan on stdin: `all` when the key is absent or
+# says `all`, else the clause numbers it names, one per line, possibly none.
+# Absent and empty are NOT one value (#626): no key keeps today's meaning,
+# `serves:` with no number serves nothing.
+lint_serves_norm() {
+  local doc v t
+  local -a tl
+  doc="$(cat)"
+  if ! printf '%s\n' "$doc" | gr_has_field serves; then
+    printf 'all\n'; return 0
+  fi
+  v="$(printf '%s\n' "$doc" | gr_field serves)"
+  read -ra tl <<<"${v//,/ }"
+  for t in ${tl[@]+"${tl[@]}"}; do
+    case "$t" in
+      all) printf 'all\n'; return 0 ;;
+      '' | *[!0-9]*) continue ;;
+    esac
+    t="${t#"${t%%[!0]*}"}"
+    { [ -n "$t" ] && [ "${#t}" -le 6 ]; } || continue
+    printf '%s\n' "$t"
+  done
+}
+
+# <file> <requirement stem>: the `serves:` values must be clause numbers within
+# the requirement's count, or `all` alone (.agents/docs/plans/README.md).
+lint_serves() {
+  local rel="$1" r="$2" v t count="" nums=0 all=0
+  local -a tl
+  gr_has_field serves <"${ROOT}/${rel}" || return 0
+  v="$(gr_field serves <"${ROOT}/${rel}")"
+  # `all` with no requirement is the template's vacuous default.
+  if [ -z "$r" ] || [ "$r" = "none" ]; then
+    [ "$v" = "all" ] ||
+      lint_red "${rel}: serves '${v}' but no requirement: — clauses of nothing"
+    return 0
+  fi
+  if [ -z "${v//[[:space:],]/}" ]; then
+    lint_red "${rel}: serves: names no clause — absent means all; name the clauses or 'all'"
+    return 0
+  fi
+  [ ! -f "${ROOT}/docs/product/${r}.md" ] ||
+    count="$(req_clause_count <"${ROOT}/docs/product/${r}.md")"
+  read -ra tl <<<"${v//,/ }"
+  for t in ${tl[@]+"${tl[@]}"}; do
+    case "$t" in
+      all) all=1; continue ;;
+      *[!0-9]*)
+        lint_red "${rel}: serves '${t}' — not a clause number or 'all'"
+        continue ;;
+    esac
+    nums=$((nums + 1))
+    t="${t#"${t%%[!0]*}"}"
+    if [ -z "$t" ] || [ "${#t}" -gt 6 ] ||
+       { [ -n "$count" ] && [ "$t" -gt "$count" ]; }; then
+      lint_red "${rel}: serves clause '${t:-0}' — requirement '${r}' has ${count:-?} clause(s) under ## Satisfied when"
+    fi
+  done
+  [ "$all" -eq 0 ] || [ "$nums" -eq 0 ] ||
+    lint_red "${rel}: serves mixes 'all' with clause numbers — one or the other"
+}
+
+# `serves:` of every plan naming requirement <stem>, open in the tree or
+# retired on HEAD's line: a `-` line per plan, then its values as
+# lint_serves_norm prints them. Nothing printed = no plan ever named it.
+lint_serves_of() {
+  local r="$1" f c line
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    [ "$(lint_stem "$(gr_field requirement <"${ROOT}/${f}")")" = "$r" ] || continue
+    printf -- '-\n'
+    lint_serves_norm <"${ROOT}/${f}"
+  done < <(lint_nodes docs/plans)
+  # Retired: each deletion's last content. -G narrows to deletions whose
+  # removed lines carry the stem; the exact compare below decides.
+  # --full-history: a plan retired on a merged side branch counts too.
+  {
+    GIT_LITERAL_PATHSPECS=1 git -C "$ROOT" diff --diff-filter=D --name-only HEAD \
+      -- docs/plans 2>/dev/null | while IFS= read -r line; do
+        printf 'HEAD\t%s\n' "$line"
+      done
+    GIT_LITERAL_PATHSPECS=1 git -C "$ROOT" log --full-history --diff-filter=D \
+      -G"^requirement:.*${r//./\\.}" --format='C %H' --name-only HEAD -- docs/plans \
+      2>/dev/null | while IFS= read -r line; do
+        case "$line" in
+          'C '*) c="${line#C }" ;;
+          docs/plans/*.md) printf '%s^\t%s\n' "$c" "$line" ;;
+        esac
+      done
+  } | while IFS=$'\t' read -r c f; do
+    [ -n "$f" ] || continue
+    case "$f" in */TEMPLATE.md | */README.md | */RETIRED.md) continue ;; esac
+    line="$(git -C "$ROOT" show "${c}:${f}" 2>/dev/null)" || continue
+    [ "$(lint_stem "$(printf '%s\n' "$line" | gr_field requirement)")" = "$r" ] || continue
+    printf -- '-\n'
+    printf '%s\n' "$line" | lint_serves_norm
+  done
+}
+
+# Red a requirement this branch deletes while the plans that named it, open
+# or retired on this line, declared `serves:` and left a clause unserved
+# (#626): the last plan's retirement would delete clauses nobody built. No
+# plan ever, or one reading `all`, is today's behaviour. Shallow = warn: the
+# plans retired before may be past the cut.
+lint_req_deleted() {
+  local over="origin/${HANDOVER_BASE_BRANCH:-main}" base rel r count sv miss
+  base="$(git -C "$ROOT" merge-base HEAD "$over" 2>/dev/null)"
+  [ -n "$base" ] || return 0
+  while IFS= read -r rel; do
+    [ -n "$rel" ] || continue
+    r="$(lint_stem "$rel")"
+    count="$(git -C "$ROOT" show "${base}:${rel}" 2>/dev/null | req_clause_count)"
+    [ "${count:-0}" -gt 0 ] || continue
+    sv="$(lint_serves_of "$r")"
+    [ -n "$sv" ] || continue
+    ! grep -qx 'all' <<<"$sv" || continue
+    miss="$(awk -v n="$count" '$1 != "-" { h[$1] = 1 } END {
+      for (i = 1; i <= n; i++) if (!(i in h)) o = o (o == "" ? "" : ", ") i
+      print o }' <<<"$sv")"
+    [ -n "$miss" ] || continue
+    if lint_shallow; then
+      lint_warn "${rel}: deleted, clause(s) ${miss} unserved by the plans visible here (shallow history) — cannot see the plans retired before"
+    else
+      lint_red "${rel}: deleted with clause(s) ${miss} of ${count} served by no plan's serves: — plan them, or a last plan serves them (.agents/docs/product/README.md)"
+    fi
+  done < <(GIT_LITERAL_PATHSPECS=1 git -C "$ROOT" diff --diff-filter=D --name-only \
+             "$base" -- docs/product 2>/dev/null | gr_docs)
+}
+
 # <file> <field> <value> <allowed...>: empty passes (hooks default it),
 # anything else outside the vocabulary is red.
 lint_enum() {
@@ -1140,6 +1284,7 @@ lint_graph() {
         lint_red "${rel}: requirement '${r}' — no such requirement, never existed. Typo?"
       fi
     fi
+    lint_serves "$rel" "$r"
     lint_anchors "$rel"
   done < <(lint_nodes docs/plans)
 
@@ -1265,6 +1410,7 @@ lint_graph() {
     fi
   done < <(lint_nodes docs/product)
 
+  lint_req_deleted
   lint_unknown_types
 
   if [ "$LINT_RC" -eq 0 ] && [ "$LINT_WARNED" -eq 0 ]; then
@@ -5373,6 +5519,16 @@ gr_field_raw() {
       s = substr($0, RLENGTH + 1); sub(/[[:space:]]+$/, "", s); print s; exit }'
 }
 
+# Exit 0 when the frontmatter on stdin carries the key at all, empty or not:
+# `serves:` with no value is not `serves` absent.
+gr_has_field() {
+  awk -v key="$1" '
+    NR == 1 && $0 != "---" { exit }
+    NR > 1  && $0 == "---" { exit }
+    index($0, key ":") == 1 { f = 1; exit }
+    END { exit !f }'
+}
+
 # One field, the common case. A wrapper and not a second parser: two readers
 # of the same frontmatter is one of them drifting.
 gr_field() { gr_fields "$1"; }
@@ -8485,7 +8641,12 @@ cmd_dispatch() {
   if [ -n "$req" ]; then
     # Planning outranks the plan queue (step 2), so it is first and it is ONE
     # manager: decomposition is one session's job, not a fleet's.
-    printf '  %s — UNPLANNED: one planning manager (agent: fable, effort xhigh) first\n' "${req%% *}"
+    case "$req" in
+      *'PARTLY PLANNED: '*)
+        printf '  %s — PARTLY PLANNED: one planning manager (agent: fable, effort xhigh) first, for the unserved clauses\n' "${req%% *}" ;;
+      *)
+        printf '  %s — UNPLANNED: one planning manager (agent: fable, effort xhigh) first\n' "${req%% *}" ;;
+    esac
     n_free=$((n_free + 1))
   fi
   [ -z "$free" ] || printf '%s' "$free"

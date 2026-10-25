@@ -34,6 +34,7 @@ semantic, summary — convergent, not copied.
 | `research` | plan → research | plan frontmatter. Open target file = blocked. |
 | `graduates` | research → `AGENTS.md` / `docs/` file | research frontmatter. Declared target; the `graduated` edge below completes it. |
 | `requirement` | plan → requirement | plan frontmatter. Requirement nobody serves = unplanned, `dispatch` flags. |
+| `serves` | plan → clause of its requirement | plan frontmatter, clause numbers or `all`; absent = `all`. Clause no open plan serves = PARTLY PLANNED, `dispatch` flags; deleting the requirement with one unserved = `ci` red. |
 | `plan` | workstream → plan | workstream frontmatter. The claim. |
 | `agent` | plan or workstream → tier | frontmatter. Model that runs it. |
 | `scope` | plan → paths | plan frontmatter. Declared touch-set; disjoint scopes = proven-parallel wave, overlap named at spawn. `touches` is the same edge measured after the fact. |

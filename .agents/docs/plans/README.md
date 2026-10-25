@@ -46,6 +46,14 @@ Frontmatter: `plan`, `urgency` (`normal` | `urgent`), `agent` (`haiku` |
 
 - `needs` — plan names this one reads results of.
 - `requirement` — the one this plan serves ([`docs/product/`](../product/README.md)).
+- `serves` — which of that requirement's clauses: `<n>[, <n>]` (top-level
+  items of its `## Satisfied when`, numbered by position) or `all`. Absent =
+  `all`, today's meaning; `serves:` with no number is red, never `all`.
+  Integers within the clause count or `all` alone, else `ci` reds. Union over
+  a requirement's open plans missing a clause = PARTLY PLANNED, offered for
+  planning; a branch deleting the requirement while the plans that named it,
+  open or retired, leave a clause unserved is red
+  ([`../product/README.md`](../product/README.md), Clauses).
 - `issue` — the GitHub issue a clerk turned into this plan (`#N`, `N` or
   `none`); `./joharness.sh clerk` lists it PLANNED.
 - `scope` — path prefixes the plan will touch; `none` joins no wave. The queue hook proves
