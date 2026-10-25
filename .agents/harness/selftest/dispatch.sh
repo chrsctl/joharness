@@ -1686,6 +1686,7 @@ expect "and its plan reads blocked by the open requirement, not claimed" \
 dfplan rel-j none; dfplan interface none
 dfpush 8 "rel-j, a plan named like a reason word"
 git -C "$dfwork" checkout -qb park-rel-j origin/main
+mkdir -p "${dfwork}/docs/handover"
 for w in rj-a rj-b; do
   printf -- '---\nworkstream: %s\nstatus: in-progress\nbranch: park-rel-j\nplan: rel-j\nsession: https://example.invalid/session_%s\nagent: sonnet\nupdated: 2026-01-02\nnext: Build it\n---\n\n## Goal\nFixture.\n' \
     "$w" "$w" >"${dfwork}/docs/handover/${w}.md"
