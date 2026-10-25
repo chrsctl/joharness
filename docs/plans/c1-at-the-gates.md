@@ -43,7 +43,7 @@ do (plan conduct-audits-the-gates).
 ## Out of scope
 
 - `.claude/commands/conduct.md`, and anything in plan conduct-recent-sample
-  or research conduct-c2-design / conduct-concern-to-retro.
+  or research conduct-c2-design, or plan retro-audit-and-trace.
 - Making the plan-checker run on sonnet or haiku plans.
 
 ## Acceptance

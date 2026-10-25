@@ -17,8 +17,8 @@ retired branch in history, ordered by sha1 of the stem, so it audits
 arbitrary old work. Its CONCERN rate prints only on `./joharness.sh conduct`.
 Make conduct sample the work merged since its last run, riskiest first, and
 show its rate where the orchestrator reads. Questions beyond C1 (research
-conduct-c2-design) and routing CONCERNs to retro (research
-conduct-concern-to-retro) are not this plan.
+conduct-c2-design) and routing CONCERNs to retro (plan
+retro-audit-and-trace) are not this plan.
 
 ## Scope
 
@@ -75,7 +75,7 @@ conduct-concern-to-retro) are not this plan.
 ## Out of scope
 
 - New questions (C2) and any test running: research conduct-c2-design.
-- Retro reading conduct rows: research conduct-concern-to-retro.
+- Retro reading conduct rows: plan retro-audit-and-trace.
 - A due-early alarm on the rate. Its back-to-back cost needs the research
   first.
 - `docs/conduct-log.md` format: unchanged.

@@ -56,7 +56,8 @@ Pending.
 ## Consequence for the queue
 
 Pending. YES = a plan adding C2 to conduct (ledger column, verdict per
-case, selector). NO = none.
+case, selector), with `needs: retro-audit-and-trace` so it builds on the
+merged role (`.claude/commands/retro-audit.md`). NO = none.
 
 ## Verification
 
