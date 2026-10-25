@@ -747,6 +747,17 @@ expect "one comment per named issue" \
   "post ONE comment on that issue" "$mgrreftext"
 # A consumer with the clerk off carries no clerk.md; nothing to pin there.
 if [ -n "$clerktext" ]; then
+expect "the clerk closes an issue its DOES NOT HOLD settles" \
+  "\`state_reason: completed\` when the evidence names the base-branch" "$clerktext"
+expect "and says when the claim never held" \
+  "\`not_planned\` when the claim never held" "$clerktext"
+expect "and never closes a scout issue or a blocking defect" \
+  "Never
+  closed: a scout issue (§2), or a \`defect:\` whose body opens \`blocking:\`" "$clerktext"
+expect "and closes a duplicate as one" \
+  "close it \`state_reason: duplicate\`" "$clerktext"
+expect "and NARROWER leaves the closing to its plan" \
+  "NARROWER never" "$clerktext"
 expect "the clerk takes a blocking defect ahead of older issues" \
   "goes ahead of" "$clerktext"
 # shellcheck disable=SC2016 # literal backticks in the needle
