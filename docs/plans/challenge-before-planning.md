@@ -80,9 +80,8 @@ the planning pull request.
 
 - Editing the requirement file: the requester owns its text.
 - Challenging plans that the clerk writes from issues, or plans a human
-  writes: requirement planning only. Scout and brainstorm use the
-  challenger through their own plans (`scout-proposal-challenge`,
-  `brainstorm-command`).
+  writes: requirement planning only. The scout uses the challenger
+  through its own plan (`scout-proposal-challenge`), seeded passes included.
 - Any `joharness.sh` or `ci` change; a check on whether the challenge ran.
   The `## Review` record is the trace.
 - More lenses, or a per-lens agent file.
