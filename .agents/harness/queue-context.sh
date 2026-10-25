@@ -196,6 +196,43 @@ qc_scope_class() {
   fi
 }
 
+# A requirement's clauses: the top-level list items of its `## Satisfied when`
+# section, numbered by position, read from the requirement on stdin. Bullets
+# and numbered items both count; indented lines and fenced blocks do not. The
+# file is DATA: counted, never acted on. Same reader as joharness.sh's
+# `req_clause_count`; the selftest feeds both one fixture.
+qc_clause_count() {
+  awk '
+    /^(```|~~~)/ { fence = !fence; next }
+    fence { next }
+    /^## / { sec = (tolower($0) ~ /^## satisfied when[[:space:]]*$/); next }
+    /^# / { sec = 0; next }
+    sec && /^([-*+]|[0-9]+[.)])[[:space:]]/ { n++ }
+    END { print n + 0 }'
+}
+
+# A plan's `serves:` as the queue reads it: `all` when the key is absent or
+# says `all`, else the clause numbers it names, comma-joined, possibly none.
+# Absent and empty are NOT one value: no key keeps today's meaning, `serves:`
+# with no number serves nothing. Only digits leave here — the value reaches a
+# label. $1 = value, $2 = 1 when the key is present.
+qc_serves() {
+  local t out=""
+  local -a tl
+  [ "$2" = 1 ] || { printf 'all'; return 0; }
+  read -ra tl <<<"${1//,/ }"
+  for t in ${tl[@]+"${tl[@]}"}; do
+    case "$t" in
+      all) printf 'all'; return 0 ;;
+      '' | *[!0-9]*) continue ;;
+    esac
+    t="${t#"${t%%[!0]*}"}"
+    { [ -n "$t" ] && [ "${#t}" -le 6 ]; } || continue
+    out="${out:+${out},}${t}"
+  done
+  printf '%s' "$out"
+}
+
 # One row per plan: rank, added-epoch, path, label, served requirement.
 rows_raw="$(
   while IFS= read -r f; do
@@ -208,6 +245,16 @@ rows_raw="$(
       read -r needs;   read -r requirement; read -r rneeds; read -r scope; } \
       <<<"$(printf '%s\n' "$doc" | fields urgency agent effort needs requirement research scope)"
     requirement="$(stem "$requirement")"
+    # Which of the requirement's clauses this plan serves (#626): one SRV
+    # line per plan naming a requirement, read by the listing below.
+    if [ -n "$requirement" ] && [ "$requirement" != "none" ]; then
+      has_serves="$(printf '%s\n' "$doc" | awk '
+        NR == 1 && $0 != "---" { exit }
+        NR > 1  && $0 == "---" { exit }
+        /^serves:/ { print 1; exit }')"
+      printf 'SRV\t%s\t%s\n' "$requirement" \
+        "$(qc_serves "$(printf '%s\n' "$doc" | field serves)" "$has_serves")"
+    fi
     added="$(git log --diff-filter=A --format=%ct -1 "$ref" -- "$f" 2>/dev/null)"
 
     blockers=""
@@ -343,6 +390,86 @@ qc_print_research() {
 }
 
 served="$(awk -F'\t' '$5 != "" && $5 != "none" { print $5 }' <<<"$rows")"
+# requirement<TAB>serves, one line per open plan naming a requirement.
+qc_srv="$(awk -F'\t' '$1 == "SRV" { print $2 "\t" $3 }' <<<"$rows_raw")"
+
+# `serves:` of the plans naming requirement <stem> that were retired on the
+# queue's line, one value per line as qc_serves prints it. A clause a merged
+# plan built is served: counting open plans alone re-offered it (r1). Only
+# retirements after the requirement file's last add: a stem reused for a new
+# requirement inherits nothing from the old one's plans (r20). -G narrows to
+# deletions carrying the stem; the exact compare decides. --no-renames: a
+# retire beside a similar new plan reads as a rename otherwise (r12).
+qc_retired_serves() {
+  local line c="" pf pdoc radd
+  radd="$(git log -1 --full-history --no-renames --diff-filter=A --format=%H \
+    "$ref" -- "${PRODUCT_DIR}/${1}.md" 2>/dev/null)"
+  git log --full-history --no-renames --diff-filter=D \
+    -G"^requirement:.*${1//./\\.}" \
+    --format='C %H' --name-only "${radd:+${radd}..}${ref}" -- "$PLANS_DIR" 2>/dev/null |
+    while IFS= read -r line; do
+      case "$line" in
+        'C '*) c="${line#C }"; continue ;;
+        "$PLANS_DIR"/*.md) pf="$line" ;;
+        *) continue ;;
+      esac
+      pdoc="$(git show "${c}^:${pf}" 2>/dev/null)" || continue
+      [ "$(stem "$(printf '%s\n' "$pdoc" | field requirement)")" = "$1" ] || continue
+      qc_serves "$(printf '%s\n' "$pdoc" | field serves)" \
+        "$(printf '%s\n' "$pdoc" | awk '
+          NR == 1 && $0 != "---" { exit }
+          NR > 1  && $0 == "---" { exit }
+          /^serves:/ { print 1; exit }')"
+      printf '\n'
+    done
+}
+
+# <clause count> <serves values, one per line>: the clause numbers none
+# names, `2, 4`; empty when every clause is named.
+qc_missing() {
+  awk -v n="$1" -v sv="$(paste -sd, - <<<"$2")" 'BEGIN {
+    split(sv, a, ","); for (i in a) h[a[i]] = 1
+    for (i = 1; i <= n; i++) if (!(i in h)) o = o (o == "" ? "" : ", ") i
+    print o }'
+}
+
+# The clauses of requirement <stem> no plan serves, `2, 4`, from the
+# requirement on stdin; empty when every clause is served. PARTLY PLANNED is
+# a requirement some open plan names whose union of `serves:` misses a
+# clause; one plan reading `all` serves every clause. Retired plans count,
+# read only when the open plans leave it partial (0.25s on 3237 commits,
+# measured 2026-10-25; qc_unserved_retired reads them for a requirement no
+# open plan names).
+qc_unserved() {
+  local sv count miss
+  sv="$(awk -F'\t' -v s="$1" '$1 == s { print $2 }' <<<"$qc_srv")"
+  grep -qx 'all' <<<"$sv" && return 0
+  count="$(qc_clause_count)"
+  miss="$(qc_missing "$count" "$sv")"
+  [ -n "$miss" ] || return 0
+  sv="${sv}${NL}$(qc_retired_serves "$1")"
+  grep -qx 'all' <<<"$sv" && return 0
+  qc_missing "$count" "$sv"
+}
+
+# A requirement NO open plan names, from the requirement on stdin: the
+# clauses its retired plans left unserved, when those plans declared some
+# and built at least one; else empty, and it reads UNPLANNED as before. The
+# last partial plan cannot delete the requirement, so it retires alone, and
+# the planner must still be told which clauses stand built (r10). Every
+# clause built and the file still standing reads UNPLANNED, as before: that
+# planning pass is exit 3's (r22).
+qc_unserved_retired() {
+  local sv count miss
+  sv="$(qc_retired_serves "$1")"
+  [ -n "${sv//[[:space:]]/}" ] || return 0
+  grep -qx 'all' <<<"$sv" && return 0
+  count="$(qc_clause_count)"
+  miss="$(qc_missing "$count" "$sv")"
+  [ -n "$miss" ] || return 0
+  [ "$(awk -F', ' '{ print NF }' <<<"$miss")" -lt "$count" ] || return 0
+  printf '%s' "$miss"
+}
 unplanned=""
 if [ -n "$reqs" ]; then
   qc_item_stems="$(printf '%s\n%s\n' "$plans" "$research" |
@@ -354,9 +481,17 @@ if [ -n "$reqs" ]; then
     while IFS= read -r rf; do
       [ -n "$rf" ] || continue
       rs="$(stem "$rf")"
-      grep -qxF -- "$rs" <<<"$served" && continue
+      rdoc="$(git show "${ref}:${rf}" 2>/dev/null)"
+      # Planned = silent, unless the plans serve only some of its clauses.
+      rpartly=""
+      if grep -qxF -- "$rs" <<<"$served"; then
+        rpartly="$(printf '%s\n' "$rdoc" | qc_unserved "$rs")"
+        [ -n "$rpartly" ] || continue
+      else
+        rpartly="$(printf '%s\n' "$rdoc" | qc_unserved_retired "$rs")"
+      fi
       { read -r rprio; read -r rneeds; read -r rhold; } \
-        <<<"$(git show "${ref}:${rf}" 2>/dev/null | fields priority needs hold)"
+        <<<"$(printf '%s\n' "$rdoc" | fields priority needs hold)"
       # The graph's vocabulary, never passed through: this value lands in
       # the label, and `claimed on <branch>` in a label is a claim to every
       # reader downstream — a requirement written `priority: claimed on x`
@@ -394,8 +529,14 @@ if [ -n "$reqs" ]; then
       rheld=""
       case "$rhold" in '' | [Nn][Oo][Nn][Ee]) ;; *) rheld=1 ;; esac
       { [ -z "$rblock" ] && [ -z "$rheld" ]; } || rrank=$((rrank + 4))
-      printf '%s\t%s\t[%s, UNPLANNED — decompose into plans%s%s%s]\n' \
-        "$rrank" "$rf" "${rprio:-normal}" \
+      rstate="UNPLANNED — decompose into plans"
+      case "$rpartly" in
+        '') ;;
+        *,*) rstate="PARTLY PLANNED: clauses ${rpartly} unserved" ;;
+        *) rstate="PARTLY PLANNED: clause ${rpartly} unserved" ;;
+      esac
+      printf '%s\t%s\t[%s, %s%s%s%s]\n' \
+        "$rrank" "$rf" "${rprio:-normal}" "$rstate" \
         "${rheld:+, held}" "${rblock:+, blocked by: ${rblock}}" \
         "${rqclaimed:+, claimed on ${rqclaimed}}"
     done <<<"$reqs" | sort -t$'\t' -k1,1n -k2,2

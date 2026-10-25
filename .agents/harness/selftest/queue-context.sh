@@ -181,3 +181,39 @@ expect "two free plans = spawn instruction with tiers" \
   "2 free plans = 2 parallel sessions" "$out"
 expect "spawn list names each free plan's tier" \
   "newer-urgent (opus), older-normal (haiku)" "$out"
+
+# PARTLY PLANNED (#626): the union of `serves:` over the open plans naming a
+# requirement; a clause none serves keeps it listed and offered. `serves:`
+# with no number serves nothing, never all.
+git -C "$work" checkout -q main
+printf -- '---\nrequirement: part-req\npriority: normal\n---\n\n## Satisfied when\n\n- one\n- two\n- three\n' \
+  >"${work}/docs/product/part-req.md"
+printf -- '---\nplan: part-a\nurgency: normal\nrequirement: part-req\nserves: 1\n---\n' \
+  >"${work}/docs/plans/part-a.md"
+printf -- '---\nplan: part-b\nurgency: normal\nrequirement: docs/product/part-req.md\nserves: 3\n---\n' \
+  >"${work}/docs/plans/part-b.md"
+printf -- '---\nrequirement: none-req\npriority: normal\n---\n\n## Satisfied when\n\n- one\n- two\n' \
+  >"${work}/docs/product/none-req.md"
+printf -- '---\nplan: none-a\nurgency: normal\nrequirement: none-req\nserves:\n---\n' \
+  >"${work}/docs/plans/none-a.md"
+commit_all "$work" "partly planned requirements"
+git -C "$work" push -q origin main
+git -C "$work" fetch -q origin
+pout="$(CLAUDE_PROJECT_DIR="$work" bash "${ROOT}/.agents/harness/queue-context.sh" 2>&1)"
+expect "two plans' serves: union; the clause neither serves is named" \
+  "docs/product/part-req.md  [normal, PARTLY PLANNED: clause 2 unserved]" "$pout"
+expect "serves: with no number serves no clause" \
+  "docs/product/none-req.md  [normal, PARTLY PLANNED: clauses 1, 2 unserved]" "$pout"
+printf -- '---\nplan: part-c\nurgency: normal\nrequirement: part-req\nserves: all\n---\n' \
+  >"${work}/docs/plans/part-c.md"
+commit_all "$work" "a plan serving all"
+git -C "$work" push -q origin main
+git -C "$work" fetch -q origin
+pout="$(CLAUDE_PROJECT_DIR="$work" bash "${ROOT}/.agents/harness/queue-context.sh" 2>&1)"
+refute "one plan serving all silences the requirement" "part-req.md" "$pout"
+fixture_rm "$work" "drop the partly planned fixtures" docs/product/part-req.md \
+  docs/product/none-req.md docs/plans/part-a.md docs/plans/part-b.md \
+  docs/plans/part-c.md docs/plans/none-a.md
+git -C "$work" push -q origin main
+git -C "$work" checkout -q feature
+git -C "$work" fetch -q origin

@@ -177,7 +177,8 @@ or command that says nothing to do spawns nothing.
   spawns only when this pass's health pass said so.
 - Skip `HOLD`, `WAIT`, `NOT YOURS`. `that branch is BLOCKED on a human:
   spawn` is free; add the reconcile line.
-- `UNPLANNED` requirement = ONE planning manager, fable, effort xhigh.
+- `UNPLANNED` or `PARTLY PLANNED` requirement = ONE planning manager, fable,
+  effort xhigh.
 - `janitor : stale claim(s) on <branches>`: check each session
   (`get_session`); for those ARCHIVED or not found run
   `./joharness.sh janitor --apply <branch>...` yourself — no session. It
