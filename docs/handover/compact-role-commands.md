@@ -20,7 +20,7 @@ history, behaviour unchanged.
 ## Decisions
 
 - Manager does manage.md and manage-reference.md itself (needle-dense); workers take the other files.
-- Line bound: the eleven files reach 1259 lines against 1423 on origin/main 0f-merge (main's #624 added 15), not 1150. Three sonnet workers and a manager second pass each stopped where the next cut would drop a rule, and the verifier's behaviour fixes put lines back; Goal "Behaviour does not change" outranks the estimated target (same call as #591 r1). Acceptance bound amended to 1260 on the branch; flagged for the human in the PR body.
+- Line bound: the eleven files reach 1259 lines against 1423 on origin/main after the #624 merge (it added 15), not 1150. Three sonnet workers and a manager second pass each stopped where the next cut would drop a rule, and the verifier's behaviour fixes put lines back; Goal "Behaviour does not change" outranks the estimated target (same call as #591 r1). Acceptance bound amended to 1260 on the branch; flagged for the human in the PR body.
 - A1: confirmed — `git grep` finds all three quotes (manage.md:174, scout.md:32, upstream-report.md:9).
 - A2: confirmed — session-start banner `joharness.sh:8806` "Each role reads its own documents and no others".
 - A3: confirmed — `expect` is `grep -qF` per line (`selftest.sh:83-84`); holds for manage.md and manage-reference too.
