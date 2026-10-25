@@ -1100,3 +1100,36 @@ out="$(lint_section "$(lint_ci)")"
 refute "needs naming a satisfied requirement is no dead edge" \
   "needs 'done-layer' — no such plan or requirement" "$out"
 fixture_rm "$lwork" "drop it" docs/plans/after-done.md
+
+# A `needs:` cycle across node types never drains and every edge passes on
+# its own (#626). Each cycle is named once, with the files.
+mkplan() { printf -- '---\nplan: %s\nurgency: normal\nagent: sonnet\neffort: high\n%s\n---\n' \
+  "$1" "$2" >"${lwork}/docs/plans/$1.md"; }
+mkplan cyc-p 'needs: cyc-r'
+printf -- '---\nrequirement: cyc-r\npriority: normal\nneeds: cyc-p\n---\n' >"${lwork}/docs/product/cyc-r.md"
+commit_all "$lwork" "plan and requirement need each other"
+out="$(lint_section "$(lint_ci)")"
+expect "plan -> requirement -> plan is red, naming both files" \
+  "needs cycle: docs/plans/cyc-p.md -> docs/product/cyc-r.md -> docs/plans/cyc-p.md" "$out"
+expect "and the cycle is named once" "1" "$(grep -c 'needs cycle' <<<"$out")"
+fixture_rm "$lwork" "drop the pair" docs/plans/cyc-p.md docs/product/cyc-r.md
+mkplan loop-a 'needs: loop-b'
+mkplan loop-b 'needs: loop-c'
+mkplan loop-c 'needs: loop-a'
+commit_all "$lwork" "three plans in a ring"
+out="$(lint_section "$(lint_ci)")"
+expect "plan -> plan -> plan is red" \
+  "needs cycle: docs/plans/loop-a.md -> docs/plans/loop-b.md -> docs/plans/loop-c.md -> docs/plans/loop-a.md" "$out"
+fixture_rm "$lwork" "drop the ring" docs/plans/loop-a.md docs/plans/loop-b.md docs/plans/loop-c.md
+mkplan self-a 'needs: self-a'
+commit_all "$lwork" "a plan needing itself"
+out="$(lint_section "$(lint_ci)")"
+expect "a plan needing itself is a cycle, named once" "1" "$(grep -c 'needs cycle' <<<"$out")"
+fixture_rm "$lwork" "drop the self-edge" docs/plans/self-a.md
+mkplan chain-a 'needs: chain-b'
+mkplan chain-b 'needs: chain-c'
+mkplan chain-c 'needs: none'
+commit_all "$lwork" "a chain"
+out="$(lint_section "$(lint_ci)")"
+refute "a chain with no cycle stays clean" "needs cycle" "$out"
+fixture_rm "$lwork" "drop the chain" docs/plans/chain-a.md docs/plans/chain-b.md docs/plans/chain-c.md

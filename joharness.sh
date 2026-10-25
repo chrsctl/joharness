@@ -1044,6 +1044,57 @@ lint_not_fast() {
     lint_red "${1}: '${FAST_LANE}' is the fast lane's plan: value, never an item stem; rename the file"
 }
 
+# A `needs:` cycle never drains, and each of its edges passes on its own.
+# $1 is lint_graph's edge list. An edge resolves as queue-context.sh does (a
+# plan wins a shared stem); one depth-first walk, each cycle named once by
+# the back edge that closes it. No associative arrays in bash: awk does it.
+lint_needs_cycles() {
+  local out line
+  out="$(printf '%s' "$1" | LC_ALL=C sort -u | awk -F'\t' '
+    function path(id,   k) {
+      k = substr(id, 1, 1)
+      return (k == "p" ? "docs/plans/" : k == "q" ? "docs/product/" : "docs/research/") substr(id, 3) ".md"
+    }
+    function walk(u,   n, i, v, c, j, line, nb) {
+      color[u] = 1; stack[++top] = u
+      n = split(adj[u], nb, " ")
+      for (i = 1; i <= n; i++) {
+        v = nb[i]
+        if (color[v] == 1) {
+          line = ""
+          for (j = top; j >= 1 && stack[j] != v; j--) ;
+          for (c = j; c <= top; c++) line = line path(stack[c]) " -> "
+          print line path(v)
+        } else if (color[v] == 0) walk(v)
+      }
+      top--; color[u] = 2
+    }
+    $1 == "P" { P[$2] = 1; id["p:" $2] = 1 }
+    $1 == "Q" { Q[$2] = 1; id["q:" $2] = 1 }
+    $1 == "R" { R[$2] = 1; id["r:" $2] = 1 }
+    { e[++ne] = $0 }
+    END {
+      for (i = 1; i <= ne; i++) {
+        split(e[i], f, "\t"); t = f[3]
+        if (f[1] == "PN") to = (t in P) ? "p:" t : (t in Q) ? "q:" t : ""
+        else if (f[1] == "PR") to = (t in R) ? "r:" t : ""
+        else if (f[1] == "QN") to = (t in P) ? "p:" t : (t in R) ? "r:" t : (t in Q) ? "q:" t : ""
+        else continue
+        from = (f[1] == "QN" ? "q:" : "p:") f[2]
+        if (to != "") adj[from] = adj[from] " " to
+      }
+      m = 0
+      for (u in id) { color[u] = 0; ord[++m] = u }
+      for (i = 1; i <= m; i++) for (j = i + 1; j <= m; j++)
+        if (ord[j] < ord[i]) { x = ord[i]; ord[i] = ord[j]; ord[j] = x }
+      for (i = 1; i <= m; i++) if (color[ord[i]] == 0) walk(ord[i])
+    }' 2>&1)" || { lint_red "needs cycle check could not run — no verdict on the graph"; return 0; }
+  [ -n "$out" ] || return 0
+  while IFS= read -r line; do
+    lint_red "needs cycle: ${line} — nothing in it can be offered; drop one edge"
+  done <<<"$out"
+}
+
 lint_graph() {
   LINT_RC=0
   LINT_WARNED=0
@@ -1054,6 +1105,9 @@ lint_graph() {
   local rrefs=""
   # Stems the open plans' `requirement:` edges name, one per line.
   local qrefs="" rfst rneeds rhold
+  # The `needs:` / `research:` edges of every open plan and requirement, one
+  # `KIND<TAB>stem[<TAB>target]` per line, for lint_needs_cycles.
+  local cyc="" cn cyt=$'\t'
   # One read of the file, one pass over its frontmatter. The older shape cost
   # a `cat` plus an awk per field, on every plan, on every ci.
   while IFS= read -r rel; do
@@ -1064,6 +1118,20 @@ lint_graph() {
       <<<"$(gr_fields urgency agent effort needs requirement research plan scope issue <"${ROOT}/${rel}")"
     lint_required "$rel" plan "$pstem"
     lint_not_fast "$rel"
+    cyc="${cyc}P${cyt}$(lint_stem "$rel")
+"
+    while IFS= read -r cn; do
+      [ -n "$cn" ] || continue
+      # The requirement this plan serves is already red as a need.
+      [ "$cn" = "$(lint_stem "$r")" ] && continue
+      cyc="${cyc}PN${cyt}$(lint_stem "$rel")${cyt}${cn}
+"
+    done < <(gr_edge_stems "$val")
+    while IFS= read -r cn; do
+      [ -n "$cn" ] || continue
+      cyc="${cyc}PR${cyt}$(lint_stem "$rel")${cyt}${cn}
+"
+    done < <(gr_edge_stems "$rq")
     # Optional: the issue a clerk turned into this plan.
     lint_issue "$rel" "$piss" "the clerk drops it and the issue reads as unplanned"
     lint_required "$rel" urgency "$urgency"
@@ -1239,6 +1307,15 @@ lint_graph() {
       <<<"$(gr_fields priority needs hold <"${ROOT}/${rel}")"
     lint_enum "$rel" priority "$val" normal urgent
     rfst="$(lint_stem "$rel")"
+    cyc="${cyc}Q${cyt}${rfst}
+"
+    while IFS= read -r cn; do
+      [ -n "$cn" ] || continue
+      # A self-need is already red below.
+      [ "$cn" = "$rfst" ] && continue
+      cyc="${cyc}QN${cyt}${rfst}${cyt}${cn}
+"
+    done < <(gr_edge_stems "$rneeds")
     # `needs:` resolves as a plan's does, against all three directories.
     while IFS= read -r n; do
       [ -n "$n" ] || continue
@@ -1264,6 +1341,14 @@ lint_graph() {
       lint_warn "${rel}: held, but planned — its plans run regardless; the hold withholds planning only"
     fi
   done < <(lint_nodes docs/product)
+
+  # Research nodes carry no outgoing edge: sinks.
+  while IFS= read -r rel; do
+    [ -n "$rel" ] || continue
+    cyc="${cyc}R${cyt}$(lint_stem "$rel")
+"
+  done < <(lint_nodes docs/research)
+  lint_needs_cycles "$cyc"
 
   lint_unknown_types
 

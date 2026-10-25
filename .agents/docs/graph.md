@@ -47,6 +47,8 @@ discipline fails exactly when someone hurries.
 
 ## Rules
 
+- A `needs:` cycle is red (`ci`, graph lint): plans, requirements and
+  questions can wait on each other in a ring, and nothing in it is offered.
 - Single-hop only. Every session question (what next, whose is it, what
   overlaps, why this rule) answers in one hop from hook output. Multi-hop
   need = re-run the value test before adding anything: single-hop lookups
