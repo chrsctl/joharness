@@ -2,7 +2,7 @@
 
 Requirements above plans, plans above branches. Human adds requirements
 ANY time, mid-flight fine; sessions decompose them into plans; plans run
-the Loop. Every level = graph nodes ([`.agents/docs/graph.md`](../graph.md)),
+the Loop. Every level = graph nodes ([`.agents/docs/graph.md`](graph.md)),
 files as nodes, delete-on-done as state.
 
 ```
@@ -14,7 +14,7 @@ claude/<plan> branch + PR       execution. One per plan.
 
 ## Requirements
 
-One file per requirement, shape: [`TEMPLATE.md`](TEMPLATE.md). Frontmatter
+One file per requirement, shape: [`TEMPLATE.md`](product/TEMPLATE.md). Frontmatter
 `requirement`, `priority` (`normal` | `urgent`); optional `needs`, `hold`. Body: goal + satisfied-when,
 requester's words. Coarse is fine — decomposition is session work, not
 human work.
@@ -22,7 +22,7 @@ human work.
 - **Add** = write file on `main` (direct or PR). `dispatch` offers it next.
 - **Unplanned** (no open plan's `requirement:` names it) = `dispatch` offers
   it. Planning = a session decomposes it into plans via PR; plans carry the
-  `requirement:` edge ([`../plans/README.md`](../plans/README.md)). A planning
+  `requirement:` edge ([`plans.md`](plans.md)). A planning
   pass ENDS in a tree change that silences the row, or blocked — never in
   "nothing left to plan" with the file standing (exits below).
 - **Held** = `needs: <stem>[, <stem>]` (held while any named plan, question or
@@ -110,10 +110,10 @@ until the merge. Plans a branch adds claim nothing. With no push for 24 stall
 windows the row is a leftover and the requirement is offered again.
 
 **No author or status line in a requirement or a plan.** Provenance is
-commits ([`../graph.md`](../graph.md), Rules). No detector writes the
+commits ([`../graph.md`](graph.md), Rules). No detector writes the
 requirement: the human writes it, or from a scout proposal the reviewer
 approved, including a seeded `/scout <idea>` pass
-([`.claude/commands/scout.md`](../../../.claude/commands/scout.md)).
+([`.claude/commands/scout.md`](../../.claude/commands/scout.md)).
 
 **The scout's brief.** Path `docs/product/SCOUT.md`, written by the reviewer
 on the base branch, no frontmatter, four headings: `## Product`, `## Users`,
@@ -146,7 +146,7 @@ gone holds nothing.
 ## Orchestration
 
 One low-tier orchestrator sits over the queue
-([`../orchestrated.md`](../orchestrated.md)): it spawns one manager per item
+([`../orchestrated.md`](orchestrated.md)): it spawns one manager per item
 under a cap and holds back a plan whose scope overlaps work in flight.
 Claim-by-push covers only work that enters through the queue: a request typed
 at a running session enters nowhere, so nothing builds unplanned.
@@ -158,4 +158,4 @@ consumer-to-consumer, never consumer-only. The sync tool never overwrites a
 consumer copy whose content canonical history does not know. A raw joharness
 clone is never a new consumer (it carries the live queue and canonical
 marker): start via `bootstrap-consumer.sh`. Routes, tokens, exit codes:
-[`../consumer-repos.md`](../consumer-repos.md).
+[`../consumer-repos.md`](consumer-repos.md).

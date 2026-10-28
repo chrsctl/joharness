@@ -5,7 +5,7 @@ lines say when to read each; its terms hold here.
 
 ## Human remainder
 
-fits no plan and dies at retire (`.agents/docs/plans/README.md`,
+fits no plan and dies at retire (`.agents/docs/plans.md`,
 "A human remainder"). Home: ONE pull request on branch `human/<stem>`,
 opened before the retire commit, ready for a human to merge:
 
@@ -82,7 +82,7 @@ times in parallel, one per lens (`against`, `exists`, `measure`, `risk`), at
 agent tier sonnet, prompt per `.agents/docs/subagents.md`, on
 `docs/product/<r>.md`. Record findings in `## Review` tagged `(challenger)`,
 before any plan is written. Each finding is answered by a plan (an Acceptance
-command for a `measure` finding), an exit from `.agents/docs/product/README.md`
+command for a `measure` finding), an exit from `.agents/docs/product.md`
 ("A requirement no plan can serve": `exists` showing a clause built = exit 3),
 or `wontfix: why`. A `measure` finding no plan's Acceptance can answer = block
 with `product:` (the requester owns the requirement text).

@@ -163,7 +163,7 @@ git -C "$clwork" reset -q --hard
 # behaviour reproduces — a file saying in-progress, merged to main with no
 # branch carrying it, is stale and --apply stages it — but the repo has
 # recorded three times that keying on `status:` was tried and rejected:
-# .agents/docs/handover/README.md ("Original carve-out ... guard silent"),
+# .agents/docs/handover.md ("Original carve-out ... guard silent"),
 # joharness.sh's finish gate ("No frontmatter is read, deliberately") and
 # handover-context.sh ("This deliberately does not look at status"). A rule
 # that needs the leaving session to have set a field right fails exactly when

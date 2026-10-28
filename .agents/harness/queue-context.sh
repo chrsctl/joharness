@@ -66,7 +66,7 @@ plans="$(queue_files "$PLANS_DIR")"
 research="$(queue_files "$RESEARCH_DIR")"
 reqs="$(queue_files "$PRODUCT_DIR")"
 
-printf '\n== Queue (protocol: .agents/docs/plans/README.md) ==\n\n'
+printf '\n== Queue (protocol: .agents/docs/plans.md) ==\n\n'
 
 # Every ref already merged into the queue's base ref, banked in ONE process.
 merged_refs="$(
@@ -398,7 +398,7 @@ qc_warn_research_unreadable() {
 
 qc_print_research() {
   [ "$research_count" -gt 0 ] || return 0
-  printf '\nOpen questions (protocol: .agents/docs/research/README.md):\n'
+  printf '\nOpen questions (protocol: .agents/docs/research.md):\n'
   local rt=0 rf rlabel
   while IFS=$'\t' read -r _ _ rf rlabel; do
     [ -n "$rf" ] || continue
@@ -600,7 +600,7 @@ if [ -z "$plans" ]; then
     qc_warn_research_unreadable
     printf '\nEntrypoint: open GitHub issues first, then a question above —\n'
     printf 'settle it, graduate the answer, delete the file\n'
-    printf '(.agents/docs/research/README.md). Agent field = tier to run it.\n'
+    printf '(.agents/docs/research.md). Agent field = tier to run it.\n'
   else
     # The edge: nothing to plan, nothing to take.
     printf 'No plans on %s — plan-queue edge reached: done. Entrypoint: open\n' "$ref"

@@ -13,7 +13,7 @@ questions** is the queue hook's label for the same files.
 
 ## Shape
 
-Copy [`TEMPLATE.md`](TEMPLATE.md). Nine sections, in order:
+Copy [`TEMPLATE.md`](research/TEMPLATE.md). Nine sections, in order:
 
 - **Question** — one sentence, answerable. No evidence could settle it = a
   topic, and a topic never closes.
@@ -56,9 +56,9 @@ canonical repo a plain document here is warned: canonical keeps only nodes.
 ## Verification is not optional
 
 A finding nobody checked from a second context is not settled.
-[`../graph.md`](../graph.md) Rules states the diamond rule; research is where
+[`../graph.md`](graph.md) Rules states the diamond rule; research is where
 it bites hardest, since a model cannot reliably audit its own grounding. A
-subagent is the cheap second context ([`../subagents.md`](../subagents.md)).
+subagent is the cheap second context ([`../subagents.md`](subagents.md)).
 
 An echoed search result, recorded as a second source, corroborates nothing.
 
@@ -74,7 +74,7 @@ Two honest answers exist: the operator takes the reading, or a session
 tooled for it does. "The verifier did it" is neither.
 
 **Who checked, and from where. Never when.** Provenance is commits
-([`../graph.md`](../graph.md) Rules); a hand-written date is a second copy.
+([`../graph.md`](graph.md) Rules); a hand-written date is a second copy.
 Mark each claim **GROUNDED**, **WEAK** or **UNGROUNDED**; a refuted claim
 needs a word a grep finds.
 
@@ -84,7 +84,7 @@ needs a word a grep finds.
 `docs/research/<question>.md` exists, free once deleted (file existence IS the
 state, as `needs`). `graduates:` on a RESEARCH file names where the answer
 goes, completed by the merge that deletes the file (the `graduated` edge,
-[`../graph.md`](../graph.md)). Both single-hop.
+[`../graph.md`](graph.md)). Both single-hop.
 
 ## Graduating
 
@@ -99,11 +99,11 @@ question.
 - **Not a plan.** It writes no code. A diff touching anything but the file and
   its graduation target is a plan with the wrong frontmatter.
 - **Not a requirement.** Sessions file questions, never requirements
-  ([`../product/README.md`](../product/README.md)); a scout proposes on
+  ([`product.md`](product.md)); a scout proposes on
   GitHub issues and a human writes the requirement
-  ([`../orchestrated.md`](../orchestrated.md), Bounds).
+  ([`../orchestrated.md`](orchestrated.md), Bounds).
 - **Not an index.** There is no `./joharness.sh research` or dashboard; a
-  second view is the stored-copy failure [`../graph.md`](../graph.md) forbids.
+  second view is the stored-copy failure [`../graph.md`](graph.md) forbids.
 
 A NEW research file with an unrecorded method failed: its findings may be
 right, and nobody can tell.

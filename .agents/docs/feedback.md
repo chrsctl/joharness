@@ -13,7 +13,7 @@ dies quietly:
 2. **Record** — the noticing survives the moment. (Findings in the workstream
    file's `## Review`.)
 3. **Generalize** — one defect becomes a rule about a class of defects.
-   (Graduation: `.agents/docs/handover/README.md`.)
+   (Graduation: `.agents/docs/handover.md`.)
 4. **Prevent** — the rule reaches the next session before it repeats the
    defect, not after.
 
@@ -59,7 +59,7 @@ three questions:
 - `--diff-filter=ACMRT` — files the branch still HAS (`joharness.sh:cl_inflight`):
   plain `--name-only` lists deletions too.
 - `--diff-filter=D` — files the branch DELETED. What recovers a retired
-  workstream file (`.agents/docs/handover/README.md`, Survives PR).
+  workstream file (`.agents/docs/handover.md`, Survives PR).
 - no filter — files the branch TOUCHED. Rarely the question being asked.
 
 Trap: **`git diff base..tip` compares two STATES, not the history between

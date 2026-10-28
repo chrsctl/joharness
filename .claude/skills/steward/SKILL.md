@@ -5,8 +5,8 @@ description: Rules for driving this repo's pull requests to merge — read befor
 
 Harness finish rules, restated for the session driving a pull request.
 Same rules as `.agents/harness/AGENTS.md` Loop steps 5-7 — that file wins on any
-conflict. Why-explanations: `.agents/docs/handover/README.md`,
-`.agents/docs/product/README.md` Branch flow.
+conflict. Why-explanations: `.agents/docs/handover.md`,
+`.agents/docs/product.md` Branch flow.
 
 ## Before every push
 
@@ -45,7 +45,7 @@ conflict. Why-explanations: `.agents/docs/handover/README.md`,
   PR.
 - Merged branch left standing = cosmetic, ignore — hook filters merged
   branches from claims view. Deleting = optional hygiene, human-only
-  (`.agents/docs/product/README.md` Branch flow). Session NEVER
+  (`.agents/docs/product.md` Branch flow). Session NEVER
   `git push --delete`.
 - `./joharness.sh finish` green is a merge condition like the checks —
   it fires while the fix is still a commit; nothing else here does.

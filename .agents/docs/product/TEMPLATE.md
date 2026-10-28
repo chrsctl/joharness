@@ -6,7 +6,7 @@ hold: none
 ---
 
 <!--
-Copy to docs/product/<requirement>.md, on main. Protocol: README.md here.
+Copy to docs/product/<requirement>.md, on main. Protocol: .agents/docs/product.md.
 Coarse is fine — sessions decompose into plans. Satisfied = last plan's PR
 deletes this file.
 needs: stems of plans, questions or requirements that must land first; held while any exists.

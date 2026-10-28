@@ -55,7 +55,7 @@ discipline fails exactly when someone hurries.
   need = re-run the value test before adding anything: single-hop lookups
   never justify a graph store.
 - No stored graph, no auto-extraction, no embeddings. Derived state =
-  second copy, rots (derivability rule, `.agents/docs/handover/README.md`).
+  second copy, rots (derivability rule, `.agents/docs/handover.md`).
 - No datastore for the work queue: shell plus markdown travels with a clone,
   a runner or CI, nothing installed. Re-open only for a question files cannot
   answer.

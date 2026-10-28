@@ -47,7 +47,7 @@ rq() { CLAUDE_PROJECT_DIR="$rwork" bash "${ROOT}/.agents/harness/queue-context.s
 # feature stays quiet where it is unused — real, and not the same claim.
 out="$(rq)"
 refute "no research files, no research output" "Open questions" "$out"
-refute "no research files, no research protocol pointer" "research/README.md" "$out"
+refute "no research files, no research protocol pointer" ".agents/docs/research.md" "$out"
 
 cat >"${rwork}/docs/research/open-question.md" <<'EOF'
 ---
@@ -78,7 +78,7 @@ expect "a question is listed with its tier" \
   "docs/research/open-question.md  [normal, agent: opus, effort: xhigh, graduates: .agents/docs/graph.md]" \
   "$out"
 expect "the question list names its protocol" \
-  "Open questions (protocol: .agents/docs/research/README.md)" "$out"
+  "Open questions (protocol: .agents/docs/research.md)" "$out"
 # Also a no-regression check: the filter it exercises is queue_files', which
 # already excluded TEMPLATE for plans. Here to catch a research listing that
 # grew its own file walk.

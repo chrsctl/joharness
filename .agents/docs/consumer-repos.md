@@ -3,7 +3,7 @@
 Consumer repo = child repo = any repo running a copy of this harness.
 joharness is canonical, consumers receive.
 
-Direction rule (why: [`product/README.md`](product/README.md) Reconciliation):
+Direction rule (why: [`product.md`](product.md) Reconciliation):
 a fix born ANYWHERE lands in joharness `main` first, then syncs out. Never
 consumer-to-consumer, never consumer-only. A consumer session gets it there
 per [`feedback.md`](feedback.md) § *When the consumer is the detector*; an
@@ -249,7 +249,7 @@ breaks:
 - The consumer's own suites: a sync can narrow an enum or tighten a guard
   that consumer files then fail.
 - `./joharness.sh finish` — a sync branch carries no workstream file by design
-  (`handover/README.md`, "When NOT to write one").
+  (`handover.md`, "When NOT to write one").
 
 Read the diff against canonical: the report says what was copied, not what it means.
 
@@ -285,7 +285,7 @@ git add -A && git commit -m "Sync harness from <canonical>"
 git push -u origin HEAD
 ```
 
-- NO workstream file ([`handover/README.md`](handover/README.md), "When NOT
+- NO workstream file ([`handover.md`](handover.md), "When NOT
   to write one"); the commit message carries the source.
 - `JOHARNESS_SYNC_ROOT` is a selftest hook, not a way around the refusal
   that stops a consumer syncing out.
@@ -333,7 +333,16 @@ joharness `main`, then sync again.
 
 ## What syncs
 
-Harness-owned vs consumer-own: [`.agents/harness/README.md`](../harness/README.md);
-exact list: `FILES`, `DIRS` in `.agents/scripts/sync-to-consumer.sh`. Root
-`AGENTS.md` is spliced: canonical above the `# Part 2 — project` marker,
-consumer's own below. A file canonical deleted stays, reported `consumer-only`.
+One sentence: `.agents/` + `.claude/` + the root instruction files +
+`joharness.sh` = harness, `docs/` = the consumer's. Exact list: `FILES`,
+`DIRS` in `.agents/scripts/sync-to-consumer.sh`. Root `AGENTS.md` is spliced:
+canonical above the `# Part 2 — project` marker, consumer's own below. A file
+canonical deleted stays, reported `consumer-only`.
+
+Harness-owned, synced joharness to consumer only; consumer-born fixes land
+in joharness first (`product.md`, Reconciliation). Consumer-own, never
+synced: `README.md`, `joharness.conf` (each repo picks its environment),
+`.gitignore`, `.github/workflows/ci.yml` (consumer CI wiring; harness checks
+stay reachable as `./joharness.sh ci`), `.github/workflows/update.yml` (the
+consumer's sync cadence and canonical), and ALL of `docs/`: the work dirs
+`docs/handover/`, `docs/plans/`, `docs/product/` hold only that repo's files.

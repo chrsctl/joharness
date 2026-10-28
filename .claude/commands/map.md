@@ -3,7 +3,7 @@ description: Refresh docs/MAP.md, the one-line purpose of each product folder
 ---
 
 Map run. A "make X match Y" task: no workstream file, no plan
-(`.agents/docs/handover/README.md`, When NOT to write one).
+(`.agents/docs/handover.md`, When NOT to write one).
 
 1. `./joharness.sh map`. `map : current` = report it, exit. No model call.
 2. `gone` lines: delete those entries from `docs/MAP.md`.

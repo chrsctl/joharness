@@ -342,7 +342,7 @@ printf -- '---\nrequirement: needs-gone\npriority: normal\nneeds: dep, gone-req\
 printf 'live_symbol() { :; }\n' >"${lwork}/probe.sh"
 # shellcheck disable=SC2016  # backticks are the fixture's text
 printf 'Prose ref `probe.sh:stale_doc_sym` and `probe.sh:live_symbol`.\n' \
-  >"${lwork}/.agents/docs/plans/README.md"
+  >"${lwork}/.agents/docs/plans.md"
 cat >"${lwork}/docs/handover/lost-ws.md" <<'EOF'
 ---
 workstream: lost-ws
@@ -429,8 +429,8 @@ expect "line-number anchor warns" \
 expect "stale doc ref warns" \
   "ref 'probe.sh:stale_doc_sym' — symbol not in file" "$out"
 refute "live doc ref is not warned" "ref 'probe.sh:live_symbol'" "$out"
-rm -f "${lwork}/.agents/docs/plans/README.md"
-printf '# plans\n' >"${lwork}/.agents/docs/plans/README.md"
+rm -f "${lwork}/.agents/docs/plans.md"
+printf '# plans\n' >"${lwork}/.agents/docs/plans.md"
 refute "URL anchor is not warned" "anchor 'https'" "$out"
 refute "knob anchor is not warned" "anchor 'SOME_KNOB_LIMIT" "$out"
 refute "bare-word anchor is not warned" "anchor 'SOME_ENV_TOGGLE'" "$out"
@@ -650,7 +650,7 @@ refute "an absent scope is not red" "tierless.md: no scope:" "$out"
 # scheduled on the same three fields.
 git -C "$lwork" rm -q docs/plans/tierless.md
 mkdir -p "${lwork}/docs/research"
-printf -- '---\nresearch: tierless-q\nurgency: normal\neffort: high\ngraduates: .agents/docs/plans/README.md\n---\n\n## Question\nx\n' \
+printf -- '---\nresearch: tierless-q\nurgency: normal\neffort: high\ngraduates: .agents/docs/plans.md\n---\n\n## Question\nx\n' \
   >"${lwork}/docs/research/tierless-q.md"
 git -C "$lwork" add docs/research/tierless-q.md
 git -C "$lwork" commit -qm "a research node missing only its tier"

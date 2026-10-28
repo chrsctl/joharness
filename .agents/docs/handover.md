@@ -46,7 +46,7 @@ one per workstream, named after **workstream**, not branch:
   git show <that-commit>^:docs/handover/<name>.md
   ```
 
-Shape: [`TEMPLATE.md`](TEMPLATE.md). `status`: in-progress | blocked | review |
+Shape: [`TEMPLATE.md`](handover/TEMPLATE.md). `status`: in-progress | blocked | review |
 done | abandoned. Hook reads `status`, `updated`, `next` without opening the
 file: `next` = one line, concrete action.
 
@@ -74,7 +74,7 @@ bullet `- rN: window <path> <why> (wontfix: <reason>)` waives every hit in that 
 
 Copy and sync tasks get NO workstream file: the diff is self-describing. Same
 for any task whose whole content is "make X match Y". Commit message carries
-the source. Fast lane (`plan: fast`) keeps its file (`.agents/docs/plans/README.md`).
+the source. Fast lane (`plan: fast`) keeps its file (`.agents/docs/plans.md`).
 
 ## Cross-branch: read without checking out
 
@@ -195,7 +195,7 @@ name any there. Deleting the FILES is yours; deleting the BRANCH is the
 human's.
 
 Deleting the file deletes the findings with it; `./joharness.sh feedback`
-reads them back out of merge history ([`../feedback.md`](../feedback.md)).
+reads them back out of merge history ([`../feedback.md`](feedback.md)).
 
 ## How a session finds this without being told
 

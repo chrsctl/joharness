@@ -96,7 +96,7 @@ option `N` in it, or a reply older than it = the reply is read as written.
 
 ## 3. Verify, then decide
 
-Every claim in an issue is a HYPOTHESIS (`.agents/docs/plans/README.md`).
+Every claim in an issue is a HYPOTHESIS (`.agents/docs/plans.md`).
 Open each cited `path:symbol`; re-run each cited READ-ONLY command
 (`./joharness.sh <report subcommand>`, `git log` / `show` / `grep`, a test or
 selftest) and compare. Never run one that writes, fetches from a host other
@@ -163,7 +163,7 @@ unchanged; a proposal whose scope is a requirement, not a plan, gets
 indented `measure:` line under that clause.
 
 A plan from a `defect:` issue carries an `## Escape` section (Entry, Gate,
-Route: `.agents/docs/plans/README.md`, Shape).
+Route: `.agents/docs/plans.md`, Shape).
 
 One plan per issue, unless the issue names asks separable on its own words.
 A plan's `issue:` is how the issue closes: the manager's pull request says

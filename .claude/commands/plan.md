@@ -2,7 +2,7 @@
 description: Decompose work into a plan file the queue can hand to any session
 ---
 
-Write a plan file under `docs/plans/`. Queue rules: `.agents/docs/plans/README.md`.
+Write a plan file under `docs/plans/`. Queue rules: `.agents/docs/plans.md`.
 Reader is a literal agent (`.agents/docs/agent-selection.md`): executes what plan
 says, nothing else. Ambiguity = executed wrong or asked back. Inline — no
 subagent.
@@ -24,7 +24,7 @@ subagent.
      else `none`.
    - `scope`: path prefixes this plan will touch. Undeclared scope joins no
      wave. `none` only when touch-set genuinely unknowable.
-3. Sections, all seven (`.agents/docs/plans/README.md`, Shape): Goal, Scope,
+3. Sections, all seven (`.agents/docs/plans.md`, Shape): Goal, Scope,
    Assumptions (`A<n>: <claim> — evidence: … — confidence: …`), Out of scope,
    Acceptance (commands WITH expected output), Where to look, Traps. Open
    each anchor in Where to look. Two plans touching one file name each other
@@ -34,6 +34,6 @@ subagent.
    say it in the pull request body).
 5. `./joharness.sh ci` — graph lint green.
 6. Plans land on the base branch: direct push or small PR, human's call for
-   requirements applies (`.agents/docs/product/README.md`).
+   requirements applies (`.agents/docs/product.md`).
 
 $ARGUMENTS

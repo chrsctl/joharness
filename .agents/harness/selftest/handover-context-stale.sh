@@ -84,7 +84,7 @@ expect "FINISH BEFORE STARTING follows the live entry, not the older push" \
 # Same branch, no live competitor this time — the acceptance bar is that a
 # stale entry still prints and still leads when it is the only thing there is
 # to point at, because hidden deadwood is how it becomes permanent
-# (.agents/docs/product/README.md, Branch flow).
+# (.agents/docs/product.md, Branch flow).
 git -C "$stalework" push -q origin --delete blivedge
 
 # HANDOVER_FETCH=1 here (unlike shook above): the delete above only removed

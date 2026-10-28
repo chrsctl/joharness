@@ -57,9 +57,9 @@ printf 'BOOT-CI-STUB\n' >"${bootsrc}/.github/workflows/ci.yml"
 printf 'BOOT-UPDATE-STUB\n' >"${bootsrc}/.github/workflows/update.yml"
 for stub in .agents/docs/caveman.md .agents/docs/consumer-repos.md \
   .agents/docs/graph.md \
-  .agents/docs/handover/README.md .agents/docs/handover/TEMPLATE.md \
-  .agents/docs/plans/README.md .agents/docs/plans/TEMPLATE.md \
-  .agents/docs/product/README.md .agents/docs/product/TEMPLATE.md; do
+  .agents/docs/handover.md .agents/docs/handover/TEMPLATE.md \
+  .agents/docs/plans.md .agents/docs/plans/TEMPLATE.md \
+  .agents/docs/product.md .agents/docs/product/TEMPLATE.md; do
   printf 'stub %s\n' "$stub" >"${bootsrc}/${stub}"
 done
 cat >"${bootsrc}/AGENTS.md" <<'EOF'
@@ -272,8 +272,8 @@ else
 fi
 expect "each deletion printed" "delete  docs/plans/some-plan.md" "$out"
 expect "protocol docs outside the purge survive" \
-  "stub .agents/docs/plans/README.md" \
-  "$(cat "${bootdst4}/.agents/docs/plans/README.md" 2>/dev/null)"
+  "stub .agents/docs/plans.md" \
+  "$(cat "${bootdst4}/.agents/docs/plans.md" 2>/dev/null)"
 expect "protocol template outside the purge survives" \
   "stub .agents/docs/plans/TEMPLATE.md" \
   "$(cat "${bootdst4}/.agents/docs/plans/TEMPLATE.md" 2>/dev/null)"

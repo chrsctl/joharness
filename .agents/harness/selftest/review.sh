@@ -109,17 +109,17 @@ if [ "$rv_canon" -ne 1 ]; then
   skip "the verifier names what it cannot see" "consumer checkout"
 else
   vf_doc="$(cat "${ROOT}/.claude/agents/verifier.md" 2>/dev/null)"
-  rd_doc="$(cat "${ROOT}/.agents/docs/research/README.md" 2>/dev/null)"
+  rd_doc="$(cat "${ROOT}/.agents/docs/research.md" 2>/dev/null)"
   # shellcheck disable=SC2016  # literal backticks the marked line carries
   vf_tok="$(printf '%s\n' "$vf_doc" |
-    sed -n 's/^The boundary, in the words the research README also uses: `\(.*\)`\.$/\1/p' |
+    sed -n 's/^The boundary, in the words the research doc also uses: `\(.*\)`\.$/\1/p' |
     head -1)"
   expect "the verifier names the boundary of its reach, on its marked line" \
     "outside this checkout" "$vf_tok"
   if [ -n "$vf_tok" ]; then
-    expect "the research README names the SAME boundary" "$vf_tok" "$rd_doc"
+    expect "the research doc names the SAME boundary" "$vf_tok" "$rd_doc"
   else
-    fail "the research README names the SAME boundary (no marked boundary line in verifier.md)"
+    fail "the research doc names the SAME boundary (no marked boundary line in verifier.md)"
   fi
   expect "and still reports such a claim, marked, never skips it" \
     "Mark it UNVERIFIED, naming the reading you could not take." "$vf_doc"
@@ -751,7 +751,7 @@ expect "and counted" "1 finding(s) with no verdict" "$out"
 refute "a fixed finding is not unmarked" "r1: this one was dealt with" "$out"
 refute "nor a wontfix one" "r2: this one was declined" "$out"
 refute "nor a no-change one" "r3: and this one needed nothing" "$out"
-# The clean-pass line the handover README prescribes is itself a verdict.
+# The clean-pass line the handover doc prescribes is itself a verdict.
 refute "nor the prescribed clean-pass line" "r5: clean pass" "$out"
 
 # Red mid-build, with the exact fix printed, so the error surfaces before

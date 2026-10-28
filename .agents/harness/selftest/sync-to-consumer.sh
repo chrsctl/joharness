@@ -64,9 +64,9 @@ printf 'MIT stub SYNC-LICENSE-SENTINEL\n' >"${syncsrc}/.agents/LICENSE"
 printf 'notice stub\n' >"${syncsrc}/.agents/NOTICE"
 for stub in .agents/docs/caveman.md .agents/docs/consumer-repos.md \
   .agents/docs/graph.md \
-  .agents/docs/handover/README.md .agents/docs/handover/TEMPLATE.md \
-  .agents/docs/plans/README.md .agents/docs/plans/TEMPLATE.md \
-  .agents/docs/product/README.md .agents/docs/product/TEMPLATE.md; do
+  .agents/docs/handover.md .agents/docs/handover/TEMPLATE.md \
+  .agents/docs/plans.md .agents/docs/plans/TEMPLATE.md \
+  .agents/docs/product.md .agents/docs/product/TEMPLATE.md; do
   printf 'stub %s\n' "$stub" >"${syncsrc}/${stub}"
 done
 cat >"${syncsrc}/AGENTS.md" <<'EOF'

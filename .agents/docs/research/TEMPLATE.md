@@ -7,7 +7,7 @@ graduates: .agents/docs/some-file.md
 ---
 
 <!--
-Copy to docs/research/<question>.md. Rules: .agents/docs/research/README.md.
+Copy to docs/research/<question>.md. Rules: .agents/docs/research.md.
 A research node settles ONE question and writes no code.
 `research` = the stem. `graduates` = the file the answer lands in; the merge
 that deletes this file completes the edge.

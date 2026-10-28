@@ -74,7 +74,7 @@ its limits only.
 | worker | its sub-task prompt and the files it names | everything else |
 
 Two spawn levels, never three. A worker that needs a branch is a plan, in the
-manager's pull request (`.agents/docs/plans/README.md`, same-session plan
+manager's pull request (`.agents/docs/plans.md`, same-session plan
 handed off). Subagents cannot claim, get no hook state and die with the
 parent's turn ([`subagents.md`](subagents.md)).
 
@@ -265,7 +265,7 @@ The rules that bind every session.
   line to the human once per run, never spawning on it. The human's move is a
   split by hand: the core edit on their own commit, then the plan without it
   in BOTH `scope:` and `## Scope` — dropping the path from one is hiding
-  (`.agents/docs/plans/README.md`, "A core path in `scope:`").
+  (`.agents/docs/plans.md`, "A core path in `scope:`").
 - **Merging uses the step 7 conditions unchanged.** The mode removes the
   human, never the gate.
 - **No state store, no status field.** Every view derives from git and the
@@ -280,7 +280,7 @@ The rules that bind every session.
   after a clerk HUMAN verdict or a clerk NARROWER verdict with a human
   remainder, to a `defect:` issue a manager files whose fix needs a human's
   call (`.agents/docs/manage-reference.md` § Defect step 3), and to the `human/<stem>` pull request holding its plan's human remainder
-  (`.agents/docs/plans/README.md`, "A human remainder"); a human applies it
+  (`.agents/docs/plans.md`, "A human remainder"); a human applies it
   to hold an issue or pull request. It stops the clerk
   planning that issue and any session merging that pull request. Only a human
   removes it; no session does, ever.

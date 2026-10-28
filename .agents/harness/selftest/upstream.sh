@@ -268,7 +268,7 @@ refute "and are not called pathless" "no path token" "$out"
 
 # --- a branch whose TIP is a merge commit -----------------------------------
 # Every branch that reconciled at step 7 has one ("Conflict at finish",
-# .agents/docs/product/README.md). Resolving the branch NAME as a merge commit
+# .agents/docs/product.md). Resolving the branch NAME as a merge commit
 # reads the base branch's own history under the branch's label — the edge
 # comes back empty, and its findings are lost for good once the orchestrator
 # records it as reported.
