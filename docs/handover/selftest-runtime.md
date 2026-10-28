@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK4HBTEEyzrJd3aEM1B
 agent: opus
 updated: 2026-10-28
-next: Measure per-topic wall time and git-exec count of .agents/harness/selftest.sh
+next: Finish JOBS=1 measurement, time dispatch sections, write Findings into docs/research/selftest-runtime.md
 ---
 
 ## Goal
@@ -19,7 +19,11 @@ property. Graduate to `.agents/harness/selftest.sh` header.
 
 ## Decisions
 
-- None yet.
+- Measure in a scratch worktree with an uncommitted timing patch to the
+  runner (ST_TIMING per topic, ST_GITLOG git shim), never on the branch.
+- First run (4 CPUs, jobs 4): 406 s wall, topic sum 1254 s; dispatch 362 s
+  is the critical path (start 38 s, end 401 s); 86.5k git execs, dispatch
+  29.5k. dispatch.sh splits clean at line 1096 (dspwork vs dfwork).
 
 ## Rejected
 
