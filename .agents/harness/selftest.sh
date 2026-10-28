@@ -642,6 +642,7 @@ SELFTEST_TOPICS=(
   knobs-declared
   reading-budget
   selftest-shards
+  c2-run
   map
 )
 
