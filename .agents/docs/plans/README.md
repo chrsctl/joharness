@@ -36,8 +36,9 @@ Copy [`TEMPLATE.md`](TEMPLATE.md). Sections:
      a gate canonical owns gets a `## Review` finding (`rN: <canonical path>
      … (wontfix: canonical's file)`) so `./joharness.sh upstream` reports it.
 - **Where to look** — `path:symbol` anchors into existing code. Symbol,
-  never line number: `lint_anchors` splits an anchor at the first `:` and
-  checks the path only, so a stale line number stays green forever.
+  never line number: `lint_anchors` splits an anchor at the first `:`,
+  checks the path and the symbol (`grep -F` in the file), and warns on a
+  line number.
 - **Traps** — Part 2 prohibitions that bite this plan, restated one line
   each.
 
