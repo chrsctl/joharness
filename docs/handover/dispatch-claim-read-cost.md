@@ -68,14 +68,14 @@ s/[0-9]+ (second|minute|hour|day|week|month|year)s? ago/AGE ago/g
   <seconds>` per call, and `selftest_unit` skips topics not in `ST_ONLY`;
   `ST_ONLY=dispatch JOHARNESS_SELFTEST_JOBS=1 bash .agents/harness/selftest.sh`,
   old then new back to back, nothing else running; least-squares fit per
-  wrapper. Last pair (run E, head 7a0d8a3e's code): `dfx` old 0.460 s per
+  wrapper. Last pair (run E, the code of 2a2d15c8): `dfx` old 0.460 s per
   ref, new 0.219 (0.48x), total 134.4 s -> 67.9 s; `dsp` old 0.163, new
   0.105 (0.64x). Earlier pairs on earlier heads: old 0.424 / 0.476 / 0.475,
   so against the plan's written 0.42 the new slope is 0.52x; against every
   old arm measured back to back, 0.46x-0.48x.
-- Execs per claim branch (strace, the n=8/n=32 fixture of the Profile, head
-  of run E's code minus the last two commits): git 26.7 (was 55), other 26
-  (was 68).
+- Execs per claim branch (strace, the n=8/n=32 fixture of the Profile, the
+  code of c43b0c09): git 24.2 ((806 - 226) / 24, was 55), other 17.5
+  ((658 - 238) / 24, was 68).
 - `JOHARNESS_SELFTEST_JOBS=1 bash .agents/harness/selftest.sh`: old 3795
   passed, 0 failed, 1 skipped; new 3800 passed, 0 failed, 1 skipped. Sorted
   `grep -E '^  (PASS|FAIL|SKIP) '` lines identical but for two measured-time
