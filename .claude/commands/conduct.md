@@ -66,6 +66,15 @@ Verdict, one of:
 - `NO EVIDENCE` — artifact missing or unreadable; the note says which.
   Never a guessed `FINE`.
 
+**C2 is not asked yet.** "Test for a fix must FAIL without it" is
+checkable after merge (research conduct-c2-design): run the touched
+selftest units with the branch's tests and the main commit it last merged
+as code, and read each case's own PASS, FAIL or SKIP line, never a run's
+exit. Why per case: a topic goes red for reasons that are not the fix's
+case (a fatal, a sibling case, a missing helper), and a case can pass
+either way while another flips. Plan `conduct-c2` adds it; until it
+merges, the rule stays with the verifier.
+
 ## 4. Ledger
 
 Append one row per sampled stem to `docs/conduct-log.md`, in sample order:
