@@ -1,4 +1,4 @@
-# joharness.sh janitor — one selftest topic, sourced by ../selftest.sh in
+# joharness.sh release — one selftest topic, sourced by ../selftest.sh in
 # the order that file lists.
 #
 # Not runnable alone and not meant to be: the runner defines the assertion
@@ -20,7 +20,7 @@
 #
 # shellcheck shell=bash disable=SC2154
 
-step "joharness.sh janitor"
+step "joharness.sh release"
 
 jwork="${TMP}/janitorwork"
 jorigin="${TMP}/janitororigin.git"
@@ -51,7 +51,7 @@ jcommit "base" '2026-01-01T00:00:00Z'
 git -C "$jwork" remote add origin "$jorigin"
 git -C "$jwork" push -qu origin main
 
-jan() { ( cd "$jwork" && env JOHARNESS_CONF="$jconf" "$@" ./joharness.sh janitor 2>&1 ); }
+jan() { ( cd "$jwork" && env JOHARNESS_CONF="$jconf" "$@" ./joharness.sh release 2>&1 ); }
 jdsp() { ( cd "$jwork" && env JOHARNESS_CONF="$jconf" DISPATCH_FETCH=0 \
   ./joharness.sh dispatch 2>&1 ); }
 # shellcheck disable=SC2120  # knob overrides are passed by later cases
@@ -68,7 +68,7 @@ git -C "$jwork" push -qu origin mgr-parked
 git -C "$jwork" checkout -q main
 
 out="$(jan)"
-expect "an old claim is a candidate" "mgr-parked  docs/handover/parked.md" "$out"
+expect "an old claim is a candidate" "release   : mgr-parked  stale, session gone?  docs/handover/parked.md" "$out"
 expect "with what it holds out of the queue" \
   "holds: docs/plans/parked.md, out of the queue while this claim stands" "$out"
 expect "and the session to check" "session: https://example.invalid/session_parked" "$out"
@@ -180,7 +180,7 @@ expect "so the plan is free again" "docs/plans/parked.md" "$out"
 
 out="$(jan)"
 refute "and it is no longer a candidate for a second sweep" \
-  "mgr-parked  docs/handover/parked.md" "$out"
+  "mgr-parked  stale, session gone?  docs/handover/parked.md" "$out"
 
 # Every claim past the window released: the list is empty because of the
 # `abandoned` skip, not the age gate, and the line must say so (#308).
@@ -379,12 +379,12 @@ expect "while under the default base that same claim is held" \
   "holds: docs/plans/latecomer.md, out of the queue while this claim stands" "$out"
 
 
-# --- the banner, and --apply ------------------------------------------------
+# --- the banner, and release ------------------------------------------------
 out="$(jan)"
-expect "the report has no cadence" "== janitor" "$out"
+expect "the report has no cadence" "== release" "$out"
 refute "and names no hours knob" "JOHARNESS_JANITOR_HOURS" "$out"
 expect "it names the release command for stale claims with no pr:" \
-  "./joharness.sh janitor --apply <branch>" "$out"
+  "./joharness.sh release <branch>" "$out"
 
 git -C "$jwork" checkout -qb mgr-gone main
 mkdir -p "${jwork}/docs/handover"
@@ -395,17 +395,17 @@ git -C "$jwork" push -qu origin mgr-gone
 git -C "$jwork" checkout -q main
 
 out="$(jdsp)"
-expect "dispatch names the stale claim and the command, no session" \
-  "janitor   : stale claim(s) on" "$out"
-expect "including this branch" "mgr-gone" "$(printf '%s\n' "$out" | grep '^janitor   :')"
+expect "dispatch names the stale claim and its reason, no session" \
+  "release   : mgr-gone  stale, session gone?  docs/handover/gone.md" "$out"
+expect "and the tail line names it due" "mgr-gone" "$(printf '%s\n' "$out" | grep 'release DUE:')"
 refute "and never offers a janitor session" "spawn ONE janitor" "$out"
 
 jmain_before="$(git -C "$jwork" rev-parse HEAD)"
-out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh janitor --apply mgr-gone 2>&1 )"; rc=$?
-expect "--apply releases the named claim" "release   : mgr-gone  docs/handover/gone.md" "$out"
+out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh release mgr-gone 2>&1 )"; rc=$?
+expect "release releases the named claim" "release   : mgr-gone  docs/handover/gone.md" "$out"
 expect "and pushes it" "pushed    : mgr-gone" "$out"
-if [ "$rc" -eq 0 ]; then pass "--apply exits 0 on a release"
-else fail "--apply exits 0 on a release (rc ${rc})"; fi
+if [ "$rc" -eq 0 ]; then pass "release exits 0 on a release"
+else fail "release exits 0 on a release (rc ${rc})"; fi
 expect "the claim on origin now says abandoned" "status: abandoned" \
   "$(git -C "$jorigin" show mgr-gone:docs/handover/gone.md 2>&1)"
 expect "and says why in next:" "the claim was released" \
@@ -420,13 +420,13 @@ if [ "$(git -C "$jwork" rev-parse HEAD)" = "$jmain_before" ] &&
 else
   fail "and this checkout is untouched"
 fi
-out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh janitor --apply mgr-gone 2>&1 )"; rc=$?
-expect "a second release is refused: not a candidate" "skip      : mgr-gone — not a candidate" "$out"
+out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh release mgr-gone 2>&1 )"; rc=$?
+expect "a second release is refused: not a candidate" "refused   : mgr-gone — not in the release report" "$out"
 if [ "$rc" -ne 0 ]; then pass "and exits non-zero"
 else fail "and exits non-zero"; fi
 out="$(jdsp)"
 refute "once released, dispatch is silent about it" "mgr-gone" \
-  "$(printf '%s\n' "$out" | grep '^janitor   :' || :)"
+  "$(printf '%s\n' "$out" | grep '^release   :' || :)"
 
 # A claim naming a pull request is never released by the script.
 git -C "$jwork" checkout -qb mgr-withpr main
@@ -436,15 +436,15 @@ printf -- '---\nworkstream: withpr\nstatus: review\nbranch: mgr-withpr\nplan: no
 jcommit "claim at the edge" '2026-01-02T00:00:00Z'
 git -C "$jwork" push -qu origin mgr-withpr
 git -C "$jwork" checkout -q main
-out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh janitor --apply mgr-withpr 2>&1 )"
+out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh release mgr-withpr 2>&1 )"
 expect "a claim naming pr: is refused by guard" \
   "protected : REFUSED — docs/handover/withpr.md names pr: 77 at live head" "$out"
 expect "and skipped" "skip      : mgr-withpr — guard refused; nothing released" "$out"
 expect "and origin still carries it unreleased" "status: review" \
   "$(git -C "$jorigin" show mgr-withpr:docs/handover/withpr.md 2>&1)"
-out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh janitor --apply 2>&1 )"; rc=$?
-if [ "$rc" -ne 0 ]; then pass "--apply with no branch is a usage error"
-else fail "--apply with no branch is a usage error"; fi
+out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh release --bogus 2>&1 )"; rc=$?
+if [ "$rc" -ne 0 ] && grep -qF "usage:" <<<"$out"; then pass "release with an option for a branch is a usage error"
+else fail "release with an option for a branch is a usage error (rc ${rc})"; fi
 
 # --- a branch deleted on origin is never re-created (#397) ------------------
 # <branch>: a stale claim with no pr:, pushed, so this clone holds its ref.
@@ -465,9 +465,9 @@ git -C "$jwork" config --replace-all remote.origin.fetch \
   '+refs/heads/main:refs/remotes/origin/main'
 git -C "$jorigin" branch -qD mgr-deleted
 expect "the stale ref outlives the deletion, so the case below is live" \
-  "mgr-deleted  docs/handover/mgr-deleted.md" "$(jan)"
-out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh janitor --apply mgr-deleted 2>&1 )"; rc=$?
-expect "--apply asks origin through guard and finds the branch gone" \
+  "mgr-deleted  stale, session gone?  docs/handover/mgr-deleted.md" "$(jan)"
+out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh release mgr-deleted 2>&1 )"; rc=$?
+expect "release asks origin through guard and finds the branch gone" \
   "live      : REFUSED — mgr-deleted gone on origin: already released" "$out"
 refute "and releases nothing" "release   :" "$out"
 refute "and pushes nothing" "pushed    :" "$out"
@@ -479,7 +479,7 @@ else
   fail "and origin still has no such branch (re-created)"
 fi
 refute "and the stale local ref goes with it, so dispatch stops naming it" \
-  "mgr-deleted  docs/handover/mgr-deleted.md" "$(jan)"
+  "mgr-deleted  stale, session gone?  docs/handover/mgr-deleted.md" "$(jan)"
 # Gone and NOT a candidate (it names a pr:): still gone, rc 0, ref dropped;
 # the live read comes before the candidate filter, not after it.
 git -C "$jwork" checkout -qb mgr-deletedpr main
@@ -492,16 +492,16 @@ git -C "$jwork" push -qu origin mgr-deletedpr
 git -C "$jwork" update-ref refs/remotes/origin/mgr-deletedpr mgr-deletedpr
 git -C "$jwork" checkout -q main
 git -C "$jorigin" branch -qD mgr-deletedpr
-out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh janitor --apply mgr-deletedpr 2>&1 )"; rc=$?
+out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh release mgr-deletedpr 2>&1 )"; rc=$?
 expect "a gone non-candidate is gone, not skipped" \
   "live      : REFUSED — mgr-deletedpr gone on origin: already released" "$out"
-refute "and is not called a non-candidate" "not a candidate" "$out"
+refute "and is not called unlisted" "not in the release report" "$out"
 if [ "$rc" -eq 0 ]; then pass "and is no failure"
 else fail "and is no failure (rc ${rc})"; fi
 if git -C "$jwork" rev-parse -q --verify refs/remotes/origin/mgr-deletedpr >/dev/null; then
   fail "and its stale local ref is dropped"
 else pass "and its stale local ref is dropped"; fi
-# Moved on origin under the narrow refspec: --apply re-reads the named branch
+# Moved on origin under the narrow refspec: release re-reads the named branch
 # itself, so a stale tracking ref is no permanent refusal.
 jgone mgr-movednarrow
 git -C "$jwork" update-ref refs/remotes/origin/mgr-movednarrow mgr-movednarrow
@@ -513,7 +513,7 @@ git -C "$jmv" add -A
 GIT_COMMITTER_DATE='2026-01-03T00:00:00Z' GIT_AUTHOR_DATE='2026-01-03T00:00:00Z' \
   git -C "$jmv" commit -qm "manager moved"
 git -C "$jmv" push -q origin mgr-movednarrow
-out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh janitor --apply mgr-movednarrow 2>&1 )"; rc=$?
+out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh release mgr-movednarrow 2>&1 )"; rc=$?
 expect "a branch moved under a narrow refspec is re-read, then released" \
   "pushed    : mgr-movednarrow" "$out"
 if [ "$rc" -eq 0 ]; then pass "and exits 0"
@@ -533,7 +533,7 @@ exec "%s" "$@"
 ' \
   "$jgit" "$jorigin" "$jgit" >"${jwrap}/git"
 chmod +x "${jwrap}/git"
-out="$( cd "$jwork" && env PATH="${jwrap}:${PATH}" JOHARNESS_CONF="$jconf" ./joharness.sh janitor --apply mgr-raced 2>&1 )"; rc=$?
+out="$( cd "$jwork" && env PATH="${jwrap}:${PATH}" JOHARNESS_CONF="$jconf" ./joharness.sh release mgr-raced 2>&1 )"; rc=$?
 expect "a branch deleted after the check is refused at the push" \
   "FAILED    : mgr-raced — push refused" "$out"
 if [ "$rc" -ne 0 ]; then pass "and exits non-zero"
@@ -548,7 +548,7 @@ fi
 jgone mgr-unreach
 jurl="$(git -C "$jwork" config remote.origin.url)"
 git -C "$jwork" config remote.origin.url "${TMP}/no-such-origin.git"
-out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh janitor --apply mgr-unreach 2>&1 )"; rc=$?
+out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh release mgr-unreach 2>&1 )"; rc=$?
 git -C "$jwork" config remote.origin.url "$jurl"
 expect "an origin that cannot answer is a guard refusal" \
   "live      : REFUSED — mgr-unreach: cannot ask origin whether the branch exists" "$out"
@@ -558,11 +558,11 @@ else fail "and exits non-zero"; fi
 expect "and origin's claim is untouched" "status: in-progress" \
   "$(git -C "$jorigin" show mgr-unreach:docs/handover/mgr-unreach.md 2>&1)"
 
-# The default refspec: --apply's own fetch prunes the ref, so the existing
+# The default refspec: release's own fetch prunes the ref, so the existing
 # no-such-branch skip answers, without a dispatch first.
 jgone mgr-deleted2
 git -C "$jorigin" branch -qD mgr-deleted2
-out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh janitor --apply mgr-deleted2 2>&1 )"
+out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh release mgr-deleted2 2>&1 )"
 expect "under the default refspec the prune answers first" \
   "skip      : mgr-deleted2 — no such branch on origin" "$out"
 if [ -z "$(git -C "$jorigin" ls-remote --heads "$jorigin" mgr-deleted2)" ]; then
@@ -589,19 +589,19 @@ jclaim mgr-blocked 'status: blocked'
 jclaim mgr-done 'status: done'
 out="$(jdsp)"
 refute "dispatch never offers a blocked claim for release" "mgr-blocked" \
-  "$(printf '%s\n' "$out" | grep '^janitor   :' || :)"
+  "$(printf '%s\n' "$out" | grep '^release   :' || :)"
 refute "nor a done one" "mgr-done" \
-  "$(printf '%s\n' "$out" | grep '^janitor   :' || :)"
+  "$(printf '%s\n' "$out" | grep '^release   :' || :)"
 out="$(jan)"
 expect "the sweep names a blocked claim as never released" \
-  "status: blocked — never released: --apply refuses it" "$out"
-expect "and a done one" "status: done — never released: --apply refuses it" "$out"
+  "status: blocked — never released: release refuses it" "$out"
+expect "and a done one" "status: done — never released: release refuses it" "$out"
 refute "the sweep's release list leaves a blocked claim out" "mgr-blocked" \
   "$(printf '%s\n' "$out" | grep '(candidates:' || :)"
 refute "and a done one" "mgr-done" \
   "$(printf '%s\n' "$out" | grep '(candidates:' || :)"
-out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh janitor --apply mgr-blocked 2>&1 )"; rc=$?
-expect "--apply refuses a blocked claim" "skip      : mgr-blocked — not a candidate" "$out"
+out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh release mgr-blocked 2>&1 )"; rc=$?
+expect "release refuses a blocked claim" "refused   : mgr-blocked — not in the release report" "$out"
 if [ "$rc" -ne 0 ]; then pass "and exits non-zero"
 else fail "and exits non-zero"; fi
 expect "and origin's claim still says blocked" "status: blocked" \
@@ -611,8 +611,8 @@ expect "and origin's claim still says blocked" "status: blocked" \
 # The awk rewrote an existing status: line only: no line, no release, and the
 # claim kept its plan out of the queue after the "release" was pushed.
 jclaim mgr-nostatus ''
-out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh janitor --apply mgr-nostatus 2>&1 )"; rc=$?
-expect "--apply releases a claim with no status: line" \
+out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh release mgr-nostatus 2>&1 )"; rc=$?
+expect "release releases a claim with no status: line" \
   "release   : mgr-nostatus  docs/handover/mgr-nostatus.md" "$out"
 if [ "$rc" -eq 0 ]; then pass "and exits 0"
 else fail "and exits 0 (rc ${rc})"; fi
@@ -634,8 +634,8 @@ jcommit "claim with no frontmatter" '2026-01-02T00:00:00Z'
 git -C "$jwork" push -qu origin mgr-nofm
 git -C "$jwork" checkout -q main
 jnofm_before="$(git -C "$jorigin" rev-parse mgr-nofm)"
-out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh janitor --apply mgr-nofm 2>&1 )"; rc=$?
-expect "--apply says it cannot write a status into it" \
+out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh release mgr-nofm 2>&1 )"; rc=$?
+expect "release says it cannot write a status into it" \
   "skip      : mgr-nofm  docs/handover/mgr-nofm.md — no frontmatter" "$out"
 refute "and pushes nothing" "pushed    : mgr-nofm" "$out"
 if [ "$rc" -ne 0 ] && [ "$(git -C "$jorigin" rev-parse mgr-nofm)" = "$jnofm_before" ]; then
@@ -643,3 +643,356 @@ if [ "$rc" -ne 0 ] && [ "$(git -C "$jorigin" rev-parse mgr-nofm)" = "$jnofm_befo
 else
   fail "and exits non-zero with origin unmoved (rc ${rc})"
 fi
+
+# --- the report's reasons, and the lines it only reports --------------------
+# Each new: a stale `plan: none` claim is a reason line; a done claim with
+# nothing to land is one; a released claim's plans still on its branch are
+# named; a branch that never claimed is named and never written.
+out="$(jan)"
+expect "a stale plan: none claim is listed by its reason" \
+  "release   : mgr-unreach  stale, session gone?  docs/handover/mgr-unreach.md" "$out"
+
+# A claim with a plan on its own doc-only branch: released, plans named.
+git -C "$jwork" checkout -qb mgr-docclaim main
+mkdir -p "${jwork}/docs/handover"
+printf -- '---\nworkstream: docclaim\nstatus: in-progress\nbranch: mgr-docclaim\nplan: none\npr: none\nagent: sonnet\nupdated: 2026-01-02\nnext: Plan it\n---\n\n## Goal\nFixture.\n' \
+  >"${jwork}/docs/handover/docclaim.md"
+jplan landme
+jcommit "claim, and a plan filed on the branch" '2026-01-02T00:00:00Z'
+git -C "$jwork" push -qu origin mgr-docclaim
+# A branch that never claimed: only a plan.
+git -C "$jwork" checkout -qb plan-orphan main
+jplan orphanplan
+jcommit "a plan, no claim" '2026-01-02T00:00:00Z'
+git -C "$jwork" push -qu origin plan-orphan
+# A done claim, nothing else on its branch.
+git -C "$jwork" checkout -qb mgr-donework main
+mkdir -p "${jwork}/docs/handover"
+printf -- '---\nworkstream: donework\nstatus: done\nbranch: mgr-donework\nplan: parked\npr: none\nagent: sonnet\nupdated: 2026-01-02\nnext: Found it done\n---\n\n## Goal\nFixture.\n' \
+  >"${jwork}/docs/handover/donework.md"
+jcommit "found it done" '2026-01-02T00:00:00Z'
+git -C "$jwork" push -qu origin mgr-donework
+git -C "$jwork" checkout -q main
+
+out="$(jan)"
+expect "a released claim's own plans are named not landed" \
+  "plans not landed: landme" "$out"
+expect "a branch with no claim is named, report only" \
+  "release   : plan-orphan  no claim: plans not landed: orphanplan" "$out"
+expect "a done claim with nothing to land is listed" \
+  "release   : mgr-donework  done, no pull request  docs/handover/donework.md" "$out"
+refute "a plan: none done record is still never listed" \
+  "release   : mgr-done  done" "$out"
+out="$(jdsp)"
+expect "dispatch prints the same no-claim line" \
+  "release   : plan-orphan  no claim: plans not landed: orphanplan" "$out"
+expect "and the done reason" "release   : mgr-donework  done, no pull request" "$out"
+refute "the freer is gone" "FREEABLE" "$out"
+refute "and its spawn line" "freer DUE" "$out"
+
+jorph="$(git -C "$jorigin" rev-parse plan-orphan)"
+out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh release plan-orphan 2>&1 )"; rc=$?
+expect "release refuses a branch with no claim, naming its plans" \
+  "refused   : plan-orphan — no claim: plans not landed: orphanplan" "$out"
+if [ "$rc" -ne 0 ] && [ "$(git -C "$jorigin" rev-parse plan-orphan)" = "$jorph" ]; then
+  pass "and writes nothing"
+else fail "and writes nothing (rc ${rc})"; fi
+out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh release mgr-donework 2>&1 )"; rc=$?
+expect "release writes the done claim" \
+  "release   : mgr-donework  docs/handover/donework.md  done, no pull request" "$out"
+if [ "$rc" -eq 0 ]; then pass "and exits 0"
+else fail "and exits 0 (rc ${rc})"; printf '%s\n' "$(indent "$out")"; fi
+expect "with its own subject" "release: done, no pull request (" \
+  "$(git -C "$jorigin" log -1 --format=%s mgr-donework 2>&1)"
+expect "and the claim reads abandoned" "status: abandoned" \
+  "$(git -C "$jorigin" show mgr-donework:docs/handover/donework.md 2>&1)"
+out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh release mgr-docclaim 2>&1 )"
+expect "a doc-only claimed branch is released, not merged" "pushed    : mgr-docclaim" "$out"
+expect "and its plan stays on the branch" "plan: landme" \
+  "$(git -C "$jorigin" show mgr-docclaim:docs/plans/landme.md 2>&1)"
+
+# A done claim whose branch carries code is never listed: finished code may
+# sit on it (r24).
+git -C "$jwork" checkout -qb mgr-donecode main
+mkdir -p "${jwork}/docs/handover"
+printf -- '---\nworkstream: donecode\nstatus: done\nbranch: mgr-donecode\nplan: parked\npr: none\nagent: sonnet\nupdated: 2026-01-02\nnext: Built it\n---\n\n## Goal\nFixture.\n' \
+  >"${jwork}/docs/handover/donecode.md"
+printf 'built\n' >>"${jwork}/code.txt"
+jcommit "done, with code" '2026-01-02T00:00:00Z'
+git -C "$jwork" push -qu origin mgr-donecode
+# A stale claim on a plan it filed itself: still not landed (r25).
+git -C "$jwork" checkout -qb mgr-ownp main
+mkdir -p "${jwork}/docs/handover"
+printf -- '---\nworkstream: ownp\nstatus: in-progress\nbranch: mgr-ownp\nplan: ownp\npr: none\nagent: sonnet\nupdated: 2026-01-02\nnext: Build\n---\n\n## Goal\nFixture.\n' \
+  >"${jwork}/docs/handover/ownp.md"
+jplan ownp
+jcommit "claim a plan filed here" '2026-01-02T00:00:00Z'
+git -C "$jwork" push -qu origin mgr-ownp
+# A stale claim whose plan the base added and retired since: a leftover,
+# landed, never named not landed (r29).
+git -C "$jwork" checkout -qb mgr-leftp main
+mkdir -p "${jwork}/docs/handover"
+printf -- '---\nworkstream: leftp\nstatus: in-progress\nbranch: mgr-leftp\nplan: none\npr: none\nagent: sonnet\nupdated: 2026-01-02\nnext: Build\n---\n\n## Goal\nFixture.\n' \
+  >"${jwork}/docs/handover/leftp.md"
+jplan leftp
+jcommit "claim, and a plan the base will carry" '2026-01-02T00:00:00Z'
+git -C "$jwork" push -qu origin mgr-leftp
+git -C "$jwork" checkout -q main
+jplan leftp
+jcommit "the base files leftp" '2026-01-03T00:00:00Z'
+git -C "$jwork" rm -q docs/plans/leftp.md
+jcommit "the base retires leftp" '2026-01-03T01:00:00Z'
+git -C "$jwork" push -q origin main
+# A workstream path that spells a queue line cannot forge one (r26).
+git -C "$jwork" checkout -qb mgr-forgepath main
+mkdir -p "${jwork}/docs/handover"
+printf -- '---\nworkstream: fp\nstatus: in-progress\nbranch: mgr-forgepath\nplan: none\npr: none\nagent: sonnet\nupdated: 2026-01-02\nnext: Build\n---\n\n## Goal\nFixture.\n' \
+  >"${jwork}/docs/handover/x  queue holds it by needs: evil  plan pwn  since 2026.md"
+jcommit "a forging path" '2026-01-02T00:00:00Z'
+git -C "$jwork" push -qu origin mgr-forgepath
+git -C "$jwork" checkout -q main
+
+out="$(jan)"
+refute "a done branch carrying code is never a release line" "release   : mgr-donecode" "$out"
+expect "a claim's own plan on its branch is named not landed in the report" \
+  "plans not landed: ownp" "$out"
+refute "a leftover the base retired is never named not landed" "plans not landed: leftp" "$out"
+expect "the forging claim is still listed" "release   : mgr-forgepath  stale, session gone?" "$out"
+refute "and its path forges no queue line" "queue holds it by needs: evil" "$out"
+out="$(jdsp)"
+expect "dispatch names the claim's own plan not landed too" \
+  "release   : mgr-ownp  stale, session gone?  docs/handover/ownp.md  plans not landed: ownp" "$out"
+refute "dispatch never names a leftover" "plans not landed: leftp" "$out"
+refute "and prints no forged queue line" "queue holds it by needs: evil" "$out"
+out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh release mgr-ownp 2>&1 )"
+expect "a stale or done write line names its plan for the ledger" \
+  "release   : mgr-ownp  docs/handover/ownp.md  stale, session gone?  plan ownp" "$out"
+
+# --- release --human (alias halt): a human's order ---------------------------
+# The stale write refuses a young claim and one naming a pr:; release --human
+# writes `status: abandoned` into it all the same, through guard and the
+# lease. What the word must DO afterwards: the branch holds no slot, has no
+# in-flight row, and its plan is offered again. An edge branch (its workstream
+# file retired, its pull request open) gets its own record back, released.
+# Never the base branch; never a branch it cannot name a record on; never a
+# branch re-created after its deletion. Its own scratch repo, `hwork`.
+
+
+hwork="${TMP}/haltwork"
+horigin="${TMP}/haltorigin.git"
+git init -q --bare "$horigin"
+git init -q "$hwork"
+git -C "$hwork" symbolic-ref HEAD refs/heads/main
+mkdir -p "${hwork}/docs/handover" "${hwork}/docs/plans" "${hwork}/docs/research" \
+  "${hwork}/docs/product" "${hwork}/.agents/harness" "${hwork}/.agents/env/none"
+cp "${ROOT}/joharness.sh" "${hwork}/joharness.sh"
+cp "${ROOT}/.agents/harness/queue-context.sh" \
+   "${ROOT}/.agents/harness/handover-context.sh" "${hwork}/.agents/harness/"
+printf '# none\n' >"${hwork}/.agents/env/none/AGENTS.md"
+printf 'code\n' >"${hwork}/code.txt"
+hconf="${hwork}/joharness.conf"
+printf 'JOHARNESS_ENV=none\n' >"$hconf"
+
+hnow="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+htoday="$(date -u +%Y-%m-%d)"
+hcommit() {
+  git -C "$hwork" add -A
+  GIT_COMMITTER_DATE="$2" GIT_AUTHOR_DATE="$2" git -C "$hwork" commit -qm "$1"
+}
+# <stem> — a plan in the queue for a claim to hold.
+hplan() {
+  printf -- '---\nplan: %s\nurgency: normal\nagent: sonnet\neffort: high\n---\n\n## Goal\nFixture.\n' \
+    "$1" >"${hwork}/docs/plans/${1}.md"
+}
+# <branch> <plan> <pr> — a claim pushed NOW on its own branch.
+hclaim() {
+  git -C "$hwork" checkout -qb "$1" main
+  mkdir -p "${hwork}/docs/handover"
+  printf -- '---\nworkstream: %s\nstatus: in-progress\nbranch: %s\nplan: %s\npr: %s\nsession: https://example.invalid/session_%s\nagent: sonnet\nupdated: %s\nnext: Build it\n---\n\n## Goal\nFixture.\n' \
+    "$1" "$1" "$2" "$3" "$1" "$htoday" >"${hwork}/docs/handover/${1}.md"
+  hcommit "claim $1" "$hnow"
+  git -C "$hwork" push -qu origin "$1"
+  git -C "$hwork" checkout -q main
+}
+hplan livework
+hplan edgework
+hcommit "base" '2026-01-01T00:00:00Z'
+git -C "$hwork" remote add origin "$horigin"
+git -C "$hwork" push -qu origin main
+
+hrun() { ( cd "$hwork" && env JOHARNESS_CONF="$hconf" ./joharness.sh "$@" 2>&1 ); }
+hdsp() { ( cd "$hwork" && env JOHARNESS_CONF="$hconf" DISPATCH_FETCH=0 \
+  ./joharness.sh dispatch 2>&1 ); }
+hqueue() { ( cd "$hwork" && env JOHARNESS_CONF="$hconf" \
+  .agents/harness/queue-context.sh 2>&1 ); }
+# <branch> <out>: the dispatch lines that name the branch as holding a slot.
+hrows() { printf '%s\n' "$2" | grep -E "^  .*  $1  " || :; }
+
+# --- 1. a live claim at the edge: the plain write refuses, halt releases ---------
+hclaim mgr-live livework 12
+out="$(hrun release mgr-live)"
+expect "release refuses a claim naming pr:, at its guard" \
+  "skip      : mgr-live — guard refused; nothing released" "$out"
+out="$(hrun guard release mgr-live --human)"; rc=$?
+expect "the guard lets a halt through the same claim" "guard     : pass — release --human may push" "$out"
+out="$(hrun halt mgr-live)"; rc=$?
+expect "halt, the alias, releases it" "release   : mgr-live  docs/handover/mgr-live.md" "$out"
+expect "and pushes it" "pushed    : mgr-live" "$out"
+expect "and says the session and the pull request are not its to stop" \
+  "release --human wrote git only" "$out"
+if [ "$rc" -eq 0 ]; then pass "halt exits 0 on a release"
+else fail "halt exits 0 on a release (rc ${rc})"; printf '%s\n' "$(indent "$out")"; fi
+hdoc="$(git -C "$horigin" show mgr-live:docs/handover/mgr-live.md 2>&1)"
+expect "the claim on origin now says abandoned" "status: abandoned" "$hdoc"
+expect "and next: names the human's order" "next: Halted by a human ${htoday}: the claim is released" "$hdoc"
+expect "and keeps its pr:" "pr: 12" "$hdoc"
+expect "the commit subject names the halt" "release: a human released the claim (${htoday})" \
+  "$(git -C "$horigin" log -1 --format=%s mgr-live 2>&1)"
+
+# A second order on a released claim is no failure and no hand-edit.
+hlive="$(git -C "$horigin" rev-parse mgr-live)"
+out="$(hrun halt mgr-live)"; rc=$?
+expect "halting it again says already released" \
+  "skip      : mgr-live  docs/handover/mgr-live.md — already released" "$out"
+refute "never asks for a hand release" "release it by hand" "$out"
+refute "and claims no write" "release --human wrote git only" "$out"
+if [ "$rc" -eq 0 ] && [ "$(git -C "$horigin" rev-parse mgr-live)" = "$hlive" ]; then
+  pass "and exits 0 with the branch unmoved"
+else fail "and exits 0 with the branch unmoved (rc ${rc})"; printf '%s\n' "$(indent "$out")"; fi
+
+# --- 2. released: no slot, no in-flight row, the plan offered again ----------
+git -C "$hwork" fetch -q origin
+out="$(hdsp)"
+if [ -z "$(hrows mgr-live "$out")" ]; then pass "dispatch has no in-flight row for the halted branch"
+else fail "dispatch has no in-flight row for the halted branch"; printf '%s\n' "$(indent "$out")"; fi
+expect "every slot is free" "slots     : 4 of 4 free" "$out"
+expect "the plan is offered again" "docs/plans/livework.md (agent:" "$out"
+refute "the queue hook no longer calls the plan claimed" "claimed on" \
+  "$(hqueue | grep -F 'livework' || :)"
+
+# --- 3. an edge branch: its retired record comes back, released --------------
+git -C "$hwork" checkout -qb mgr-edge main
+mkdir -p "${hwork}/docs/handover"
+printf -- '---\nworkstream: edgework\nstatus: in-progress\nbranch: mgr-edge\nplan: edgework\npr: none\nsession: https://example.invalid/session_edge\nagent: sonnet\nupdated: %s\nnext: Build it\n---\n\n## Goal\nFixture.\n' \
+  "$htoday" >"${hwork}/docs/handover/edgework.md"
+hcommit "claim edgework" "$hnow"
+printf 'built\n' >>"${hwork}/code.txt"
+git -C "$hwork" rm -q docs/handover/edgework.md docs/plans/edgework.md
+hcommit "retire edgework" "$hnow"
+git -C "$hwork" push -qu origin mgr-edge
+git -C "$hwork" checkout -q main
+out="$(hdsp)"
+expect "before: dispatch has a retired row for the edge branch" "retired, no claim file" \
+  "$(hrows mgr-edge "$out")"
+expect "before: it holds a slot" "slots     : 3 of 4 free" "$out"
+out="$(hrun halt mgr-edge)"; rc=$?
+expect "halt restores the retired record" "release   : mgr-edge  docs/handover/edgework.md" "$out"
+if [ "$rc" -eq 0 ]; then pass "and exits 0"
+else fail "and exits 0 (rc ${rc})"; printf '%s\n' "$(indent "$out")"; fi
+hdoc="$(git -C "$horigin" show mgr-edge:docs/handover/edgework.md 2>&1)"
+expect "the restored record says abandoned" "status: abandoned" "$hdoc"
+expect "and keeps its plan" "plan: edgework" "$hdoc"
+git -C "$hwork" fetch -q origin
+out="$(hdsp)"
+refute "after: no retired row for the edge branch" "retired, no claim file" \
+  "$(hrows mgr-edge "$out")"
+expect "after: every slot is free" "slots     : 4 of 4 free" "$out"
+expect "after: its plan is offered" "docs/plans/edgework.md (agent:" "$out"
+
+# --- 4. never the base branch ------------------------------------------------
+hmain="$(git -C "$horigin" rev-parse main)"
+out="$(hrun halt main)"; rc=$?
+expect "halt main is refused at protected" "protected : REFUSED — main is the base branch" "$out"
+refute "and pushes nothing" "pushed    :" "$out"
+if [ "$rc" -eq 1 ] && [ "$(git -C "$horigin" rev-parse main)" = "$hmain" ]; then
+  pass "and exits 1 with origin's main unmoved"
+else fail "and exits 1 with origin's main unmoved (rc ${rc})"; fi
+
+# A symref name: `HEAD` resolves through origin/HEAD to the base's sha, and
+# the gone arm must drop the symref at most, never the base's tracking ref.
+git -C "$hwork" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
+out="$(hrun halt HEAD)"; rc=$?
+refute "halt HEAD pushes nothing" "pushed    :" "$out"
+if git -C "$hwork" rev-parse -q --verify refs/remotes/origin/main >/dev/null; then
+  pass "and the base's tracking ref survives"
+else fail "and the base's tracking ref survives"; printf '%s\n' "$(indent "$out")"
+  git -C "$hwork" fetch -q origin; fi
+if [ "$(git -C "$horigin" rev-parse main)" = "$hmain" ]; then pass "and origin's main is unmoved"
+else fail "and origin's main is unmoved"; fi
+
+# --- 5. a branch with no record to release -----------------------------------
+git -C "$hwork" checkout -qb mgr-norecord main
+printf 'other\n' >>"${hwork}/code.txt"
+hcommit "code only" "$hnow"
+git -C "$hwork" push -qu origin mgr-norecord
+git -C "$hwork" checkout -q main
+hnorec="$(git -C "$horigin" rev-parse mgr-norecord)"
+out="$(hrun halt mgr-norecord)"; rc=$?
+expect "no record: skipped" "skip      : mgr-norecord — no workstream file to release; nothing written" "$out"
+if [ "$rc" -eq 1 ] && [ "$(git -C "$horigin" rev-parse mgr-norecord)" = "$hnorec" ]; then
+  pass "and exits 1 with the branch unmoved"
+else fail "and exits 1 with the branch unmoved (rc ${rc})"; fi
+
+# --- 6. deleted on origin after this clone fetched it: never re-created -------
+hclaim mgr-gone none none
+git -C "$horigin" branch -qD mgr-gone
+out="$(hrun halt mgr-gone)"; rc=$?
+expect "a gone branch is refused at live" "live      : REFUSED — mgr-gone gone on origin" "$out"
+expect "and skipped" "skip      : mgr-gone — gone on origin" "$out"
+refute "and nothing is pushed" "pushed    :" "$out"
+if [ -z "$(git -C "$horigin" ls-remote --heads "$horigin" mgr-gone)" ]; then
+  pass "and origin still has no such branch"
+else fail "and origin still has no such branch (re-created)"; fi
+if git -C "$hwork" rev-parse -q --verify refs/remotes/origin/mgr-gone >/dev/null; then
+  fail "and the stale local ref is dropped"
+else pass "and the stale local ref is dropped"; fi
+
+# --- 7. an edge branch that swept a record the base carries -----------------
+hplan sweptwork
+mkdir -p "${hwork}/docs/handover"
+printf -- '---\nworkstream: sweptwork\nstatus: in-progress\nbranch: mgr-sweep\nplan: sweptwork\npr: none\nsession: https://example.invalid/session_sweep\nagent: sonnet\nupdated: %s\nnext: Build it\n---\n\n## Goal\nFixture.\n' \
+  "$htoday" >"${hwork}/docs/handover/sweptwork.md"
+hcommit "base carries a record" "$hnow"
+git -C "$hwork" push -q origin main
+git -C "$hwork" checkout -qb mgr-sweep main
+git -C "$hwork" rm -q docs/handover/sweptwork.md docs/plans/sweptwork.md
+hcommit "retire sweptwork" "$hnow"
+git -C "$hwork" push -qu origin mgr-sweep
+git -C "$hwork" checkout -q main
+out="$(hdsp)"
+expect "swept: dispatch has a retired row before" "retired, no claim file" \
+  "$(hrows mgr-sweep "$out")"
+out="$(hrun halt mgr-sweep)"; rc=$?
+expect "swept: halt restores the base's record" "release   : mgr-sweep  docs/handover/sweptwork.md" "$out"
+if [ "$rc" -eq 0 ]; then pass "swept: exits 0"
+else fail "swept: exits 0 (rc ${rc})"; printf '%s\n' "$(indent "$out")"; fi
+expect "swept: the restored record says abandoned" "status: abandoned" \
+  "$(git -C "$horigin" show mgr-sweep:docs/handover/sweptwork.md 2>&1)"
+git -C "$hwork" fetch -q origin
+refute "swept: no retired row after" "retired, no claim file" "$(hrows mgr-sweep "$(hdsp)")"
+
+# --- release --human at any age, and halt is its alias ----------------------
+hclaim mgr-young none none
+out="$(hrun release mgr-young)"; rc=$?
+expect "the plain write refuses a young claim" \
+  "refused   : mgr-young — not in the release report" "$out"
+out="$(hrun release --human mgr-young)"; rc=$?
+expect "release --human releases it at any age" "pushed    : mgr-young" "$out"
+if [ "$rc" -eq 0 ]; then pass "and exits 0"
+else fail "and exits 0 (rc ${rc})"; printf '%s\n' "$(indent "$out")"; fi
+h1="$(hrun halt mgr-young)"; r1=$?
+h2="$(hrun release --human mgr-young)"; r2=$?
+if [ "$h1" = "$h2" ] && [ "$r1" -eq "$r2" ] && [ -n "$h1" ]; then
+  pass "halt and release --human print the same output"
+else fail "halt and release --human print the same output"; printf '%s\n---\n%s\n' "$h1" "$h2"; fi
+h1="$(hrun halt no-such-branch)"; r1=$?
+h2="$(hrun release --human no-such-branch)"; r2=$?
+if [ "$h1" = "$h2" ] && [ "$r1" -eq 1 ] && [ "$r2" -eq 1 ] &&
+   grep -qF "no such branch on origin" <<<"$h2"; then
+  pass "and the same refusal for a branch origin lacks"
+else fail "and the same refusal for a branch origin lacks"; printf '%s\n---\n%s\n' "$h1" "$h2"; fi
+
+# --- usage --------------------------------------------------------------------
+out="$(hrun halt)"; rc=$?
+if [ "$rc" -ne 0 ] && grep -qF "usage:" <<<"$out"; then pass "halt with no branch is a usage error"
+else fail "halt with no branch is a usage error (rc ${rc})"; fi

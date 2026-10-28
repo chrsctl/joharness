@@ -3,30 +3,6 @@
 Rare branches of `.claude/commands/manage.md`, verbatim; its `ref §`
 lines say when to read each; its terms hold here.
 
-## Free
-
-A copy task, never a build. Claim on `docs/handover/free-<key>.md`,
-`workstream: free-<key>`, `plan: none`, key = the branch with every
-character outside `A-Za-z0-9._-` as `-`. Push the claim, then
-`./joharness.sh free <branch>`: it merges, drops the owner's workstream
-files and stems DONE ON MAIN, runs `curate --apply` on the plans it brings
-in only (restoring every other file curate touched), `ci`, commits. Its
-refusals:
-
-- `already merged into <your branch>` after `free` committed = done: push
-  and §4.
-- `holds`, `already merged into <base>`, `outside docs/`, `no such branch`,
-  `shares no history`, `free takes another branch` = nothing to free: delete
-  your workstream file, push, exit, no pull request.
-- anything else = your own branch's state: fix it, run again.
-
-Reset (conflict, red `ci`) = do by hand, inside a plan-only diff, what
-`free` does: merge, delete the owner's workstream files, drop stems DONE ON
-MAIN, retire a done record's plan, `curate --apply` (keep only the plans you
-bring in), `ci`, recover lines from the owner's tip. Or block `conflict:`.
-Then §4 whole; its `recover` lines and the owner branch go in the body.
-Never push to the owner's branch.
-
 ## Human remainder
 
 fits no plan and dies at retire (`.agents/docs/plans/README.md`,
