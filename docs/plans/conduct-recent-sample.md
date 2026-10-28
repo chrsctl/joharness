@@ -44,11 +44,12 @@ retro-audit-and-trace) are not this plan.
       set and a test can assert it.
 
    `JOHARNESS_CONDUCT_SAMPLE` still caps the count; `0` is still off.
-3. **Rate on the dispatch line.** The `conduct   :` lines (`joharness.sh`,
-   the `conduct   : not due` / `DUE` printers) end with the tally's C1 rate:
-   `C1 CONCERN <n>% of <m>`. `<m>` counts FINE plus CONCERN only, because
-   NO EVIDENCE is not a verdict on the gates. With no ledger rows the lines
-   end with `no runs yet`.
+3. **Rate on the dispatch line.** Every dispatch `conduct   :` line but
+   `UNREADABLE` (off, IN FLIGHT, DUE, due nothing to sample, not due) ends
+   with the tally's C1 rate: `; C1 CONCERN <n>% of <m>`. `<m>` counts FINE
+   plus CONCERN only, because NO EVIDENCE is not a verdict on the gates.
+   `conduct_tally`'s `CONCERN rate` takes the same `<m>`, so the two never
+   disagree. With no ledger rows the lines end with `; no runs yet`.
 4. **Text that names the old order:**
    - the `JOHARNESS_CONDUCT_SAMPLE` row in orchestrated.md;
    - `cmd_conduct`'s printed "lowest sha1(<stem>) first";
@@ -84,7 +85,7 @@ retro-audit-and-trace) are not this plan.
 ## Acceptance
 
 ```bash
-./joharness.sh dispatch | grep '^conduct'   # ends with "C1 CONCERN 0% of 3" on today's ledger (3 FINE rows); anything else = not done
+./joharness.sh dispatch | grep '^conduct   :'   # ends with "C1 CONCERN <n>% of <m>" as origin/main's ledger counts (3 FINE rows at writing: "0% of 3"); no rate = not done
 ./joharness.sh ci       # ci: pass
 ./joharness.sh verify   # 0 failed
 ```
@@ -100,6 +101,11 @@ retro-audit-and-trace) are not this plan.
   - a `plan: none` stem sorts last;
   - the dispatch line prints the rate, and excludes NO EVIDENCE from `<m>`.
 - The old sha1 needle is rewritten to the new order, never deleted.
+- The existing conduct fixture dates its retires 2026-02-10 and lands its
+  ledger after them: under the window those cases sample nothing. Re-date
+  `cretire` to recent hours and retire stems after the ledger lands, so each
+  existing case still asserts what it did; the tally's `CONCERN rate 33%`
+  needle becomes `50%` (NO EVIDENCE out of `<m>`).
 - Consumer side (SHIPS): after its next sync a consumer runs
   `./joharness.sh ci` → `ci: pass`.
 
