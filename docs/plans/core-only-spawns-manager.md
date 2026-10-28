@@ -7,7 +7,7 @@ needs: none
 requirement: none
 serves: all
 issue: none
-scope: joharness.sh, .agents/harness/selftest/dispatch.sh, .agents/harness/selftest/dispatch-order.sh, .agents/harness/selftest/dispatch-park.sh, .agents/harness/selftest/queue-context-core-only.sh, .agents/docs/orchestrated.md, .agents/docs/plans.md, .agents/docs/manage-reference.md, .agents/docs/orchestrate-reference.md, .claude/commands/orchestrate.md, .claude/commands/manage.md
+scope: shared:joharness.sh, .agents/harness/selftest/dispatch.sh, .agents/harness/selftest/dispatch-order.sh, shared:.agents/harness/selftest/dispatch-park.sh, .agents/harness/selftest/queue-context-core-only.sh, shared:.agents/docs/orchestrated.md, .agents/docs/plans.md, .agents/docs/manage-reference.md, .agents/docs/orchestrate-reference.md, shared:.claude/commands/orchestrate.md, .claude/commands/manage.md
 ---
 
 ## Goal
