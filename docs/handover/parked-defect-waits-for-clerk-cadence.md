@@ -33,6 +33,14 @@ clerk's full cadence, and graduate the answer to `.agents/docs/orchestrated.md`.
 
 ## Review
 
+- r1: "freed them" overstates: an extra clerk writes the plan, RESUME needs it retired (verifier) (fixed)
+- r2: gx numbers stated as fact without a second context (verifier) (fixed: marked one consumer reading, not re-taken here)
+- r3: clerk is not the only path, a hand-filed `issue:` plan is one too (verifier) (fixed)
+- r4: "up to JOHARNESS_CLERK_HOURS" understates: batch, clerk PR, fix add time (verifier) (fixed)
+- r5: one RECHECK re-park generalised to plural (verifier) (fixed)
+- r6: paragraph contradicts code once defect-park-calls-clerk lands; that plan cites the deleted research file (verifier) (fixed: paragraph says the plan rewrites it; plan file is not this item's to edit, lead sent to the orchestrator; research file recoverable from git)
+- r7: Review empty, workstream file still in tree (verifier) (no change: process state, retire commit deletes it)
+
 ## Blockers
 
 None.
