@@ -37,7 +37,7 @@ beside C1, at a measured 0 to 80 s per branch.
   - **T_nofix tests** = `.agents/harness/selftest.sh` and
     `.agents/harness/selftest/` from T_fix, whole. Never the parent's runner.
   - **Gate.** Own commits touch no path outside the selftest files and
-    `*.md` = `N/A: no code`. Touch no selftest file = `NO TEST`.
+    `*.md` = N/A, no code. Touch no selftest file = `NO TEST`.
   - **Selection.** In each tree, rewrite `SELFTEST_TOPICS` and
     `SELFTEST_CHAINS` to the units holding a touched topic (a chain whole),
     `git rm` every other topic file, commit in the scratch worktree so
@@ -67,7 +67,7 @@ beside C1, at a measured 0 to 80 s per branch.
 
 **C2 wording (retro-audit.md §3):** run `c2-run.sh <stem>` (Bash `timeout`
 1800). Verdict:
-- `N/A` — runner says `N/A`, or the Goal states no behaviour change (a
+- **N/A** — runner says N/A, or the Goal states no behaviour change (a
   refactor: PASS/PASS cases are characterization).
 - `FINE` — every new case whose label names what the Goal or a `(fixed)`
   `## Review` row says was fixed reads PASS/FAIL, and the runner says FLIP.
@@ -102,11 +102,15 @@ beside C1, at a measured 0 to 80 s per branch.
 
 ```bash
 bash .agents/scripts/c2-run.sh needs-cycle-lint | tail -1        # FLIP 4
-bash .agents/scripts/c2-run.sh issue-pr-link-comment | tail -1   # N/A: no code
+bash .agents/scripts/c2-run.sh issue-pr-link-comment | tail -1   # N/A, no code
 bash .agents/scripts/c2-run.sh fast-lane | tail -1               # FLIP 28
 ./joharness.sh ci       # ci: pass
 ./joharness.sh verify   # 0 failed
 ```
+
+- Consumer-side: the selftest topic ships with selftest.sh and runs in a
+  consumer's `./joharness.sh ci` against fixture stems only (no real stem
+  is assumed there).
 
 - Selftest cases on fixture stems, each failing on origin/main:
   - fix with a new case: FLIP;
@@ -121,6 +125,10 @@ bash .agents/scripts/c2-run.sh fast-lane | tail -1               # FLIP 28
   - stem merged in two pull requests, fix in the first: FLIP.
 
 ## Where to look
+
+- `git show 04974b1f:docs/research/conduct-c2-design-prototype/c2-run.sh` —
+  the measured prototype (prints `C2 FINE` where this plan says `FLIP`);
+  `fixtures.sh` beside it builds every trap's fixture stem.
 
 - `.agents/harness/selftest.sh:selftest_units` — chain = one unit.
 - `.agents/harness/selftest.sh:selftest_unit` — a unit that dies leaves
