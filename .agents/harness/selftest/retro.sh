@@ -174,43 +174,62 @@ done
 expect "retro: SAMPLE bounds the count" "sample    : 1 session(s)" "$(rtt JOHARNESS_RETRO_SAMPLE=1)"
 
 out="$(rtd)"
-expect "dispatch: retro due prints its line" "retro     : DUE" "$out"
+expect "dispatch: retro due prints its line" "retro     : trace DUE" "$out"
 expect "dispatch: and the spawn line" \
   "retro DUE: spawn ONE retro reviewer (agent: sonnet) on /retro — beyond the cap, holds no slot, at most one in flight" "$out"
 out="$(rtd DISPATCH_FETCH=0)"
 expect "dispatch: no fetch holds the reviewer" "retro due, held" "$out"
 refute "dispatch: and spawns none" "retro DUE: spawn" "$out"
-# A conduct reviewer spawning this pass goes first too: one retired
-# manager file on main makes conduct due.
+# An audit reviewer spawning this pass goes first too: one retired
+# manager file on main makes audit due.
 printf -- '---\nworkstream: zulu\nstatus: done\nplan: zulu\n---\n' >"${rt_work}/docs/handover/zulu.md"
-# Dated now: conduct samples what retired in its last JOHARNESS_CONDUCT_HOURS.
+# Dated now: audit samples what retired in its last JOHARNESS_CONDUCT_HOURS.
 rt_commit "zulu claim" "$(( $(date +%s) - 600 )) +0000"
 git -C "$rt_work" rm -q docs/handover/zulu.md
 mkdir -p "${rt_work}/docs/handover"
 rt_commit "zulu retire" "$(date +%s) +0000"
 git -C "$rt_work" push -q origin main
 # Untracked: the fixture's rules stay the ones origin carries.
-printf '# conduct\n' >"${rt_work}/.claude/commands/conduct.md"
+printf '# audit\n' >"${rt_work}/.claude/commands/retro-audit.md"
 out="$(rtd JOHARNESS_CONDUCT_HOURS=168)"
-expect "dispatch: a conduct spawning this pass suppresses the retro reviewer" "retro due, suppressed" "$out"
-expect "dispatch: and the conduct reviewer is the one spawned" "conduct DUE: spawn" "$out"
-rm -f "${rt_work}/.claude/commands/conduct.md"
+expect "dispatch: an audit spawning this pass suppresses the trace reviewer" "retro due, suppressed" "$out"
+expect "dispatch: and the audit reviewer is the one spawned, on /retro-audit" "retro audit DUE: spawn ONE retro reviewer (agent: sonnet) on /retro-audit" "$out"
+rm -f "${rt_work}/.claude/commands/retro-audit.md"
 out="$(rtd JOHARNESS_MAX_MANAGERS=0)"
 expect "dispatch: the pause holds the reviewer" "retro due, held — JOHARNESS_MAX_MANAGERS=0" "$out"
 refute "dispatch: and the pause spawns none" "retro DUE: spawn" "$out"
-# A conduct reviewer in flight goes first: one reviewer of either kind a pass.
-printf '# conduct\n' >"${rt_work}/.claude/commands/conduct.md"
+# An audit reviewer in flight goes first: one retro reviewer of either mode a
+# pass. Its old name, conduct-<digit>, still reads as audit.
+printf '# audit\n' >"${rt_work}/.claude/commands/retro-audit.md"
 git -C "$rt_work" checkout -q -b conduct-2026-01-11-0800 main
 printf 'rows\n' >"${rt_work}/conduct-rows.txt"
 git -C "$rt_work" add conduct-rows.txt && git -C "$rt_work" commit -qm "conduct rows"
 git -C "$rt_work" push -q origin conduct-2026-01-11-0800
 git -C "$rt_work" checkout -q main
 out="$(rtd JOHARNESS_CONDUCT_HOURS=168)"
-expect "dispatch: a conduct in flight suppresses the retro reviewer" "retro due, suppressed" "$out"
-refute "dispatch: and no retro reviewer spawns beside it" "retro DUE: spawn" "$out"
+expect "dispatch: an audit in flight (conduct-<digit>) suppresses the trace reviewer" "retro due, suppressed" "$out"
+refute "dispatch: and no trace reviewer spawns beside it" "retro DUE: spawn" "$out"
+expect "dispatch: a conduct-<digit> branch reads as audit in flight" \
+  "retro     : audit IN FLIGHT" "$out"
 git -C "$rt_work" push -q origin --delete conduct-2026-01-11-0800
 git -C "$rt_work" branch -q -D conduct-2026-01-11-0800
-rm -f "${rt_work}/.claude/commands/conduct.md"
+# An open audit branch under its new name is audit's, never trace's: trace's
+# own report stays due.
+git -C "$rt_work" checkout -q -b claude/retro-audit-2026-01-11-0830 main
+printf 'rows\n' >"${rt_work}/audit-rows.txt"
+git -C "$rt_work" add audit-rows.txt && git -C "$rt_work" commit -qm "audit rows"
+git -C "$rt_work" push -q origin claude/retro-audit-2026-01-11-0830
+git -C "$rt_work" checkout -q main
+out="$(rtd JOHARNESS_CONDUCT_HOURS=168)"
+expect "dispatch: a retro-audit-<digit> branch reads as audit in flight" \
+  "retro     : audit IN FLIGHT" "$out"
+refute "dispatch: and not as trace in flight" "retro     : trace IN FLIGHT" "$out"
+out="$(rtt)"
+expect "retro: an open retro-audit-* branch does not stop trace" "retro DUE: spawn ONE retro reviewer" "$out"
+refute "retro: and trace lists it nowhere" "retro-audit-2026-01-11-0830" "$out"
+git -C "$rt_work" push -q origin --delete claude/retro-audit-2026-01-11-0830
+git -C "$rt_work" branch -q -D claude/retro-audit-2026-01-11-0830
+rm -f "${rt_work}/.claude/commands/retro-audit.md"
 
 # The prelude: due = GO on a fresh retro-<date> branch; after its push the
 # twin check finds it the one in flight with the clock still due.
@@ -238,7 +257,7 @@ git -C "$rt_work" checkout -q main
 out="$(rtt)"
 expect "retro: a reviewer branch is in flight" "retro : IN FLIGHT, so none is due. Clock: due" "$out"
 expect "retro: and names it" "            retro-2026-01-11-0900  pushed" "$out"
-expect "dispatch: in flight is said" "retro     : IN FLIGHT" "$(rtd)"
+expect "dispatch: in flight is said" "retro     : trace IN FLIGHT" "$(rtd)"
 git -C "$rt_work" push -q origin --delete retro-2026-01-11-0900
 git -C "$rt_work" branch -q -D retro-2026-01-11-0900
 
@@ -268,7 +287,7 @@ git -C "$rt_work" add -A && git -C "$rt_work" commit -qm "retro rows"
 git -C "$rt_work" push -q origin main
 out="$(rtt)"
 expect "retro: a ledger landed now is not due" "retro : not due — 0h since the ledger last landed (of 168h)" "$out"
-expect "dispatch: not due is said" "retro     : not due" "$(rtd)"
+expect "dispatch: not due is said" "retro     : trace not due" "$(rtd)"
 
 # Off the clock (issue #626): a blocked session whose `next:` names an open
 # requirement or plan on the base is the queue's to resolve, so retro is due
@@ -324,3 +343,92 @@ git -C "$rt_work" add -A && git -C "$rt_work" commit -qm "retro rows"
 git -C "$rt_work" push -q origin main
 out="$(rtt)"
 expect "retro: once the ledger names it, the clock is back" "retro : not due — " "$out"
+
+# The hand-off (plan retro-audit-and-trace): an audit CONCERN not yet traced
+# prints on its own `concern   :` line, at most one a run, the oldest first,
+# with the session of the stem's workstream file at its retire's parent —
+# the newest retire dated on or before the audit row.
+# <stem> <session or ''> <claim date> <retire date> — claimed and retired on main.
+rt_retire() {
+  if [ -n "$2" ]; then
+    printf -- '---\nworkstream: %s\nstatus: in-progress\nplan: %s\nsession: %s\n---\n' "$1" "$1" "$2"
+  else
+    printf -- '---\nworkstream: %s\nstatus: in-progress\nplan: %s\n---\n' "$1" "$1"
+  fi >"${rt_work}/docs/handover/${1}.md"
+  rt_commit "claim $1" "$3"
+  git -C "$rt_work" rm -q "docs/handover/${1}.md"
+  mkdir -p "${rt_work}/docs/handover"
+  rt_commit "retire $1" "$4"
+}
+rt_retire xray "$(rt_url Xray1)" '2026-01-05T00:00:00Z' '2026-01-05T01:00:00Z'
+rt_retire xray "$(rt_url Xray2)" '2026-01-20T00:00:00Z' '2026-01-20T01:00:00Z'
+rt_retire zebra '' '2026-01-06T00:00:00Z' '2026-01-06T01:00:00Z'
+# yankee blocked once (a retro row logs that session), then retired.
+rt_ws m/yankee yankee blocked "$(rt_url Yankee27)" '2026-01-07T00:00:00Z'
+printf '| 2026-01-14 | m/yankee | %s | nothing |\n' "$(rt_url Yankee27)" >>"${rt_work}/docs/retro-log.md"
+rt_retire yankee "$(rt_url Yankee27)" '2026-01-07T02:00:00Z' '2026-01-07T03:00:00Z'
+cat >"${rt_work}/docs/conduct-log.md" <<EOF2
+# Conduct log
+
+| date | stem | C1 | note |
+|------|------|----|------|
+| 2026-01-17 | zebra | CONCERN | asserts the refused case |
+| 2026-01-15 | xray | CONCERN | asserts the refused case |
+| 2026-01-15 | whiskey | FINE | - |
+| 2026-01-16 | yankee | CONCERN | asserts the refused case |
+EOF2
+rt_commit "audit rows" '2026-01-21T00:00:00Z'
+git -C "$rt_work" push -q origin main
+out="$(rtt)"
+expect "retro: an untraced CONCERN prints on the concern line, oldest first" \
+  "concern   : xray 2026-01-15 $(rt_url Xray1) — " "$out"
+if [ "$(printf '%s\n' "$out" | grep -c '^concern   :')" = 1 ]; then
+  pass "retro: at most one CONCERN a run"
+else fail "retro: at most one CONCERN a run"; printf '%s\n' "$(indent "$out")"; fi
+expect "retro: a stem retired twice takes the retire on or before the audit row" \
+  "concern   : xray 2026-01-15 $(rt_url Xray1)" "$out"
+refute "retro: not the later retire" "Xray2" "$out"
+expect "retro: the line names the key to log it under" "log it under concern:2026-01-15:xray" "$out"
+refute "retro: a FINE row is no CONCERN" "whiskey 2026-01-15" "$(grep '^concern' <<<"$out")"
+printf '| 2026-01-21 | xray | concern:2026-01-15:xray | refs: ci |\n' >>"${rt_work}/docs/retro-log.md"
+git -C "$rt_work" add -A && git -C "$rt_work" commit -qm "trace rows"
+git -C "$rt_work" push -q origin main
+out="$(rtt)"
+refute "retro: a CONCERN logged under its key does not print" "concern   : xray" "$out"
+expect "retro: a CONCERN whose session a block already logged still prints" \
+  "concern   : yankee 2026-01-16 $(rt_url Yankee27)" "$out"
+printf '| 2026-01-21 | yankee | concern:2026-01-16:yankee | refs: ci |\n' >>"${rt_work}/docs/retro-log.md"
+git -C "$rt_work" add -A && git -C "$rt_work" commit -qm "trace rows"
+git -C "$rt_work" push -q origin main
+expect "retro: no session: prints session none" "concern   : zebra 2026-01-17 session none" "$(rtt)"
+printf '| 2026-01-21 | zebra | concern:2026-01-17:zebra | nothing |\n' >>"${rt_work}/docs/retro-log.md"
+git -C "$rt_work" add -A && git -C "$rt_work" commit -qm "trace rows"
+git -C "$rt_work" push -q origin main
+expect "retro: every CONCERN traced says none" "concern   : none" "$(rtt)"
+
+# A CONCERN alone makes trace due: a fresh repository with no failed session.
+rc_work="${TMP}/retroconcern"
+rc_origin="${TMP}/retroconcern.git"
+git init -q --bare "$rc_origin"
+git init -q "$rc_work"
+git -C "$rc_work" symbolic-ref HEAD refs/heads/main
+mkdir -p "${rc_work}/docs/handover" "${rc_work}/.agents/harness" "${rc_work}/.agents/env/none" \
+  "${rc_work}/.claude/commands"
+cp "${ROOT}/joharness.sh" "${rc_work}/joharness.sh"
+cp "${ROOT}/.agents/harness/queue-context.sh" \
+   "${ROOT}/.agents/harness/handover-context.sh" "${rc_work}/.agents/harness/"
+printf '# none\n' >"${rc_work}/.agents/env/none/AGENTS.md"
+printf 'JOHARNESS_ENV=none\n' >"${rc_work}/joharness.conf"
+printf '# retro\n' >"${rc_work}/.claude/commands/retro.md"
+printf '# Conduct log\n\n| date | stem | C1 | note |\n|------|------|----|------|\n| 2026-01-15 | alpha | CONCERN | x |\n' \
+  >"${rc_work}/docs/conduct-log.md"
+git -C "$rc_work" add -A
+GIT_COMMITTER_DATE='2026-01-01T00:00:00Z' GIT_AUTHOR_DATE='2026-01-01T00:00:00Z' \
+  git -C "$rc_work" commit -qm base
+git -C "$rc_work" remote add origin "$rc_origin"
+git -C "$rc_work" push -qu origin main
+out="$( cd "$rc_work" && env JOHARNESS_CONF="${rc_work}/joharness.conf" ./joharness.sh retro 2>&1 )"
+expect "retro: a CONCERN with no failed session makes trace due" \
+  "retro DUE: spawn ONE retro reviewer — " "$out"
+expect "retro: and says why" "an audit CONCERN is not yet traced" "$out"
+expect "retro: no retire prints session none" "concern   : alpha 2026-01-15 session none" "$out"

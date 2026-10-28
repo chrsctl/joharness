@@ -5179,6 +5179,7 @@ cmd_retro() {
            "$(printf '%s\n' "$s" | awk 'END { print NR + 0 }')"
          printf '%s\n' "$s" | sed 's/^/            /' ;;
   esac
+  printf '\n'
   # At most ONE CONCERN a run, the oldest: failures never starve it, and it
   # never crowds them out of the sample.
   con="$(retro_concerns)"
