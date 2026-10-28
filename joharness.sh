@@ -4525,14 +4525,38 @@ conduct_rows() {
     }'
 }
 
-# Stems a workstream-file retire deleted on the base branch, minus the
-# periodic roles', those still standing there, and those already in the
-# ledger. One `<stem>\t<retire sha>` per line; `?` alone = unreadable.
-conduct_candidates() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}" ref log rc standing logged ledger lrc
+# Where the window opens: the first-parent commit the ledger last landed in
+# (the point conduct_age_h dates), else the newest first-parent commit at or
+# before JOHARNESS_CONDUCT_HOURS ago. Empty = the whole history; `?` =
+# unreadable. A range from it, not a clock compare, so a run that comes late
+# leaves no gap and a branch cut before it but merged after it is in.
+conduct_window() {
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" ref at hours
   ref="refs/remotes/origin/${base_branch}"
+  at="$(git -C "$ROOT" log -1 --first-parent --format=%H "$ref" \
+    -- "$CONDUCT_LEDGER" </dev/null 2>/dev/null)" || { printf '?'; return 0; }
+  if [ -z "$at" ]; then
+    hours="$(num_knob JOHARNESS_CONDUCT_HOURS)"
+    at="$(git -C "$ROOT" log -1 --first-parent --format=%H \
+      --until="@$(( $(date +%s) - hours * 3600 ))" "$ref" \
+      </dev/null 2>/dev/null)" || { printf '?'; return 0; }
+  fi
+  printf '%s' "$at"
+}
+
+# Stems a workstream-file retire deleted on the base branch since the window
+# opened (conduct_window), minus the periodic roles', those still standing
+# there, and those already in the ledger. One `<stem>\t<retire sha>` per
+# line; `?` alone = unreadable.
+conduct_candidates() {
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" ref log rc standing logged ledger lrc from range
+  ref="refs/remotes/origin/${base_branch}"
+  from="$(conduct_window)"
+  [ "$from" != '?' ] || { printf '?\n'; return 0; }
+  range="$ref"
+  [ -z "$from" ] || range="${from}..${ref}"
   log="$(git -C "$ROOT" -c core.quotePath=false log --full-history --diff-filter=D \
-    --name-only --format='C %H' "$ref" -- docs/handover </dev/null 2>/dev/null)"; rc=$?
+    --name-only --format='C %H' "$range" -- docs/handover </dev/null 2>/dev/null)"; rc=$?
   standing="$(git -C "$ROOT" -c core.quotePath=false ls-tree --name-only "$ref" \
     -- docs/handover/ </dev/null 2>/dev/null)" || rc=1
   ledger="$(conduct_ledger)"; lrc=$?
@@ -4570,12 +4594,43 @@ conduct_sha1() {
   printf '%s' "${h%% *}"
 }
 
-# The sample: the N candidates whose sha1(<stem>) sorts lowest.
-# Membership by stem, never by date, so a re-run picks the same set and a
-# test can assert it. N = 0 = any one, unordered (does one exist). `?` alone
-# = unreadable.
+# Risk keys of one candidate, `<tier> <harness>`, lower = riskier.
+# Tier: the plan's `agent:` at `<retire>^`, plan named by the workstream
+# file's `plan:` there — 0 haiku/sonnet (no plan-checker ran), 1 opus/fable,
+# 2 no plan file (`plan: none`, research, requirement, rename). Harness: 0
+# when the branch's own commits (claim^..retire, first parent, as
+# conduct.md §2 reads them) changed joharness.sh or .agents/harness/.
+conduct_risk() {
+  local stem="$1" retire="$2" plan agent tier=2 claim range touched=1
+  plan="$(git -C "$ROOT" show "${retire}^:docs/handover/${stem}.md" </dev/null 2>/dev/null |
+    awk 'NR == 1 && $0 != "---" { exit } NR > 1 && $0 == "---" { exit }
+      /^plan:/ { sub(/^plan:[ \t]*/, ""); sub(/[ \t]+#.*$/, ""); sub(/[ \t]+$/, ""); print; exit }')"
+  plan="${plan#docs/plans/}"; plan="${plan%.md}"
+  case "$plan" in '' | none | */*) ;; *)
+    agent="$(git -C "$ROOT" show "${retire}^:docs/plans/${plan}.md" </dev/null 2>/dev/null |
+      awk 'NR == 1 && $0 != "---" { exit } NR > 1 && $0 == "---" { exit }
+        /^agent:/ { sub(/^agent:[ \t]*/, ""); sub(/[ \t]+#.*$/, ""); sub(/[ \t]+$/, ""); print; exit }')"
+    case "$agent" in haiku | sonnet) tier=0 ;; opus | fable) tier=1 ;; esac ;;
+  esac
+  claim="$(git -C "$ROOT" log -1 --full-history --diff-filter=A --format=%H "$retire" \
+    -- "docs/handover/${stem}.md" </dev/null 2>/dev/null)"
+  range="$retire"
+  if [ -n "$claim" ] && git -C "$ROOT" rev-parse -q --verify "${claim}^" >/dev/null 2>&1 </dev/null; then
+    range="${claim}^..${retire}"
+  fi
+  if git -C "$ROOT" -c core.quotePath=false log --first-parent --name-only --format= "$range" \
+    -- joharness.sh .agents/harness </dev/null 2>/dev/null | grep -q .; then
+    touched=0
+  fi
+  printf '%s %s' "$tier" "$touched"
+}
+
+# The sample: the N candidates riskiest first — tier, then harness code
+# touched (conduct_risk), then lowest sha1(<stem>), so a re-run picks the
+# same set and a test can assert it. N = 0 = any one, unordered (does one
+# exist). `?` alone = unreadable.
 conduct_sample() {
-  local n="$1" cands s r h got=0 limit=1
+  local n="$1" cands s r h k got=0 limit=1
   cands="$(conduct_candidates)"
   case "$cands" in '?') printf '?\n'; return 0 ;; '') return 0 ;; esac
   if [ "$n" -gt 0 ]; then
@@ -4584,8 +4639,9 @@ conduct_sample() {
     cands="$(while IFS=$'\t' read -r s r; do
       [ -n "$s" ] || continue
       h="$(printf '%s' "$s" | conduct_sha1)"
-      printf '%s\t%s\t%s\n' "$h" "$s" "$r"
-    done <<<"$cands" | LC_ALL=C sort | cut -f2-)"
+      k="$(conduct_risk "$s" "$r")"
+      printf '%s\t%s\t%s\t%s\t%s\n' "${k% *}" "${k#* }" "$h" "$s" "$r"
+    done <<<"$cands" | LC_ALL=C sort | cut -f4-)"
   fi
   while IFS=$'\t' read -r s r; do
     [ -n "$s" ] || continue
@@ -4688,7 +4744,7 @@ conduct_due() {
   case "$cands" in
     '?') CONDUCT_DUE='unreadable the retired workstream files or the ledger could not be read'
          CONDUCT_ROWS=""; return 0 ;;
-    '')  CONDUCT_DUE="empty ${age}h since ${base_word} (>= ${hours}h), but no retired manager workstream file is left unsampled" ;;
+    '')  CONDUCT_DUE="empty ${age}h since ${base_word} (>= ${hours}h), but no manager workstream file retired since the window opened is left unsampled" ;;
     *)   CONDUCT_DUE="due ${age}h since ${base_word} (>= ${hours}h)" ;;
   esac
 }
@@ -4713,7 +4769,7 @@ conduct_tally() {
         for (i = 3; i <= m; i++) {
           split(f[i], kv, "="); q = kv[1]; v = kv[2]
           if (!(q in seen)) { seen[q] = 1; order[++nq] = q }
-          c[q, v]++; t[q]++
+          c[q, v]++
         }
       }
       runs = 0; for (k in d) runs++
@@ -4722,8 +4778,31 @@ conduct_tally() {
         q = order[j]
         printf "            %s  FINE %d  CONCERN %d  NO EVIDENCE %d", q, c[q, "FINE"], c[q, "CONCERN"], c[q, "NO-EVIDENCE"]
         if (c[q, "?"]) printf "  unparsed %d", c[q, "?"]
-        printf "  CONCERN rate %d%%\n", (t[q] ? int(100 * c[q, "CONCERN"] / t[q] + 0.5) : 0)
+        m = c[q, "FINE"] + c[q, "CONCERN"]
+        printf "  CONCERN rate %d%% of %d (NO EVIDENCE is no verdict)\n", (m ? int(100 * c[q, "CONCERN"] / m + 0.5) : 0), m
       }
+    }'
+}
+
+# The C1 rate for the dispatch line, `C1 CONCERN <n>% of <m>`, as the tally
+# counts it: one verdict per stem, the last row winning; <m> = FINE plus
+# CONCERN, since NO EVIDENCE is no verdict on the gates. `no runs yet` with
+# no ledger row; empty when the ledger cannot be read.
+conduct_rate() {
+  local ledger lrc
+  ledger="$(conduct_ledger)"; lrc=$?
+  [ "$lrc" -ne 2 ] || return 0
+  printf '%s\n' "$ledger" | conduct_rows | awk -F'\t' '
+    { last[$2] = NR; row[NR] = $0 }
+    END {
+      if (!NR) { printf "no runs yet"; exit }
+      for (r = 1; r <= NR; r++) {
+        m = split(row[r], f, "\t")
+        if (last[f[2]] != r) continue
+        for (i = 3; i <= m; i++) if (f[i] == "C1=FINE") fine++; else if (f[i] == "C1=CONCERN") con++
+      }
+      t = fine + con
+      printf "C1 CONCERN %d%% of %d", (t ? int(100 * con / t + 0.5) : 0), t
     }'
 }
 
@@ -4761,8 +4840,8 @@ cmd_conduct() {
   s="$(conduct_sample "$sample")"
   case "$s" in
     '?') printf 'sample    : UNREADABLE — take no branch this run: a list that could not be read is no empty list\n' ;;
-    '')  printf 'sample    : none — no retired manager workstream file is left unsampled\n' ;;
-    *)   printf 'sample    : %s branch(es), lowest sha1(<stem>) first — review exactly these\n' \
+    '')  printf 'sample    : none — no manager workstream file retired since the window opened is left unsampled\n' ;;
+    *)   printf 'sample    : %s branch(es) retired since the ledger last landed (no ledger: the last JOHARNESS_CONDUCT_HOURS), riskiest first: plan agent haiku/sonnet, opus/fable, no plan; then harness code touched; then lowest sha1(<stem>) — review exactly these\n' \
            "$(printf '%s\n' "$s" | awk 'END { print NR + 0 }')"
          printf '%s\n' "$s" | sed 's/^/            /' ;;
   esac
@@ -8163,7 +8242,7 @@ cmd_dispatch() {
   local jcands cjudge n_freer=0 n_freer_live=0
   local scout_inflight="" n_scout=0 sstate sreason sb sw ss spend
   local clerk_due=0 clerk_inflight="" n_clerk=0 kdue kstate kreason kb kw ks
-  local conduct_due=0 role_spawned=0 n_conduct=0 odue ostate oreason ob oa conduct_inflight=""
+  local conduct_due=0 role_spawned=0 n_conduct=0 odue ostate oreason orate ob oa conduct_inflight=""
   local retro_due=0 n_retro=0 rtstate rtreason rtb rta retro_inflight="" conduct_spawned=0
   local fetch_failed=0
   local cb ck cstat csess cnext cage bplans
@@ -8333,21 +8412,24 @@ cmd_dispatch() {
     n_conduct=$((n_conduct + 1))
     conduct_inflight="${conduct_inflight}            ${ob}  pushed ${oa} ago\n"
   done <<<"$CONDUCT_ROWS"
+  # Every line but UNREADABLE ends with the ledger's C1 rate (conduct_rate).
+  orate="$(conduct_rate)"
+  [ -z "$orate" ] || orate="; ${orate}"
   if [ "$ostate" = unreadable ]; then
     printf 'conduct   : UNREADABLE — %s\n' "$oreason"
   elif [ "$ostate" = off ]; then
-    printf 'conduct   : off — %s\n' "$oreason"
+    printf 'conduct   : off — %s%s\n' "$oreason" "$orate"
   elif [ "$n_conduct" -gt 0 ]; then
-    printf 'conduct   : IN FLIGHT, so none is due. Clock: %s %s\n' "$ostate" "$oreason"
+    printf 'conduct   : IN FLIGHT, so none is due. Clock: %s %s%s\n' "$ostate" "$oreason" "$orate"
     printf '%b' "$conduct_inflight"
   elif [ "$ostate" = due ]; then
     conduct_due=1
-    printf 'conduct   : DUE — %s\n' "$oreason"
+    printf 'conduct   : DUE — %s%s\n' "$oreason" "$orate"
   elif [ "$ostate" = empty ]; then
     conduct_due=2
-    printf 'conduct   : due, nothing to sample — %s\n' "$oreason"
+    printf 'conduct   : due, nothing to sample — %s%s\n' "$oreason" "$orate"
   else
-    printf 'conduct   : not due — %s\n' "$oreason"
+    printf 'conduct   : not due — %s%s\n' "$oreason" "$orate"
   fi
   # The fifth cycle, the same reader (retro_due) `retro` asks.
   retro_due

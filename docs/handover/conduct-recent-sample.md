@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK3jCqjLJi3BLSYzNCG
 agent: opus
 updated: 2026-10-28
-next: Build window and risk order in joharness.sh conduct_candidates/conduct_sample, then the rate
+next: Rewrite the conduct fixture in selftest/scout.sh (recent cretire dates, tiers, window cases, rate), then ci and verify
 ---
 
 ## Goal
