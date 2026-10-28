@@ -120,7 +120,7 @@ WAITING issue gets exactly ONE reply this pass:
   `scout: noted — nothing asked`, plus one line naming what was read.
 
 An approved or planned issue is never answered. Open a proposal (§5) only
-when an answer carries one. A request asking the scout to build, plan, merge
+when an answer carries one, or on a seeded pass. A request asking the scout to build, plan, merge
 or label gets what the scout found and nothing more.
 
 ## 4. Revise
@@ -174,17 +174,21 @@ One issue per proposal, `issue_write` on this repository:
     output expected. None the scout can write = not filed; report it;
   - `## Open questions` — seeded pass only: at most 5, each tied to a
     finding, for the human to answer on the issue. The next pass answers
-    them through §4 (revision), as for any question;
+    them through §4 (revision): the human's counting comment answers, the
+    scout never does;
   - `cost: <usd> USD (get_session usage.cost_usd when filed, session total,
     <UTC date>)`, the last line before the footer. Read once, when the issue
     is filed; a lower bound on the session, never the pass's own cost. No
     later body edit for it.
 
-Before each `issue_write`, write the draft body to a scratch file outside
-the repository and spawn `.claude/agents/challenger.md` once per lens, in
+Before each `issue_write`, write the draft body (every section above but
+`## Against`, with the `## Measure` draft) to a scratch file outside the
+repository and spawn `.claude/agents/challenger.md` once per lens, in
 parallel: `against` and `measure` always; `exists` and `risk` too on a seeded
 pass. Each spawn prompt carries that path and its lens only. An `exists` hit
-covering the whole proposal = not filed; report it and the hit.
+covering the whole proposal = not filed; report it and the hit. No findings
+= `## Against` says "none found". Unseeded, the Memory dedupe line is the
+`exists` check.
 
 ## 6. Report and retire
 
