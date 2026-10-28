@@ -109,25 +109,18 @@ refute "the branch's own held plan draws no repair" "ownplan: scope: claims" "$(
 
 # --- a role runs beyond the manager cap ------------------------------------
 git -C "$cawork" checkout -q main
-git -C "$cawork" checkout -qb claude/curate-run
+git -C "$cawork" checkout -qb claude/clerk-run
 mkdir -p "${cawork}/docs/handover"
-printf -- '---\nworkstream: curate-2026-01-02\nstatus: in-progress\nbranch: claude/curate-run\nplan: none\nagent: sonnet\nupdated: 2026-01-02\nnext: x\n---\n\n## Goal\nFixture.\n' \
-  >"${cawork}/docs/handover/curate-2026-01-02.md"
-commit_all "$cawork" "a curator in flight"
-git -C "$cawork" push -qu origin claude/curate-run
+printf -- '---\nworkstream: clerk-2026-01-02\nstatus: in-progress\nbranch: claude/clerk-run\nplan: none\nagent: sonnet\nupdated: 2026-01-02\nnext: x\n---\n\n## Goal\nFixture.\n' \
+  >"${cawork}/docs/handover/clerk-2026-01-02.md"
+commit_all "$cawork" "a clerk in flight"
+git -C "$cawork" push -qu origin claude/clerk-run
 git -C "$cawork" checkout -q main
 out="$( cd "$cawork" && JOHARNESS_CONF="$caconf" DISPATCH_FETCH=0 \
-  JOHARNESS_MAX_MANAGERS=2 JOHARNESS_CURATE_PLANS=1 ./joharness.sh dispatch 2>&1 )"
+  JOHARNESS_MAX_MANAGERS=2 ./joharness.sh dispatch 2>&1 )"
 expect "a role in flight takes no manager slot" "slots     : 2 of 2 free" "$out"
 refute "and the slots line names no role" "role session(s) in flight" "$out"
-
-# --- a due curate with only mechanical repairs spawns no curator ------------
-git -C "$cawork" push -q origin --delete claude/curate-run
-out="$( cd "$cawork" && JOHARNESS_CONF="$caconf" DISPATCH_FETCH=0 \
-  JOHARNESS_CURATE_PLANS=1 ./joharness.sh dispatch 2>&1 )"
-expect "mechanical-only repairs are named as curate --apply work" \
-  "curate due, nothing needs judgement: spawn no curator" "$out"
-refute "and no curator is spawned for them" "curate DUE: spawn" "$out"
+git -C "$cawork" push -q origin --delete claude/clerk-run
 
 # --- an unreadable queue hook: --apply writes nothing ------------------------
 # The hook's claimed rows are what exempt a held plan from repair; read as

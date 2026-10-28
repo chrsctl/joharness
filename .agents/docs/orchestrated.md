@@ -19,7 +19,6 @@ commit `649b832` — docs only, no text reproduced (`.agents/NOTICE`).
 | `./joharness.sh dispatch` | The orchestrator's one read: the human's numbers, managers in flight with push age and marks (`STALL?`, `LOOP?`, `CEILING?`), slots under the cap, the spawn order with waves and `HOLD`s, the `deferred  :` lines for held requirements, the cycle lines, one verdict. Reports only. |
 | `dispatch` wait line | Under any `DRAINED` verdict, when `CORE ONLY` plans wait: `<n> plan(s) wait on a human core edit (oldest <d>d): <stems>`. The verdict word is unchanged; the orchestrator reports the line and pushes each stem to the human once per run. Never on `NOT DRAINED`, `OVERLAP-BOUND` or `PAUSED`. |
 | `dispatch` verdict `OVERLAP-BOUND` | Slots free but every free plan HELD behind work in flight. A `rescope :` block names the holder key and the held paths; the verdict spawns ONE surveyor to correct the `scope:` declarations. |
-| `./joharness.sh curate` + `curate :` line | Whether the plan queue's declarations are still true; repairs are `curate --apply`, a curator session only for PROPOSE findings. Due on plan churn or the clock, dated from git (`joharness.sh:cmd_curate`, `.claude/commands/curate.md`). Orthogonal to the verdict. |
 | `./joharness.sh janitor` + `janitor :` line | Claims whose session is gone. Mechanical: `./joharness.sh janitor --apply` writes `status: abandoned` into the claim's own file — only where the session is ARCHIVED or not found, never a claim with `pr:` — and deletes nothing. No session, no pull request. Listed only when stale claims exist; the caller proves each session gone and passes the branches: `janitor --apply <branch>...`. |
 | `./joharness.sh halt <branch>...` | A human's order, never a session's judgement. Writes `status: abandoned` through the guard and the lease at any age, `pr:` or not; on an edge branch it restores the branch's own retired record, released. The item returns to the queue. Deletes nothing; git only, never the GitHub API: the session and any pull request stay the control plane's and the human's. |
 | `./joharness.sh release <branch>...` + `RELEASABLE` / `release DUE` | A block the queue has since absorbed (#626). Dispatch prints a parked claim `RELEASABLE: held by needs: <stem> since <date>` when its `next:` opens with a reason word the queue can answer (a manage.md §3 reason, not `money:`, `credentials:`, `hardware:`, `core path:`, `github:`, `respawns:`, `defect:`), names `<stem>` as a token, and carries no `pr:`, and its plan on the base is `blocked by:` that `needs: <stem>` edge, added after the park. The orchestrator runs `release` on the `release DUE` line: it writes `status: abandoned` through the guard and the lease, only for a claim that same read prints `RELEASABLE`. The session stays alive and may set the word back. Every other block stays the human's. |
@@ -38,7 +37,6 @@ commit `649b832` — docs only, no text reproduced (`.agents/NOTICE`).
 | keeper | haiku | one session per repo, `🔑 keeper: <owner/repo>`, woken hourly by the heartbeat | the only spawner of orchestrators: one a wake when none is live, or a successor when the live one's wake asks to retire (`create_session`) | nothing but that check | archived at the next REGISTER or replace |
 | manager | the item's `agent:`; fable at xhigh for an unplanned requirement | a session with its own branch, claim and merge | worker subagents (`Agent`) | one item, until its file retires | its pull request merges, or it blocks on a human |
 | worker | at or below the plan's tier, lower by default | a subagent in the manager's container | nothing | the files its sub-task names | it returns |
-| curator | sonnet | a session, on `curate DUE` with proposals to make; prelude `./joharness.sh role curate` | nothing | decompose/order proposals for ONE pass, changing no plan | its pull request merges |
 | freer | sonnet | a session, on the `freer DUE` tail line (a `FREEABLE` row) | nothing | one doc-only branch's plans brought onto the base, building nothing (`.agents/docs/manage-reference.md` § Free) | its pull request merges, or `free` refuses: claim deleted, no pull request |
 | surveyor | sonnet | a session, on the `OVERLAP-BOUND` verdict | nothing (declarations, not code) | the held plans' and holders' `scope:` lines for one holder key | its pull request merges, or `done` with nothing to change |
 | clerk | sonnet, opus verifier | a session, on the `clerk DUE` tail line; prelude `./joharness.sh role clerk` | nothing | one plan-only pull request, no workstream file; closes an issue only on DOES NOT HOLD, DUPLICATE or UPSTREAM, opens none but UPSTREAM's on canonical, never writes code, never a core-path-only plan, never plans a scout issue without the reviewer's `approved` comment newer than the scout's newest footed `scout:` comment | its pull request merges, no plan to write (pushes `clerk-noop-<UTC stamp>` at `origin/main`), or `TWIN: deferred` |
@@ -51,7 +49,7 @@ the cap, one of each in flight, a blocked one included (`orchestrate.md` §3).
 
 ### The role prelude is a command
 
-The clerk, scout, curator and conduct reviewer open with `./joharness.sh role
+The clerk, scout and conduct reviewer open with `./joharness.sh role
 <name>` (authority, fetch, the role's report and exits, branch, claim file;
 `--twin` and `--retire` after), which prints `GO <branch>` or `STOP: <reason>`
 last; the command file keeps only the judgement (selftest `role.sh`).
@@ -69,7 +67,6 @@ its limits only.
 | keeper | `keeper.md`, its trigger list and the sessions it names, the Lineup table | dispatch, the queue, a plan, any workstream file, this doc |
 | manager | `manage.md` | the queue, other plans, other branches, this doc |
 | surveyor | the `rescope :` block in its prompt, and the `## Scope` of each plan it renames | the queue, product code, this doc |
-| curator | `curate.md` | a held plan, the queue order, product code, this doc |
 | clerk | `clerk.md` | the queue order, another branch, product code beyond what an issue cites, this doc (except the design doc where an issue cites it: only the cited section; and the files the plan names as anchors, which outrank the product-code limit) |
 | scout | `scout.md` | a plan beyond its frontmatter and `## Goal`, the queue order, product code, another branch's code |
 | conduct | `conduct.md` | any diff body, product code, the queue, this doc |
@@ -204,8 +201,6 @@ Removing the line, on the base first, is the human override.
 | `JOHARNESS_MANAGER_HOURS` | 4 | claim older than this, no pull request = `CEILING?` report; 0 lifts it | one consumer run |
 | `JOHARNESS_CHURN_THRESHOLD` | 5 | one file rewritten this often = warning | `ci`'s knob; honest branches peak at 4 |
 | `JOHARNESS_CHURN_LIMIT` | 2x threshold | one file rewritten this often = `LOOP?` and `ci` red; 0 lifts it | `ci`'s ceiling |
-| `JOHARNESS_CURATE_PLANS` | 10 | plan files added or changed since the last curate = due | plan production is bursty; written number |
-| `JOHARNESS_CURATE_HOURS` | 168 | hours since the last curate (or merged `curate-noop-<stamp>` record) = due (anchors rot with no plan changing); 0 switches the cycle off | written number |
 | `JOHARNESS_CURATE_REGISTRY` | 3 | plans declaring one path before `curate` calls it a registry | written number |
 | `JOHARNESS_CURATE_SPLIT` | 8 | `## Scope` bullets before `curate` proposes a decompose | written number |
 | `JOHARNESS_CURATE_LAYERS` | 3 | distinct top-level directories in a plan's `scope:` before `curate` proposes a decompose; 0 = off | written number |
@@ -441,7 +436,7 @@ The spec every orchestrator checks at start and on every pass after the first
 replaced, any other `heartbeat stale` or `heartbeat duplicated` line pushes):
 
 - **Name**: exactly `heartbeat: <owner/repo>` — how the check tells it from
-  another repo's heartbeat or a nightly `/curate`.
+  another repo's heartbeat.
 - **Binding**: `persistent_session_id` = a session titled `🔑 keeper:
   <owner/repo>` (glossary, role title), not `ARCHIVED`. An archived keeper disables the Routine
   (`auto_disabled_session_gone`); the next `/orchestrate` replaces both.
