@@ -252,9 +252,7 @@ expect "a shallow clone that holds the park reads its age" \
 # queue-order behaviours it pinned that `dispatch` carries too and nothing
 # above asserted. Its own repo, because each verdict is a property of the
 # whole queue and the fixtures above carry managers and holds that would
-# decide them. The curate cycle is OFF throughout (`qo`): a case here that
-# grew the queue past the production threshold would turn the curate into
-# the spawn order's first line by accident.
+# decide them.
 qowork="${TMP}/dispatchorder"
 qoorigin="${TMP}/dispatchorder.git"
 git init -q --bare "$qoorigin"
@@ -292,7 +290,7 @@ qoreq() {
 }
 qopush() { commit_all "$qowork" "$1"; git -C "$qowork" push -q origin main; }
 qo() { ( cd "$qowork" && JOHARNESS_CONF="$qoconf" DRAIN_FETCH=0 \
-  DISPATCH_FETCH=0 JOHARNESS_CURATE_HOURS=0 ./joharness.sh dispatch 2>&1 ); }
+  DISPATCH_FETCH=0 ./joharness.sh dispatch 2>&1 ); }
 # The first row of the spawn order: what the orchestrator spawns first.
 qofirst() { sed -n '/^spawn, in this order/{n;p;q;}' <<<"$1"; }
 

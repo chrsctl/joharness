@@ -224,7 +224,7 @@ printf 'JOHARNESS_ENV=none\nJOHARNESS_ENV_SETUP=lazy\n' >"${syncdst}/joharness.c
 confbefore="$(cat "${syncdst}/joharness.conf")"
 out="$(sync "$syncdst")"
 expect "the stage names itself" "settings this repo does not answer" "$out"
-for k in JOHARNESS_ENV_MD JOHARNESS_REVIEW JOHARNESS_CURATE_HOURS; do
+for k in JOHARNESS_ENV_MD JOHARNESS_REVIEW JOHARNESS_CLERK_HOURS; do
   expect "names the missing key ${k}" "$k" "$out"
 done
 expect "with the default it would take" "JOHARNESS_REVIEW (default off)" "$out"

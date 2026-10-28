@@ -115,7 +115,7 @@ it. Procedure: `.claude/commands/manage.md` §2; bounds:
 `./joharness.sh curate` reports a plan whose `scope:` no longer covers its
 `## Scope`, claims a whole directory, or shares an unmarked registry;
 `curate --apply` repairs these, and `ci` fails a branch whose own added plans
-still need one. A curator only PROPOSES (`.claude/commands/curate.md`).
+still need one. `./joharness.sh curate` also prints the proposals (decompose, order) for the plan author.
 
 ## Does this plan reach consumers
 

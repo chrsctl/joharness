@@ -31,7 +31,7 @@ cp "${ROOT}/joharness.sh" "${role_work}/joharness.sh"
 cp "${ROOT}/.agents/harness/queue-context.sh" \
    "${ROOT}/.agents/harness/handover-context.sh" "${role_work}/.agents/harness/"
 cp "${ROOT}/.agents/docs/handover/TEMPLATE.md" "${role_work}/.agents/docs/handover/"
-for role_c in clerk scout curate conduct retro; do
+for role_c in clerk scout conduct retro; do
   printf '# %s\n' "$role_c" >"${role_work}/.claude/commands/${role_c}.md"
 done
 printf '# none\n' >"${role_work}/.agents/env/none/AGENTS.md"
@@ -67,11 +67,11 @@ refute "retro not due cuts no branch" "branch    :" "$out"
 expect "retro --retire: no claim file" "STOP: retro writes no claim file" \
   "$(role_last "$(role_run ./joharness.sh role retro --retire)")"
 
-# --- curate with no PROPOSE finding: its plain exit --------------------------
+# --- curate: the session role was removed -----------------------------------
 out="$(role_run ./joharness.sh role curate --session s --agent sonnet)"
-expect "curate with no PROPOSE finding stops" "STOP: no PROPOSE findings" "$(role_last "$out")"
-expect "curate --twin: no twin rule" "STOP: curate has no twin rule" \
-  "$(role_last "$(role_run ./joharness.sh role curate --twin)")"
+expect "role curate stops: the role was removed" \
+  "STOP: the curator role was removed; run ./joharness.sh curate" "$(role_last "$out")"
+expect "and exits 0" "rc=0" "$out"
 
 # --- scout with no brief: off, a plain exit, nothing claimed -----------------
 # scout.md's §0.3 reads no brief as `off`; the plan's `NO BRIEF` claim-and-
@@ -184,23 +184,6 @@ else
   fail "and the claim does still stand on origin"
 fi
 rm -f "${role_origin}/hooks/pre-receive"
-
-# --- curate: GO, claim pushed, on a name origin alone holds ------------------
-git -C "$role_work" checkout -q main
-printf -- '---\nplan: role-big\nurgency: normal\nagent: sonnet\neffort: medium\nneeds: none\nrequirement: none\nissue: none\nscope: role-big.txt\n---\n\n## Goal\n\nFixture.\n\n## Scope\n\n- role-big.txt — one.\n- role-big.txt — two.\n' \
-  >"${role_work}/docs/plans/role-big.md"
-commit_all "$role_work" "a plan to propose on"
-git -C "$role_work" push -q origin main
-git -C "$role_twin" fetch -q origin
-git -C "$role_twin" push -q origin "origin/main:refs/heads/curate-${role_today}"
-out="$(role_run env JOHARNESS_CURATE_SPLIT=1 ./joharness.sh role curate --session s5 --agent sonnet)"
-expect "curate with a PROPOSE finding claims, on the next free name" \
-  "GO curate-${role_today}-b" "$(role_last "$out")"
-expect "its claim is on origin" "workstream: curate-${role_today}" \
-  "$(git -C "$role_origin" show "refs/heads/curate-${role_today}-b:docs/handover/curate-${role_today}.md" 2>/dev/null)"
-git -C "$role_work" checkout -q main
-expect "--retire on the base branch is refused" "STOP: retire: on the base branch main" \
-  "$(role_last "$(role_run ./joharness.sh role curate --retire)")"
 
 # --- conduct --twin: its one row, but the Clock is not due -------------------
 git -C "$role_work" checkout -qb "conduct-${role_today}-0000" main

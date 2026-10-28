@@ -706,7 +706,7 @@ out="$(fr JOHARNESS_MAX_MANAGERS=0)"
 expect "the human's pause holds the freer row" \
   "  free carry-dr (agent: sonnet)  HOLD — JOHARNESS_MAX_MANAGERS=0 is the human's pause" "$out"
 refute "and prints no freer spawn under it" "freer DUE" "$out"
-# A BLOCKED freer is still in flight, as a blocked curator is: no second one
+# A BLOCKED freer is still in flight, as a blocked clerk is: no second one
 # beside it. It holds no slot either way.
 git -C "$frwork" checkout -qb mgr-free-x main
 mkdir -p "${frwork}/docs/handover"

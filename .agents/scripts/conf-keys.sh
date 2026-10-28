@@ -44,8 +44,6 @@ JOHARNESS_ENV|none|Directory under .agents/env/ this repo provisions. 'none' = h
 JOHARNESS_ENV_SETUP|lazy|lazy = provision on demand; eager = at session start.
 JOHARNESS_ENV_MD|lazy|lazy = inject a pointer to the layer's rules; eager = the file whole.
 JOHARNESS_REVIEW|off|off = review reports only; on = ci gates the record at the edge.
-JOHARNESS_CURATE_HOURS|168|Hours since the last curate before one is due; 0 switches the whole cycle off.
-JOHARNESS_CURATE_PLANS|10|Plan files changed since the last curate before one is due (the primary trigger); 0 leaves only the clock.
 JOHARNESS_CLERK_HOURS|24|Hours between clerk passes over the open issues: an issue nobody turns into a plan is never built. 0 switches the cycle off.
 JOHARNESS_CLERK_BATCH|3|Open issues one clerk pass takes at most.
 JOHARNESS_SCOUT_READS|12|Outside reads one scout pass may make before it stops researching and proposes from what it has; the scout counts them in its claim's Decisions.
