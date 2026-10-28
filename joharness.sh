@@ -7423,7 +7423,7 @@ map_dir_ok() {
 # Fills MAP_ROWS ("<dir>\t<line>\t<path>\t<symbol>"), MAP_SET, MAP_NIDX and
 # the MAP_N* counts. $1 = nostale skips the per-folder history reads.
 map_scan() {
-  local nostale="${1:-}" f d p line c n tgt sym file rest
+  local nostale="${1:-}" f d p line c n tgt sym file rest sec
   local -A set=() idx=() foreign=() gen=() tot=() chg=() old=() now=()
   local -a files=()
   MAP_ROWS=() MAP_SET=() MAP_NIDX=0
@@ -7484,10 +7484,13 @@ map_scan() {
     MAP_NORPH=$((MAP_NORPH + 1))
   done
 
-  # Links and file:symbol references inside each index.
+  # Links anywhere; file:symbol only under `## Interface`, the file relative to
+  # the folder or the repo root, a dotted symbol found by its last name.
   for d in "${!idx[@]}"; do
     [ -n "${set["$d"]:-}" ] || continue
+    sec=""
     while IFS= read -r line; do
+      case "$line" in '## '*) sec="${line%"${line##*[![:space:]]}"}" ;; esac
       rest="$line"
       while [[ "$rest" =~ \]\(([^\)\ ]+)\) ]]; do
         tgt="${BASH_REMATCH[1]}"; rest="${rest#*"${BASH_REMATCH[0]}"}"
@@ -7498,15 +7501,18 @@ map_scan() {
         MAP_ROWS+=("${d}"$'\t'"broken  : ${d}/${MAP_INDEX} -> ${tgt}"$'\t'"${d}/${tgt}"$'\t')
         MAP_NBROKEN=$((MAP_NBROKEN + 1))
       done
+      [ "$sec" = "## Interface" ] || continue
       rest="$line"
-      while [[ "$rest" =~ \`([A-Za-z0-9_./-]+\.[A-Za-z0-9]+):([^\`]+)\` ]]; do
+      while [[ "$rest" =~ \`([A-Za-z0-9_./-]+\.[A-Za-z][A-Za-z0-9]*):([^\`]+)\` ]]; do
         file="${BASH_REMATCH[1]}"; sym="${BASH_REMATCH[2]}"
         rest="${rest#*"${BASH_REMATCH[0]}"}"
-        if [ -f "${ROOT}/${d}/${file}" ] &&
-           grep -qF -- "$sym" "${ROOT}/${d}/${file}" 2>/dev/null; then
+        p="${d}/${file}"
+        [ -f "${ROOT}/${p}" ] || [ ! -f "${ROOT}/${file}" ] || p="$file"
+        if [ -f "${ROOT}/${p}" ] && { grep -qF -- "$sym" "${ROOT}/${p}" 2>/dev/null ||
+             grep -qF -- "${sym##*.}" "${ROOT}/${p}" 2>/dev/null; }; then
           continue
         fi
-        MAP_ROWS+=("${d}"$'\t'"broken  : ${d}/${MAP_INDEX} -> ${file}:${sym}"$'\t'"${d}/${file}"$'\t'"${sym}")
+        MAP_ROWS+=("${d}"$'\t'"broken  : ${d}/${MAP_INDEX} -> ${file}:${sym}"$'\t'"${p}"$'\t'"${sym##*.}")
         MAP_NBROKEN=$((MAP_NBROKEN + 1))
       done
     done <"${ROOT}/${d}/${MAP_INDEX}"

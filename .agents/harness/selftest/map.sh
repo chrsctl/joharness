@@ -84,6 +84,20 @@ git -C "$mwork" checkout -q -- app/INDEX.md
 printf 'y\n' >>"${mwork}/hand/f.txt"
 commit_all "$mwork" "change a folder a person indexes"
 refute "a person's INDEX.md is never stale" "stale   : hand/" "$(map_run)"
+# What the reference check accepts: a dotted symbol by its last name, a path
+# from the repo root, and nothing outside `## Interface` or without a file.
+printf 'def permits():\n' >"${mwork}/app/t.py"
+git -C "$mwork" add app/t.py
+idx app 'the application' '## Interface' '- `f.txt:x` — the thing' \
+  '- `t.py:Table.permits` — dotted' '- `app/t.py:permits` — from the root' \
+  '- `127.0.0.1:8000` — an address, not a file' '## Verify' '- `make x:nosuch` (Makefile)'
+out="$(map_run)"
+refute "a dotted symbol is found by its last name" "Table.permits" "$out"
+refute "a path from the repo root resolves" "app/t.py:permits" "$out"
+refute "an address is not a file reference" "127.0.0.1" "$out"
+refute "only Interface lines are reference-checked" "x:nosuch" "$out"
+git -C "$mwork" checkout -q -- app/INDEX.md
+git -C "$mwork" rm -q --cached app/t.py; rm -f "${mwork}/app/t.py"
 mkdir -p "${mwork}/web"; printf 'x\n' >"${mwork}/web/f.txt"
 commit_all "$mwork" "unindexed web"
 mlint="$(map_ci)"
