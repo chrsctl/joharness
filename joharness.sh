@@ -1096,13 +1096,69 @@ section_paths() {
 
 anchor_paths() { section_paths "$1" 'Where to look'; }
 
+# Path and symbol of each '## Where to look' entry that names a symbol, tab
+# apart. Same entry filter as section_paths, which curate reads and stays put.
+anchor_refs() {
+  local a p
+  while IFS= read -r a; do
+    case "$a" in *:*) ;; *) continue ;; esac
+    case "$a" in *'://'* | *'='*) continue ;; esac
+    p="${a%%:*}"; p="${p%% *}"; p="${p#./}"
+    case "$p" in '' | '.' | '..' | *'*'* | '<'*) continue ;; esac
+    case "$p" in */* | *.*) ;; *) continue ;; esac
+    printf '%s\t%s\n' "$p" "${a#*:}"
+  done < <(awk -v want="## $2" '
+    index($0, want) == 1 { s = 1; next }
+    /^## / { s = 0 }
+    s && /^- `/ { if (match($0, /`[^`]+`/))
+      print substr($0, RSTART + 1, RLENGTH - 2) }' "${ROOT}/$1")
+}
+
+# Symbol half of a path:symbol reference: a line number or a symbol gone from
+# the file warns. $1 = where, $2 = anchor|ref, $3 = path, $4 = symbol.
+lint_symbol() {
+  local sym="${4# }"
+  [ -n "$sym" ] || return 0
+  case "$sym" in
+    *[!0-9-]*) grep -qF -- "$sym" "${ROOT}/${3}" ||
+      lint_warn "${1}: ${2} '${3}:${4}' — symbol not in file; verify, fix in place" ;;
+    *) lint_warn "${1}: ${2} '${3}:${4}' is a line number — anchor a symbol" ;;
+  esac
+}
+
 lint_anchors() {
-  local f="$1" p
+  local f="$1" p sym
   while IFS= read -r p; do
     [ -n "$p" ] || continue
     [ -e "${ROOT}/${p}" ] ||
       lint_warn "${f}: anchor '${p}' not in tree — verify, fix in place"
   done < <(anchor_paths "$f")
+  while IFS=$'\t' read -r p sym; do
+    [ -f "${ROOT}/${p}" ] || continue
+    lint_symbol "$f" anchor "$p" "$sym"
+  done < <(anchor_refs "$f" 'Where to look')
+}
+
+# Backticked path:symbol refs in the rule docs. A path absent from the root is
+# prose naming a file relative to another dir: skipped silently.
+lint_doc_refs() {
+  local f r p sym files=()
+  for f in .agents/harness/AGENTS.md AGENTS.md; do
+    [ -f "${ROOT}/${f}" ] && files+=("$f")
+  done
+  while IFS= read -r f; do
+    [ -n "$f" ] && files+=("$f")
+  done < <(cd "$ROOT" && find .agents/docs .claude/commands .claude/agents \
+    -name '*.md' 2>/dev/null | sort)
+  [ "${#files[@]}" -gt 0 ] || return 0
+  # shellcheck disable=SC2016  # backticks are the pattern's text
+  while IFS= read -r r; do
+    [ -n "$r" ] || continue
+    f="${r%%:\`*}"; r="${r#*:\`}"; r="${r%\`}"
+    p="${r%%:*}"; sym="${r#*:}"
+    [ -f "${ROOT}/${p}" ] || continue
+    lint_symbol "$f" ref "$p" "$sym"
+  done < <(cd "$ROOT" && grep -oH -- '`[A-Za-z0-9_./-]*[A-Za-z0-9_]\.[A-Za-z0-9]*:[^` ][^`]*`' "${files[@]}" | sort -u)
 }
 
 # Node files of a type the harness does not implement.
@@ -1508,6 +1564,7 @@ lint_graph() {
   lint_needs_cycles "$cyc"
 
   lint_unknown_types
+  lint_doc_refs
 
   if [ "$LINT_RC" -eq 0 ] && [ "$LINT_WARNED" -eq 0 ]; then
     printf '  edges sound (%d plans, %d research, %d workstreams, %d requirements)\n' \
