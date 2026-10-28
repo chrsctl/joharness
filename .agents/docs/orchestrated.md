@@ -19,9 +19,10 @@ commit `649b832` — docs only, no text reproduced (`.agents/NOTICE`).
 | `./joharness.sh dispatch` | The orchestrator's one read: the human's numbers, managers in flight with push age and marks (`STALL?`, `LOOP?`, `CEILING?`), slots under the cap, the spawn order with waves and `HOLD`s, the `deferred  :` lines for held requirements, the cycle lines, one verdict. Reports only. |
 | `dispatch` wait line | Under any `DRAINED` verdict, when `CORE ONLY` plans wait: `<n> plan(s) wait on a human core edit (oldest <d>d): <stems>`. The verdict word is unchanged; the orchestrator reports the line and pushes each stem to the human once per run. Never on `NOT DRAINED`, `OVERLAP-BOUND` or `PAUSED`. |
 | `dispatch` verdict `OVERLAP-BOUND` | Slots free but every free plan HELD behind work in flight. A `rescope :` block names the holder key and the held paths; the verdict spawns ONE surveyor to correct the `scope:` declarations. |
-| `./joharness.sh janitor` + `janitor :` line | Claims whose session is gone. Mechanical: `./joharness.sh janitor --apply` writes `status: abandoned` into the claim's own file — only where the session is ARCHIVED or not found, never a claim with `pr:` — and deletes nothing. No session, no pull request. Listed only when stale claims exist; the caller proves each session gone and passes the branches: `janitor --apply <branch>...`. |
-| `./joharness.sh halt <branch>...` | A human's order, never a session's judgement. Writes `status: abandoned` through the guard and the lease at any age, `pr:` or not; on an edge branch it restores the branch's own retired record, released. The item returns to the queue. Deletes nothing; git only, never the GitHub API: the session and any pull request stay the control plane's and the human's. |
-| `./joharness.sh release <branch>...` + `RELEASABLE` / `release DUE` | A block the queue has since absorbed (#626). Dispatch prints a parked claim `RELEASABLE: held by needs: <stem> since <date>` when its `next:` opens with a reason word the queue can answer (a manage.md §3 reason, not `money:`, `credentials:`, `hardware:`, `core path:`, `github:`, `respawns:`, `defect:`), names `<stem>` as a token, and carries no `pr:`, and its plan on the base is `blocked by:` that `needs: <stem>` edge, added after the park. The orchestrator runs `release` on the `release DUE` line: it writes `status: abandoned` through the guard and the lease, only for a claim that same read prints `RELEASABLE`. The session stays alive and may set the word back. Every other block stays the human's. |
+| `./joharness.sh release` (no argument) + `release   :` lines | The report of claims to release, in the dispatch read too. `stale, session gone?` (stale claim, in-progress/review/no status, no `pr:`; the caller proves the session ARCHIVED or not found first), `done, no pull request` (`status: done, pr: none`, a `plan:` named, whole branch diff workstream files, stale), `queue holds it by needs: <stem>` (no session check). Report-only `no claim: plans not landed: <stems>`: a doc-only branch that never claimed; nothing is written, a human re-files the plans. A stale claim that does not qualify is listed indented with why. Writes nothing. |
+| `./joharness.sh release <branch>...` | The write: releases each listed branch through the guard and the lease (`status: abandoned`), refuses any other with the reason. Subjects `release: session gone (<date>)`, `release: done, no pull request (<date>)`, `release: the queue holds <plan> by a needs: edge (<date>)`. Deletes nothing; git only, never the GitHub API. Output per file: `release   : <branch>  <path>  <reason>` or `... plan <p>  held by needs: <s>`, then `pushed    : <branch> <sha>`. |
+| `./joharness.sh release --human <branch>...` (alias `halt`) | A human's order, never a session's judgement: any age, any status, `pr:` allowed; on an edge branch it restores the branch's own retired record, released. Subject `release: a human released the claim (<date>)`. The item returns to the queue; the session and any pull request stay the control plane's and the human's. |
+| `RELEASE:` row flag + `release DUE` | A block the queue has since absorbed (#626). Dispatch prints a parked claim `RELEASE: the queue holds it by needs: <stem> since <date>, holds no slot` when its `next:` opens with a reason word the queue can answer (a manage.md §3 reason, not `money:`, `credentials:`, `hardware:`, `core path:`, `github:`, `respawns:`, `defect:`), names `<stem>` as a token, and carries no `pr:`, and its plan on the base is `blocked by:` that `needs: <stem>` edge, added after the park. The tail line `release DUE: <branches>` names every stale, done and needs: branch (a needs: one at once; a stale or done one only once its session reads ARCHIVED or not found); the orchestrator runs `release <branch>...` on it. The session stays alive and may set the word back. Every other block stays the human's. |
 | `./joharness.sh clerk` + `clerk :` line | Open issues become plans only through the clerk (`dispatch` reads `docs/plans/` only). Clock-driven, dated from git, at most one in flight (`joharness.sh:cmd_clerk`, `.claude/commands/clerk.md`). Orthogonal to the verdict. |
 | `./joharness.sh analysis` | One unmerged branch's condition (BLOCKED / STALL? / LOOP?) beside the base branch's current conf. Read by hand; spawns nothing. |
 | `./joharness.sh scout` + `scout :` line | No clock, no backlog trigger, no DRAINED gate: a pass runs on the reviewer's order or on a `scout` issue waiting on the scout (`orchestrate-reference.md`, "A scout issue needs the scout"). Every misread fails closed — never a second scout (`joharness.sh:cmd_scout`, `.claude/commands/scout.md`). |
@@ -37,7 +38,6 @@ commit `649b832` — docs only, no text reproduced (`.agents/NOTICE`).
 | keeper | haiku | one session per repo, `🔑 keeper: <owner/repo>`, woken hourly by the heartbeat | the only spawner of orchestrators: one a wake when none is live, or a successor when the live one's wake asks to retire (`create_session`) | nothing but that check | archived at the next REGISTER or replace |
 | manager | the item's `agent:`; fable at xhigh for an unplanned requirement | a session with its own branch, claim and merge | worker subagents (`Agent`) | one item, until its file retires | its pull request merges, or it blocks on a human |
 | worker | at or below the plan's tier, lower by default | a subagent in the manager's container | nothing | the files its sub-task names | it returns |
-| freer | sonnet | a session, on the `freer DUE` tail line (a `FREEABLE` row) | nothing | one doc-only branch's plans brought onto the base, building nothing (`.agents/docs/manage-reference.md` § Free) | its pull request merges, or `free` refuses: claim deleted, no pull request |
 | surveyor | sonnet | a session, on the `OVERLAP-BOUND` verdict | nothing (declarations, not code) | the held plans' and holders' `scope:` lines for one holder key | its pull request merges, or `done` with nothing to change |
 | clerk | sonnet, opus verifier | a session, on the `clerk DUE` tail line; prelude `./joharness.sh role clerk` | nothing | one plan-only pull request, no workstream file; closes an issue only on DOES NOT HOLD, DUPLICATE or UPSTREAM, opens none but UPSTREAM's on canonical, never writes code, never a core-path-only plan, never plans a scout issue without the reviewer's `approved` comment newer than the scout's newest footed `scout:` comment | its pull request merges, no plan to write (pushes `clerk-noop-<UTC stamp>` at `origin/main`), or `TWIN: deferred` |
 | scout | fable | a session, on the reviewer's order or a `scout` issue waiting on the scout, while `scout :` reads `none in flight`; prelude `./joharness.sh role scout` | nothing | proposal issues on this repository, typed Feature, labelled scout; a research request's answer | its claim retires: NOTHING TO PROPOSE, or the pass's issues filed and replies posted |
@@ -119,16 +119,16 @@ The branch is the claim and the claim survives the kill.
 
 A harness write onto a branch the session does not own is decided on one
 read and pushed later, after the read may have stopped being true.
-`./joharness.sh guard janitor|kill|loop|halt|release <branch> --expect <sha>` re-reads
+`./joharness.sh guard release <branch> [--human] [--expect <sha>]` and `guard record <branch> [--expect <sha>]` re-read
 origin right before the push — base branch by name, branch still on origin,
 head still the decision's read (on a move it prints the claim's `session:`
-and `status:` both sides), and for the janitor and `release` no `pr:` at live head — and
-refuses on the first that fails. It writes nothing. Its callers: `janitor
---apply`, `halt` and `release` before their leased push, and the orchestrator's KILL and LOOP
+and `status:` both sides), and for `release` no `pr:` at live head — and
+refuses on the first that fails. It writes nothing. Its callers: `release`
+(`--human` skips the `pr:` check: a human's order) before its leased push, and the orchestrator's
 records, a relayed human answer and the respawn-limit hand-off
-(`.agents/docs/orchestrate-reference.md`, GUARD). `kill`, `loop` and `halt` skip the `pr:`
+(`.agents/docs/orchestrate-reference.md`, GUARD). `record` skips the `pr:`
 check: a stalled manager with an open pull request stays killable, its
-record is a handover, not a release, and a halt is a human's order. Every caller then pushes with
+record is a handover, not a release. Every caller then pushes with
 `--force-with-lease` at the same sha, which covers the window after the
 guard read: a plain push onto a branch deleted in that window re-creates
 it.
@@ -169,13 +169,10 @@ branch has no row: not free, not held, not in flight.
 | plan-only pull request | filer drives it to merged before exit | `manage.md`, Finish |
 | plan riding a product pull request | row in dispatch's `plans on a branch` block — visible, counted nowhere | `joharness.sh:dispatch_branch_plans` |
 | plan-only pull request whose plan was carried to the base by another branch, built and retired | the carrying session closes or comments on the source pull request at its own step 7 (its carry commit names the number); the reader prints the branch as a leftover (the human closes the pull request and deletes the branch); a carry that retired it with `status: done, pr: none` (ledger line, or a done workstream file on any other ref, merged or not) prints the row `DONE ON MAIN` — drop it, never spawn on it | `joharness.sh:dispatch_branch_plans` |
-| author gone: doc-only branch (`docs/plans`, `docs/product`, `docs/research`, `docs/handover`), idle, nothing of it blocked or in review; or its only diff a `status: done, pr: none` workstream file naming a `plan:` (no wait); exact test in `dispatch_freeable` | dispatch prints `free <branch> ... FREEABLE` under spawn and a `freer DUE` tail line; the orchestrator proves the owner's session not RUNNING and spawns one sonnet freer (a role, beyond the cap); `free` merges the branch into the freer's claim, and the freer's pull request closes the owner branch by merging it. A released (`status: abandoned`) branch is not offered | `joharness.sh:cmd_free`, `joharness.sh:dispatch_freeable`, `manage.md` §0 |
 
 The row carries no instruction: the scheduler cannot see a pull request, and a
 branch plan has not been reviewed into the queue, so spawning on it is the
-human's call (`URGENT` leads the report) — to BUILD it. Bringing a FREEABLE
-branch in whole (author-gone row) builds nothing: that spawn is the
-orchestrator's. The reader drops the plan the branch's own workstream file
+human's call (`URGENT` leads the report) — to BUILD it. The reader drops the plan the branch's own workstream file
 claims and every plan on an `abandoned` branch; one row per stem.
 
 **A spawn the human orders carries the plan, never takes the branch.** The
@@ -278,8 +275,8 @@ The rules that bind every session.
 
 ### Bounds, orchestrator
 
-`janitor --apply`, `release` (a claim dispatch prints `RELEASABLE`) and, on a
-human's order, `halt` (How the harness runs) are its writers to a branch it does not own. `./joharness.sh env <name>` writes `joharness.conf` (core path), so switching
+`release <branch>...` and, on a
+human's order, `release --human` (How the harness runs) are its writers to a branch it does not own. `./joharness.sh env <name>` writes `joharness.conf` (core path), so switching
 layers is a human's call.
 
 ## The one stop

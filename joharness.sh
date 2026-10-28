@@ -24,20 +24,16 @@
 #                   `ci` (and `verify` when needed) and a declared `local-check`
 #   dispatch        the orchestrator's one read: cap, managers in flight, spawn
 #                   order, verdict. Report-only
-#   janitor [--apply <branch>...]
-#                   stale claims whose session may be gone; --apply releases
-#                   the named ones (session proven gone) on their own branch
-#   halt <branch>...
-#                   a human's order: release the named claims at any age, pr:
-#                   or not, through guard and the lease. git only
-#   release <branch>...
-#                   release the parked claims dispatch prints RELEASABLE on
-#                   this read (held by a needs: edge newer than the block),
-#                   through guard and the lease. git only
-#   free <branch>   merge a doc-only branch whose author is gone into this
-#                   claimed branch: drops its workstream files and done plans,
-#                   curate --apply, ci, commit. Never pushes
-#   guard janitor|kill|loop|halt|release <branch> [--expect <sha>]
+#   release [<branch>...]
+#                   no branch: every releasable claim (stale, session gone?;
+#                   done, no pull request; queue holds it by needs:) and the
+#                   plans no claim will land. With branches: release each one
+#                   the report lists, through guard and the lease. git only
+#   release --human <branch>...
+#                   a human's order (alias: halt): release the named claims at
+#                   any age, pr: or not, through guard and the lease. git only
+#   guard release <branch> [--human] [--expect <sha>]
+#   guard record <branch> [--expect <sha>]
 #                   re-read live state right before a harness push onto a
 #                   branch the session does not own. Report-only; non-zero =
 #                   refused, do not push
@@ -2899,7 +2895,7 @@ analysis_one() {
     printf '%s' "$out"
     if [ "$status" = "abandoned" ]; then
       # Not "a manager at work": there is no manager. Saying so would send an
-      # analyst looking for a session that the janitor already proved gone.
+      # analyst looking for a session that a release already proved gone.
       printf 'verdict   : NO CONDITION — the claim was released and its plan is back in\n'
       printf '            the queue. Nothing to explain, and nobody to explain it to.\n\n'
     else
@@ -3177,16 +3173,43 @@ cl_merged_claims() {
     done | sort -u
 }
 
-# A status the janitor may release: in-progress, review, or none written.
-janitor_releasable() {
+# A status a stale claim is released at: in-progress, review, or none written.
+release_status_ok() {
   case "$1" in in-progress | review | '') return 0 ;; esac
   return 1
 }
 
-# Stale, unreleased claims with no pull request: `<branch>\t<path>`. The ones
-# `janitor --apply` may release; the caller proves each session gone first.
-janitor_candidates() {
-  local stale_s branch path age doc status pr
+# <branch> [<branch-plan rows>]: the plan stems the branch added that no other
+# ref finished (dispatch_branch_plans' `live` rows), space-separated: what a
+# release leaves on the branch, for a human to re-file.
+release_unlanded() {
+  local rows="${2-}"
+  [ "$#" -ge 2 ] || rows="$(dispatch_branch_plans "$1")"
+  printf '%s\n' "$rows" |
+    awk -F'\t' -v b="$1" '$1 == "live" && $2 == b { s = s (s ? " " : "") $3 } END { print s }'
+}
+
+# <branch> <plan:>: a `done` claim with nothing to land — a plan: named, and
+# the branch's whole diff its workstream files.
+release_done_only() {
+  local r="refs/remotes/origin/$1" base paths
+  case "$(lint_stem "$2")" in '' | none) return 1 ;; esac
+  base="$(base_mb "$r")" || return 1
+  [ -n "$base" ] || return 1
+  paths="$(git -c core.quotePath=false -C "$ROOT" diff --no-renames --name-only \
+    "$base" "$r" </dev/null 2>/dev/null)"
+  [ -n "$paths" ] || return 1
+  ! printf '%s\n' "$paths" | grep -qv '^docs/handover/'
+}
+
+# Stale claims with no pull request: `<branch>\t<path>\t<reason>`, every one
+# pushed longer ago than HANDOVER_STALE_SECONDS. Reasons:
+#   `stale, session gone?`  status in-progress, review or none written;
+#   `done, no pull request` status done, release_done_only.
+# Blocked holds a human's question, abandoned is released, anything else is
+# unread: none is listed. The caller proves each session gone first.
+release_stale_rows() {
+  local stale_s branch path age doc status pr plan
   stale_s="$(num_knob HANDOVER_STALE_SECONDS)"
   while IFS=$'\t' read -r branch path; do
     [ -n "$branch" ] || continue
@@ -3195,13 +3218,47 @@ janitor_candidates() {
     [ $((age * 60)) -ge "$stale_s" ] || continue
     doc="$(git -C "$ROOT" show "refs/remotes/origin/${branch}:${path}" \
       </dev/null 2>/dev/null)" || continue
-    { read -r status; read -r pr; } <<<"$(printf '%s\n' "$doc" | gr_fields status pr)"
-    # Blocked holds a human's question, done a finished claim, anything else
-    # is unread: none is released.
-    janitor_releasable "$status" || continue
+    { read -r status; read -r pr; read -r plan; } \
+      <<<"$(printf '%s\n' "$doc" | gr_fields status pr plan)"
     case "$pr" in '' | none) ;; *) continue ;; esac
-    printf '%s\t%s\n' "$branch" "$path"
+    if release_status_ok "$status"; then
+      printf '%s\t%s\t%s\n' "$branch" "$path" "stale, session gone?"
+    elif [ "$status" = "done" ] && release_done_only "$branch" "$plan"; then
+      printf '%s\t%s\t%s\n' "$branch" "$path" "done, no pull request"
+    fi
   done <<<"$(claim_branches)"
+}
+
+# Unmerged branches that never claimed (no workstream file added since the
+# base, retired or not), whose whole diff is plans, product or research
+# files, pushed longer ago than HANDOVER_STALE_SECONDS: `<branch>\t<stems>`,
+# the plans not landed. Report only: no claim to release, and a branch delete
+# is a human's. [<branch-plan rows>] saves the walk when the caller has them.
+release_noclaim_rows() {
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" bprows="${1-}" stale_s r name base paths age stems
+  stale_s="$(num_knob HANDOVER_STALE_SECONDS)"
+  [ "$#" -ge 1 ] || bprows="$(dispatch_branch_plans)"
+  while IFS= read -r r; do
+    [ -n "$r" ] || continue
+    name="${r#refs/remotes/origin/}"
+    { [ "$name" = "HEAD" ] || [ "$name" = "$base_branch" ]; } && continue
+    # The charset dispatch_branch_plans prints: one name for both reads.
+    [ "$(printf '%s' "$name" | tr -cd 'A-Za-z0-9._/-')" = "$name" ] || continue
+    base="$(base_mb "$r")"
+    [ -n "$base" ] || continue
+    paths="$(git -c core.quotePath=false -C "$ROOT" diff --no-renames --name-only \
+      "$base" "$r" </dev/null 2>/dev/null)"
+    [ -n "$paths" ] || continue
+    printf '%s\n' "$paths" | grep -qvE '^docs/(plans|product|research)/.' && continue
+    age="$(dispatch_age_min "$name")"
+    { [ -n "$age" ] && [ $((age * 60)) -ge "$stale_s" ]; } || continue
+    # A claim it added and retired is an edge waiting on its pull request.
+    [ -z "$(git -C "$ROOT" log --no-renames --diff-filter=A --format=%H \
+      "${base}..${r}" -- docs/handover </dev/null 2>/dev/null)" ] || continue
+    stems="$(release_unlanded "$name" "$bprows")"
+    [ -n "$stems" ] || continue
+    printf '%s\t%s\n' "$name" "$stems"
+  done <<<"$(refs_unmerged "refs/remotes/origin/${base_branch}")"
 }
 
 # --- Guard: re-read live state right before a push onto a branch not ours
@@ -3220,23 +3277,36 @@ guard_workstreams() {
   fi
 }
 
-# `guard <verb> <branch> [--expect <sha>]`: the checks a harness write onto a
-# branch it does not own must pass, read live, right before its push. Prints
-# one line per check run, first refusal stops. Exit 0 = all pass, 2 = gone on
-# origin (released already: nothing to write), 1 = any other refusal. Writes
-# nothing: the one fetch moves FETCH_HEAD only.
+# `guard release|record <branch> [--human] [--expect <sha>]`: the checks a
+# harness write onto a branch it does not own must pass, read live, right
+# before its push. `release` is the release command's write; `--human` (a
+# human's order, release only) skips the pr: check. `record` is the
+# orchestrator's kill or loop record. Prints one line per check run, first
+# refusal stops. Exit 0 = all pass, 2 = gone on origin (released already:
+# nothing to write), 1 = any other refusal. Writes nothing: the one fetch
+# moves FETCH_HEAD only.
 cmd_guard() {
-  local verb="${1:-}" branch="${2:-}" expect="" base_branch="${HANDOVER_BASE_BRANCH:-main}"
-  local live rc f doc pr s_was t_was s_now t_now files raw=""
-  local usage="usage: $0 guard janitor|kill|loop|halt|release <branch> [--expect <sha>]"
-  case "$verb" in janitor | kill | loop | halt | release) ;; *) die "$usage" ;; esac
+  local verb="${1:-}" branch="${2:-}" expect="" human=0 base_branch="${HANDOVER_BASE_BRANCH:-main}"
+  local live rc f doc pr s_was t_was s_now t_now files raw="" who
+  local usage="usage: $0 guard release <branch> [--human] [--expect <sha>] | guard record <branch> [--expect <sha>]"
+  case "$verb" in release | record) ;; *) die "$usage" ;; esac
   [ -n "$branch" ] || die "$usage"
+  case "$branch" in -*) die "$usage" ;; esac
   shift 2
-  if [ "$#" -gt 0 ]; then
-    { [ "$1" = "--expect" ] && [ "$#" -eq 2 ] && [ -n "$2" ]; } || die "$usage"
-    case "$2" in -*) die "$usage" ;; esac
-    expect="$2"; raw="$2"
-  fi
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --human)
+        { [ "$verb" = release ] && [ "$human" -eq 0 ]; } || die "$usage"
+        human=1; shift ;;
+      --expect)
+        { [ "$#" -ge 2 ] && [ -n "$2" ] && [ -z "$raw" ]; } || die "$usage"
+        case "$2" in -*) die "$usage" ;; esac
+        expect="$2"; raw="$2"; shift 2 ;;
+      *) die "$usage" ;;
+    esac
+  done
+  who="$verb"
+  [ "$human" -eq 0 ] || who="release --human"
 
   # 1. Base branch by name, before any network read: no ref can move it.
   if [ "$branch" = "$base_branch" ]; then
@@ -3293,11 +3363,10 @@ cmd_guard() {
   fi
   printf 'head      : pass — live %s = decision read\n' "${live:0:12}"
 
-  # 5. A claim at the edge (pr: set) is never released. kill/loop skip it: a
+  # 5. A claim at the edge (pr: set) is never released. record skips it: a
   # stalled manager with an open pull request stays killable, and its record
-  # is a handover, not a release. halt skips it: a human's order, any claim.
-  # release keeps it: a parked block is released, review state never is.
-  if [ "$verb" = janitor ] || [ "$verb" = release ]; then
+  # is a handover, not a release. --human skips it: a human's order, any claim.
+  if [ "$verb" = release ] && [ "$human" -eq 0 ]; then
     while IFS= read -r f; do
       [ -n "$f" ] || continue
       doc="$(git -C "$ROOT" show "${live}:${f}" </dev/null 2>/dev/null)" || {
@@ -3310,7 +3379,7 @@ cmd_guard() {
     done < <(guard_workstreams "$live")
     printf 'protected : pass — no workstream file names a pr: at live head\n'
   fi
-  printf 'guard     : pass — %s may push %s onto %s\n' "$verb" "${live:0:12}" "$branch"
+  printf 'guard     : pass — %s may push %s onto %s\n' "$who" "${live:0:12}" "$branch"
   return 0
 }
 
@@ -3333,11 +3402,30 @@ release_rewrite() {
     { print }'
 }
 
-# Release named claims: write `status: abandoned` into each candidate claim on
-# its own branch and push.
-janitor_apply() {
-  local want b path tip blob newblob tree commit idx today why rc=0 n=0 cands
-  [ "$#" -gt 0 ] || die "usage: $0 janitor --apply <branch>... (each session proven ARCHIVED or not found)"
+# <branch> <tip> <tree> <subject>: one commit on <tip>, pushed under the lease.
+release_push() {
+  local commit
+  commit="$(git -C "$ROOT" commit-tree "$3" -p "$2" -m "$4")" || return 1
+  # The lease refuses a branch deleted or moved since the guard read.
+  if git -C "$ROOT" push -q --force-with-lease="refs/heads/${1}:${2}" \
+    origin "${commit}:refs/heads/${1}" 2>/dev/null; then
+    printf 'pushed    : %s %s\n' "$1" "${commit:0:12}"
+    return 0
+  fi
+  printf 'FAILED    : %s — push refused (the branch moved?); nothing released\n' "$1"
+  return 1
+}
+
+# `release <branch>...`: release each branch the report lists, through guard
+# and the lease; refuse any other with the reason. Stale and done claims:
+# the caller proves each session ARCHIVED or not found first. git only.
+release_write() {
+  local want tip rc=0 stale needs="" noclaim="" noclaim_read=0 need_dsp=0 out today why
+  local idx tree n wrote=0 b path reason f blob newblob plan st rpr rstem rnext subj stems
+  local usage="usage: $0 release <branch>... (each listed by ./joharness.sh release)"
+  for want in "$@"; do
+    case "$want" in -* | '') die "$usage" ;; esac
+  done
   # --prune: under the default refspec a branch deleted on origin loses its
   # remote-tracking ref here and takes the `no such branch` skip below.
   git -C "$ROOT" fetch -q --prune origin 2>/dev/null || warn "fetch failed; using the last fetched refs"
@@ -3349,7 +3437,19 @@ janitor_apply() {
     git -C "$ROOT" fetch -q origin "+refs/heads/${want}:refs/remotes/origin/${want}" \
       </dev/null 2>/dev/null || :
   done
-  cands="$(janitor_candidates)"
+  stale="$(release_stale_rows)"
+  for want in "$@"; do
+    printf '%s\n' "$stale" | awk -F'\t' -v b="$want" '$1 == b { f = 1 } END { exit !f }' ||
+      need_dsp=1
+  done
+  # The queue's reason is dispatch's: its lines, on the refs read above.
+  if [ "$need_dsp" -eq 1 ]; then
+    out="$(DISPATCH_FETCH=0 cmd_dispatch 2>/dev/null)" || :
+    # `<branch>\t<plan stem>\t<needs stem>`: the line is dispatch's own,
+    # never a line a branch writes.
+    needs="$(printf '%s\n' "$out" | awk '
+      /^release   : [^ ]+  queue holds it by needs: [^ ]+  plan [^ ]+ / { print $3 "\t" $11 "\t" $9 }')"
+  fi
   today="$(date -u +%Y-%m-%d)"
   why="$(release_why)"
   for want in "$@"; do
@@ -3357,8 +3457,8 @@ janitor_apply() {
       printf 'skip      : %s — no such branch on origin\n' "$want"; rc=1; continue; }
     # Re-read live before anything is built (#397): a remote-tracking ref
     # outlives a deletion whose refspec --prune does not map. Building is
-    # local; the lease below covers the rest of the window.
-    cmd_guard janitor "$want" --expect "$tip"
+    # local; the lease covers the rest of the window.
+    cmd_guard release "$want" --expect "$tip"
     case $? in
       0) ;;
       2) # Released already. Drop the local ref a narrow refspec never prunes,
@@ -3370,56 +3470,102 @@ janitor_apply() {
     esac
     idx="$(mktemp)"
     GIT_INDEX_FILE="$idx" git -C "$ROOT" read-tree "$tip" || { rm -f "$idx"; rc=1; continue; }
-    n=0
-    while IFS=$'\t' read -r b path; do
-      [ "$b" = "$want" ] || continue
-      blob="$(git -C "$ROOT" show "${tip}:${path}" 2>/dev/null)" || continue
-      newblob="$(printf '%s\n' "$blob" |
-        release_rewrite "Pick this up from the plan; the claim was released ${today}; ${why}" |
-        git -C "$ROOT" hash-object -w --stdin)" || continue
-      # No frontmatter the awk can read (none, unterminated, CRLF): an
-      # identical blob would push a release that releases nothing.
-      if [ "$newblob" = "$(printf '%s\n' "$blob" | git -C "$ROOT" hash-object --stdin)" ]; then
-        printf 'skip      : %s  %s — no frontmatter to write status: abandoned into; release it by hand\n' "$want" "$path"
-        continue
+    n=0; subj=""
+    if printf '%s\n' "$stale" | awk -F'\t' -v b="$want" '$1 == b { f = 1 } END { exit !f }'; then
+      while IFS=$'\t' read -r b path reason; do
+        [ "$b" = "$want" ] || continue
+        blob="$(git -C "$ROOT" show "${tip}:${path}" 2>/dev/null)" || continue
+        newblob="$(printf '%s\n' "$blob" |
+          release_rewrite "Pick this up from the plan; the claim was released ${today}; ${why}" |
+          git -C "$ROOT" hash-object -w --stdin)" || continue
+        # No frontmatter the awk can read (none, unterminated, CRLF): an
+        # identical blob would push a release that releases nothing.
+        if [ "$newblob" = "$(printf '%s\n' "$blob" | git -C "$ROOT" hash-object --stdin)" ]; then
+          printf 'skip      : %s  %s — no frontmatter to write status: abandoned into; release it by hand\n' "$want" "$path"
+          continue
+        fi
+        GIT_INDEX_FILE="$idx" git -C "$ROOT" update-index --cacheinfo "100644,${newblob},${path}" || continue
+        n=$((n + 1))
+        plan="$(printf '%s\n' "$blob" | gr_field plan)"
+        plan="$(lint_stem "$plan" | tr -cd 'A-Za-z0-9._-')"
+        case "$plan" in
+          '' | none) printf 'release   : %s  %s  %s\n' "$want" "$path" "$reason" ;;
+          *) printf 'release   : %s  %s  %s  plan %s\n' "$want" "$path" "$reason" "$plan" ;;
+        esac
+        if [ -z "$subj" ]; then
+          case "$reason" in
+            done*) subj="release: done, no pull request (${today})" ;;
+            *) subj="release: session gone (${today})" ;;
+          esac
+        fi
+      done <<<"$stale"
+    elif printf '%s\n' "$needs" | awk -F'\t' -v b="$want" '$1 == b { f = 1 } END { exit !f }'; then
+      while IFS= read -r f; do
+        [ -n "$f" ] || continue
+        blob="$(git -C "$ROOT" show "${tip}:${f}" 2>/dev/null)" || continue
+        { read -r plan; read -r st; read -r rpr; } <<<"$(printf '%s\n' "$blob" | gr_fields plan status pr)"
+        [ "$st" = blocked ] || continue
+        case "$rpr" in '' | none) ;; *) continue ;; esac
+        plan="$(lint_stem "$plan")"
+        # The claim on THIS branch whose plan dispatch listed.
+        rstem="$(printf '%s\n' "$needs" | awk -F'\t' -v b="$want" -v p="$plan" \
+          '$1 == b && $2 == p { print $3; exit }')"
+        [ -n "$rstem" ] || continue
+        # The file written is judged on its own words, not only its branch's
+        # line: a branch can carry two claims.
+        rnext="$(printf '%s\n' "$blob" | gr_field_raw next)"
+        if ! release_reason_ok "$rnext" || ! next_names "$rnext" "$rstem"; then
+          printf 'skip      : %s  %s — its own next: is not a block on %s the queue can answer\n' "$want" "$f" "$rstem"
+          continue
+        fi
+        newblob="$(printf '%s\n' "$blob" |
+          release_rewrite "released: held by needs: ${rstem}; the queue holds the plan, the claim was released ${today}; ${why}" |
+          git -C "$ROOT" hash-object -w --stdin)" || continue
+        GIT_INDEX_FILE="$idx" git -C "$ROOT" update-index --cacheinfo "100644,${newblob},${f}" || continue
+        n=$((n + 1))
+        [ -n "$subj" ] || subj="release: the queue holds ${plan} by a needs: edge (${today})"
+        printf 'release   : %s  %s  plan %s  held by needs: %s\n' "$want" "$f" "$plan" "$rstem"
+      done < <(guard_workstreams "$tip")
+    else
+      rm -f "$idx"
+      if [ "$noclaim_read" -eq 0 ]; then
+        noclaim="$(release_noclaim_rows)"; noclaim_read=1
       fi
-      GIT_INDEX_FILE="$idx" git -C "$ROOT" update-index --cacheinfo "100644,${newblob},${path}" || continue
-      n=$((n + 1))
-      printf 'release   : %s  %s\n' "$want" "$path"
-    done <<<"$cands"
+      stems="$(printf '%s\n' "$noclaim" | awk -F'\t' -v b="$want" '$1 == b { print $2; exit }')"
+      if [ -n "$stems" ]; then
+        printf 'refused   : %s — no claim: plans not landed: %s; nothing to release; no open pull request lands them = a human re-files them\n' "$want" "$stems"
+      else
+        printf 'refused   : %s — not in the release report on this read (pushed recently, released already, blocked, or names a pr:); nothing written\n' "$want"
+      fi
+      rc=1; continue
+    fi
     if [ "$n" -eq 0 ]; then
-      printf 'skip      : %s — not a candidate (pushed recently, already released, names a pr:, or status blocked, done or unreadable)\n' "$want"
-      rm -f "$idx"; rc=1; continue
+      rm -f "$idx"
+      printf 'skip      : %s — no workstream file the report lists at the tip; nothing written\n' "$want"
+      rc=1; continue
     fi
     tree="$(GIT_INDEX_FILE="$idx" git -C "$ROOT" write-tree)"
     rm -f "$idx"
-    commit="$(git -C "$ROOT" commit-tree "$tree" -p "$tip" \
-      -m "janitor: release the claim, session gone (${today})")" || { rc=1; continue; }
-    # The lease refuses a branch deleted or moved since the guard read.
-    if git -C "$ROOT" push -q --force-with-lease="refs/heads/${want}:${tip}" \
-      origin "${commit}:refs/heads/${want}" 2>/dev/null; then
-      printf 'pushed    : %s %s\n' "$want" "${commit:0:12}"
-    else
-      printf 'FAILED    : %s — push refused (the branch moved?); nothing released\n' "$want"
-      rc=1
-    fi
+    if release_push "$want" "$tip" "$tree" "$subj"; then wrote=1; else rc=1; fi
   done
+  [ "$wrote" -eq 0 ] || printf 'the session stays the control plane'"'"'s: a returning session sets the word back. release wrote git only\n'
   return "$rc"
 }
 
-# `halt <branch>...`: a human's order, released by the harness. Writes
-# `status: abandoned` through guard and the lease at any age, `pr:` or not; an
-# edge branch (no workstream file in its diff) gets its own retired record
-# back. git only: the session and any pull request are not this command's.
-cmd_halt() {
+# `release --human <branch>...` (alias `halt`): a human's order, released by
+# the harness. Writes `status: abandoned` through guard and the lease at any
+# age, `pr:` or not; an edge branch (no workstream file in its diff) gets its
+# own retired record back. git only: the session and any pull request are not
+# this command's.
+release_human() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}" want tip base files own c cand
-  local path src blob newblob idx tree commit today next n done_n wrote=0 rc=0
-  [ "$#" -gt 0 ] || die "usage: $0 halt <branch>... (a human's order; never a session's judgement)"
+  local path src blob newblob idx tree today next n done_n wrote=0 rc=0
+  [ "$#" -gt 0 ] || die "usage: $0 release --human <branch>... (alias: halt; a human's order, never a session's judgement)"
   git -C "$ROOT" fetch -q origin \
     "+refs/heads/${base_branch}:refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null ||
     warn "fetch failed; using the last fetched refs"
-  # The decision read, per named branch (as janitor_apply): a gone branch fails
-  # this fetch and keeps its stale ref for guard to call gone.
+  # The decision read, per named branch (as release_write): a gone branch
+  # fails this fetch and keeps its stale ref for guard to call gone.
   for want in "$@"; do
     git -C "$ROOT" fetch -q origin "+refs/heads/${want}:refs/remotes/origin/${want}" \
       </dev/null 2>/dev/null || :
@@ -3429,7 +3575,7 @@ cmd_halt() {
   for want in "$@"; do
     tip="$(git -C "$ROOT" rev-parse -q --verify "refs/remotes/origin/${want}^{commit}" 2>/dev/null)" || {
       printf 'skip      : %s — no such branch on origin\n' "$want"; rc=1; continue; }
-    cmd_guard halt "$want" --expect "$tip"
+    cmd_guard release "$want" --human --expect "$tip"
     case $? in
       0) ;;
       2) printf 'skip      : %s — gone on origin\n' "$want"
@@ -3506,123 +3652,29 @@ cmd_halt() {
     fi
     tree="$(GIT_INDEX_FILE="$idx" git -C "$ROOT" write-tree)"
     rm -f "$idx"
-    commit="$(git -C "$ROOT" commit-tree "$tree" -p "$tip" \
-      -m "halt: a human released the claim (${today})")" || { rc=1; continue; }
-    # The lease refuses a branch deleted or moved since the guard read.
-    if git -C "$ROOT" push -q --force-with-lease="refs/heads/${want}:${tip}" \
-      origin "${commit}:refs/heads/${want}" 2>/dev/null; then
-      printf 'pushed    : %s %s\n' "$want" "${commit:0:12}"
+    if release_push "$want" "$tip" "$tree" "release: a human released the claim (${today})"; then
       wrote=1
     else
-      printf 'FAILED    : %s — push refused (the branch moved?); nothing released\n' "$want"
       rc=1
     fi
   done
-  [ "$wrote" -eq 1 ] && printf 'the session is the control plane'"'"'s to stop and an open pull request is the human'"'"'s to close: halt wrote git only\n'
+  [ "$wrote" -eq 1 ] && printf 'the session is the control plane'"'"'s to stop and an open pull request is the human'"'"'s to close: release --human wrote git only\n'
   return "$rc"
 }
 
-# `release <branch>...`: the orchestrator's release of a parked claim whose
-# block the queue has since absorbed (#626). Only a claim this read of
-# dispatch prints RELEASABLE, through guard and the lease; git only.
-cmd_release() {
-  local want out rows tip f plan st today n wrote=0 rc=0 idx blob newblob tree commit
-  local rplan rstem rpr rnext
-  [ "$#" -gt 0 ] || die "usage: $0 release <branch>... (each printed RELEASABLE by dispatch)"
-  for want in "$@"; do
-    case "$want" in -* | '') die "usage: $0 release <branch>... (each printed RELEASABLE by dispatch)" ;; esac
-  done
-  # The same read: dispatch decides, and its refs are the decision read.
-  out="$(cmd_dispatch 2>/dev/null)" || :
-  # `<branch>\t<plan stem>\t<needs stem>`, from claimed plan rows only: the
-  # row line is dispatch's, never a line a branch writes.
-  rows="$(printf '%s\n' "$out" | awk '
-    /^  docs\/plans\/[^ ]*\.md  [^ ]+  blocked  / && index($0, "  RELEASABLE: held by needs: ") {
-      p = $1; sub(/^docs\/plans\//, "", p); sub(/\.md$/, "", p)
-      r = substr($0, index($0, "  RELEASABLE: held by needs: ") + 29); sub(/ .*/, "", r)
-      print $2 "\t" p "\t" r }')"
-  today="$(date -u +%Y-%m-%d)"
-  for want in "$@"; do
-    if ! printf '%s\n' "$rows" | awk -F'\t' -v b="$want" '$1 == b { f = 1 } END { exit !f }'; then
-      printf 'refused   : %s — dispatch does not print it RELEASABLE on this read; nothing written\n' "$want"
-      rc=1; continue
-    fi
-    tip="$(git -C "$ROOT" rev-parse -q --verify "refs/remotes/origin/${want}^{commit}" 2>/dev/null)" || {
-      printf 'skip      : %s — no such branch on origin\n' "$want"; rc=1; continue; }
-    cmd_guard release "$want" --expect "$tip"
-    case $? in
-      0) ;;
-      2) printf 'skip      : %s — gone on origin\n' "$want"; continue ;;
-      *) printf 'skip      : %s — guard refused; nothing released\n' "$want"
-         rc=1; continue ;;
-    esac
-    idx="$(mktemp)"
-    GIT_INDEX_FILE="$idx" git -C "$ROOT" read-tree "$tip" || { rm -f "$idx"; rc=1; continue; }
-    n=0
-    while IFS= read -r f; do
-      [ -n "$f" ] || continue
-      blob="$(git -C "$ROOT" show "${tip}:${f}" 2>/dev/null)" || continue
-      { read -r plan; read -r st; read -r rpr; } <<<"$(printf '%s\n' "$blob" | gr_fields plan status pr)"
-      [ "$st" = blocked ] || continue
-      case "$rpr" in '' | none) ;; *) continue ;; esac
-      plan="$(lint_stem "$plan")"
-      # The claim on THIS branch whose plan dispatch printed RELEASABLE.
-      rstem="$(printf '%s\n' "$rows" | awk -F'\t' -v b="$want" -v p="$plan" \
-        '$1 == b && $2 == p { print $3; exit }')"
-      [ -n "$rstem" ] || continue
-      # The file written is judged on its own words, not only its branch's
-      # row: a branch can carry two claims.
-      rnext="$(printf '%s\n' "$blob" | gr_field_raw next)"
-      if ! release_reason_ok "$rnext" || ! next_names "$rnext" "$rstem"; then
-        printf 'skip      : %s  %s — its own next: is not a block on %s the queue can answer\n' "$want" "$f" "$rstem"
-        continue
-      fi
-      newblob="$(printf '%s\n' "$blob" |
-        release_rewrite "released: held by needs: ${rstem}; the queue holds the plan, the claim was released ${today}; $(release_why)" |
-        git -C "$ROOT" hash-object -w --stdin)" || continue
-      GIT_INDEX_FILE="$idx" git -C "$ROOT" update-index --cacheinfo "100644,${newblob},${f}" || continue
-      n=$((n + 1)); rplan="$plan"
-      printf 'release   : %s  %s  plan %s  held by needs: %s\n' "$want" "$f" "$plan" "$rstem"
-    done < <(guard_workstreams "$tip")
-    if [ "$n" -eq 0 ]; then
-      rm -f "$idx"
-      printf 'skip      : %s — no blocked claim of a RELEASABLE plan at the tip; nothing written\n' "$want"
-      rc=1; continue
-    fi
-    tree="$(GIT_INDEX_FILE="$idx" git -C "$ROOT" write-tree)"
-    rm -f "$idx"
-    commit="$(git -C "$ROOT" commit-tree "$tree" -p "$tip" \
-      -m "release: the queue holds ${rplan} by a needs: edge (${today})")" || { rc=1; continue; }
-    # The lease refuses a branch deleted or moved since the guard read.
-    if git -C "$ROOT" push -q --force-with-lease="refs/heads/${want}:${tip}" \
-      origin "${commit}:refs/heads/${want}" 2>/dev/null; then
-      printf 'pushed    : %s %s\n' "$want" "${commit:0:12}"
-      wrote=1
-    else
-      printf 'FAILED    : %s — push refused (the branch moved?); nothing released\n' "$want"
-      rc=1
-    fi
-  done
-  [ "$wrote" -eq 0 ] || printf 'the session stays the control plane'"'"'s: a returning session sets the word back. release wrote git only\n'
-  return "$rc"
-}
-
-cmd_janitor() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}" ref stale_s
-  local claims branch path doc plan status pr session age agetext n_cand=0
-  local n_young=0 n_released=0
-  local held onbranch cand had_plan
-  local f n_left=0 n_merged=0 merged="" carried="" cands=""
-
-  if [ "${1:-}" = "--apply" ]; then
-    shift
-    janitor_apply "$@"
-    return $?
-  fi
-  [ "$#" -eq 0 ] || die "usage: $0 janitor [--apply <branch>...]"
-
+# `release`, no argument: every releasable branch, one `release   :` line
+# each, and every other stale claim indented with why it is never released.
+# Push age only: liveness is the control plane's, never this output's.
+release_report() {
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" stale_s out rows claims
+  local branch path doc plan status pr session age agetext reason stems
+  local n_cand=0 n_young=0 n_released=0 held onbranch cand had_plan cands="" line n
   stale_s="$(num_knob HANDOVER_STALE_SECONDS)"
-  printf '== janitor\n\n'
+  # The queue's reason is dispatch's; read first, so every line below stands
+  # on the refs its fetch left.
+  out="$(cmd_dispatch 2>/dev/null)" || :
+  rows="$(release_stale_rows)"
+  printf '== release\n\n'
 
   printf 'candidates (push age only — LIVENESS IS NOT IN THIS OUTPUT):\n'
   claims="$(claim_branches)"
@@ -3640,20 +3692,24 @@ cmd_janitor() {
       *) status="unreadable" ;;
     esac
     # Already released: not a candidate, and saying so is what stops a second
-    # janitor rewriting a file the first one settled.
+    # release rewriting a file the first one settled.
     [ "$status" = abandoned ] && { n_released=$((n_released + 1)); continue; }
     n_cand=$((n_cand + 1))
-    if janitor_releasable "$status"; then
-      case "$pr" in '' | none) cands="${cands} ${branch}" ;; esac
-    fi
+    reason="$(printf '%s\n' "$rows" | awk -F'\t' -v b="$branch" -v p="$path" \
+      '$1 == b && $2 == p { print $3; exit }')"
     agetext="$(dispatch_age_text "$age")"
-    printf '  %s  %s  %s  pushed %s\n' "$branch" "$path" "${status:-?}" "$agetext"
+    if [ -n "$reason" ]; then
+      case " ${cands} " in *" ${branch} "*) ;; *) cands="${cands} ${branch}" ;; esac
+      printf 'release   : %s  %s  %s  %s  pushed %s\n' "$branch" "$reason" \
+        "$(printf '%s' "$path" | tr -cd 'A-Za-z0-9._/-')" "${status:-?}" "$agetext"
+    else
+      printf '  %s  %s  %s  pushed %s\n' "$branch" \
+        "$(printf '%s' "$path" | tr -cd 'A-Za-z0-9._/-')" "${status:-?}" "$agetext"
+    fi
     # A stem, never the raw field: a workstream file may spell its claim as a
     # path, and `docs/plans/docs/plans/x.md.md` is what printing it raw gets.
     plan="$(lint_stem "$plan")"
-    # SANITISED, like `workstream:` and `status:` in the in-flight walk above
-    # and for the same reason: these are branch-controlled frontmatter printed
-    # straight out.
+    # SANITISED: branch-controlled frontmatter printed straight out.
     had_plan=""; [ -z "$plan" ] || had_plan=1
     plan="$(printf '%s' "$plan" | tr -cd 'A-Za-z0-9._-')"
     pr="$(printf '%s' "$pr" | tr -cd 'A-Za-z0-9._#-')"
@@ -3690,13 +3746,22 @@ cmd_janitor() {
       printf '      branch carries — a typo, a rename, or a plan on some other\n'
       printf '      branch: resolve it by hand\n'
     fi
+    if [ -n "$reason" ]; then
+      stems="$(release_unlanded "$branch")"
+      [ -z "$stems" ] ||
+        printf '    plans not landed: %s — they stay on the branch: a human re-files them\n' "$stems"
+    fi
     # The `pr:` field is a number in a file.
     if [ -n "$pr" ] && [ "$pr" != none ]; then
       printf '    pull request %s — exempt whatever its state, which this\n' "$pr"
       printf '      reader cannot see: finishing it is Loop step 2, not a sweep\n'
+    elif [ -z "$reason" ] && [ "$status" = blocked ] &&
+         printf '%s\n' "$out" | awk -v p="release   : ${branch}  queue holds it by needs: " \
+           'index($0, p) == 1 { f = 1 } END { exit !f }'; then
+      printf '    status: blocked — the queue holds its plan: released by its line under queue below\n'
+    elif [ -z "$reason" ]; then
+      printf '    status: %s — never released: release refuses it\n' "${status:-?}"
     fi
-    janitor_releasable "$status" ||
-      printf '    status: %s — never released: --apply refuses it\n' "$status"
     [ -z "$session" ] || [ "$session" = none ] ||
       printf '    session: %s\n' "$session"
   done <<<"$claims"
@@ -3715,327 +3780,39 @@ cmd_janitor() {
     printf '  plane per session — ARCHIVED or not found = gone; anything else =\n'
     printf '  leave it alone. Never a claim naming pr:.\n'
     [ -z "$cands" ] ||
-      printf '  Release the gone ones: ./joharness.sh janitor --apply <branch>...\n  (candidates:%s)\n' "$cands"
-  fi
-  printf '\n'
-
-  # --- what merges left behind ---------------------------------------------
-  ref="$(decide_ref)" || ref=""
-  if [ -n "$ref" ]; then
-    carried="$(cl_inflight "$ref")"
-    while IFS= read -r f; do
-      [ -n "$f" ] || continue
-      printf '%s\n' "$carried" | grep -qxF -- "$f" && continue
-      n_left=$((n_left + 1))
-    done <<<"$(git -C "$ROOT" ls-tree -r --name-only "$ref" -- docs/handover \
-      </dev/null 2>/dev/null | gr_docs)"
-  fi
-  if [ "$n_left" -gt 0 ]; then
-    printf 'leftovers : %s workstream file(s) on %s no unmerged branch carries —\n' \
-      "$n_left" "${ref:-the base branch}"
-    printf '            the finish ritual should have deleted them. Stage with\n'
-    printf '            ./joharness.sh cleanup --apply on YOUR branch.\n'
-  else
-    printf 'leftovers : none — the finish ritual ran\n'
+      printf '  Release the gone ones: ./joharness.sh release <branch>...\n  (candidates:%s)\n' "$cands"
   fi
 
-  while IFS= read -r branch; do
+  printf '\nqueue (a needs: edge newer than the block — no session to check):\n'
+  n=0
+  while IFS= read -r line; do
+    # The write's own shape, anchored: a path printed on a stale line cannot
+    # pass for one.
+    printf '%s\n' "$line" |
+      grep -qE '^release   : [^ ]+  queue holds it by needs: [^ ]+  plan [^ ]+  since [0-9-]+$' || continue
+    n=$((n + 1)); printf '%s\n' "$line"
+  done <<<"$out"
+  [ "$n" -gt 0 ] || printf '  none\n'
+
+  printf '\nno claim (report only — nothing to release, a branch delete is the human'"'"'s):\n'
+  n=0
+  while IFS=$'\t' read -r branch stems; do
     [ -n "$branch" ] || continue
-    n_merged=$((n_merged + 1))
-    [ "$n_merged" -gt 5 ] || merged="${merged}            ${branch}\n"
-  done <<<"$(cl_merged_branches "refs/remotes/origin/${base_branch}" 2>/dev/null)"
-  if [ "$n_merged" -gt 0 ]; then
-    printf 'merged    : %s branch(es) merged and still standing — cosmetic, and the\n' "$n_merged"
-    printf '            human deletes them: a session never git push --delete\n'
-    printf '%b' "$merged"
-    [ "$n_merged" -le 5 ] || printf '            (+%s more)\n' "$((n_merged - 5))"
-  fi
+    n=$((n + 1))
+    printf 'release   : %s  no claim: plans not landed: %s — no open pull request lands them = a human re-files them\n' "$branch" "$stems"
+  done <<<"$(release_noclaim_rows)"
+  [ "$n" -gt 0 ] || printf '  none\n'
   printf '\n'
-
   return 0
 }
 
-# --- free: bring an unmerged doc-only branch to the base, by merge -----------
-# Two shapes nobody else closes (#423): a plan filed on a branch whose author
-# is gone, and a branch whose only diff is a `status: done, pr: none`
-# workstream file. A copy task, never a build: the plans land in the queue,
-# where lint and curate read them. Runs on the CURRENT branch, which the
-# manager already cut from fresh origin/<base> and claimed. Commits; never
-# pushes, never touches the owner's branch.
-
-# The key a `free <branch>` claim carries: workstream `free-<key>`.
-free_key() { printf '%s' "$1" | tr -c 'A-Za-z0-9._-' '-'; }
-
-# The paths a freeable branch may touch: the harness's own doc trees. A
-# consumer's own index files are refused, never guessed at.
-free_path_ok() {
-  case "$1" in
-    docs/plans/?* | docs/product/?* | docs/research/?* | docs/handover/?*) return 0 ;;
+cmd_release() {
+  case "${1:-}" in
+    --human) shift; release_human "$@" ;;
+    '') [ "$#" -eq 0 ] || die "usage: $0 release [--human] [<branch>...]"
+        release_report ;;
+    *) release_write "$@" ;;
   esac
-  return 1
-}
-
-# Does <ref> carry, since <base>, a workstream file a human or a pull request
-# still holds (status blocked or review, or a pr: set)? Prints the first.
-# Such a branch is waiting on someone: freeing it would erase the question or
-# merge past a label only a human removes.
-free_owner_held() {
-  local ref="$1" base="$2" f doc st pr
-  while IFS= read -r f; do
-    [ -n "$f" ] || continue
-    doc="$(git -C "$ROOT" show "${ref}:${f}" </dev/null 2>/dev/null)" || continue
-    { read -r st; read -r pr; } <<<"$(printf '%s\n' "$doc" | gr_fields status pr)"
-    case "$st" in blocked | review) printf '%s (status: %s)' "$f" "$st"; return 0 ;; esac
-    case "$pr" in '' | none) ;; *) printf '%s (pr: %s)' "$f" "$(printf '%s' "$pr" | tr -cd 'A-Za-z0-9._#-')"; return 0 ;; esac
-  done <<<"$(git -c core.quotePath=false -C "$ROOT" diff --name-only \
-    --diff-filter=ACMRT "$base" "$ref" -- docs/handover </dev/null 2>/dev/null | gr_docs)"
-  return 1
-}
-
-# Is <stem> held by a live claim (not done, not abandoned) on an unmerged
-# branch other than <owner>? Prints that branch.
-free_plan_claimed() {
-  local stem="$1" owner="$2" b f doc wp st
-  while IFS=$'\t' read -r b f; do
-    { [ -n "$b" ] && [ "$b" != "$owner" ]; } || continue
-    doc="$(git -C "$ROOT" show "refs/remotes/origin/${b}:${f}" </dev/null 2>/dev/null)" || continue
-    { read -r wp; read -r st; } <<<"$(printf '%s\n' "$doc" | gr_fields plan status)"
-    [ "$(lint_stem "$wp" | tr -cd 'A-Za-z0-9._-')" = "$stem" ] || continue
-    case "$st" in done | abandoned) continue ;; esac
-    printf '%s' "$b"; return 0
-  done <<<"$(claim_branches)"
-  return 1
-}
-
-cmd_free() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}" owner="${1:-}" usage
-  local cur tip mb paths p bad="" n_bad=0 behind pre f kind stem
-  local added_wf added_plans rows dropped="" retired="" keep out rc applied held wplan wst hb
-
-  usage="usage: $0 free <branch> — run on your own claimed branch, cut from fresh origin/${base_branch}"
-  { [ "$#" -eq 1 ] && [ -n "$owner" ]; } || die "$usage"
-  case "$owner" in -*) die "$usage" ;; esac
-  printf '== free %s\n\n' "$owner"
-
-  # --- refusals: each one before anything is written ---
-  cur="$(git -C "$ROOT" symbolic-ref -q --short HEAD 2>/dev/null)" || cur=""
-  if [ -z "$cur" ]; then
-    printf 'refused   : detached HEAD — run on your own claimed branch\n'; return 1
-  fi
-  if [ "$owner" = "$base_branch" ] || [ "$owner" = "$cur" ]; then
-    printf 'refused   : %s is the base branch or this branch — free takes another branch\n' "$owner"
-    return 1
-  fi
-  if [ "$cur" = "$base_branch" ]; then
-    printf 'refused   : on %s itself — free commits onto your own claimed branch only\n' "$base_branch"
-    return 1
-  fi
-  # The claim first (manage.md §0): a free nobody claimed is invisible to
-  # dispatch, and a second manager frees the same branch.
-  if ! git -C "$ROOT" cat-file -e "HEAD:docs/handover/free-$(free_key "$owner").md" 2>/dev/null; then
-    printf 'refused   : %s carries no docs/handover/free-%s.md — claim it and push the claim first\n' \
-      "$cur" "$(free_key "$owner")"
-    return 1
-  fi
-  # Untracked files too: one in the way of the merge reads as a conflict.
-  if git -C "$ROOT" rev-parse -q --verify MERGE_HEAD >/dev/null 2>&1 ||
-     [ -n "$(git -C "$ROOT" status --porcelain 2>/dev/null)" ]; then
-    printf 'refused   : uncommitted or untracked changes, or a merge in progress — commit or clean first\n'
-    return 1
-  fi
-  # The two reads every refusal below stands on, fresh: a stale base would
-  # pass the behind check, a stale owner ref would merge the wrong tip.
-  if ! git -C "$ROOT" fetch -q origin \
-       "+refs/heads/${base_branch}:refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null; then
-    printf 'refused   : cannot fetch origin/%s — 0 behind is unprovable\n' "$base_branch"
-    return 1
-  fi
-  # Gone (exit 2) and unreachable are different answers: one frees nothing,
-  # the other is a rerun.
-  git -C "$ROOT" ls-remote -q --exit-code --heads origin "refs/heads/${owner}" \
-    </dev/null >/dev/null 2>&1
-  case $? in
-    0) ;;
-    2) printf 'refused   : %s — no such branch on origin\n' "$owner"; return 1 ;;
-    *) printf 'refused   : cannot ask origin for %s — rerun\n' "$owner"; return 1 ;;
-  esac
-  if ! git -C "$ROOT" fetch -q origin \
-       "+refs/heads/${owner}:refs/remotes/origin/${owner}" </dev/null 2>/dev/null ||
-     ! tip="$(git -C "$ROOT" rev-parse -q --verify "refs/remotes/origin/${owner}^{commit}" 2>/dev/null)"; then
-    printf 'refused   : cannot fetch origin/%s — rerun\n' "$owner"
-    return 1
-  fi
-  if git -C "$ROOT" merge-base --is-ancestor "$tip" \
-       "refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null; then
-    printf 'refused   : %s is already merged into %s — nothing to free\n' "$owner" "$base_branch"
-    return 1
-  fi
-  if git -C "$ROOT" merge-base --is-ancestor "$tip" HEAD </dev/null 2>/dev/null; then
-    printf 'refused   : %s is already merged into %s — push it and open the pull request\n' \
-      "$owner" "$cur"
-    return 1
-  fi
-  behind="$(git -C "$ROOT" rev-list --count "HEAD..refs/remotes/origin/${base_branch}" 2>/dev/null)"
-  if [ "${behind:-1}" != 0 ]; then
-    printf 'refused   : %s is %s behind origin/%s — cut it from fresh origin/%s\n' \
-      "$cur" "${behind:-?}" "$base_branch" "$base_branch"
-    return 1
-  fi
-  mb="$(git -C "$ROOT" merge-base "$tip" "refs/remotes/origin/${base_branch}" 2>/dev/null)" || mb=""
-  if [ -z "$mb" ]; then
-    printf 'refused   : %s shares no history with %s\n' "$owner" "$base_branch"
-    return 1
-  fi
-  # Both sides of a rename: a code file moved under docs/ is still code.
-  paths="$(git -c core.quotePath=false -C "$ROOT" diff --no-renames --name-only \
-    "$mb" "$tip" </dev/null 2>/dev/null)"
-  while IFS= read -r p; do
-    [ -n "$p" ] || continue
-    free_path_ok "$p" && continue
-    n_bad=$((n_bad + 1))
-    [ "$n_bad" -gt 5 ] || bad="${bad}            ${p}"$'\n'
-  done <<<"$paths"
-  if [ "$n_bad" -gt 0 ]; then
-    printf 'refused   : %s touches %s path(s) outside docs/plans, docs/product, docs/research, docs/handover — not a copy task:\n%s' \
-      "$owner" "$n_bad" "$bad"
-    return 1
-  fi
-  if held="$(free_owner_held "$tip" "$mb")"; then
-    printf 'refused   : %s holds %s — someone still owes it an answer; never freed\n' "$owner" "$held"
-    return 1
-  fi
-  printf 'owner     : %s at %s, %s path(s) since %s\n' "$owner" "${tip:0:12}" \
-    "$(printf '%s\n' "$paths" | grep -c .)" "${mb:0:12}"
-
-  # What the owner ADDED, read before the merge moves anything.
-  added_wf="$(git -c core.quotePath=false -C "$ROOT" diff --no-renames --name-only \
-    --diff-filter=A "$mb" "$tip" -- docs/handover </dev/null 2>/dev/null)"
-  added_plans="$(git -c core.quotePath=false -C "$ROOT" diff --no-renames --name-only \
-    --diff-filter=A "$mb" "$tip" -- docs/plans </dev/null 2>/dev/null)"
-  # DONE ON MAIN (ledger included) and leftover, as dispatch reads them.
-  rows="$(dispatch_branch_plans "$owner" | awk -F'\t' '$1 == "done" || $1 == "leftover" { print $1 "\t" $3 }')"
-  pre="$(git -C "$ROOT" rev-parse HEAD)"
-
-  # 1. Merge. Nothing committed until every step below has passed.
-  if ! git -C "$ROOT" merge -q --no-ff --no-commit "$tip" </dev/null >/dev/null 2>&1; then
-    printf 'conflict  : merging %s:\n' "$owner"
-    git -c core.quotePath=false -C "$ROOT" diff --name-only --diff-filter=U 2>/dev/null |
-      sed 's/^/            /'
-    git -C "$ROOT" merge --abort 2>/dev/null || git -C "$ROOT" reset -q --hard "$pre"
-    printf 'FAILED    : merge aborted, nothing committed — resolve by hand inside a plan-only diff, or block with conflict:\n'
-    return 1
-  fi
-
-  # 2. The owner's workstream files go; this branch's own stays.
-  while IFS= read -r f; do
-    [ -n "$f" ] || continue
-    git -C "$ROOT" cat-file -e "${pre}:${f}" 2>/dev/null && continue
-    { read -r wst; read -r wplan; } <<<"$(git -C "$ROOT" show "${tip}:${f}" \
-      </dev/null 2>/dev/null | gr_fields status plan)"
-    git -C "$ROOT" rm -q -f -- "$f" >/dev/null 2>&1 || continue
-    dropped="${dropped}${f}"$'\n'
-    printf 'drop      : %s — the owner'"'"'s workstream file\n' "$f"
-    # A done record the owner never retired: its item is finished, and
-    # deleting the record alone hands it back to the queue. Retire it here.
-    [ "$wst" = "done" ] || continue
-    wplan="$(lint_stem "$wplan" | tr -cd 'A-Za-z0-9._-')"
-    case "$wplan" in '' | none) continue ;; esac
-    # A live claim on another branch is building it: that manager retires it.
-    if hb="$(free_plan_claimed "$wplan" "$owner")"; then
-      printf 'keep      : %s item — %s holds a live claim on it\n' "$wplan" "$hb"
-      continue
-    fi
-    for p in "docs/plans/${wplan}.md" "docs/research/${wplan}.md"; do
-      git -C "$ROOT" ls-files --error-unmatch -- "$p" >/dev/null 2>&1 || continue
-      # The version deleted is the merge's: the base's when the merge kept
-      # it, else the owner's.
-      if [ "$(git -C "$ROOT" rev-parse -q --verify ":${p}" 2>/dev/null)" = \
-           "$(git -C "$ROOT" rev-parse -q --verify "${pre}:${p}" 2>/dev/null)" ]; then
-        hb="$pre"
-      else
-        hb="$tip"
-      fi
-      git -C "$ROOT" rm -q -f -- "$p" >/dev/null 2>&1 || continue
-      printf 'retire    : %s — %s reads status: done\n' "$p" "$f"
-      retired="${retired}${hb:0:12}:${p}"$'\n'
-      break
-    done
-  done <<<"$added_wf"
-
-  # 3. A stem retired elsewhere never re-enters the queue.
-  while IFS=$'\t' read -r kind stem; do
-    [ -n "$stem" ] || continue
-    f="docs/plans/${stem}.md"
-    git -C "$ROOT" cat-file -e "${pre}:${f}" 2>/dev/null && continue
-    git -C "$ROOT" ls-files --error-unmatch -- "$f" >/dev/null 2>&1 || continue
-    git -C "$ROOT" rm -q -f -- "$f" >/dev/null 2>&1 || continue
-    dropped="${dropped}${f}"$'\n'
-    if [ "$kind" = "done" ]; then
-      printf 'drop      : %s — DONE ON MAIN\n' "$f"
-    else
-      printf 'drop      : %s — leftover: %s added and retired it\n' "$f" "$base_branch"
-    fi
-  done <<<"$rows"
-
-  # 4. curate --apply, on the plans this free brings in and on nothing else.
-  keep=" "
-  while IFS= read -r f; do
-    [ -n "$f" ] || continue
-    case $'\n'"$dropped" in *$'\n'"${f}"$'\n'*) continue ;; esac
-    keep="${keep}${f} "
-  done <<<"$added_plans"
-  out="$("${ROOT}/joharness.sh" curate --apply 2>&1)"; rc=$?
-  if [ "$rc" -ne 0 ]; then
-    printf '%s\n' "$out"
-    git -C "$ROOT" merge --abort 2>/dev/null || git -C "$ROOT" reset -q --hard "$pre"
-    printf 'FAILED    : curate --apply exited %s — merge aborted, nothing committed\n' "$rc"
-    return 1
-  fi
-  applied="$(printf '%s\n' "$out" | sed -n 's/^applied   : //p')"
-  while IFS= read -r f; do
-    [ -n "$f" ] || continue
-    if [ "${keep#* "${f}" }" != "$keep" ]; then
-      git -C "$ROOT" add -- "$f"
-      printf 'curate    : %s\n' "$(printf '%s\n' "$applied" | grep -F -- "$f" | head -1 |
-        grep . || printf '%s scope: rewritten' "$f")"
-    else
-      git -C "$ROOT" checkout -q -- "$f"
-      printf 'curate    : %s restored — not a plan this free brings in\n' "$f"
-    fi
-  done < <(git -c core.quotePath=false -C "$ROOT" diff --name-only 2>/dev/null)
-
-  if ! git -C "$ROOT" commit -q --no-edit -m "free: merge ${owner} (${tip:0:12})" \
-       -m "$(printf 'Dropped, each recoverable with git show %s:<path>:\n%s\nRetired, each recoverable with git show <line>:\n%s' \
-             "${tip:0:12}" "${dropped:-none}" "${retired:-none}")" </dev/null >/dev/null 2>&1; then
-    git -C "$ROOT" merge --abort 2>/dev/null || git -C "$ROOT" reset -q --hard "$pre"
-    printf 'FAILED    : commit refused — merge aborted, nothing committed\n'
-    return 1
-  fi
-
-  # 5. ci on the result; red = the run never happened.
-  out="$("${ROOT}/joharness.sh" ci 2>&1)"; rc=$?
-  if [ "$rc" -ne 0 ]; then
-    printf '%s\n' "$out"
-    git -C "$ROOT" reset -q --hard "$pre"
-    printf 'FAILED    : ci red after curate --apply — %s reset to %s, nothing committed. Fix by hand inside a plan-only diff, or block with conflict:\n' \
-      "$cur" "${pre:0:12}"
-    return 1
-  fi
-  printf 'ci        : %s\n' "$(printf '%s\n' "$out" | tail -n 1)"
-  printf 'committed : %s on %s — push it; the pull request is yours (Loop step 7)\n' \
-    "$(git -C "$ROOT" rev-parse --short=12 HEAD)" "$cur"
-  if [ -n "${dropped}${retired}" ]; then
-    printf 'recover (paste into the pull request body):\n'
-    while IFS= read -r f; do
-      [ -n "$f" ] || continue
-      printf '  git show %s:%s\n' "${tip:0:12}" "$f"
-    done <<<"$dropped"
-    while IFS= read -r f; do
-      [ -n "$f" ] || continue
-      printf '  git show %s\n' "$f"
-    done <<<"$retired"
-  fi
-  return 0
 }
 
 # --- The scout cycle — the fleet spends nothing on finding what it could do better
@@ -4587,8 +4364,9 @@ conduct_candidates() {
     /^docs\/handover\/[A-Za-z0-9._-]+\.md$/ {
       if (skip[$0]) next
       s = $0; sub(/^docs\/handover\//, "", s); sub(/\.md$/, "", s)
-      # Role sessions carry a date in the stem (scout-, clerk-,
-      # janitor-, findings passes); a manager item names its plan, never a day.
+      # Role sessions carry a date in the stem (scout-, clerk-, janitor- and
+      # findings passes, past ones too); a manager item names its plan, never a
+      # day.
       if (s ~ /-[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/) next
       if (s == "README" || s == "TEMPLATE" || s == "RETIRED") next
       if (done[s] || seen[s]++) next
@@ -4956,8 +4734,8 @@ retro_landed_ts() {
 
 # Sessions that did not come back clean, from git only: a workstream-file
 # commit on any origin branch, merged or not, whose file then read `status:
-# blocked` or `status: abandoned` (the janitor: session gone; halt: a human
-# stopped it) — that session — or whose `## Blockers` opens a line with a kill note — the
+# blocked` or `status: abandoned` (release: session gone; release --human: a
+# human stopped it) — that session — or whose `## Blockers` opens a line with a kill note — the
 # session the file named when the note FIRST appeared, never a successor
 # that inherited it. A session that never blocked, was never abandoned and
 # never killed is never sampled, however it ended. Role sessions (a dated
@@ -5710,6 +5488,8 @@ cmd_cleanup() {
   if [ "$n" -eq 0 ]; then
     printf '  none\n'
   else
+    printf '%s\n' "$branches" | grep . | head -5 | sed 's/^/  /'
+    [ "$n" -le 5 ] || printf '  (+%s more)\n' "$((n - 5))"
     printf '  %d — cosmetic: the handover hook already filters merged branches\n' "$n"
     printf '  out of its claims view. Deleting them is a human hand on a human\n'
     printf '  keyboard; a session never pushes a branch delete.\n'
@@ -7633,7 +7413,7 @@ lint_fast_lane() {
 # the optional ones and is never empty (`none` for none of `''`, `none`,
 # `NONE`, the hook's pr_num).
 dispatch_rescope_branches() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}" pre="${1:-rescope-}"
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" pre="rescope-"
   local refs r name base wf files doc rws rkey rstat rsess rnext rpr
   # Refs collected into a variable FIRST, then looped over a here-string.
   refs="$(refs_unmerged "refs/remotes/origin/${base_branch}")"
@@ -7653,7 +7433,7 @@ dispatch_rescope_branches() {
         read -r rpr; } \
         <<<"$(printf '%s\n' "$doc" | gr_fields workstream plan status session next pr)"
       case "$rws" in "$pre"*) ;; *) continue ;; esac
-      # `plan: none` is the identity: a rescope (or free) branch claims no plan.
+      # `plan: none` is the identity: a rescope branch claims no plan.
       [ "$rkey" = none ] || continue
       rpr="${rpr#\#}"
       case "$rpr" in '' | none | NONE) rpr=none ;; esac
@@ -7768,7 +7548,7 @@ dispatch_tip_holds() {
 # kind `leftover`: the base added and retired the path; `done`: DONE ON MAIN,
 # the stem retired elsewhere (the base's ledger, or a `status: done`
 # workstream file on any other ref); `live`: neither.
-# With <branch>, that branch alone, every plan it added (`free` reads it): its
+# With <branch>, that branch alone, every plan it added (release_unlanded reads it): its
 # own claimed plan and an abandoned branch's plans included.
 dispatch_branch_plans() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}" only="${1:-}"
@@ -7904,141 +7684,6 @@ dispatch_branch_plans() {
   done <<<"$refs"
 }
 
-# Did <ref> ADD a `free-*` workstream file since it left the base? Its
-# retire commit may have deleted it since: the add still says whose it is.
-# The claim's identity is its content, as dispatch_rescope_branches reads it
-# (`workstream: free-*`, `plan: none`), never its path: a plan named free-x
-# has a builder file of that name. Read at the commit that added it. A
-# branch whose claim is retired and whose last push is past
-# HANDOVER_STALE_SECONDS is no freer: its session is gone, its pull request
-# never opened or was closed, and nothing else can release it.
-free_claimed_ever() {
-  local base line h="" doc ws wp age
-  base="$(base_mb "$1")" || return 1
-  [ -n "$base" ] || return 1
-  while IFS= read -r line; do
-    case "$line" in
-      '') continue ;;
-      'C '*) h="${line#C }"; continue ;;
-      docs/handover/free-*) ;;
-      *) continue ;;
-    esac
-    doc="$(git -C "$ROOT" show "${h}:${line}" </dev/null 2>/dev/null)" || continue
-    { read -r ws; read -r wp; } <<<"$(printf '%s\n' "$doc" | gr_fields workstream plan)"
-    case "$ws" in free-?*) ;; *) continue ;; esac
-    [ "$wp" = none ] || continue
-    if ! git -C "$ROOT" cat-file -e "${1}:${line}" 2>/dev/null; then
-      age="$(dispatch_age_min "${1#refs/remotes/origin/}")"
-      [ -z "$age" ] ||
-        [ $((age * 60)) -lt "$(num_knob HANDOVER_STALE_SECONDS)" ] || continue
-    fi
-    return 0
-  done < <(git -c core.quotePath=false -C "$ROOT" log --no-renames --diff-filter=A \
-    --name-only --format='C %H' "${base}..$1" -- docs/handover </dev/null 2>/dev/null)
-  return 1
-}
-
-# FREEABLE (`free <branch>`, #423): an unmerged branch whose every path is
-# under the harness's doc trees (free_path_ok) and no `free-*` claim covers.
-# One row per branch, tab-separated: <kind> <branch> <plans> <pushed min>.
-#   kind `plans`: its rows in <branch-plan rows> (dispatch_branch_plans) all
-#     live or done, none leftover, last push older than HANDOVER_STALE_SECONDS;
-#   kind `done`: every path a workstream file reading `status: done` with no
-#     pr: and a `plan:` (a manager's "found it done"), no plan added. No age
-#     wait: its own status says the session ended. `plan: none` is a role's
-#     record (a surveyor's "holds genuine" stays unmerged by design): never.
-# Never freeable: a free manager's own branch (free_claimed_ever); a branch
-# whose workstream file a human or a pull request holds (free_owner_held); an
-# owner a live `free-<key>` claim covers, or whose tip a free manager's live
-# branch already contains (a free past its retire commit, `free` or a hand
-# merge alike). A released (`abandoned`) free claim lends none of that: its
-# owner is offered again.
-dispatch_freeable() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}" bprows="$1"
-  local refs r name base paths p ok wonly doc st pr ws wp claimed="" n_rows age stale_s cb ck cs
-  local gone=" " freers=""
-  stale_s="$(num_knob HANDOVER_STALE_SECONDS)"
-  # Keys a live free claim covers: a second manager onto the same owner is
-  # two merges of one branch.
-  while IFS=$'\t' read -r cb ck cs _; do
-    [ -n "$cb" ] || continue
-    # A released claim holds nothing, its merge included. A done one
-    # holds no key; its merge, if pushed, still holds the owner below.
-    case "$cs" in
-      abandoned) gone="${gone}${cb} "; continue ;;
-      done) continue ;;
-    esac
-    claimed="${claimed} ${ck} "
-  done < <(dispatch_rescope_branches free-)
-  # Free managers' branches: live, unmerged, unreleased, and ADDED a
-  # `free-*` claim since the base (it may since have retired it). Only these
-  # hold an owner, by ancestry, however the merge was made: a branch merely
-  # cut from the owner, or a copy of it, never claimed a free. A ref merged
-  # into the base has an empty `base..ref`, so free_claimed_ever is false for
-  # it: probing only the unmerged ones gives the same set for less work.
-  refs="$(refs_unmerged "refs/remotes/origin/${base_branch}")"
-  while IFS= read -r r; do
-    [ -n "$r" ] || continue
-    name="${r#refs/remotes/origin/}"
-    { [ "$name" = "HEAD" ] || [ "$name" = "$base_branch" ]; } && continue
-    [ "${gone#* "${name}" }" = "$gone" ] || continue
-    free_claimed_ever "$r" && freers="${freers}${r}"$'\n'
-  done <<<"$refs"
-  # Unmerged into the base AND into every free manager's branch (a flag per
-  # freer; they AND together). An owner a free manager already merged drops
-  # out here, as does the freer itself.
-  local -a gate=("refs/remotes/origin/${base_branch}")
-  while IFS= read -r r; do
-    [ -n "$r" ] && gate+=("$r")
-  done <<<"$freers"
-  refs="$(refs_unmerged "${gate[@]}")"
-  while IFS= read -r r; do
-    [ -n "$r" ] || continue
-    name="${r#refs/remotes/origin/}"
-    { [ "$name" = "HEAD" ] || [ "$name" = "$base_branch" ]; } && continue
-    # The same charset dispatch_branch_plans prints: one name for both reads.
-    [ "$(printf '%s' "$name" | tr -cd 'A-Za-z0-9._/-')" = "$name" ] || continue
-    case "$claimed" in *" $(free_key "$name") "*) continue ;; esac
-    base="$(base_mb "$r")"
-    [ -n "$base" ] || continue
-    paths="$(git -c core.quotePath=false -C "$ROOT" diff --no-renames \
-      --name-only "$base" "$r" </dev/null 2>/dev/null)"
-    [ -n "$paths" ] || continue
-    # A free manager's own branch, or an owner one already merged.
-    case "$freers" in *"${r}"$'\n'*) continue ;; esac
-    free_owner_held "$r" "$base" >/dev/null && continue
-    ok=1; wonly=1
-    while IFS= read -r p; do
-      [ -n "$p" ] || continue
-      free_path_ok "$p" || { ok=0; break; }
-      case "$p" in
-        docs/handover/*)
-          doc="$(git -C "$ROOT" show "${r}:${p}" </dev/null 2>/dev/null)" || { wonly=0; continue; }
-          { read -r ws; read -r st; read -r pr; read -r wp; } \
-            <<<"$(printf '%s\n' "$doc" | gr_fields workstream status pr plan)"
-          # A free manager's own branch.
-          case "$ws" in free-*) ok=0; break ;; esac
-          [ "$st" = "done" ] || wonly=0
-          case "$wp" in '' | none) wonly=0 ;; esac
-          case "$pr" in '' | none) ;; *) wonly=0 ;; esac ;;
-        *) wonly=0 ;;
-      esac
-    done <<<"$paths"
-    [ "$ok" -eq 1 ] || continue
-    age="$(dispatch_age_min "$name")"
-    if [ "$wonly" -eq 1 ]; then
-      printf 'done\t%s\t0\t%s\n' "$name" "${age:-?}"
-      continue
-    fi
-    n_rows="$(printf '%s\n' "$bprows" | awk -F'\t' -v b="$name" '$2 == b { n++ } END { print n + 0 }')"
-    [ "$n_rows" -gt 0 ] || continue
-    printf '%s\n' "$bprows" |
-      awk -F'\t' -v b="$name" '$2 == b && $1 == "leftover" { f = 1 } END { exit !f }' && continue
-    { [ -n "$age" ] && [ $((age * 60)) -ge "$stale_s" ]; } || continue
-    printf 'plans\t%s\t%s\t%s\n' "$name" "$n_rows" "$age"
-  done <<<"$refs"
-}
-
 dispatch_rescope_merged() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}"
   local line h="" seen="" doc rws rplan rstat
@@ -8127,18 +7772,18 @@ cmd_dispatch() {
   local pending pending_used
   local n_edge=0 n_edge_stall=0 n_leftover=0 n_leftover_noitem=0
   local leftover_rows="" estate="" fleet_age stall_young=""
-  local jcands n_freer=0 n_freer_live=0
+  local rel_stale rel_needs="" rel_line
   local scout_inflight="" n_scout=0 sstate sreason sb sw ss spend
   local clerk_due=0 clerk_inflight="" n_clerk=0 kdue kstate kreason kb kw ks
   local conduct_due=0 role_spawned=0 n_conduct=0 odue ostate oreason orate ob oa conduct_inflight=""
   local retro_due=0 n_retro=0 rtstate rtreason rtb rta retro_inflight="" conduct_spawned=0
   local fetch_failed=0
-  local cb ck bplans
+  local bplans
   local rescope_key="" rescope_paths="" rescope_inflight="" rescope_holders=""
   local n_rescope_inflight=0 n_rescope_holders=0 rescope_settled=0
   local rescope_held="" rescope_merged="" msha mkey mheld mchanged
   local rb rk rstat rsess rnext rage rpr rfin
-  local bprows freeable="" fkind fb fn fage fwhy n_freeable=0
+  local bprows
   local DISPATCH_WITHHELD=
   local printed_deferred=
   local inflight="" free="" questions=""
@@ -8197,15 +7842,9 @@ cmd_dispatch() {
   fi
   printf 'loop      : one file rewritten %s+ times on a branch = LOOP? (JOHARNESS_CHURN_LIMIT; 0 lifts it); %s+ = a warning on the work line (JOHARNESS_CHURN_THRESHOLD)\n' "$churnl" "$churnt"
   # Stale claims with no pr: — no session, the orchestrator proves each
-  # session gone and runs the release itself. Silent when there are none.
-  jcands="$(janitor_candidates | cut -f1 | sort -u | tr '\n' ' ')"
-  jcands="${jcands% }"
-  if [ -n "$jcands" ]; then
-    printf 'janitor   : stale claim(s) on %s — check each session; ARCHIVED or not found: run ./joharness.sh janitor --apply <branch>...' "$jcands"
-    [ "$fetch_failed" -eq 0 ] ||
-      printf ' (or this clone is stale: fetch failed, DISPATCH_FETCH=0, or a remote.origin.fetch that does not reach refs/heads/*)'
-    printf '\n'
-  fi
+  # session gone and runs the release itself. Printed with the release
+  # lines below the in-flight listing.
+  rel_stale="$(release_stale_rows)"
   # The clerk cycle, one reader (clerk_due) shared with `clerk`.
   clerk_due
   kdue="$CLERK_DUE"
@@ -8440,7 +8079,7 @@ cmd_dispatch() {
       { read -r status; read -r session; read -r next; read -r pr; } \
         <<<"$(printf '%s\n' "$doc" | gr_fields status session next pr)"
     fi
-    # Branch-controlled text, tested below: the charset cmd_janitor keeps.
+    # Branch-controlled text, tested below: the charset release_report keeps.
     pr="$(printf '%s' "$pr" | tr -cd 'A-Za-z0-9._#-')"
     # A workstream file on another branch is repo-controlled input, and the
     # orchestrator branches on the ROW this builds.
@@ -8552,8 +8191,10 @@ cmd_dispatch() {
               n_release=$((n_release + 1))
               release_due="${release_due} ${branch}"
               IFS=$'\t' read -r rstem rts <<<"$redge"
-              flag="  RELEASABLE: held by needs: ${rstem} since $(date -u -d "@${rts}" +%Y-%m-%d 2>/dev/null ||
-                date -u -r "$rts" +%Y-%m-%d 2>/dev/null), holds no slot"
+              rts="$(date -u -d "@${rts}" +%Y-%m-%d 2>/dev/null ||
+                date -u -r "$rts" +%Y-%m-%d 2>/dev/null)"
+              flag="  RELEASE: the queue holds it by needs: ${rstem} since ${rts}, holds no slot"
+              rel_needs="${rel_needs}release   : ${branch}  queue holds it by needs: ${rstem}  plan $(basename "$path" .md)  since ${rts}"$'\n'
             else
               flag="  BLOCKED: the human's, holds no slot"
               block_reason_ok "$next" ||
@@ -8628,47 +8269,6 @@ cmd_dispatch() {
     [ -z "$next" ] || inflight="${inflight}    next: ${next}"$'\n'
   done <<<"$rows"
 
-  # A `free <branch>` manager claims no queue item: its own row, no slot.
-  while IFS=$'\t' read -r rb rk rstat _ rsess rnext; do
-    [ -n "$rb" ] || continue
-    case "$rstat" in
-      in-progress | blocked | review | done | abandoned) ;;
-      *) rstat="unreadable" ;;
-    esac
-    [ "$rstat" != abandoned ] || continue
-    age="$(dispatch_age_min "$rb")"
-    agetext="$(dispatch_age_text "$age")"
-    flag=""
-    # Done = past the build, mid-retire (a refused free deletes its claim,
-    # manage.md §0): no slot.
-    if [ "$rstat" = "done" ]; then
-      inflight="${inflight}  free-${rk}  ${rb}  done  pushed ${agetext}  done: holds no slot"$'\n'
-      [ -z "$rnext" ] || inflight="${inflight}    next: ${rnext}"$'\n'
-      continue
-    fi
-    n_inflight=$((n_inflight + 1))
-    # A freer is a role: beyond the cap, so it holds no manager slot. Still in
-    # flight, blocked included (as a blocked clerk is): the health pass
-    # watches it, and a second one waits.
-    n_freer=$((n_freer + 1))
-    [ "$rstat" = blocked ] || n_freer_live=$((n_freer_live + 1))
-    if [ "$rstat" = blocked ]; then
-      n_blocked=$((n_blocked + 1))
-      flag="  BLOCKED: the human's, holds no slot"
-      block_reason_ok "$rnext" ||
-        flag="${flag}  INVALID BLOCK? next: opens with no reason word (manage.md §3): ask, order nothing"
-    elif [ -z "$age" ]; then
-      flag="  push age unknown: ref not here — fetch, then cross-check"
-    elif [ "$age" -ge "$stall" ]; then
-      n_stall=$((n_stall + 1))
-      [ -n "$stall_young" ] && [ "$stall_young" -le "$age" ] || stall_young="$age"
-      flag="  STALL? no push for ${agetext} (>= ${stall}m): cross-check the control plane"
-    fi
-    inflight="${inflight}  free-${rk}  ${rb}  ${rstat}  pushed ${agetext}${flag}"$'\n'
-    [ -z "$rsess" ] || inflight="${inflight}    session: ${rsess}"$'\n'
-    [ -z "$rnext" ] || inflight="${inflight}    next: ${rnext}"$'\n'
-  done < <(dispatch_rescope_branches free-)
-
   pending="${JOHARNESS_PENDING_SPAWNS:-0}"
   case "$pending" in '' | *[!0-9]*) pending=0 ;; esac
   # Leading zeros off.
@@ -8681,9 +8281,9 @@ cmd_dispatch() {
   [ "$pending_used" -le "$cap" ] || pending_used="$cap"
   # Subtracted here and nowhere else: every verdict below reads n_slots, so the
   # spawn count, the OVERLAP-BOUND gate and the DRAINED reading follow.
-  # Managers only: a role session in flight (clerk, freer, surveyor,
-  # scout, conduct, retro) runs beyond the cap and subtracts nothing.
-  n_slots=$((cap - (n_inflight - n_blocked - n_freer_live) - pending_used))
+  # Managers only: a role session in flight (clerk, surveyor, scout,
+  # conduct, retro) runs beyond the cap and subtracts nothing.
+  n_slots=$((cap - (n_inflight - n_blocked) - pending_used))
   [ "$n_slots" -ge 0 ] || n_slots=0
   # A RESUME or RECHECK is a spawn of this pass: it takes a slot ahead of
   # every free item, and only as many print as there are slots.
@@ -8757,6 +8357,24 @@ cmd_dispatch() {
     printf 'leftovers (NOT counted, nothing committed — the human clears these):\n'
     printf '%s' "$leftover_rows"
   fi
+  # `./joharness.sh release`'s lines: a stale or done claim (its session
+  # proven gone first), a block the queue absorbed, and plans no claim will
+  # land (report only).
+  while IFS=$'\t' read -r rb rk rstat; do
+    [ -n "$rb" ] || continue
+    rel_line="$(release_unlanded "$rb")"
+    printf 'release   : %s  %s  %s' "$rb" "$rstat" "$(printf '%s' "$rk" | tr -cd 'A-Za-z0-9._/-')"
+    [ -z "$rel_line" ] || printf '  plans not landed: %s' "$rel_line"
+    [ "$fetch_failed" -eq 0 ] ||
+      printf ' (or this clone is stale: fetch failed, DISPATCH_FETCH=0, or a remote.origin.fetch that does not reach refs/heads/*)'
+    printf '\n'
+    case "${release_due} " in *" ${rb} "*) ;; *) release_due="${release_due} ${rb}" ;; esac
+  done <<<"$rel_stale"
+  [ -z "$rel_needs" ] || printf '%s' "$rel_needs"
+  while IFS=$'\t' read -r rb rk; do
+    [ -n "$rb" ] || continue
+    printf 'release   : %s  no claim: plans not landed: %s  — report only: nothing to release; no open pull request lands them = a human re-files them\n' "$rb" "$rk"
+  done <<<"$(release_noclaim_rows "$bprows")"
 
   # Finishing outranks starting, for an orchestrator too: an edge branch
   # whose session is gone is a manager to respawn before any new item.
@@ -8832,26 +8450,6 @@ cmd_dispatch() {
     esac
   done <<<"$rows"
 
-  # FREEABLE: a doc-only branch nobody will merge, brought in by one freer.
-  # A role, not a manager item: beyond the cap, at most one in flight, so it
-  # never counts toward n_free.
-  while IFS=$'\t' read -r fkind fb fn fage; do
-    [ -n "$fb" ] || continue
-    if [ "$fkind" = "done" ]; then
-      fwhy="its only diff is a status: done, pr: none workstream file: merging it closes the branch"
-    else
-      fwhy="${fn} plan(s) on a doc-only branch, last push $(dispatch_age_text "$fage") ago: merging it lands them in the queue"
-    fi
-    if [ "$cap" -eq 0 ]; then
-      freeable="${freeable}  free ${fb} (agent: sonnet)  HOLD — JOHARNESS_MAX_MANAGERS=0 is the human's pause: spawn none. FREEABLE — ${fwhy}"$'\n'
-    elif [ "$n_freer" -gt 0 ]; then
-      freeable="${freeable}  free ${fb} (agent: sonnet)  HOLD — a freer is in flight, one at a time: spawn once it ends. FREEABLE — ${fwhy}"$'\n'
-    else
-      n_freeable=$((n_freeable + 1))
-      freeable="${freeable}  free ${fb} (agent: sonnet)  FREEABLE — ${fwhy}. Beyond the cap, holds no slot, ONE freer per pass, under any verdict but PAUSED. /who first: the owner's session RUNNING = not yours"$'\n'
-    fi
-  done <<<"$(dispatch_freeable "$bprows")"
-
   req="$(drain_requirement "$qout" "$edge_items")"
   printf 'spawn, in this order, one manager per item, model = its agent tier:\n'
   if [ -n "$req" ]; then
@@ -8868,8 +8466,7 @@ cmd_dispatch() {
   fi
   [ -z "$free" ] || printf '%s' "$free"
   [ -z "$questions" ] || printf '%s' "$questions"
-  [ -z "$freeable" ] || printf '%s' "$freeable"
-  [ -n "$req$free$questions$freeable" ] || printf '  nothing free\n'
+  [ -n "$req$free$questions" ] || printf '  nothing free\n'
 
   # Requirements the hook listed as held or deferred: never offered, holds no
   # slot. The reason is read from the base here, not from the hook's label.
@@ -9063,13 +8660,15 @@ cmd_dispatch() {
       "$pending"
   else
     drained=1
-    # A clerk or freer spawn line follows below when it is due (roles
+    # A clerk spawn line follows below when it is due (roles
     # need no slot; cap is not 0 here): the verdict must not say exit then.
     local role_will_spawn=0
     [ "$clerk_due" -eq 1 ] && [ "$fetch_failed" -eq 0 ] && role_will_spawn=1
-    [ "$n_freeable" -gt 0 ] && role_will_spawn=1
     if [ "$role_will_spawn" -eq 1 ]; then
       printf 'verdict   : DRAINED — nothing free, nothing in flight; a role is due: spawn it, then schedule the next pass\n'
+    elif [ -n "$release_due" ]; then
+      # A release hands a plan back to the queue: a pass must run after it.
+      printf 'verdict   : DRAINED — nothing free, nothing in flight; a release is due (release DUE below): release, then schedule the next pass\n'
     else
       printf 'verdict   : DRAINED — nothing free, nothing in flight: exit, the heartbeat re-seeds\n'
     fi
@@ -9115,8 +8714,8 @@ EOF_CW
     printf '            %s manager(s) past the ceiling with no pr: in the claim file: report, never kill on this alone\n' "$n_ceiling"
   [ $((n_blocked - n_parked - n_release)) -eq 0 ] ||
     printf '            %s manager(s) blocked: report to the human, never respawn\n' "$((n_blocked - n_parked - n_release))"
-  [ "$n_release" -eq 0 ] ||
-    printf '            release DUE:%s — ./joharness.sh release on them: the queue holds each plan by a needs: edge newer than its block; never the human'"'"'s, never respawn\n' "$release_due"
+  [ -z "$release_due" ] ||
+    printf '            release DUE:%s — ./joharness.sh release <branch>...: a needs: one at once; a stale or done one only once its session reads ARCHIVED or not found; never the human'"'"'s, never respawn\n' "$release_due"
   [ "$n_hold" -eq 0 ] ||
     printf '            %s plan(s) on HOLD behind work in flight: not counted as free\n' "$n_hold"
   # Roles run beyond the cap: a full fleet of managers holds none of them.
@@ -9129,10 +8728,6 @@ EOF_CW
     role_spawned=1
     printf '            clerk DUE: spawn ONE clerk (agent: sonnet) on /clerk — beyond the cap, holds no slot, at most one in flight. It turns open issues into plans and merges that plan-only pull request itself (JOHARNESS_CLERK_HOURS, JOHARNESS_CLERK_BATCH)\n'
   fi
-  # A freer, like the roles above, spawns under any verdict but PAUSED: a
-  # verdict that says "spawn nothing" or "wait" speaks for managers only.
-  [ "$n_freeable" -eq 0 ] ||
-    printf '            freer DUE: spawn ONE freer (agent: sonnet) on the first FREEABLE row above — beyond the cap, holds no slot, at most one in flight, under any verdict but PAUSED\n'
   # Not gated on DRAINED: sampling merged work competes with nothing.
   if [ "$conduct_due" -eq 1 ] && [ "$cap" -eq 0 ]; then
     printf '            conduct due, held — JOHARNESS_MAX_MANAGERS=0 is the human'"'"'s pause: spawn none\n'
@@ -9371,10 +8966,8 @@ main() {
     feedback)       cmd_feedback "$@" ;;
     upstream)       cmd_upstream "$@" ;;
     analysis)       cmd_analysis "$@" ;;
-    janitor)        cmd_janitor "$@" ;;
-    halt)           cmd_halt "$@" ;;
     release)        cmd_release "$@" ;;
-    free)           cmd_free "$@" ;;
+    halt)           cmd_release --human "$@" ;;
     guard)          cmd_guard "$@" ;;
     scout)          cmd_scout "$@" ;;
     conduct)        cmd_conduct "$@" ;;

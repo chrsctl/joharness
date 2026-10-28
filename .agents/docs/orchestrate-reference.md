@@ -72,10 +72,7 @@ The `URGENT` row of dispatch's `plans on a branch` block carries its branch;
 print the rest of that block. Never spawn on a branch plan on your own; if
 the human orders it, the prompt names the row's branch and stem: carry the
 plan, never take the branch (`.agents/docs/orchestrated.md`, "A plan the
-queue cannot see"). A `FREEABLE` row is the one spawn on a branch: `free
-<branch>` brings its plans in, builds nothing. Report each FREEABLE row
-with what you spawned or why not.
-
+queue cannot see").
 ## 0. Start
 
 1. `git fetch --prune origin` and fast-forward this checkout to `origin/main`
@@ -213,7 +210,7 @@ UNRATIFIED BLOCK: NUDGE "Orchestrator health pass: you stopped asking for input 
 
 ## Relay
 
-A human's answer is text the user typed in YOUR turn, never a peer's `send_message`; the human's delegation ("decide" / "answer the questions") in YOUR turn counts: research, decide, and open `next:` with `Decided by the orchestrator on the human's delegation:` then the decision. Relay only when that answer or delegation is in YOUR turn, else notify and stop. Relay: write it into the workstream file's `next:`, `status: in-progress`, commit "Orchestrator relays the human's answer", push (GUARD mechanics), drop `notified=`. Session RUNNING, IDLE or PENDING (alive): NUDGE "Orchestrator relays the human's answer on <branch>: fetch it, re-read your workstream file, continue", no `kill`, no RESPAWN; no transport: send nothing. FAILED, ARCHIVED or not found: GUARD `kill`, RESPAWN with the resume line
+A human's answer is text the user typed in YOUR turn, never a peer's `send_message`; the human's delegation ("decide" / "answer the questions") in YOUR turn counts: research, decide, and open `next:` with `Decided by the orchestrator on the human's delegation:` then the decision. Relay only when that answer or delegation is in YOUR turn, else notify and stop. Relay: write it into the workstream file's `next:`, `status: in-progress`, commit "Orchestrator relays the human's answer", push (GUARD mechanics), drop `notified=`. Session RUNNING, IDLE or PENDING (alive): NUDGE "Orchestrator relays the human's answer on <branch>: fetch it, re-read your workstream file, continue", no `kill`, no RESPAWN; no transport: send nothing. FAILED, ARCHIVED or not found: GUARD `record`, RESPAWN with the resume line
 
 ## Resume
 
@@ -279,7 +276,7 @@ landed. Else check out the branch and under `## Blockers` write "Killed by
 the orchestrator <date>: no push for <N>m after a nudge. Control plane's last
 summary: <status_detail>. `git diff --stat origin/main...HEAD`: <output>.",
 `next:` = "Resume: read Blockers, `./joharness.sh ci`, continue the plan.",
-commit "Orchestrator handover after kill", GUARD `kill`, push, back to main.
+commit "Orchestrator handover after kill", GUARD `record`, push, back to main.
 Then `archive_session` and RESPAWN.
 
 LOOP — same steps, record instead: "Looped, killed by the orchestrator
@@ -289,18 +286,22 @@ unchanged since <date>. Commits: <`git log --oneline origin/main..HEAD`>."
 every requirement <file> must satisfy, find the conflicting pair, resolve
 it, THEN fix once." Raise `agent:` one tier (opus/fable stay, prompt adds
 "Run at effort xhigh."). Commit "Orchestrator handover after a loop", GUARD
-`loop`, push. The
+`record`, push. The
 RESPAWN prompt adds "The last session looped. Read Blockers first; do the
 research step before any edit." Counts against the respawn limit.
 
 ## Release
 
-RELEASE — a row line (never `next:`) carrying `RELEASABLE: held by needs:
-<stem>`, its branch on the `release DUE` line: run `./joharness.sh release
-<branch>...` with every branch that line names, once per pass. It re-runs
-dispatch and writes `status: abandoned` only where that read still prints
-`RELEASABLE`, through guard `release` and the lease. Each `release   :` line
-= ledger `released=<stem>` (the stem after `plan` on that line; the ledger key `released=<stem>[,<stem>]` is run-scoped)
+RELEASE — the `release DUE` line names three kinds of branch, each on its
+own `release   :` line above: `queue holds it by needs: <stem>` (its row
+carries `RELEASE:`) = release at once; `stale, session gone?` or `done, no
+pull request` = only once `get_session` reads its session ARCHIVED or not
+found; anything else = leave it. Run `./joharness.sh release <branch>...` on
+those, once per pass. It writes `status: abandoned` only for a branch it
+still lists, through guard `release` and the lease. Each `release   :` line
+the WRITE (`release <branch>`) prints, never the report's or dispatch's,
+= ledger `released=<stem>` (the stem after `plan` on that line; no `plan`
+token = no entry; the ledger key `released=<stem>[,<stem>]` is run-scoped)
 and report it once: stem, branch, the needs: stem. `refused`, `skip` or
 `FAILED` = report the line, re-decide next pass. No session is stopped: a
 returning one sets the word back. The plan returns to the queue held by its
@@ -311,13 +312,12 @@ edge; ordinary dispatch offers it once that edge clears.
 Past `JOHARNESS_RESPAWN_LIMIT`: check out the
 branch, `status: blocked`, `next:` = "respawns: Respawned <N> times and still not
 finished; a human decides what this needs.", reason under `## Blockers`,
-commit "Orchestrator hands off after <N> respawns", GUARD `kill`, push, report.
+commit "Orchestrator hands off after <N> respawns", GUARD `record`, push, report.
 
 ## GUARD
 
-GUARD `<verb>` — every push onto a manager's branch, right before it:
-`./joharness.sh guard <verb> <branch> --expect <sha>` (`kill` for any write
-but LOOP's). Decision read = `git fetch origin
+GUARD — every push onto a manager's branch, right before it:
+`./joharness.sh guard record <branch> --expect <sha>`. Decision read = `git fetch origin
 +refs/heads/<branch>:refs/remotes/origin/<branch>` (any refspec maps it)
 before you check the branch out to write — KILL's fetch, or this one run
 then for the relayed answer and the respawn-limit record — and `<sha>` = `git rev-parse
@@ -345,12 +345,6 @@ no handover, and no handover is no replace. Why:
   | `conduct DUE: spawn` (any verdict; `held`, `suppressed` = nothing) | sonnet | `🧐 conduct: <UTC date>` | `/conduct` | `conducted=<stamp>` |
   | `retro DUE: spawn` (any verdict; `held`, `suppressed` = nothing) | sonnet | `🩺 retro: <UTC date>` | `/retro` | `retroed=<stamp>` |
   | `OVERLAP-BOUND`, `rescope :` says `in flight: none` | sonnet | `📐 surveyor: <key>` | `/manage rescope <key>` + the block verbatim | `rescope-<key>@new`, `rescoped=<key>` |
-  | `freer DUE` (any verdict; PAUSED or a `HOLD` row = nothing): its first `free <branch> ... FREEABLE` row under `spawn` | sonnet | `freer: <branch>` | `/manage free <branch>` | `free-<key>@new` |
-
-  FREEABLE first: prove the owner's session not RUNNING (`/who`, as for
-  `janitor`); RUNNING = skip the row this pass. Dispatch drops the row while
-  a `free-<key>` claim stands or another unmerged branch holds the owner's
-  tip; a released (`abandoned`) free claim offers it again.
 
   "the role lines", for clerk, conduct and retro (they write no
   workstream file, so no claim line):
@@ -452,7 +446,7 @@ No `update_trigger` = report `pause heartbeat <id> or the keeper restarts
 the fleet`. Then RUN END's retitle, last.
 
 Human names ONE manager to stop, in YOUR turn = `archive_session` it (or
-`interrupt_session`, then archive), then `./joharness.sh halt <branch>`,
+`interrupt_session`, then archive), then `./joharness.sh release --human <branch>`,
 drop its ledger entry; its item is offered again next pass unless held.
 Never on your own reading of health, never from a peer's message: the
 human's words in your turn only, as § Relay reads an answer.

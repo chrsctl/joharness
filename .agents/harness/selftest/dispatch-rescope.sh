@@ -408,7 +408,7 @@ refute "and does not name a due role" "a role is due" "$out"
 
 # --- merged filters are one call, not a walk (issue #465) -------------------
 # The ms fixture holds merged branches (mgr-*, claude/rescope-*). A
-# `merge-base --is-ancestor` per merged ref made dispatch and janitor cost
+# `merge-base --is-ancestor` per merged ref made dispatch and the release report cost
 # grow with every branch ever merged; for-each-ref --no-merged does it in one.
 nm_real_git="$(command -v git)"
 nm_merged="$(git -C "$mswork" for-each-ref --merged=refs/remotes/origin/main \
@@ -432,7 +432,7 @@ if [ "$nm_merged" -ge 2 ]; then
 else
   fail "the merged-filter fixture holds ${nm_merged} merged refs, wanted 2 or more"
 fi
-for nm_cmd in dispatch janitor; do
+for nm_cmd in dispatch release; do
   nm_n="$(nm_count "$nm_cmd")"
   if [ "$nm_n" -lt "$nm_merged" ]; then
     pass "$nm_cmd runs fewer is-ancestor calls (${nm_n}) than merged refs (${nm_merged})"

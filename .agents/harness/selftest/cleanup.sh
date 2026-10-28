@@ -60,6 +60,7 @@ expect "a plan its merged work claimed is asked about" \
   "ask      docs/plans/p-one.md" "$out"
 expect "the plan section asks rather than decides" "This cannot tell" "$out"
 expect "a merged branch is counted" "1 — cosmetic" "$out"
+expect "and named, as the janitor report named it" "  one" "$(sed -n '/^merged branches still standing/,$p' <<<"$out")"
 expect "deleting a branch is named as the human's" \
   "git push origin --delete" "$out"
 

@@ -95,7 +95,7 @@ nothing.
 ## 1. Read
 
 `JOHARNESS_PENDING_SPAWNS=<n> ./joharness.sh dispatch`, `<n>` = manager
-`@new` entries in the ledger (not `rescope-<key>@new` or `free-<key>@new`:
+`@new` entries in the ledger (not `rescope-<key>@new`:
 roles hold no slot). Act on its output only. Then drop every rebuilt entry
 whose stem now has a claimed in-flight row. Never re-run dispatch in a pass.
 
@@ -133,7 +133,7 @@ Act on the FIRST row that matches:
 | any | any | its row line carries `PARKED #<n> RECHECK` | the base moved, no plan names #<n>: RECHECK → ref § Resume, in step 3 as one of this pass's spawns |
 | any | any | its row line carries `PARKED` with `UNPLANNED`, `STUCK` or `UNREADABLE` | nothing is fixing it: notify once, exactly as the human-block row below; never respawn |
 | any | any | its row line carries `PARKED #<n>`, none of the above | a defect's, parked: report only. Never respawn, never notify |
-| any | any | its row line carries `RELEASABLE:` | the queue absorbed the block: RELEASE → ref § Release. Never notify, never respawn |
+| any | any | its row line carries `RELEASE:` | the queue absorbed the block: RELEASE → ref § Release. Never notify, never respawn |
 | any | any | status `blocked`, no `INVALID BLOCK?` | human's. Never respawn. Notify once: `PushNotification` carrying stem, branch, session link, `next:` verbatim; no ledger `notified=<stem>` yet = send and ledger it, else report only. A human's answer or delegation typed in YOUR turn → ref § Relay; else notify and stop |
 | RUNNING | under stall | any | working |
 | RUNNING | `STALL?` | no nudge | NUDGE: "Orchestrator health pass: no push on <branch> for <N>m. Now: /handover, commit, push. Then continue, or set status blocked and stop." Ledger head, `status_detail`. No transport: send nothing, still ledger |
@@ -165,7 +165,8 @@ GUARD `<verb>`, before every push onto a manager's branch → ref § GUARD.
 ## 3. Spawn
 
 Managers: up to `slots`, dispatch's order, rows under `spawn` only. A ledger `held-human=<pr>` entry holds no slot (dropped per ref § Held by human): spawn up to `slots` plus the number of such entries whose branch dispatch still lists as `retired, no claim file`.
-`JOHARNESS_MAX_MANAGERS` caps managers only. Every role session (clerk, scout, conduct reviewer, retro reviewer, surveyor, freer) runs beyond it and holds no
+`JOHARNESS_MAX_MANAGERS` caps managers only. Every role session (clerk,
+scout, conduct reviewer, retro reviewer, surveyor) runs beyond it and holds no
 slot: spawn its line even with every slot full, at most one of each in
 flight. `JOHARNESS_MAX_MANAGERS=0` (`PAUSED`) holds every role too. A line
 or command that says nothing to do spawns nothing.
@@ -178,13 +179,13 @@ or command that says nothing to do spawns nothing.
   spawn` is free; add the reconcile line.
 - `UNPLANNED` or `PARTLY PLANNED` requirement = ONE planning manager, fable,
   effort xhigh.
-- `janitor : stale claim(s) on <branches>`: check each session
-  (`get_session`); for those ARCHIVED or not found run
-  `./joharness.sh janitor --apply <branch>...` yourself — no session. It
+- `release DUE: <branches>`: a `needs:` branch at once; a stale or done
+  one only after `get_session` reads its session ARCHIVED or not found.
+  Run `./joharness.sh release <branch>...` yourself — no session. It
   refuses a claim with `pr:` set. Skip any branch the health pass
   respawned this pass: it has a live manager now.
 - Role sessions (`clerk DUE`, `scout     :`, `conduct DUE`, `retro DUE`,
-  `OVERLAP-BOUND`, `freer DUE`, the human's order) → ref § Role
+  `OVERLAP-BOUND`, the human's order) → ref § Role
   sessions ("A scout issue needs the scout").
 
   A ledger `rescoped=<K>` covers later keys whose holders are all in K.
