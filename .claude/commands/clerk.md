@@ -157,6 +157,10 @@ the pull request body with the evidence, one line each:
      issue left open (`.agents/docs/feedback.md` §4).
 
 A scout proposal that passed the scout gate (§2) is decided like any issue.
+Its `## Measure` command becomes an `## Acceptance` item of the plan
+unchanged; a proposal whose scope is a requirement, not a plan, gets
+`docs/product/<r>.md` with each `## Measure` line (it names its clause) as an
+indented `measure:` line under that clause.
 
 A plan from a `defect:` issue carries an `## Escape` section (Entry, Gate,
 Route: `.agents/docs/plans/README.md`, Shape).
@@ -201,7 +205,8 @@ written, comments posted (link comments counted).
 
 ## Never
 
-- Write code, a requirement, or a research file. Plans only.
+- Write code, a requirement, or a research file. Plans only; the one
+  requirement is a scout proposal's, as above.
 - Edit anything under `./joharness.sh protocol-paths`, or any plan you did
   not write this pass.
 - Close an issue, open an issue, or edit an issue's labels or body. Four
