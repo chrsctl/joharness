@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK4ss2KinjRSUaz7NWc
 agent: opus
 updated: 2026-10-28
-next: Build the per-call reads (hooks first, then joharness.sh dispatch_* helpers), then measure old against new
+next: Read the dfx A/B (calls-C), then full serial selftest, ci, verify, release diff, consumer SHIPS check, verifier
 ---
 
 ## Goal

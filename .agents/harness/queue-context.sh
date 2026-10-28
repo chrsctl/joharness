@@ -120,6 +120,18 @@ claims="$(
     done
 )"
 
+# <stem>: the branch of the first claim on it not abandoned, as
+# `awk -F'\t' '$1 == s && $3 != "abandoned" { print $2; exit }'` reads the
+# claims, in builtins: it runs once per plan and per question.
+claim_of() {
+  local l a b c
+  while IFS= read -r l; do
+    a="${l%%"${TAB}"*}"; l="${l#*"${TAB}"}"
+    b="${l%%"${TAB}"*}"; c="${l#*"${TAB}"}"; c="${c%%"${TAB}"*}"
+    if [ "$a" = "$1" ] && [ "$c" != abandoned ]; then printf '%s\n' "$b"; return 0; fi
+  done <<<"$claims"
+}
+
 # CLAIMS whose manager stopped on a human — the pair, never the branch alone.
 claim_blocked_pairs="$(awk -F'\t' '$3 == "blocked" { print $1 "@" $2 }' <<<"$claims" |
   sort -u | paste -sd' ' -)"
@@ -289,8 +301,7 @@ rows_raw="$(
       done
     fi
 
-    claimed_on="$(awk -F'\t' -v s="$(stem "$f")" \
-      '$1 == s && $3 != "abandoned" { print $2; exit }' <<<"$claims")"
+    claimed_on="$(claim_of "$(stem "$f")")"
 
     # The boundary, applied to this plan.
     scope_note=""
@@ -343,8 +354,7 @@ rrows_raw="$(
     fi
     added="$(git log --diff-filter=A --format=%ct -1 "$ref" -- "$f" 2>/dev/null)"
     # Same claims map as plans, read with the same key.
-    rclaimed="$(awk -F'\t' -v s="$(stem "$f")" \
-      '$1 == s && $3 != "abandoned" { print $2; exit }' <<<"$claims")"
+    rclaimed="$(claim_of "$(stem "$f")")"
     rank=1
     [ "$urgency" = "urgent" ] && rank=0
     [ -z "$rclaimed" ] || rank=$((rank + 2))

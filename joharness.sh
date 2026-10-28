@@ -3350,21 +3350,27 @@ release_stale_rows() {
 # the plans not landed. Report only: no claim to release, and a branch delete
 # is a human's. [<branch-plan rows>] saves the walk when the caller has them.
 release_noclaim_rows() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}" bprows="${1-}" stale_s r name base paths age stems
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" bprows="${1-}" stale_s r name base paths age stems other p
   stale_s="$(num_knob HANDOVER_STALE_SECONDS)"
   [ "$#" -ge 1 ] || bprows="$(dispatch_branch_plans)"
   while IFS= read -r r; do
     [ -n "$r" ] || continue
     name="${r#refs/remotes/origin/}"
     { [ "$name" = "HEAD" ] || [ "$name" = "$base_branch" ]; } && continue
-    # The charset dispatch_branch_plans prints: one name for both reads.
-    [ "$(printf '%s' "$name" | tr -cd 'A-Za-z0-9._/-')" = "$name" ] || continue
+    # The charset dispatch_branch_plans prints: one name for both reads. The
+    # letters spelled out: a range in a glob follows the locale's collation.
+    case "$name" in *[!ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._/-]*) continue ;; esac
     base_mb_v "$r"; base="$MBV"
     [ -n "$base" ] || continue
     paths="$(git -c core.quotePath=false -C "$ROOT" diff --no-renames --name-only \
       "$base" "$r" </dev/null 2>/dev/null)"
     [ -n "$paths" ] || continue
-    printf '%s\n' "$paths" | grep -qvE '^docs/(plans|product|research)/.' && continue
+    # Any path outside plans, product and research: not a plans-only branch.
+    other=0
+    while IFS= read -r p; do
+      case "$p" in docs/plans/?* | docs/product/?* | docs/research/?*) ;; *) other=1; break ;; esac
+    done <<<"$paths"
+    [ "$other" -eq 0 ] || continue
     age="$(dispatch_age_min "$name")"
     { [ -n "$age" ] && [ $((age * 60)) -ge "$stale_s" ]; } || continue
     # A claim it added and retired is an edge waiting on its pull request.
