@@ -640,6 +640,7 @@ SELFTEST_TOPICS=(
   knobs-declared
   reading-budget
   selftest-shards
+  map
 )
 
 # Topics that read state another topic built, one chain per entry, in list

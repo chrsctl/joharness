@@ -484,7 +484,7 @@ refute "orchestrate.md no longer reads the role off the title" \
 # and says a MATCH takes the bare spelling too, so sessions live before the
 # emoji keep counting. Each match site points at that row.
 # shellcheck disable=SC2016 # literal backticks in the needles
-for needle in 'emoji 🔑 keeper, 🎼 orchestrator, 💤 orchestrator (retired), 👯 orchestrator (duplicate), 🔨 manager, 📐 surveyor, 📋 clerk, 🧐 conduct, 🩺 retro.' \
+for needle in 'emoji 🔑 keeper, 🎼 orchestrator, 💤 orchestrator (retired), 👯 orchestrator (duplicate), 🔨 manager, 📐 surveyor, 📋 clerk, 🩺 retro.' \
   'a MATCH accepts the title with or without it'; do
   expect "glossary spells ${needle}" "$needle" "$(tr '\n' ' ' <"$ROOT/.agents/docs/glossary.md" | tr -s ' ')"
 done

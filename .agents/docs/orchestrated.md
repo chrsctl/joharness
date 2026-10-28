@@ -26,8 +26,8 @@ commit `649b832` — docs only, no text reproduced (`.agents/NOTICE`).
 | `./joharness.sh clerk` + `clerk :` line | Open issues become plans only through the clerk (`dispatch` reads `docs/plans/` only). Clock-driven, dated from git, at most one in flight (`joharness.sh:cmd_clerk`, `.claude/commands/clerk.md`). Orthogonal to the verdict. |
 | `./joharness.sh analysis` | One unmerged branch's condition (BLOCKED / STALL? / LOOP?) beside the base branch's current conf. Read by hand; spawns nothing. |
 | `./joharness.sh scout` + `scout :` line | No clock, no backlog trigger, no DRAINED gate: a pass runs on the reviewer's order or on a `scout` issue waiting on the scout (`orchestrate-reference.md`, "A scout issue needs the scout"). Every misread fails closed — never a second scout (`joharness.sh:cmd_scout`, `.claude/commands/scout.md`). |
-| `./joharness.sh conduct` + `conduct :` line | A sample of retired managers' own artifacts, read for how the item was worked, never the diff. Clock-driven, dated from `docs/conduct-log.md`; every misread fails closed (`joharness.sh:cmd_conduct`, `.claude/commands/conduct.md`). |
-| `./joharness.sh retro` + `retro :` line | Sessions that did not come back clean (blocked, abandoned, killed), read from their transcripts for the check that should have caught each failure. Clock-driven, dated from `docs/retro-log.md`; every misread fails closed (`joharness.sh:cmd_retro`, `.claude/commands/retro.md`). |
+| `./joharness.sh retro --audit` + `retro : audit` line | A sample of retired managers' own artifacts, read for how the item was worked, never the diff. Clock-driven, dated from `docs/conduct-log.md`; every misread fails closed (`.claude/commands/retro-audit.md`). |
+| `./joharness.sh retro` + `retro : trace` line | Sessions that did not come back clean (blocked, abandoned, killed), plus the oldest untraced audit CONCERN, read from their transcripts for the check that should have caught each failure. Clock-driven, dated from `docs/retro-log.md`; every misread fails closed (`joharness.sh:cmd_retro`, `.claude/commands/retro.md`). |
 | `.claude/commands/*.md` | The roles, as commands. |
 
 ## Roles
@@ -41,15 +41,15 @@ commit `649b832` — docs only, no text reproduced (`.agents/NOTICE`).
 | surveyor | sonnet | a session, on the `OVERLAP-BOUND` verdict | nothing (declarations, not code) | the held plans' and holders' `scope:` lines for one holder key | its pull request merges, or `done` with nothing to change |
 | clerk | sonnet, opus verifier | a session, on the `clerk DUE` tail line; prelude `./joharness.sh role clerk` | nothing | one plan-only pull request, no workstream file; closes an issue only on DOES NOT HOLD, DUPLICATE or UPSTREAM, opens none but UPSTREAM's on canonical, never writes code, never a core-path-only plan, never plans a scout issue without the reviewer's `approved` comment newer than the scout's newest footed `scout:` comment | its pull request merges, no plan to write (pushes `clerk-noop-<UTC stamp>` at `origin/main`), or `TWIN: deferred` |
 | scout | fable | a session, on the reviewer's order or a `scout` issue waiting on the scout, while `scout :` reads `none in flight`; prelude `./joharness.sh role scout` | nothing | proposal issues on this repository, typed Feature, labelled scout; a research request's answer | its claim retires: NOTHING TO PROPOSE, or the pass's issues filed and replies posted |
-| conduct | sonnet | a session on `conduct DUE`, beyond the cap; prelude `./joharness.sh role conduct` | nothing | one pull request appending ledger rows to `docs/conduct-log.md`, no workstream file; never acts on a CONCERN | its pull request merges, or `TWIN: deferred` |
-| retro | sonnet | a session on `retro DUE`, beyond the cap; prelude `./joharness.sh role retro` | nothing (it files plans, fixes nothing) | one pull request: ledger rows in `docs/retro-log.md` and new plans for mechanisms, no workstream file; never a rule-only fix | its pull request merges, or `TWIN: deferred` |
+| retro (audit) | sonnet | a session on `retro audit DUE`, beyond the cap; prelude `./joharness.sh role retro --audit` | nothing | one pull request appending ledger rows to `docs/conduct-log.md`, no workstream file; never acts on a CONCERN | its pull request merges, or `TWIN: deferred` |
+| retro (trace) | sonnet | a session on `retro DUE`, beyond the cap; prelude `./joharness.sh role retro` | nothing (it files plans, fixes nothing) | one pull request: ledger rows in `docs/retro-log.md` and new plans for mechanisms, no workstream file; never a rule-only fix | its pull request merges, or `TWIN: deferred` |
 
 `JOHARNESS_MAX_MANAGERS` caps managers only; every role session runs beyond
 the cap, one of each in flight, a blocked one included (`orchestrate.md` §3).
 
 ### The role prelude is a command
 
-The clerk, scout and conduct reviewer open with `./joharness.sh role
+The clerk, scout and retro reviewer open with `./joharness.sh role
 <name>` (authority, fetch, the role's report and exits, branch, claim file;
 `--twin` and `--retire` after), which prints `GO <branch>` or `STOP: <reason>`
 last; the command file keeps only the judgement (selftest `role.sh`).
@@ -69,8 +69,8 @@ its limits only.
 | surveyor | the `rescope :` block in its prompt, and the `## Scope` of each plan it renames | the queue, product code, this doc |
 | clerk | `clerk.md` | the queue order, another branch, product code beyond what an issue cites, this doc (except the design doc where an issue cites it: only the cited section; and the files the plan names as anchors, which outrank the product-code limit) |
 | scout | `scout.md` | a plan beyond its frontmatter and `## Goal`, the queue order, product code, another branch's code |
-| conduct | `conduct.md` | any diff body, product code, the queue, this doc |
-| retro | `retro.md` | any diff body, product code, another role's ledger, this doc |
+| retro (audit) | `retro-audit.md` | any diff body, product code, the queue, this doc |
+| retro (trace) | `retro.md` | any diff body, product code, another role's ledger, this doc |
 | worker | its sub-task prompt and the files it names | everything else |
 
 Two spawn levels, never three. A worker that needs a branch is a plan, in the
@@ -207,10 +207,10 @@ Removing the line, on the base first, is the human override.
 | `JOHARNESS_SCOUT_READS` | 12 | outside reads one scout pass makes before it stops researching | counted by the scout in its claim's `## Decisions` |
 | `JOHARNESS_SCOUT_REVIEWER` | empty | GitHub login whose approved comment gates a scout proposal issue; read from the base branch's conf; empty = nothing can be approved | a name the human gives |
 | `JOHARNESS_SCOUT_RESEARCH` | off | exactly `on` lets a scout pass read outside the repository; read from the base branch's conf | a switch: money in one conf line |
-| `JOHARNESS_CONDUCT_HOURS` | 168 | hours since the ledger last landed before a conduct reviewer is due; with no ledger yet, also how far back the sample reaches; 0 = off. An unmerged branch named `conduct-<digit>...` (any prefix) unpushed for a seventh of it, at least 24h, is read as closed by a human | written number: weekly; no baseline, the tally builds one |
-| `JOHARNESS_RETRO_HOURS` | 168 | hours since `docs/retro-log.md` last landed before a retro reviewer is due; 0 = off. An unmerged `retro-<digit>...` branch is in flight, dropped as conduct's | written number: weekly, as conduct |
-| `JOHARNESS_RETRO_SAMPLE` | 3 | sessions that did not come back clean one retro run samples; 0 = off | written number: as conduct |
-| `JOHARNESS_RETRO_EVENTS` | 200 | transcript events a retro reviewer reads per sampled session, counted before the kinds filter | written number: a session's end; earlier failures read secondhand |
+| `JOHARNESS_CONDUCT_HOURS` | 168 | hours since the ledger last landed before an audit is due; with no ledger yet, also how far back the sample reaches; 0 = off. An unmerged `retro-audit-<digit>...` or `conduct-<digit>...` branch (any prefix) unpushed for a seventh of it, at least 24h, is read as closed by a human | written number: weekly; no baseline, the tally builds one |
+| `JOHARNESS_RETRO_HOURS` | 168 | hours since `docs/retro-log.md` last landed before a trace is due; 0 = off. An unmerged `retro-<digit>...` branch is in flight, dropped as audit's | written number: weekly, as audit |
+| `JOHARNESS_RETRO_SAMPLE` | 3 | sessions that did not come back clean one trace run samples; 0 = off | written number: as audit |
+| `JOHARNESS_RETRO_EVENTS` | 200 | transcript events a trace run reads per sampled session, counted before the kinds filter | written number: a session's end; earlier failures read secondhand |
 | `JOHARNESS_DEFECT_PLAN_HOURS` | 48 | hours after the first `defect:` park on an issue with no plan naming it = `PARKED #<n> UNPLANNED`, notified once; 0 lifts it | written number: two clerk cycles |
 | `JOHARNESS_DEFECT_FIX_HOURS` | 72 | hours after the first `defect:` park on an issue with no RESUME = `PARKED #<n> STUCK`, notified once; 0 lifts it | written number: a plan cycle plus a day |
 | `JOHARNESS_DEFECT_RECHECK_HOURS` | 2 | hours after a `defect:` block, no plan naming its issue and the base moved since, before `PARKED #<n> RECHECK`; 0 lifts it | written number: a few merges on an active base |
@@ -225,6 +225,18 @@ command, `joharness.conf` for the repo, else the default; digits only. A
 consumer gets the numbers as prose only — they are not in
 `.agents/scripts/conf-keys.sh`. A session proposes a change with a run's
 evidence; it never sets one (`.agents/harness/AGENTS.md`, Decide alone).
+
+**Why the knobs stay knobs** (settled by a sweep of all 49 `KNOBS` rows).
+None can be made a constant on evidence in this repository. 45 of 49 are
+assigned by a selftest to reach a branch, and constanting one means first
+showing the test reaches it another way; 6 are set by this repo's conf and
+11 are seeded into every consumer's conf (`conf-keys.sh`). The two nothing
+here sets, `JOHARNESS_RESPAWN_LIMIT` and `JOHARNESS_RETRO_EVENTS`, are read
+through `num_knob`, so a consumer conf can set them. The one known consumer,
+`chrsctl/gx`, was not readable in the sweep, so they stay UNKNOWN, never
+CONSTANT. A plan cutting them waits on a session granted `gx` that reads its
+`joharness.conf`. A doc table row, or no doc at all, is not evidence of no
+setter.
 
 ## Bounds
 
