@@ -289,7 +289,7 @@ expect "and the all-held wording names the manager who owns them" \
 # There are TWO ways to read nothing and the earlier spelling stated the wrong one
 # as fact: over an EMPTY queue it said "every one held by a manager" with no plans
 # and no manager anywhere, and that verdict was not one curate.md named, so a
-# curator reaching it had no instruction. Reachable in a way it was not before,
+# a session reaching it had no instruction. Reachable in a way it was not before,
 # because a window of adds whose plans have since finished is a real trigger
 # (verifier r32, which no case could see until this one).
 fixture_rm "$hldwork" "the held plan finishes, leaving nothing at all" \

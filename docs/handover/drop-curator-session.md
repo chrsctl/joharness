@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK3gRRT247pnBtKeY8z
 agent: sonnet
 updated: 2026-10-28
-next: Run verifier, verify, then retire and open PR
+next: Retire commit, open PR, merge
 ---
 
 ## Goal
@@ -25,6 +25,9 @@ Plan: `docs/plans/drop-curator-session.md`.
 - Selftest counts: 3847 passed before, 3742 after. Removed cadence expects: dispatch-curate 100, curate-apply 2, role 5 (+2 added), scout 1, reading-budget 1; kept curate-output cases: 43 in dispatch-curate.
 
 ## Review
+
+- r1: (verifier) no defects; stale comment at dispatch-curate.sh:292 names the removed curator (fixed)
+- r2: edge review: `role curate` stub exits 0 for consumers' stale curate.md; knobs-declared case proves retired knobs keep consumer ci green (no change)
 
 ## Blockers
 
