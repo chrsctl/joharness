@@ -339,6 +339,10 @@ Fixture.
 EOF
 printf -- '---\nrequirement: needs-gone\npriority: normal\nneeds: dep, gone-req\n---\n' \
   >"${lwork}/docs/product/needs-gone.md"
+printf 'live_symbol() { :; }\n' >"${lwork}/probe.sh"
+# shellcheck disable=SC2016  # backticks are the fixture's text
+printf 'Prose ref `probe.sh:stale_doc_sym` and `probe.sh:live_symbol`.\n' \
+  >"${lwork}/.agents/docs/plans/README.md"
 cat >"${lwork}/docs/handover/lost-ws.md" <<'EOF'
 ---
 workstream: lost-ws
@@ -398,6 +402,9 @@ Fixture.
 
 ## Where to look
 - `missing/file.sh:symbol` — anchor probe.
+- `probe.sh:gone_symbol` — symbol absent from an existing file.
+- `probe.sh:live_symbol` — symbol present, never warned.
+- `probe.sh:12` — a line number.
 - `https://k3d.io` — a URL is not a path, never warned.
 - `SOME_KNOB_LIMIT=0` — a knob is not a path, never warned.
 - `SOME_ENV_TOGGLE` — no slash, no dot: not this lint's business.
@@ -414,6 +421,16 @@ refute "a requirement needing items that existed and are gone is fine" \
 rm -f "${lwork}/docs/product/needs-gone.md"
 expect "stale anchor warns" \
   "anchor 'missing/file.sh' not in tree" "$out"
+expect "stale symbol warns" \
+  "anchor 'probe.sh:gone_symbol' — symbol not in file" "$out"
+refute "live symbol is not warned" "probe.sh:live_symbol' — symbol" "$out"
+expect "line-number anchor warns" \
+  "anchor 'probe.sh:12' is a line number" "$out"
+expect "stale doc ref warns" \
+  "ref 'probe.sh:stale_doc_sym' — symbol not in file" "$out"
+refute "live doc ref is not warned" "ref 'probe.sh:live_symbol'" "$out"
+rm -f "${lwork}/.agents/docs/plans/README.md"
+printf '# plans\n' >"${lwork}/.agents/docs/plans/README.md"
 refute "URL anchor is not warned" "anchor 'https'" "$out"
 refute "knob anchor is not warned" "anchor 'SOME_KNOB_LIMIT" "$out"
 refute "bare-word anchor is not warned" "anchor 'SOME_ENV_TOGGLE'" "$out"
