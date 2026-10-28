@@ -23,6 +23,7 @@ Plan `docs/plans/anchor-symbol-drift.md`: warn on stale `path:symbol` anchors an
 ## Review
 
 - r1: new cases fail without joharness.sh change: selftest on original joharness.sh = FAIL stale symbol warns, line-number anchor warns, stale doc ref warns (no change)
+- r2: verifier pass at sonnet tier: no defects; cosmetic digit-only symbol like `2024-01` reads as line number (verifier) (wontfix: unlikely, warn only)
 
 ## Blockers
 
