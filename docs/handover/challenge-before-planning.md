@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK6mXq7g3A6BrcNGZYZ
 agent: sonnet
 updated: 2026-10-28
-next: Write challenger.md, subagents.md lines, manage-reference Challenge section, manage.md clause
+next: Run ci and verify, then open PR (body: consumers receive .claude/agents/challenger.md at sync and run ci over it)
 ---
 
 ## Goal
@@ -24,6 +24,9 @@ planning, and run plan-checker on every plan a planning pass writes.
 - A4: confirmed — checked below.
 
 ## Review
+
+- r1: ci selftest: manage.md `ref § Challenge;` parsed as heading name (verifier: clean pass otherwise) (fixed)
+- r2: verifier could not finish ci/verify in its window; no defect found in the diff (verifier) (no change)
 
 ## Blockers
 
