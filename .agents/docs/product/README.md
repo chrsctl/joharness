@@ -112,7 +112,8 @@ windows the row is a leftover and the requirement is offered again.
 **No author or status line in a requirement or a plan.** Provenance is
 commits ([`../graph.md`](../graph.md), Rules). No detector writes the
 requirement: the human writes it, or from a scout proposal the reviewer
-approved ([`.claude/commands/scout.md`](../../../.claude/commands/scout.md)).
+approved, including a seeded `/scout <idea>` pass
+([`.claude/commands/scout.md`](../../../.claude/commands/scout.md)).
 
 **The scout's brief.** Path `docs/product/SCOUT.md`, written by the reviewer
 on the base branch, no frontmatter, four headings: `## Product`, `## Users`,

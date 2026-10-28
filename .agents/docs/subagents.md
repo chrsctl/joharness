@@ -43,6 +43,8 @@ Fan-out names two mechanisms; plans and managers' prompts mean the second:
 - **Plan check.** One reader that did not write an opus or fable plan, before
   its first worker: `.claude/agents/plan-checker.md`, findings tagged
   `(plan-checker)`.
+- **Challenge.** One reader per lens on a requirement, before any plan is
+  written: `.claude/agents/challenger.md`, findings tagged `(challenger)`.
 - **Consumer upkeep**, the Subagent row of [Pick route](consumer-repos.md#pick-route).
   Canonical repo: not applicable, `upgrade` refuses to run here.
 - **Research sweeps** — read many files, return the conclusion only.
@@ -55,6 +57,8 @@ Fan-out names two mechanisms; plans and managers' prompts mean the second:
 - **Verifier**: its tier, the branch, the merge base sha (or a detached
   worktree path), the plan stem. Nothing else.
 - **Plan-checker**: the plan file path. Nothing else.
+- **Challenger**: the path of the text under challenge and one lens name.
+  Nothing else; `.claude/agents/challenger.md` reports more as a finding.
 - **Never**: why the code is shaped as it is, earlier findings or `## Review`
   lines, a summary of the session, what to focus on.
 - An explanation is the thing that stops a reader seeing the defect.

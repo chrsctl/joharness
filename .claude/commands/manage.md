@@ -35,7 +35,7 @@ pointer fires.
    - `docs/research/<q>.md` — settle it, graduate the answer, delete the
      file (`.agents/docs/research/README.md`). Same claim, same finish.
    - `docs/product/<r>.md` — UNPLANNED (PARTLY PLANNED: the unserved
-     clauses only, `serves:`): decompose into plans (`/plan`), pull
+     clauses only, `serves:`): challenge first (ref § Challenge.), then decompose into plans (`/plan`), pull
      request carrying the plans only, merge, exit. Never implement. Nothing
      left to plan? One of the exits in `.agents/docs/product/README.md`, "A
      requirement no plan can serve".
