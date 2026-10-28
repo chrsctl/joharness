@@ -86,3 +86,34 @@ printf 'x\n' >"${mwork}/café/f.txt"
 commit_all "$mwork" "non-ascii folder"
 out="$(map_run)"
 expect "non-ascii folder is named as itself" "missing : café/" "$out"
+
+# --- finish: a branch that adds or removes a product folder carries its line.
+map_finish() { CLAUDE_PROJECT_DIR="$mwork" JOHARNESS_CONF="${mwork}/joharness.conf" \
+  GITHUB_ACTIONS='' JOHARNESS_CHECKS='' "${mwork}/joharness.sh" finish 2>&1; }
+mfin_sec() { sed -n '/^== map$/,/^$/p' <<<"$1"; }
+git -C "$mwork" checkout -q -b mapadd main
+mkdir -p "${mwork}/newmod"
+printf 'x\n' >"${mwork}/newmod/f.txt"
+commit_all "$mwork" "add newmod"
+out="$(mfin_sec "$(map_finish)")"
+expect "finish names the folder this branch added" "missing : newmod/" "$out"
+expect "finish says how to fix it" "run /map on this branch" "$out"
+refute "finish skips drift this branch did not cause" "café" "$out"
+mapline newmod 'a new module' >>"${mwork}/docs/MAP.md"
+commit_all "$mwork" "map newmod"
+out="$(map_finish)"
+refute "finish passes once the map carries the line" "== map" "$out"
+git -C "$mwork" checkout -q -b mapedit main
+printf 'z\n' >"${mwork}/app/f.txt"
+commit_all "$mwork" "edit app"
+out="$(map_finish)"
+refute "an edit in a mapped folder never fails finish" "== map" "$out"
+git -C "$mwork" checkout -q -b mapnone main
+git -C "$mwork" rm -q docs/MAP.md
+mkdir -p "${mwork}/fresh"
+printf 'x\n' >"${mwork}/fresh/f.txt"
+commit_all "$mwork" "no map, new folder"
+out="$(mfin_sec "$(map_finish)")"
+expect "no map: finish asks for the folder this branch added" "missing : fresh/" "$out"
+refute "no map: finish names only what this branch touched" "missing : app/" "$out"
+git -C "$mwork" checkout -q main

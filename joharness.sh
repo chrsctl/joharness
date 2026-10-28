@@ -6494,6 +6494,7 @@ cmd_finish() {
   fi
 
   run_check "workstream files" finish_adds "$ref"
+  run_check map finish_map "$ref"
   [ "$CHECK_VERBOSE" != 1 ] || fin_promote "$ref"
 
   checks_local && is_local=1
@@ -7518,6 +7519,46 @@ lint_map() {
   for row in "${MAP_ROWS[@]}"; do
     lint_warn "${MAP_FILE}: ${row#*$'\t'} — /map refreshes it"
   done
+}
+
+# Step 7: a branch that adds or removes a product folder carries the map line
+# for it. Only drift this branch caused fails; edits and old drift never do.
+finish_map() {
+  local ref="$1" f d row hit="" other=0
+  local -A touched=()
+  map_scan nostale
+  if [ "${#MAP_SET[@]}" -eq 0 ]; then
+    printf 'map: no product folders\n'
+    return 0
+  fi
+  if [ "$MAP_HAS" -eq 0 ]; then
+    MAP_ROWS=()
+    for d in "${MAP_SET[@]}"; do MAP_ROWS+=("${d}"$'\t'"missing : ${d}/"); done
+  fi
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    d="$f"
+    while [ "$d" != "${d%/*}" ]; do
+      d="${d%/*}"
+      touched["$d"]=1
+    done
+  done < <(git -C "$ROOT" -c core.quotepath=false diff --name-only \
+    --diff-filter=AD "${ref}...HEAD" 2>/dev/null)
+  for row in "${MAP_ROWS[@]}"; do
+    if [ -n "${touched["${row%%$'\t'*}"]:-}" ]; then
+      hit="${hit}  ${row#*$'\t'}"$'\n'
+    else
+      other=$((other + 1))
+    fi
+  done
+  if [ -n "$hit" ]; then
+    printf '%s' "$hit" | LC_ALL=C sort
+    printf 'run /map on this branch: it builds or refreshes %s\n' "$MAP_FILE"
+    return 1
+  fi
+  printf 'map: reflects this branch'
+  [ "$other" -eq 0 ] || printf ' (%d drift rows this branch did not cause)' "$other"
+  printf '\n'
 }
 
 cmd_curate() {
