@@ -7,7 +7,7 @@ needs: none
 requirement: none
 serves: all
 issue: none
-scope: shared:.agents/harness/selftest.sh, .agents/harness/selftest/dispatch.sh, .agents/harness/selftest/dispatch-park.sh, .agents/harness/selftest/release.sh, .agents/harness/selftest/release-halt.sh, .agents/harness/selftest/ci-selftest-scope.sh
+scope: shared:.agents/harness/selftest.sh, .agents/harness/selftest/selftest-shards.sh, .agents/harness/selftest/dispatch.sh, .agents/harness/selftest/dispatch-park.sh, .agents/harness/selftest/release.sh, .agents/harness/selftest/release-halt.sh, .agents/harness/selftest/ci-selftest-scope.sh
 ---
 
 ## Goal
@@ -34,11 +34,21 @@ same 3736 cases in 327 s (-19.5%), at the floor (topic sum / 4). Build that.
   `dispatch` and `release-halt` right after `release` in `SELFTEST_TOPICS`.
   Add `SELFTEST_FIRST=( dispatch-park dispatch release scout release-halt
   dispatch-branch-plans bootstrap-consumer )`: `selftest_worker` claims the
-  units whose first topic is named there first, in that order, then the
-  rest in list order. Output still prints in list order (it already does:
-  `selftest_shards` reads per topic). A `SELFTEST_FIRST` name that is not
-  listed, or is not a unit's first topic, is FATAL beside the chain checks.
-  The header records why (research `selftest-runtime`, graduated there).
+  units whose FIRST topic is named there before the rest, both groups in
+  LIST order — the order research `selftest-runtime` measured; the array's
+  own order decides nothing. Output still prints in list order (it already
+  does: `selftest_shards` reads per topic). A name the current run has no
+  unit for is ignored by the worker, so `selftest-shards.sh`'s fixture,
+  which calls `selftest_shards` with its own topics, runs unchanged. At
+  top level, a `SELFTEST_FIRST` name not in `SELFTEST_TOPICS`, or not the
+  first topic of its unit, is FATAL beside the chain checks. The header
+  records why (research `selftest-runtime`, graduated there).
+- `.agents/harness/selftest/selftest-shards.sh` — a case: with a
+  `SELFTEST_FIRST` naming the fixture's LAST unit and one job, that unit's
+  output is claimed first (read its `u<n>.claim/start` against the others',
+  or a marker each fixture topic appends), and the printed output order is
+  unchanged. Cases for both FATAL halves (unlisted name; a chain member that
+  is not its unit's first topic), each failing without its check.
 - `.agents/harness/selftest/ci-selftest-scope.sh` — replace the written
   "16s of a 22s ci run" with words that carry no number.
 
@@ -51,6 +61,9 @@ same 3736 cases in 327 s (-19.5%), at the floor (topic sum / 4). Build that.
   state — evidence: `grep -nE 'jwork|jan\b|jdsp|jqueue|jcommit|jplan|jgone|jclaim|jconf'` — confidence: high.
 - A3: the runner's function-name duplicate check passes, since functions
   move and none is copied — evidence: research run 6 — confidence: high.
+- A4: `selftest-shards.sh:st_run` calls `selftest_shards` with its own
+  topic list and inherits global arrays — evidence: that function —
+  confidence: high.
 
 ## Out of scope
 
@@ -67,10 +80,12 @@ same 3736 cases in 327 s (-19.5%), at the floor (topic sum / 4). Build that.
 - `bash .agents/harness/selftest.sh 2>&1 | grep -E '^  (PASS|FAIL|SKIP) ' | sort`
   against the same on the merge base: differs only in lines printing a
   measured time or a file count.
-- `time bash .agents/harness/selftest.sh` on 4 CPUs, before and after, both
-  recorded in the workstream file with the command and the CPU count.
-- A `SELFTEST_FIRST` entry naming an unlisted topic exits 1 with a message
-  (a case in the runner's own checks, failing without the check).
+- `time bash .agents/harness/selftest.sh` on 4 CPUs, merge base and head
+  alternating, two runs each, nothing else running: the head's mean at most
+  0.9x the base's. All four numbers, the command and `nproc` in the
+  workstream file.
+- The `selftest-shards` cases above pass, and fail with the claim-order
+  code or a FATAL check removed.
 - `./joharness.sh ci` and `./joharness.sh verify` green.
 
 ## Where to look

@@ -13,19 +13,21 @@
 # count, at most 4; 1 = one worker). Each topic's output prints at its place
 # in the list and the counts are summed, so any job count prints the same.
 #
-# Where the time goes (research selftest-runtime, measured at d8cc1328 on 4
-# CPUs with a per-topic timing patch that did not ship): 406 s wall with 4
-# workers, 996 s with 1. The time is commands, not assertions: 3736 greps
-# cost under 1%, fixture builds a few percent. `joharness.sh dispatch` calls
-# are the bulk — the topics built on them (dispatch, dispatch-*, release)
-# were 53% of the serial sum, a call priced about 0.45 s per claim branch
-# in its fixture. Chains were 8.6%.
+# Where the time goes (research selftest-runtime; its timing patch and
+# commands are in the research file, recoverable with `git log --all --
+# docs/research/selftest-runtime.md`): at d8cc1328 on 4 CPUs, 406 s wall
+# with 4 workers, 996 s with 1. The time is commands, not assertions: case
+# greps cost under 1%, fixture builds an estimated few percent. The topics
+# built on `joharness.sh dispatch` calls (dispatch, dispatch-*, release)
+# were 53% of the serial sum, a call priced 0.15 to 0.42 s per origin ref
+# of its fixture. Chains were 8.6%.
 #
 # The budget: wall time is at least the topic sum over the job count, and at
-# least the longest unit. A unit over a quarter of the sum holds the run
-# alone while the other workers idle: `dispatch` did, 362 of 406 s. Cut such
-# a unit at a fixture seam (a second scratch repo it builds) rather than
-# skip a case; a case's fail-without-its-fix property moves with its file.
+# least the longest unit. A unit near half the 4-worker wall holds the end
+# of the run while the other workers idle: `dispatch` ran 362 of 406 s and
+# alone for the last 98. Cut such a unit at a fixture seam (a second
+# scratch repo it builds) rather than skip a case; a case's
+# fail-without-its-fix property moves with its bytes.
 
 set -uo pipefail
 
