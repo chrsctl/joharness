@@ -63,7 +63,7 @@ rb_bound clerk.md 14415 "${ROOT}/.claude/commands"
 rb_bound scout.md 12432 "${ROOT}/.claude/commands"
 # keeper.md 5134 bytes, 2026-10-23.
 rb_bound keeper.md 5134 "${ROOT}/.claude/commands"
-# retro-audit.md 5859 bytes, 2026-10-28; the bound is conduct.md's, moved with it.
+# retro-audit.md 6399 bytes, 2026-10-28 (C2 added); the bound is conduct.md's, moved with it.
 rb_bound retro-audit.md 6668 "${ROOT}/.claude/commands"
 # upstream-report.md 5671 bytes, 2026-10-23.
 rb_bound upstream-report.md 5671 "${ROOT}/.claude/commands"
