@@ -825,11 +825,11 @@ git -C "$scout_work" checkout -qb conduct-2026-02-13 main
 cat >"${scout_work}/docs/conduct-log.md" <<EOF2
 # Conduct log
 
-| date | stem | C1 | note |
-|------|------|----|------|
-| 2026-02-12 | ${cfirst} | FINE | - |
-| 2026-02-13 | zulu | CONCERN | Acceptance: \`grant x\` prints OK |
-| 2026-02-13 | yankee | NO EVIDENCE | plan file missing |
+| date | stem | C1 | C2 | note |
+|------|------|----|----|------|
+| 2026-02-12 | ${cfirst} | FINE | FINE | - |
+| 2026-02-13 | zulu | CONCERN | N/A | Acceptance: \`grant x\` prints OK |
+| 2026-02-13 | yankee | NO EVIDENCE | FINE | plan file missing |
 | 2026-02-13 | ${cfirst} | FINE | - |
 EOF2
 scommit "a reviewer's ledger, long ago" '2026-02-13T00:00:00Z'
@@ -855,6 +855,9 @@ expect "retro --audit: the tally counts runs and branches, a stem once" \
   "tally     : 2 run(s), 3 branch(es) sampled" "$out"
 expect "retro --audit: and each verdict per question" \
   "C1  FINE 1  CONCERN 1  NO EVIDENCE 1  CONCERN rate 50% of 2" "$out"
+expect "retro --audit: C2 names N/A and a row written before C2, never unparsed" \
+  "C2  FINE 1  CONCERN 0  NO EVIDENCE 0  N/A 1  not asked 1" "$out"
+crefute "retro --audit: no C2 cell is unparsed" "unparsed" "$out" "tally     : 2 run(s)"
 # Of the stems above, only the one merged while the reviewer was in flight.
 expect "retro --audit: a retire merged while the reviewer was in flight is sampled" \
   "sample    : 1 branch(es)" "$out"
