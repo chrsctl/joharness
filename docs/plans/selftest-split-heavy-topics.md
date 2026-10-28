@@ -16,7 +16,8 @@ scope: shared:.agents/harness/selftest.sh, .agents/harness/selftest/selftest-sha
 `dispatch` (362 s), is the critical path while three workers idle. Research
 `selftest-runtime` measured that cutting `dispatch` and `release` at their
 fixture seams, and letting workers claim the longest units first, runs the
-same 3736 cases in 327 s (-19.5%), at the floor (topic sum / 4). Build that.
+same 3736 cases in a mean 312 s against 406 s (-23%, two runs per arm),
+at the floor (topic sum / 4). Build that.
 
 ## Scope
 

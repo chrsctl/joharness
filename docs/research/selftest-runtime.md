@@ -233,9 +233,12 @@ identical but for two measured-time lines and the shipped-file count
 F4. **Split plus heavy-first reaches the floor.** Run 6 (n=1): split alone
 355 s (-12.5% on run 1's 406 s); split with the `ST_FIRST` units claimed
 first, in list order, 327 s (-19.5%), against a floor of 319 s (topic sum /
-4). Run 9 (n=2 per arm, quiet box): RUN9. `dispatch-park` (221 s under
+4). Run 9 (n=2 per arm, quiet box, alternating): base 405.6 and 406.8 s,
+candidate 317.4 and 306.1 s, means 406.2 and 311.8 (-23.2%); all four
+3736 passed, 0 failed, 1 skipped. `dispatch-park` (221 s under
 contention) is then the critical path. The simulation predicted 332 and 314.
-RUN9VERDICT
+GROUNDED (runs 6, 9); the simulation WEAK. Run 1 sat inside run 9's
+base range; the Echo's 494 and 532 s were another box or load.
 
 F5. **Chains are not the cost.** The four `SELFTEST_CHAINS` total 85 s of
 988 serial (8.6%); longest `ci-graph-lint clerk` 48 s. GROUNDED (run 3).
@@ -268,7 +271,7 @@ ci run"; runs 1 and 3 refute it. GROUNDED.
 
 Answer: the time is `joharness.sh dispatch` calls, priced per origin ref of
 the fixture, run in one topic that holds the critical path. Split plus
-heavy-first saves ~20% (F4); beyond the floor only cheaper commands help,
+heavy-first saves ~23% (F4); beyond the floor only cheaper commands help,
 the dispatch family's at most 53% of serial work (F2). No case is dropped:
 a case moves with its bytes (F3).
 
@@ -284,7 +287,17 @@ a case moves with its bytes (F3).
 
 ## Verification
 
-Pending: a second context checks the findings.
+Second context: `.claude/agents/verifier.md` at opus, spawned by the
+researching session on this branch, read-only over the diff and the raw
+run files in the session's scratchpad (timing files, git log, strace,
+suite outputs). It recomputed every number of F1-F5 from the raw files and
+re-checked the split seams name by name. Its verdicts, before the fixes
+recorded in the workstream file's `## Review` (r2-r18): F1 GROUNDED; F2
+WEAK (exec count and per-branch price wrong, ratios across runs: fixed
+above); F3 GROUNDED; F4 WEAK (order mis-described, n=1: fixed, run 9
+added); F5 GROUNDED; F6 (now F7) WEAK as stated; F7 (now F8) GROUNDED. The
+raw files lived in the session's scratchpad and are gone with it: a later
+reader re-takes them with the Method's patch and commands, nothing more.
 
 ## Graduates to
 
