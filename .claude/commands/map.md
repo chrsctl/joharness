@@ -53,6 +53,8 @@ branches create them, never all at once.
    only, Loop steps 5 and 7.
 
 Never: write an `INDEX.md` in a protocol folder (`.agents` `.claude`
-`.github` `docs`), edit a `README.md`, touch another file.
+`.github` `docs`); write over or delete an `INDEX.md` whose first line is not
+`# <folder>/` (a person's, which `map` never lists); edit a `README.md`;
+touch another file.
 
 $ARGUMENTS
