@@ -10,7 +10,7 @@ redefines: a second copy of a definition rots against the first.
 | agent tier | which of haiku, sonnet, opus, fable implements a plan | `.agents/docs/agent-selection.md` | model tier |
 | environment layer | one directory under `.agents/env/`, at most one selected per repo | `.agents/env/README.md` | env layer |
 | surveyor | the role that corrects held plans' `scope:` declarations on an `OVERLAP-BOUND` verdict | `.agents/docs/orchestrated.md` | rescope manager |
-| role title | `<emoji> <role>: <subject>`; emoji 🔑 keeper, 🎼 orchestrator, 💤 orchestrator (retired), 👯 orchestrator (duplicate), 🔨 manager, 📐 surveyor, 🧭 curator, 📋 clerk, 🧐 conduct, 🩺 retro. A SET writes the emoji; a MATCH accepts the title with or without it | `.agents/docs/orchestrated.md` | bare role title |
+| role title | `<emoji> <role>: <subject>`; emoji 🔑 keeper, 🎼 orchestrator, 💤 orchestrator (retired), 👯 orchestrator (duplicate), 🔨 manager, 📐 surveyor, 📋 clerk, 🧐 conduct, 🩺 retro. A SET writes the emoji; a MATCH accepts the title with or without it | `.agents/docs/orchestrated.md` | bare role title |
 
 ## What ci checks
 

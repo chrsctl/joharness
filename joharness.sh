@@ -50,7 +50,7 @@
 #                   tally. Report-only
 #   retro           whether a retro reviewer is due, its sample of sessions
 #                   that blocked, were abandoned or were killed. Report-only
-#   role <clerk|scout|curate|conduct|retro> [--session <url>] [--agent <tier>] [--twin|--retire]
+#   role <clerk|scout|conduct|retro> [--session <url>] [--agent <tier>] [--twin|--retire]
 #                   the role's prelude: authority, fetch, report, branch,
 #                   claim; last line GO <branch> or STOP: <reason>
 #   cleanup [--apply]
@@ -129,8 +129,6 @@ JOHARNESS_ORCHESTRATOR_PASSES|6|dispatch|Orchestrator passes a session makes bef
 JOHARNESS_MANAGER_HOURS|4|dispatch|Claim older than this with no pull request = CEILING? report; 0 lifts it.
 JOHARNESS_CHURN_THRESHOLD|5|dispatch|One file rewritten this often = warning.
 JOHARNESS_CHURN_LIMIT|computed|dispatch|One file rewritten this often = LOOP? and ci red; default twice the threshold; 0 lifts it.
-JOHARNESS_CURATE_PLANS|10|dispatch|Plan files changed since the last curate before one is due.
-JOHARNESS_CURATE_HOURS|168|dispatch|Hours since the last curate before one is due; 0 switches the cycle off.
 JOHARNESS_CURATE_REGISTRY|3|dispatch|Plans declaring one path before curate calls it a registry.
 JOHARNESS_CURATE_SPLIT|8|dispatch|Scope bullets before curate proposes a decompose.
 JOHARNESS_CURATE_LAYERS|3|dispatch|Distinct top-level directories in a plan scope: line before curate proposes a decompose; 0 = off.
@@ -4551,7 +4549,7 @@ conduct_candidates() {
     /^docs\/handover\/[A-Za-z0-9._-]+\.md$/ {
       if (skip[$0]) next
       s = $0; sub(/^docs\/handover\//, "", s); sub(/\.md$/, "", s)
-      # Role sessions carry a date in the stem (scout-, curate-, clerk-,
+      # Role sessions carry a date in the stem (scout-, clerk-,
       # janitor-, findings passes); a manager item names its plan, never a day.
       if (s ~ /-[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/) next
       if (s == "README" || s == "TEMPLATE" || s == "RETIRED") next
@@ -5164,7 +5162,7 @@ role_rows() {
 role_line() { grep -m1 -E -- "$1" <<<"$ROLE_OUT"; }
 
 # This branch's own claim files: `docs/handover/<role>-<digit>…` at HEAD and
-# not the base branch's copy. Scout and curate claim by one; clerk and conduct
+# not the base branch's copy. Scout claims by one; clerk and conduct
 # never write one. `--pushed`: only those origin's copy of this branch carries
 # too — a claim that never reached origin holds nothing, so it resumes nothing.
 role_own_claims() {
@@ -5240,7 +5238,6 @@ role_retire_run() {
 # flight. Conduct: the one row is yours and its Clock still reads due.
 role_twin_run() {
   local role="$1" cur rows other line clock
-  [ "$role" != curate ] || { printf 'STOP: curate has no twin rule\n'; return 1; }
   cur="$(role_branch)" || { printf 'STOP: TWIN check: not on a branch\n'; return 1; }
   if ! role_fetch_all; then
     if [ "$role" = scout ] && ! role_retire_run scout; then
@@ -5316,10 +5313,6 @@ role_start_stop() {
       [ -z "$l" ] || { printf '%s' "$l"; return 0; }
       role_line '^retro DUE:' >/dev/null || role_line '^retro : '
       ;;
-    curate)
-      role_line '^PROPOSE \(' >/dev/null ||
-        printf 'no PROPOSE findings — %s' "$(role_line '^verdict   : ' | sed 's/^verdict   : //')"
-      ;;
   esac
 }
 
@@ -5344,8 +5337,9 @@ cmd_role() {
   local role="${1:-}" mode=start session="" agent="" a out verdict line cur name stem today
   local base_branch="${HANDOVER_BASE_BRANCH:-main}" err
   case "$role" in
-    clerk|scout|curate|conduct|retro) shift ;;
-    *) die "usage: $0 role <clerk|scout|curate|conduct|retro> [--session <url>] [--agent <tier>] [--twin|--retire]" ;;
+    clerk|scout|conduct|retro) shift ;;
+    curate) printf 'STOP: the curator role was removed; run ./joharness.sh curate\n'; return 0 ;;
+    *) die "usage: $0 role <clerk|scout|conduct|retro> [--session <url>] [--agent <tier>] [--twin|--retire]" ;;
   esac
   while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -5394,7 +5388,7 @@ cmd_role() {
     printf 'GO %s (resumed)\n' "$cur"
     return 0
   fi
-  case "$role" in scout|curate)
+  case "$role" in scout)
     if [ -z "$session" ] || [ -z "$agent" ]; then
       printf 'STOP: --session and --agent are required for %s\n' "$role"
       return 1
@@ -6905,8 +6899,8 @@ cycle_unreadable() {
   fi
 }
 
-# Hours since the base branch's FIRST commit: the baseline when no curate has
-# ever landed, so "never" is the longest interval rather than a special case.
+# Hours since the base branch's FIRST commit: the baseline when a role has
+# never run, so "never" is the longest interval rather than a special case.
 cycle_repo_age_h() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}" ts now
   ts="$(git -C "$ROOT" log --format=%ct --reverse --max-parents=0 \
@@ -6914,172 +6908,6 @@ cycle_repo_age_h() {
   [ -n "$ts" ] || return 0
   now="$(date +%s)"
   printf '%s' "$(( (now - ts) / 3600 ))"
-}
-
-# The COMMIT of the last curate that landed, empty when none has.
-cycle_landed_sha() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}"
-  git -C "$ROOT" log -1 --format=%H --diff-filter=D --full-history \
-    "refs/remotes/origin/${base_branch}" -- "docs/handover/curate-*.md" \
-    </dev/null 2>/dev/null
-}
-
-# When that curate LANDED, which is not when its retire was committed.
-cycle_landed_ts() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}" sha merge
-  sha="$(cycle_landed_sha)"
-  [ -n "$sha" ] || return 0
-  merge="$(git -C "$ROOT" rev-list --ancestry-path --first-parent \
-    "${sha}..refs/remotes/origin/${base_branch}" </dev/null 2>/dev/null | tail -1)"
-  # Committed straight onto the base branch rather than merged: there is no
-  # merge above it and its own time IS the landing time.
-  [ -n "$merge" ] || merge="$sha"
-  git -C "$ROOT" log -1 --format=%ct "$merge" </dev/null 2>/dev/null
-}
-
-# Hours since the last curate landed, empty when none ever has — which is the
-# signal `dispatch_curate_due` reads to switch to the repository baseline above.
-cycle_age_h() {
-  local ts now
-  ts="$(cycle_landed_ts)"
-  [ -n "$ts" ] || return 0
-  now="$(date +%s)"
-  printf '%s' "$(( (now - ts) / 3600 ))"
-}
-
-# Plan files ADDED or MODIFIED on the base branch since a given commit, or
-# since the beginning when none is given.
-dispatch_curate_plan_churn() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}" from="${1:-}" range
-  range="refs/remotes/origin/${base_branch}"
-  [ -z "$from" ] || range="${from}..refs/remotes/origin/${base_branch}"
-  # ONE git call.
-  # shellcheck disable=SC2086
-  git -C "$ROOT" log --diff-filter=AM --name-only --format='' \
-    $range -- docs/plans \
-    </dev/null 2>/dev/null |
-    gr_docs | sort -u | awk 'END { print NR + 0 }'
-}
-
-# `awk END{print NR+0}`, never `grep -c .
-
-# The newest curate no-op record: `<stamp time>\t<branch>\t<tip sha>`, empty
-# when none. Merged ones only, as `clerk_noop`: an unmerged branch is no pass
-# done. A stamp more than JOHARNESS_CURATE_HOURS ahead of now is a broken clock
-# and dates nothing.
-curate_noop() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}" r ts best=0 bname="" bsha="" lim sha hours
-  hours="$(num_knob JOHARNESS_CURATE_HOURS)"
-  lim=$(( $(date +%s) + hours * 3600 ))
-  while IFS=$'\t' read -r r sha; do
-    ts="$(clerk_stamp_ts "${r#refs/remotes/origin/curate-noop-}")"
-    [ -n "$ts" ] || continue
-    [ "$ts" -le "$lim" ] || continue
-    if [ "$ts" -gt "$best" ]; then best="$ts"; bname="${r#refs/remotes/origin/}"; bsha="$sha"; fi
-  done < <(git -C "$ROOT" for-each-ref --merged="refs/remotes/origin/${base_branch}" \
-    --format='%(refname)%09%(objectname)' 'refs/remotes/origin/curate-noop-*' </dev/null 2>/dev/null)
-  [ "$best" -eq 0 ] || printf '%s\t%s\t%s' "$best" "$bname" "$bsha"
-}
-
-# Is a curate due, and WHY.
-dispatch_curate_due() {
-  local hours plans age churn why
-  # Before any knob: can this checkout answer the question at all.
-  why="$(cycle_unreadable)"
-  if [ -n "$why" ]; then
-    printf 'unreadable %s' "$why"
-    return 0
-  fi
-  hours="$(num_knob JOHARNESS_CURATE_HOURS)"
-  plans="$(num_knob JOHARNESS_CURATE_PLANS)"
-  # `JOHARNESS_CURATE_HOURS=0` alone is STILL the off switch, and that is a
-  # compatibility promise rather than a tidy rule.
-  if [ "$hours" -eq 0 ]; then
-    printf 'off JOHARNESS_CURATE_HOURS=0: no curate is ever due (the whole cycle, for compatibility with the only off switch there used to be)'
-    return 0
-  fi
-  # No curate has ever landed?
-  age="$(cycle_age_h)"
-  if [ -z "$age" ]; then
-    churn="$(dispatch_curate_plan_churn)"
-    age="$(cycle_repo_age_h)"
-    [ -n "$age" ] || age=0
-  else
-    churn="$(dispatch_curate_plan_churn "$(cycle_landed_sha)")"
-  fi
-  local base_word='the last curate'
-  [ -n "$(cycle_landed_sha)" ] || base_word='the queue began, none having landed'
-  # A pass that found nothing to propose leaves a merged `curate-noop-<stamp>`
-  # branch: when newer than the last landing it resets BOTH triggers.
-  local noop nts landed_ts now
-  noop="$(curate_noop)"
-  if [ -n "$noop" ]; then
-    nts="${noop%%$'\t'*}"
-    landed_ts="$(cycle_landed_ts)"
-    if [ -z "$landed_ts" ] || [ "$nts" -gt "$landed_ts" ]; then
-      now="$(date +%s)"
-      [ "$nts" -le "$now" ] || nts="$now"
-      age=$(( (now - nts) / 3600 ))
-      noop="${noop#*$'\t'}"
-      churn="$(dispatch_curate_plan_churn "${noop#*$'\t'}")"
-      base_word="the last curate pass found nothing to propose (${noop%%$'\t'*})"
-    fi
-  fi
-  if [ "$plans" -gt 0 ] && [ "$churn" -ge "$plans" ]; then
-    printf 'due %s plan file(s) changed since %s (>= %s)' "$churn" "$base_word" "$plans"
-    return 0
-  fi
-  if [ "$hours" -gt 0 ] && [ "$age" -ge "$hours" ]; then
-    printf 'due %sh since %s (>= %sh), %s plan file(s) changed' \
-      "$age" "$base_word" "$hours" "$churn"
-    return 0
-  fi
-  # Name only the triggers that are ENABLED. "(of 0h)" reads as a clock that
-  # fired at zero rather than one the human switched off.
-  if [ "$plans" -gt 0 ] && [ "$hours" -gt 0 ]; then
-    printf 'not-due %s plan file(s) changed (of %s) and %sh elapsed (of %sh) since %s' \
-      "$churn" "$plans" "$age" "$hours" "$base_word"
-  else
-    printf 'not-due %sh elapsed (of %sh) since %s; the production trigger is off (JOHARNESS_CURATE_PLANS=0)' \
-      "$age" "$hours" "$base_word"
-  fi
-}
-
-# Curate branches in flight: unmerged, carrying a workstream file this branch
-# ADDED that reads `workstream: curate-<stamp>` and `plan: none`.
-dispatch_curate_branches() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}"
-  local refs r name base wf files doc cws ckey cstat csess cnext cand
-  # `--no-merged` does the merged filter in ONE call, where a
-  # `merge-base --is-ancestor` per ref paid for it 130 times on this checkout.
-  refs="$(git -C "$ROOT" for-each-ref --no-merged="refs/remotes/origin/${base_branch}" \
-    --format='%(refname)' refs/remotes/origin </dev/null 2>/dev/null)"
-  while IFS= read -r r; do
-    [ -n "$r" ] || continue
-    name="${r#refs/remotes/origin/}"
-    { [ "$name" = "HEAD" ] || [ "$name" = "$base_branch" ]; } && continue
-    cand="$(git -C "$ROOT" ls-tree -r --name-only "$r" -- docs/handover \
-      </dev/null 2>/dev/null | grep -i curate)" || continue
-    [ -n "$cand" ] || continue
-    base="$(base_mb "$r")"
-    [ -n "$base" ] || continue
-    files="$(git -C "$ROOT" diff --name-only --diff-filter=ACMRT "$base" "$r" \
-      -- docs/handover </dev/null 2>/dev/null | gr_docs)"
-    while IFS= read -r wf; do
-      [ -n "$wf" ] || continue
-      doc="$(git -C "$ROOT" show "${r}:${wf}" </dev/null 2>/dev/null)"
-      { read -r cws; read -r ckey; read -r cstat; read -r csess; read -r cnext; } \
-        <<<"$(printf '%s\n' "$doc" | gr_fields workstream plan status session next)"
-      # FRONTMATTER decides, never the filename: `workstream: curate-*` AND
-      # `plan: none`.
-      case "$cws" in curate-*) ;; *) continue ;; esac
-      [ "$ckey" = none ] || continue
-      # A RELEASED cycle claim holds nothing: cmd_janitor's test, same spelling.
-      [ "$cstat" = abandoned ] && continue
-      printf '%s\t%s\t%s\t%s\t%s\n' \
-        "$name" "${cws#curate-}" "${cstat:-?}" "${csess:-}" "${cnext:-}"
-    done <<<"$files"
-  done <<<"$refs"
 }
 
 # --- curate: is the live plan queue still fit?
@@ -7382,13 +7210,13 @@ cmd_curate() {
   printf 'plans     : %s free, %s held by a manager (held draw no findings)\n\n' \
     "$n_plans" "$n_held"
   [ -z "$held_rows" ] || { printf 'HELD (a manager owns these declarations):\n%s\n' "$held_rows"; }
-  if [ -n "$repair" ]; then printf 'REPAIR (the curator fixes these in place):\n%s\n' "$repair"; fi
+  if [ -n "$repair" ]; then printf 'REPAIR (--apply fixes these):\n%s\n' "$repair"; fi
   if [ -n "$declutter" ]; then printf 'DECLUTTER (evidence in merged history FIRST, then delete):\n%s\n' "$declutter"; fi
   if [ -n "$propose" ]; then printf 'PROPOSE (write these down; never act):\n%s\n' "$propose"; fi
 
   if [ "$n_plans" -eq 0 ]; then
     if [ "$n_held" -eq 0 ]; then
-      printf 'verdict   : NOTHING READ — the queue is EMPTY: no plan to check, which is not the same as every plan reading true. Still land the date (curate.md 0.4)\n'
+      printf 'verdict   : NOTHING READ — the queue is EMPTY: no plan to check, which is not the same as every plan reading true.\n'
     else
       printf 'verdict   : NOTHING READ — %s plan(s), every one held by a manager: their declarations are not yours. Nothing to do this pass\n' \
         "$n_held"
@@ -7399,7 +7227,6 @@ cmd_curate() {
     printf 'verdict   : CURATE — %s repair(s) (%s mechanical), %s declutter candidate(s), %s proposal(s)\n' \
       "$n_repair" "$n_mech" "$n_declutter" "$n_propose"
   fi
-  printf 'judgement : %s\n' "$((n_repair - n_mech + n_declutter + n_propose))"
   return 0
 }
 
@@ -8159,8 +7986,7 @@ cmd_dispatch() {
   local pending pending_used
   local n_edge=0 n_edge_stall=0 n_leftover=0 n_leftover_noitem=0
   local leftover_rows="" estate="" fleet_age stall_young=""
-  local curate_due=0 curate_inflight="" n_curate_inflight=0 cdue cstate creason
-  local jcands cjudge n_freer=0 n_freer_live=0
+  local jcands n_freer=0 n_freer_live=0
   local scout_inflight="" n_scout=0 sstate sreason sb sw ss spend
   local clerk_due=0 clerk_inflight="" n_clerk=0 kdue kstate kreason kb kw ks
   local conduct_due=0 role_spawned=0 n_conduct=0 odue ostate oreason ob oa conduct_inflight=""
@@ -8229,37 +8055,6 @@ cmd_dispatch() {
     printf 'ceiling   : lifted, no time against a claim (JOHARNESS_MANAGER_HOURS=0)\n'
   fi
   printf 'loop      : one file rewritten %s+ times on a branch = LOOP? (JOHARNESS_CHURN_LIMIT; 0 lifts it); %s+ = a warning on the work line (JOHARNESS_CHURN_THRESHOLD)\n' "$churnl" "$churnt"
-  # The curate cycle's standing state.
-  cdue="$(dispatch_curate_due)"
-  cstate="${cdue%% *}"; creason="${cdue#* }"
-  if [ "$cstate" = due ]; then
-    while IFS=$'\t' read -r cb ck cstat csess cnext; do
-      [ -n "$cb" ] || continue
-      cage="$(dispatch_age_text "$(dispatch_age_min "$cb" </dev/null)")"
-      n_curate_inflight=$((n_curate_inflight + 1))
-      curate_inflight="${curate_inflight}            ${cb}  curate-${ck}  ${cstat}  pushed ${cage}\n"
-      [ -z "$csess" ] || curate_inflight="${curate_inflight}              session: ${csess}\n"
-      [ -z "$cnext" ] || curate_inflight="${curate_inflight}              next: ${cnext}\n"
-    done < <(dispatch_curate_branches)
-  fi
-  if [ "$cstate" = unreadable ]; then
-    printf 'curate    : UNREADABLE — %s\n' "$creason"
-  elif [ "$cstate" = off ]; then
-    printf 'curate    : off — %s\n' "$creason"
-  elif [ "$n_curate_inflight" -gt 0 ]; then
-    printf 'curate    : IN FLIGHT, so none is due. What made it due: %s\n' "$creason"
-    printf '%b' "$curate_inflight"
-  elif [ "$cstate" = due ]; then
-    # A session only for what needs judgement (decompose, order, declutter,
-    # a repair no script can make); mechanical repairs are `curate --apply`.
-    cjudge="$(cmd_curate 2>/dev/null | sed -n 's/^judgement : //p')"
-    case "$cjudge" in '' | *[!0-9]*) cjudge=1 ;; esac
-    curate_due=1
-    [ "$cjudge" -gt 0 ] || curate_due=2
-    printf 'curate    : DUE — %s\n' "$creason"
-  else
-    printf 'curate    : not due — %s\n' "$creason"
-  fi
   # Stale claims with no pr: — no session, the orchestrator proves each
   # session gone and runs the release itself. Silent when there are none.
   jcands="$(janitor_candidates | cut -f1 | sort -u | tr '\n' ' ')"
@@ -8709,7 +8504,7 @@ cmd_dispatch() {
     fi
     n_inflight=$((n_inflight + 1))
     # A freer is a role: beyond the cap, so it holds no manager slot. Still in
-    # flight, blocked included (as a blocked curator is): the health pass
+    # flight, blocked included (as a blocked clerk is): the health pass
     # watches it, and a second one waits.
     n_freer=$((n_freer + 1))
     [ "$rstat" = blocked ] || n_freer_live=$((n_freer_live + 1))
@@ -8742,7 +8537,7 @@ cmd_dispatch() {
   [ "$pending_used" -le "$cap" ] || pending_used="$cap"
   # Subtracted here and nowhere else: every verdict below reads n_slots, so the
   # spawn count, the OVERLAP-BOUND gate and the DRAINED reading follow.
-  # Managers only: a role session in flight (curator, clerk, freer, surveyor,
+  # Managers only: a role session in flight (clerk, freer, surveyor,
   # scout, conduct, retro) runs beyond the cap and subtracts nothing.
   n_slots=$((cap - (n_inflight - n_blocked - n_freer_live) - pending_used))
   [ "$n_slots" -ge 0 ] || n_slots=0
@@ -9124,10 +8919,9 @@ cmd_dispatch() {
       "$pending"
   else
     drained=1
-    # A curate, clerk or freer spawn line follows below when it is due (roles
+    # A clerk or freer spawn line follows below when it is due (roles
     # need no slot; cap is not 0 here): the verdict must not say exit then.
     local role_will_spawn=0
-    [ "$curate_due" -eq 1 ] && role_will_spawn=1
     [ "$clerk_due" -eq 1 ] && [ "$fetch_failed" -eq 0 ] && role_will_spawn=1
     [ "$n_freeable" -gt 0 ] && role_will_spawn=1
     if [ "$role_will_spawn" -eq 1 ]; then
@@ -9183,14 +8977,6 @@ EOF_CW
     printf '            %s plan(s) on HOLD behind work in flight: not counted as free\n' "$n_hold"
   # Roles run beyond the cap: a full fleet of managers holds none of them.
   # JOHARNESS_MAX_MANAGERS=0 is the human's pause, and holds every one.
-  if [ "$curate_due" -eq 1 ] && [ "$cap" -eq 0 ]; then
-    printf '            curate due, held — JOHARNESS_MAX_MANAGERS=0 is the human'"'"'s pause: spawn none\n'
-  elif [ "$curate_due" -eq 1 ]; then
-    role_spawned=1
-    printf '            curate DUE: spawn ONE curator (agent: sonnet) on ./joharness.sh curate — beyond the cap, holds no slot, at most one in flight (JOHARNESS_CURATE_PLANS, JOHARNESS_CURATE_HOURS)\n'
-  elif [ "$curate_due" -eq 2 ]; then
-    printf '            curate due, nothing needs judgement: spawn no curator. Mechanical repairs: ./joharness.sh curate --apply (the next clerk pass runs it)\n'
-  fi
   if [ "$clerk_due" -eq 1 ] && [ "$fetch_failed" -eq 1 ]; then
     printf '            clerk due, held — no fresh view of every branch this pass (fetch failed, DISPATCH_FETCH=0, or a remote.origin.fetch that does not reach refs/heads/*), so a clerk in flight might not show: spawn none this pass\n'
   elif [ "$clerk_due" -eq 1 ] && [ "$cap" -eq 0 ]; then
@@ -9208,10 +8994,10 @@ EOF_CW
     printf '            conduct due, held — JOHARNESS_MAX_MANAGERS=0 is the human'"'"'s pause: spawn none\n'
   elif [ "$conduct_due" -eq 1 ] && [ "$fetch_failed" -eq 1 ]; then
     printf '            conduct due, held — no fresh view of every branch this pass (fetch failed, DISPATCH_FETCH=0, or a remote.origin.fetch that does not reach refs/heads/*), so a reviewer in flight might not show: spawn none this pass\n'
-  # A curate or clerk HELD (a stale view, the pause) does not hold it.
+  # A clerk HELD (a stale view, the pause) does not hold it.
   elif [ "$conduct_due" -eq 1 ] && { [ "$role_spawned" -eq 1 ] ||
-     [ "$n_curate_inflight" -gt 0 ] || [ "$n_clerk" -gt 0 ]; }; then
-    printf '            conduct due, suppressed — a curate or clerk goes first: spawn none this pass\n'
+     [ "$n_clerk" -gt 0 ]; }; then
+    printf '            conduct due, suppressed — a clerk goes first: spawn none this pass\n'
   elif [ "$conduct_due" -eq 1 ]; then
     conduct_spawned=1
     printf '            conduct DUE: spawn ONE conduct reviewer (agent: sonnet) on /conduct — beyond the cap, holds no slot, at most one in flight. It records FINE/CONCERN/NO EVIDENCE per sampled branch in %s and merges that pull request itself (JOHARNESS_CONDUCT_HOURS, JOHARNESS_CONDUCT_SAMPLE)\n' "$CONDUCT_LEDGER"
@@ -9222,8 +9008,8 @@ EOF_CW
   elif [ "$retro_due" -eq 1 ] && [ "$fetch_failed" -eq 1 ]; then
     printf '            retro due, held — no fresh view of every branch this pass (fetch failed, DISPATCH_FETCH=0, or a remote.origin.fetch that does not reach refs/heads/*), so a reviewer in flight might not show: spawn none this pass\n'
   elif [ "$retro_due" -eq 1 ] && { [ "$role_spawned" -eq 1 ] || [ "$conduct_spawned" -eq 1 ] ||
-     [ "$n_curate_inflight" -gt 0 ] || [ "$n_clerk" -gt 0 ] || [ "$n_conduct" -gt 0 ]; }; then
-    printf '            retro due, suppressed — a curate, clerk or conduct goes first: spawn none this pass\n'
+     [ "$n_clerk" -gt 0 ] || [ "$n_conduct" -gt 0 ]; }; then
+    printf '            retro due, suppressed — a clerk or conduct goes first: spawn none this pass\n'
   elif [ "$retro_due" -eq 1 ]; then
     printf '            retro DUE: spawn ONE retro reviewer (agent: sonnet) on /retro — beyond the cap, holds no slot, at most one in flight. It traces each sampled session'"'"'s failures to the check that should have caught them, files plans, adds a missing needs: edge (repair), logs each session in %s and merges that pull request itself (JOHARNESS_RETRO_HOURS, JOHARNESS_RETRO_SAMPLE, JOHARNESS_RETRO_EVENTS)\n' "$RETRO_LEDGER"
   fi
