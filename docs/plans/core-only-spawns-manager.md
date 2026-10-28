@@ -34,7 +34,7 @@ The one missing piece is that dispatch never spawns the manager.
   - A `CORE ONLY` plan becomes spawnable. It is ranked after every free plan, so it never takes a slot ahead of work that needs no human. Its spawn row says the core edit goes in a `human/<stem>` pull request a human merges.
   - Replace the `NOT YOURS — CORE ONLY` block, and the wait line `<n> plan(s) wait on a human core edit`. The new wait line counts open `human/` pull requests holding a claim at `core path: waiting on #<N>`: `<n> pull request(s) wait on a human merge: #<N> …`. This is read from git and the claims (as RESUME is today), never from the GitHub API.
   - `DRAINED` stays the verdict when nothing is left but claims parked on a human merge.
-- `.agents/harness/selftest/` (`dispatch.sh`, `dispatch-order.sh`, `dispatch-park.sh`, `queue-context-core-only.sh`):
+- `.agents/harness/selftest/dispatch.sh`, `.agents/harness/selftest/dispatch-order.sh`, `.agents/harness/selftest/dispatch-park.sh`, `.agents/harness/selftest/queue-context-core-only.sh`:
   - A `CORE ONLY` plan is spawned when slots are free and no free plan is waiting.
   - It ranks after a free plan.
   - Its claim parked `core path: waiting on #N` holds no slot and appears on the new wait line.
