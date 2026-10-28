@@ -22,7 +22,7 @@ Plan `docs/plans/folder-map.md`: `docs/MAP.md` one-line purpose per product fold
 - r1: non-ASCII folder printed as git's quoted escape; ls-files and check-attr lacked core.quotepath=false (verifier) (fixed)
 - r2: Review record empty (verifier) (fixed: this section)
 - r3: AGENTS.md sentence appended to a long line (verifier) (no change)
-- r4: fail-without run: origin/main joharness.sh prints `unknown subcommand 'map'`; without the quotepath fix a café/ repo printed `"caf\303\251/`, with it `café/` (partial: hunks not stashed through full verify)
+- r4: fail-without run: origin/main joharness.sh rejects map as unknown; without the quotepath fix a non-ASCII folder printed git escapes, with it the real name (no change: partial, hunks not stashed through full verify)
 
 ## Blockers
 
