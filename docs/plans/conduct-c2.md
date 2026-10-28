@@ -138,7 +138,7 @@ bash .agents/scripts/c2-run.sh fast-lane | tail -1               # FLIP 28
 
 ## Where to look
 
-- `git show 04974b1f:docs/research/conduct-c2-design-prototype/c2-run.sh` —
+- `git show c10cee3c:docs/research/conduct-c2-design-prototype/c2-run.sh` —
   the measured prototype (prints `C2 FINE` where this plan says `FLIP`);
   `fixtures.sh` beside it builds every trap's fixture stem.
 
