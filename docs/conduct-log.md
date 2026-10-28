@@ -1,9 +1,10 @@
 # Conduct log
 
-The sampling conduct reviewer's ledger (`.claude/commands/conduct.md`,
-issue #251). One row per sampled branch, appended only by a reviewer's pull
-request. `./joharness.sh conduct` prints the sample and the tally; the tally
-is how the owner judges whether the runs are worth their cost.
+Retro's audit ledger (`.claude/commands/retro-audit.md`, issue #251). One row
+per sampled branch, appended only by a reviewer's pull request.
+`./joharness.sh retro --audit` prints the sample and the tally; the tally is
+how the owner judges whether the runs are worth their cost. Retro's trace mode
+reads the CONCERN rows.
 
 Lives outside `.agents/docs/` on purpose: that directory syncs to consumers
 and would overwrite a consumer's ledger with this one.

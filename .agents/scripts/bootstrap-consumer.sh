@@ -141,7 +141,7 @@ CLERK_BATCH="$(conf_key_default JOHARNESS_CLERK_BATCH)"
 SCOUT_READS="$(conf_key_default JOHARNESS_SCOUT_READS)"
 SCOUT_REVIEWER="$(conf_key_default JOHARNESS_SCOUT_REVIEWER)"
 SCOUT_RESEARCH="$(conf_key_default JOHARNESS_SCOUT_RESEARCH)"
-# Not asked either: whether a sampling conduct review is worth its money is
+# Not asked either: whether a sampling audit review is worth its money is
 # something the owner judges from the tally after a few runs.
 CONDUCT_HOURS="$(conf_key_default JOHARNESS_CONDUCT_HOURS)"
 CONDUCT_SAMPLE="$(conf_key_default JOHARNESS_CONDUCT_SAMPLE)"
@@ -729,12 +729,12 @@ JOHARNESS_SCOUT_REVIEWER=${SCOUT_REVIEWER}
 # on = a scout pass reads outside the repository; off = inside evidence only.
 JOHARNESS_SCOUT_RESEARCH=${SCOUT_RESEARCH}
 
-# Hours since the conduct ledger (docs/conduct-log.md) last landed before a
-# sampling conduct reviewer is due; 0 = off. Beyond the cap: each run is the
-# owner's money, and ./joharness.sh conduct prints the tally to judge it by.
+# Hours since the audit ledger (docs/conduct-log.md) last landed before a
+# sampling audit reviewer is due; 0 = off. Beyond the cap: each run is the
+# owner's money, and ./joharness.sh retro --audit prints the tally to judge it by.
 JOHARNESS_CONDUCT_HOURS=${CONDUCT_HOURS}
 
-# Retired branches one conduct run samples; 0 = off.
+# Retired branches one audit run samples; 0 = off.
 JOHARNESS_CONDUCT_SAMPLE=${CONDUCT_SAMPLE}
 EOF
   # Recorded BEFORE the seed, because seed() is the thing that makes the

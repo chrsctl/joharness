@@ -43,11 +43,12 @@
 #   map             docs/MAP.md drift: folders missing, gone or stale. Report-only
 #   scout           whether a scout may run, which is in flight. Report-only
 #   clerk           whether a clerk is due, issues already planned or claimed
-#   conduct         whether a conduct reviewer is due, its sample, the ledger
-#                   tally. Report-only
-#   retro           whether a retro reviewer is due, its sample of sessions
-#                   that blocked, were abandoned or were killed. Report-only
-#   role <clerk|scout|conduct|retro> [--session <url>] [--agent <tier>] [--twin|--retire]
+#   retro --audit   whether an audit reviewer is due, its sample, the ledger
+#                   tally (alias: conduct). Report-only
+#   retro           whether a trace reviewer is due, its sample of sessions
+#                   that blocked, were abandoned or were killed, and the
+#                   oldest audit CONCERN not yet traced. Report-only
+#   role <clerk|scout|retro [--audit]|conduct> [--session <url>] [--agent <tier>] [--twin|--retire]
 #                   the role's prelude: authority, fetch, report, branch,
 #                   claim; last line GO <branch> or STOP: <reason>
 #   cleanup [--apply]
@@ -4308,24 +4309,94 @@ cmd_clerk() {
     "${HANDOVER_BASE_BRANCH:-main}"
 }
 
-# --- The conduct cycle — a sample of merged managers' own artifacts, read for
-# how the work was done, never for what the diff does (issue #251)
+# --- The retro role, two modes (plan retro-audit-and-trace). Audit (once the
+# conduct cycle) samples merged managers' own artifacts for how the work was
+# done, never what the diff does (issue #251); trace reads the sessions that
+# did not come back clean, plus audit CONCERNs not yet traced. One clock,
+# in-flight reader, prelude and branch name, the mode a parameter.
 
-# The ledger: outside .agents/docs/ because that directory syncs to consumers
-# and would overwrite a consumer's ledger with canonical's.
+# The ledgers: outside .agents/docs/ because that directory syncs to
+# consumers and would overwrite a consumer's ledger with canonical's.
 CONDUCT_LEDGER="docs/conduct-log.md"
 
-# The ledger as the base branch carries it. rc 0 = printed, 1 = absent,
-# 2 = unreadable — a misread is never an empty ledger.
-conduct_ledger() {
+# <path> — a ledger as the base branch carries it. rc 0 = printed, 1 =
+# absent, 2 = unreadable — a misread is never an empty ledger.
+retro_ledger_show() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}" ls rc
   ls="$(git -C "$ROOT" ls-tree --name-only "refs/remotes/origin/${base_branch}" \
-    -- "$CONDUCT_LEDGER" </dev/null 2>/dev/null)"; rc=$?
+    -- "$1" </dev/null 2>/dev/null)"; rc=$?
   [ "$rc" -eq 0 ] || return 2
   [ -n "$ls" ] || return 1
-  git -C "$ROOT" show "refs/remotes/origin/${base_branch}:${CONDUCT_LEDGER}" \
+  git -C "$ROOT" show "refs/remotes/origin/${base_branch}:${1}" \
     </dev/null 2>/dev/null | tr -d '\r' || return 2
 }
+
+# <path> — Unix time a ledger last LANDED on the base branch, empty when it
+# never has; `?` = unreadable. First-parent only: the commit there that
+# changed the ledger IS its landing (the merge, or a direct commit). A
+# manager's merge-in of the base branch sits off that line, so it never
+# re-dates the clock.
+retro_landed_ts() {
+  local ts
+  ts="$(git -C "$ROOT" log -1 --first-parent --format=%ct \
+    "refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" -- "$1" \
+    </dev/null 2>/dev/null)" || { printf '?'; return 0; }
+  case "$ts" in *[!0-9]*) printf '?'; return 0 ;; esac
+  printf '%s' "$ts"
+}
+
+# <audit|trace> — the reviewer branch name: `retro-audit-<UTC date>-<HHMM>`
+# or `retro-<UTC date>-<HHMM>`.
+retro_branch_name() {
+  case "$1" in
+    audit) printf 'retro-audit-%s' "$(date -u +%Y-%m-%d-%H%M)" ;;
+    *)     printf 'retro-%s' "$(date -u +%Y-%m-%d-%H%M)" ;;
+  esac
+}
+
+# <audit|trace> <hours> — reviewer branches in flight: an unmerged branch
+# whose LAST path segment (a session may push under a prefix: claude/...)
+# is the mode's dated name — trace `retro-<digit>…`, audit
+# `retro-audit-<digit>…` or the old `conduct-<digit>…`; a manager item's
+# name never carries a digit there. Sessions never delete branches, so one a
+# human closed unmerged stands for ever: past a seventh of the window (at
+# least 24h) since its last push it is dropped, as scout_branches drops
+# `abandoned` rows. Sets RETRO_IF_ROWS (`<branch>\t<age>h` lines); rc 1 =
+# unreadable, RETRO_IF_ERR says why.
+RETRO_IF_ROWS=""
+RETRO_IF_ERR=""
+retro_inflight() {
+  local mode="$1" hours="$2" refs rc b ts now drop
+  RETRO_IF_ROWS=""
+  RETRO_IF_ERR=""
+  refs="$(git -C "$ROOT" for-each-ref --no-merged="refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" \
+    --format='%(refname:lstrip=3)%09%(committerdate:unix)' refs/remotes/origin \
+    </dev/null 2>/dev/null)"; rc=$?
+  if [ "$rc" -ne 0 ]; then
+    RETRO_IF_ERR='the unmerged branches could not be listed'
+    return 1
+  fi
+  now="$(date +%s)"
+  drop=$(( (hours + 6) / 7 ))
+  # Floor: a short clock must not read a reviewer waiting on checks as gone.
+  [ "$drop" -ge 24 ] || drop=24
+  while IFS=$'\t' read -r b ts; do
+    [ -n "$b" ] || continue
+    case "$mode" in
+      audit) case "${b##*/}" in retro-audit-[0-9]* | conduct-[0-9]*) ;; *) continue ;; esac ;;
+      *)     case "${b##*/}" in retro-[0-9]*) ;; *) continue ;; esac ;;
+    esac
+    case "$ts" in '' | *[!0-9]*)
+      RETRO_IF_ERR="no push time for ${b}"; RETRO_IF_ROWS=""; return 1 ;;
+    esac
+    ts=$(( (now - ts) / 3600 ))
+    [ "$ts" -lt "$drop" ] || continue
+    RETRO_IF_ROWS="${RETRO_IF_ROWS}${b}"$'\t'"${ts}h"$'\n'
+  done <<<"$refs"
+}
+
+# Audit's ledger as the base branch carries it (retro_ledger_show).
+conduct_ledger() { retro_ledger_show "$CONDUCT_LEDGER"; }
 
 # The ledger's table rows as `<date>\t<stem>\t<Cn>=<verdict>...`, columns
 # found by header name, so a question added later is one more column.
@@ -4548,28 +4619,22 @@ conduct_sample() {
   done <<<"$cands"
 }
 
-# Hours since the ledger last LANDED on the base branch, empty when it never
-# has; `?` = unreadable. First-parent only: the commit there that changed the
-# ledger IS its landing (the merge, or a direct commit). A manager's merge-in
-# of the base branch sits off that line, so it never re-dates the clock.
+# Hours since audit's ledger last LANDED (retro_landed_ts), empty when it
+# never has; `?` = unreadable.
 conduct_age_h() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}" ts
-  ts="$(git -C "$ROOT" log -1 --first-parent --format=%ct \
-    "refs/remotes/origin/${base_branch}" -- "$CONDUCT_LEDGER" \
-    </dev/null 2>/dev/null)" || { printf '?'; return 0; }
-  [ -n "$ts" ] || return 0
-  case "$ts" in *[!0-9]*) printf '?'; return 0 ;; esac
+  local ts
+  ts="$(retro_landed_ts "$CONDUCT_LEDGER")"
+  case "$ts" in '' | '?') printf '%s' "$ts"; return 0 ;; esac
   printf '%s' "$(( ($(date +%s) - ts) / 3600 ))"
 }
 
-# Is a conduct reviewer due. CONDUCT_DUE = `<state> <why>`, state one of
+# Is an audit reviewer due. CONDUCT_DUE = `<state> <why>`, state one of
 # unreadable off due not-due empty (due, nothing to sample). CONDUCT_ROWS =
 # the reviewer branches in flight, `<branch>\t<age>h`.
 CONDUCT_DUE=""
 CONDUCT_ROWS=""
 conduct_due() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}" hours sample age why base_word
-  local refs rc b ts now drop cands
+  local hours sample age why base_word cands
   CONDUCT_ROWS=""
   why="$(cycle_unreadable)"
   if [ -n "$why" ]; then
@@ -4586,37 +4651,15 @@ conduct_due() {
     CONDUCT_DUE='off JOHARNESS_CONDUCT_SAMPLE=0: nothing is ever sampled'
     return 0
   fi
-  if [ ! -f "${ROOT}/.claude/commands/conduct.md" ]; then
-    CONDUCT_DUE='off no .claude/commands/conduct.md here: nothing for a reviewer to run'
+  if [ ! -f "${ROOT}/.claude/commands/retro-audit.md" ]; then
+    CONDUCT_DUE='off no .claude/commands/retro-audit.md here: nothing for a reviewer to run'
     return 0
   fi
-  # In flight = an unmerged branch whose LAST path segment starts conduct-<digit>
-  # (a session may push under a prefix: claude/conduct-...). Sessions never delete branches,
-  # so one a human closed unmerged stands for ever: past a seventh of the
-  # window (at least 24h) since its last push it is dropped, as scout_branches drops
-  # `abandoned` rows.
-  refs="$(git -C "$ROOT" for-each-ref --no-merged="refs/remotes/origin/${base_branch}" \
-    --format='%(refname:lstrip=3)%09%(committerdate:unix)' refs/remotes/origin \
-    </dev/null 2>/dev/null)"; rc=$?
-  if [ "$rc" -ne 0 ]; then
-    CONDUCT_DUE='unreadable the unmerged branches could not be listed'
+  if ! retro_inflight audit "$hours"; then
+    CONDUCT_DUE="unreadable ${RETRO_IF_ERR}"
     return 0
   fi
-  now="$(date +%s)"
-  drop=$(( (hours + 6) / 7 ))
-  # Floor: a short clock must not read a reviewer waiting on checks as gone.
-  [ "$drop" -ge 24 ] || drop=24
-  while IFS=$'\t' read -r b ts; do
-    [ -n "$b" ] || continue
-    # conduct-<digit>: the reviewer's dated name, never a manager item's.
-    case "${b##*/}" in conduct-[0-9]*) ;; *) continue ;; esac
-    case "$ts" in '' | *[!0-9]*)
-      CONDUCT_DUE="unreadable no push time for ${b}"; CONDUCT_ROWS=""; return 0 ;;
-    esac
-    ts=$(( (now - ts) / 3600 ))
-    [ "$ts" -lt "$drop" ] || continue
-    CONDUCT_ROWS="${CONDUCT_ROWS}${b}"$'\t'"${ts}h"$'\n'
-  done <<<"$refs"
+  CONDUCT_ROWS="$RETRO_IF_ROWS"
   base_word='the ledger last landed'
   age="$(conduct_age_h)"
   if [ "$age" = '?' ]; then
@@ -4627,7 +4670,7 @@ conduct_due() {
   if [ -z "$age" ]; then
     age="$(cycle_repo_age_h)"
     [ -n "$age" ] || age=0
-    base_word='the repository began, no conduct review having run'
+    base_word='the repository began, no audit having run'
   fi
   if [ "$age" -lt "$hours" ]; then
     CONDUCT_DUE="not-due ${age}h since ${base_word} (of ${hours}h)"
@@ -4703,14 +4746,16 @@ conduct_rate() {
     }'
 }
 
+# `retro --audit`; `conduct` is its alias, a consumer's stale conduct.md
+# runs it.
 cmd_conduct() {
   local hours sample due state why b a n_inflight=0 s
-  [ "$#" -eq 0 ] || die "usage: $0 conduct"
+  [ "$#" -eq 0 ] || die "usage: $0 retro --audit"
   hours="$(num_knob JOHARNESS_CONDUCT_HOURS)"
   sample="$(num_knob JOHARNESS_CONDUCT_SAMPLE)"
-  printf '== conduct (every %sh: JOHARNESS_CONDUCT_HOURS; %s branch(es) a run: JOHARNESS_CONDUCT_SAMPLE)\n\n' \
+  printf '== retro audit (every %sh: JOHARNESS_CONDUCT_HOURS; %s branch(es) a run: JOHARNESS_CONDUCT_SAMPLE)\n\n' \
     "$hours" "$sample"
-  printf 'reads no diff: a sampled branch'"'"'s workstream file, commit order and plan Acceptance only (.claude/commands/conduct.md)\n\n'
+  printf 'reads no diff: a sampled branch'"'"'s workstream file, commit order and plan Acceptance only (.claude/commands/retro-audit.md)\n\n'
 
   conduct_due
   due="$CONDUCT_DUE"
@@ -4746,9 +4791,10 @@ cmd_conduct() {
   conduct_tally
 }
 
-# --- The retro cycle — the transcripts of managers that ended badly, read for
-# the check that should have caught each failure (plan retro-role). This
-# reads git only; the reviewer session reads the transcripts.
+# --- Trace — the transcripts of managers that ended badly, read for the check
+# that should have caught each failure (plan retro-role), and audit CONCERNs
+# not yet traced. This reads git only; the reviewer session reads the
+# transcripts.
 
 # Outside .agents/docs/ for the reason CONDUCT_LEDGER is.
 RETRO_LEDGER="docs/retro-log.md"
@@ -4758,17 +4804,8 @@ RETRO_LEDGER="docs/retro-log.md"
 RETRO_LOOP_NOTE='Looped, killed by the orchestrator'
 RETRO_KILL_NOTE='Killed by the orchestrator'
 
-# The ledger as the base branch carries it. rc 0 = printed, 1 = absent,
-# 2 = unreadable.
-retro_ledger() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}" ls rc
-  ls="$(git -C "$ROOT" ls-tree --name-only "refs/remotes/origin/${base_branch}" \
-    -- "$RETRO_LEDGER" </dev/null 2>/dev/null)"; rc=$?
-  [ "$rc" -eq 0 ] || return 2
-  [ -n "$ls" ] || return 1
-  git -C "$ROOT" show "refs/remotes/origin/${base_branch}:${RETRO_LEDGER}" \
-    </dev/null 2>/dev/null | tr -d '\r' || return 2
-}
+# Trace's ledger as the base branch carries it (retro_ledger_show).
+retro_ledger() { retro_ledger_show "$RETRO_LEDGER"; }
 
 # The session URLs the ledger already names, one per line; column by header.
 retro_logged() {
@@ -4780,16 +4817,6 @@ retro_logged() {
     { s = trim($c); if (s != "") print s }'
 }
 
-# Unix time the ledger last LANDED on the base branch (first parent, as
-# conduct_age_h), empty when it never has; `?` = unreadable.
-retro_landed_ts() {
-  local ts
-  ts="$(git -C "$ROOT" log -1 --first-parent --format=%ct \
-    "refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" -- "$RETRO_LEDGER" \
-    </dev/null 2>/dev/null)" || { printf '?'; return 0; }
-  case "$ts" in *[!0-9]*) printf '?'; return 0 ;; esac
-  printf '%s' "$ts"
-}
 
 # Sessions that did not come back clean, from git only: a workstream-file
 # commit on any origin branch, merged or not, whose file then read `status:
@@ -4971,8 +4998,7 @@ RETRO_ROWS=""
 # line; empty otherwise.
 RETRO_QB=""
 retro_due() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}" hours sample age why base_word
-  local refs rc b ts now drop cands landed qb
+  local hours sample age why base_word now cands landed qb con
   RETRO_ROWS=""
   RETRO_QB=""
   why="$(cycle_unreadable)"
@@ -4994,30 +5020,15 @@ retro_due() {
     RETRO_DUE='off no .claude/commands/retro.md here: nothing for a reviewer to run'
     return 0
   fi
-  # In flight: an unmerged branch whose last segment starts retro-<digit>,
-  # dropped past a seventh of the window, as conduct_due.
-  refs="$(git -C "$ROOT" for-each-ref --no-merged="refs/remotes/origin/${base_branch}" \
-    --format='%(refname:lstrip=3)%09%(committerdate:unix)' refs/remotes/origin \
-    </dev/null 2>/dev/null)"; rc=$?
-  if [ "$rc" -ne 0 ]; then
-    RETRO_DUE='unreadable the unmerged branches could not be listed'
+  # An open audit branch (retro-audit-…) is never trace's: retro_inflight.
+  if ! retro_inflight trace "$hours"; then
+    RETRO_DUE="unreadable ${RETRO_IF_ERR}"
     return 0
   fi
+  RETRO_ROWS="$RETRO_IF_ROWS"
   now="$(date +%s)"
-  drop=$(( (hours + 6) / 7 ))
-  [ "$drop" -ge 24 ] || drop=24
-  while IFS=$'\t' read -r b ts; do
-    [ -n "$b" ] || continue
-    case "${b##*/}" in retro-[0-9]*) ;; *) continue ;; esac
-    case "$ts" in '' | *[!0-9]*)
-      RETRO_DUE="unreadable no push time for ${b}"; RETRO_ROWS=""; return 0 ;;
-    esac
-    ts=$(( (now - ts) / 3600 ))
-    [ "$ts" -lt "$drop" ] || continue
-    RETRO_ROWS="${RETRO_ROWS}${b}"$'\t'"${ts}h"$'\n'
-  done <<<"$refs"
   base_word='the ledger last landed'
-  landed="$(retro_landed_ts)"
+  landed="$(retro_landed_ts "$RETRO_LEDGER")"
   if [ "$landed" = '?' ]; then
     RETRO_DUE="unreadable ${RETRO_LEDGER}'s history could not be read"
     RETRO_ROWS=""
@@ -5057,14 +5068,80 @@ retro_due() {
   case "$cands" in
     '?') RETRO_DUE='unreadable the workstream files or the ledger could not be read'
          RETRO_ROWS=""; RETRO_QB=""; return 0 ;;
-    '')  RETRO_DUE="empty ${age}h since ${base_word} (>= ${hours}h), but every session that blocked, was abandoned or was killed is in the ledger" ;;
+    '')
+      # No failed session waits: an untraced audit CONCERN is still work.
+      con="$(retro_concerns)"
+      case "$con" in
+        '?') RETRO_DUE="unreadable ${CONDUCT_LEDGER} or ${RETRO_LEDGER} could not be read"
+             RETRO_ROWS=""; RETRO_QB=""; return 0 ;;
+        '')  RETRO_DUE="empty ${age}h since ${base_word} (>= ${hours}h), but every session that blocked, was abandoned or was killed is in the ledger, and every audit CONCERN is traced" ;;
+        *)   RETRO_DUE="due ${age}h since ${base_word} (>= ${hours}h): an audit CONCERN is not yet traced" ;;
+      esac ;;
     *)   RETRO_DUE="due ${age}h since ${base_word} (>= ${hours}h)" ;;
   esac
 }
 
+# Audit CONCERN rows trace has not logged, oldest first (ledger order within
+# a day): `concern:<date>:<stem>\t<stem>\t<date>` each. A row of any
+# question counts; one whose date or stem is no plain value is skipped. The
+# key goes in the trace ledger's session column, so retro_logged's dedupe
+# retires it, and a session logged for another reason drops no CONCERN.
+# Separate from retro_candidates: the failed-session sample is untouched.
+# `?` alone = unreadable.
+retro_concerns() {
+  local audit arc trace trc logged
+  audit="$(conduct_ledger)"; arc=$?
+  trace="$(retro_ledger)"; trc=$?
+  if [ "$arc" -eq 2 ] || [ "$trc" -eq 2 ]; then
+    printf '?\n'
+    return 0
+  fi
+  [ "$arc" -eq 0 ] || return 0
+  logged="$(printf '%s\n' "$trace" | retro_logged)"
+  printf '%s\n' "$audit" | conduct_rows | logged="$logged" awk -F'\t' '
+    BEGIN { n = split(ENVIRON["logged"], a, "\n"); for (i = 1; i <= n; i++) done[a[i]] = 1 }
+    $1 !~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$/ || $2 !~ /^[A-Za-z0-9._-]+$/ { next }
+    {
+      c = 0; for (i = 3; i <= NF; i++) if ($i ~ /=CONCERN$/) c = 1
+      k = "concern:" $1 ":" $2
+      if (!c || done[k] || seen[k]++) next
+      print k "\t" $2 "\t" $1
+    }' | LC_ALL=C sort -s -t$'\t' -k3,3
+}
+
+# <stem> <date> — the session URL of the stem's workstream file at
+# `<retire>^`, <retire> the newest commit on the base branch that deleted
+# docs/handover/<stem>.md (--full-history, as audit's §2 reads) whose
+# committer date, as a UTC day, is on or before <date>. `none` when no such
+# retire, no file there, or no session URL; `?` = unreadable.
+retro_concern_session() {
+  local stem="$1" day="$2" log sha s
+  log="$(TZ=UTC git -C "$ROOT" log --full-history --diff-filter=D \
+    --date=format-local:%Y-%m-%d --format='%H %cd' \
+    "refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" -- "docs/handover/${stem}.md" \
+    </dev/null 2>/dev/null)" || { printf '?'; return 0; }
+  sha="$(printf '%s\n' "$log" | LC_ALL=C sort -s -k2,2r | awk -v d="$day" 'NF == 2 && $2 <= d { print $1; exit }')"
+  [ -n "$sha" ] || { printf 'none'; return 0; }
+  s="$(git -C "$ROOT" show "${sha}^:docs/handover/${stem}.md" </dev/null 2>/dev/null |
+    tr -d '\r' | gr_field session)"
+  case "$s" in
+    https://claude.ai/code/session_*)
+      case "${s#https://claude.ai/code/session_}" in
+        '' | *[!A-Za-z0-9]*) printf 'none' ;;
+        *) printf '%s' "$s" ;;
+      esac ;;
+    *) printf 'none' ;;
+  esac
+}
+
 cmd_retro() {
-  local hours sample events state why b a n_inflight=0 s
-  [ "$#" -eq 0 ] || die "usage: $0 retro"
+  local hours sample events state why b a n_inflight=0 s con k cs cd se
+  if [ "${1:-}" = --audit ]; then
+    shift
+    cmd_conduct "$@"
+    return
+  fi
+  [ "$#" -eq 0 ] || die "usage: $0 retro [--audit]"
   hours="$(num_knob JOHARNESS_RETRO_HOURS)"
   sample="$(num_knob JOHARNESS_RETRO_SAMPLE)"
   events="$(num_knob JOHARNESS_RETRO_EVENTS)"
@@ -5102,6 +5179,27 @@ cmd_retro() {
            "$(printf '%s\n' "$s" | awk 'END { print NR + 0 }')"
          printf '%s\n' "$s" | sed 's/^/            /' ;;
   esac
+  printf '\n'
+  # At most ONE CONCERN a run, the oldest: failures never starve it, and it
+  # never crowds them out of the sample.
+  con="$(retro_concerns)"
+  case "$con" in
+    # Lower case on purpose: the failed sessions above still run (a role
+    # STOPs on an UNREADABLE line); the CONCERN waits for the next run.
+    '?') printf 'concern   : none read — %s or %s could not be read: take no CONCERN this run\n' \
+           "$CONDUCT_LEDGER" "$RETRO_LEDGER" ;;
+    '')  printf 'concern   : none — every audit CONCERN in %s is traced\n' "$CONDUCT_LEDGER" ;;
+    *)
+      IFS=$'\t' read -r k cs cd <<<"$(printf '%s\n' "$con" | head -1)"
+      se="$(retro_concern_session "$cs" "$cd")"
+      if [ "$se" = '?' ]; then
+        printf 'concern   : none read — the retires of %s could not be read: take no CONCERN this run\n' "$cs"
+      else
+        [ "$se" != none ] || se='session none'
+        printf 'concern   : %s %s %s — trace it from the plan and the workstream file ## Review at the retire'"'"'s parent; log it under %s\n' \
+          "$cs" "$cd" "$se" "$k"
+      fi ;;
+  esac
 }
 
 # --- role — the periodic roles' prelude, one tested command (plan
@@ -5124,7 +5222,10 @@ role_fetch_all() {
 # The role's own report, printed and kept in ROLE_OUT: the role reads it as
 # it would have, so this never rewords it.
 role_report() {
-  ROLE_OUT="$("cmd_$1" 2>&1)"
+  local c="$1"
+  # Audit is retro's mode: its report is `retro --audit`, run by cmd_conduct.
+  [ "$c" != audit ] || c=conduct
+  ROLE_OUT="$("cmd_${c}" 2>&1)"
   printf '%s\n' "$ROLE_OUT"
 }
 
@@ -5140,7 +5241,7 @@ role_rows() {
 role_line() { grep -m1 -E -- "$1" <<<"$ROLE_OUT"; }
 
 # This branch's own claim files: `docs/handover/<role>-<digit>…` at HEAD and
-# not the base branch's copy. Scout claims by one; clerk and conduct
+# not the base branch's copy. Scout claims by one; clerk and retro
 # never write one. `--pushed`: only those origin's copy of this branch carries
 # too — a claim that never reached origin holds nothing, so it resumes nothing.
 role_own_claims() {
@@ -5213,7 +5314,8 @@ role_retire_run() {
 
 # The twin check, after the role's first push. Scout: exactly one row in
 # flight and it is yours. Clerk: yours sorts first by name among those in
-# flight. Conduct: the one row is yours and its Clock still reads due.
+# flight. Retro, either mode: the one row is yours and its Clock still
+# reads due.
 role_twin_run() {
   local role="$1" cur rows other line clock
   cur="$(role_branch)" || { printf 'STOP: TWIN check: not on a branch\n'; return 1; }
@@ -5231,7 +5333,7 @@ role_twin_run() {
   case "$role" in
     scout)   line="$(role_line '^scout     : (UNREADABLE|off)')" ;;
     clerk)   line="$(role_line '^cadence   : UNREADABLE')" ;;
-    conduct) line="$(role_line '^cadence   : (UNREADABLE|off)')" ;;
+    audit)   line="$(role_line '^cadence   : (UNREADABLE|off)')" ;;
     retro)   line="$(role_line '^retro : (UNREADABLE|off)')" ;;
   esac
   other="$(printf '%s\n' "$rows" | grep -vxF -- "$cur" | LC_ALL=C sort | head -1)"
@@ -5254,8 +5356,8 @@ role_twin_run() {
       if printf '%s\n' "$rows" | grep -qxF -- "$cur"; then :
       else other="${line:-no row of yours: ${cur}}"; fi
       ;;
-    conduct|retro)
-      if [ "$role" = conduct ]; then
+    audit|retro)
+      if [ "$role" = audit ]; then
         clock="$(role_line '^cadence   : IN FLIGHT' | sed -n 's/.*Clock: \([^ ]*\).*/\1/p')"
       else
         clock="$(role_line '^retro : IN FLIGHT' | sed -n 's/.*Clock: \([^ ]*\).*/\1/p')"
@@ -5281,7 +5383,7 @@ role_start_stop() {
   [ -z "$l" ] || { printf '%s' "$l"; return 0; }
   case "$role" in
     scout) role_line '^scout     : off' ;;
-    conduct)
+    audit)
       l="$(role_line '^sample    : UNREADABLE')"
       [ -z "$l" ] || { printf '%s' "$l"; return 0; }
       role_line '^cadence   : DUE' >/dev/null || role_line '^cadence   : '
@@ -5313,14 +5415,20 @@ role_claim_write() {
 
 cmd_role() {
   local role="${1:-}" mode=start session="" agent="" a out verdict line cur name stem today
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}" err
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" err title
   case "$role" in
-    clerk|scout|conduct|retro) shift ;;
+    clerk|scout|retro) shift ;;
+    # The old name of retro's audit mode: a consumer's stale conduct.md runs it.
+    conduct) role=audit; shift ;;
     curate) printf 'STOP: the curator role was removed; run ./joharness.sh curate\n'; return 0 ;;
-    *) die "usage: $0 role <clerk|scout|conduct|retro> [--session <url>] [--agent <tier>] [--twin|--retire]" ;;
+    *) die "usage: $0 role <clerk|scout|retro [--audit]|conduct> [--session <url>] [--agent <tier>] [--twin|--retire]" ;;
   esac
   while [ "$#" -gt 0 ]; do
     case "$1" in
+      --audit)
+        case "$role" in retro|audit) role=audit ;;
+          *) die "--audit is a mode of role retro only" ;;
+        esac ;;
       --twin)    mode=twin ;;
       --retire)  mode=retire ;;
       --session) session="${2:-}"; shift ;;
@@ -5329,12 +5437,14 @@ cmd_role() {
     esac
     shift
   done
-  printf '== role %s (%s; the last line is GO or STOP)\n\n' "$role" "$mode"
+  title="$role"
+  [ "$role" != audit ] || title='retro --audit'
+  printf '== role %s (%s; the last line is GO or STOP)\n\n' "$title" "$mode"
   case "$mode" in
     twin) role_twin_run "$role"; return ;;
     retire)
-      case "$role" in clerk|conduct|retro)
-        printf 'STOP: %s writes no claim file: nothing to retire\n' "$role"; return 1 ;;
+      case "$role" in clerk|audit|retro)
+        printf 'STOP: %s writes no claim file: nothing to retire\n' "$title"; return 1 ;;
       esac
       role_retire_run "$role" || return 1
       printf 'GO %s (retired)\n' "$(role_branch)"
@@ -5385,14 +5495,15 @@ cmd_role() {
     { printf 'STOP: fetch failed\n'; return 1; }
   today="$(date -u +%Y-%m-%d)"
   case "$role" in
-    conduct|retro) name="${role}-${today}-$(date -u +%H%M)" ;;
-    *)       name="${role}-${today}" ;;
+    audit) name="$(retro_branch_name audit)" ;;
+    retro) name="$(retro_branch_name trace)" ;;
+    *)     name="${role}-${today}" ;;
   esac
-  name="$(role_free_name "$name")" || { printf 'STOP: every %s-%s name is taken\n' "$role" "$today"; return 1; }
+  name="$(role_free_name "$name")" || { printf 'STOP: every %s name is taken\n' "$name"; return 1; }
   err="$(git -C "$ROOT" checkout -q --no-track -b "$name" "refs/remotes/origin/${base_branch}" 2>&1)" ||
     { printf 'STOP: checkout -b %s failed: %s\n' "$name" "$err"; return 1; }
   printf 'branch    : %s from origin/%s\n' "$name" "$base_branch"
-  case "$role" in clerk|conduct|retro)
+  case "$role" in clerk|audit|retro)
     # Claimed by the first content push; --twin after it.
     printf 'GO %s\n' "$name"; return 0 ;;
   esac
@@ -8082,7 +8193,8 @@ cmd_dispatch() {
   else
     printf 'scout     : none in flight — on the reviewer'"'"'s order or a scout issue waiting on the scout (orchestrate.md) spawn ONE (agent: fable) on /scout, beyond the cap\n'
   fi
-  # The fourth cycle, the same reader (conduct_due) `conduct` asks.
+  # The fourth cycle, retro's audit mode: the reader (conduct_due) `retro
+  # --audit` asks.
   conduct_due
   odue="$CONDUCT_DUE"
   ostate="${odue%% *}"; oreason="${odue#* }"
@@ -8095,22 +8207,22 @@ cmd_dispatch() {
   orate="$(conduct_rate)"
   [ -z "$orate" ] || orate="; ${orate}"
   if [ "$ostate" = unreadable ]; then
-    printf 'conduct   : UNREADABLE — %s\n' "$oreason"
+    printf 'retro     : audit UNREADABLE — %s\n' "$oreason"
   elif [ "$ostate" = off ]; then
-    printf 'conduct   : off — %s%s\n' "$oreason" "$orate"
+    printf 'retro     : audit off — %s%s\n' "$oreason" "$orate"
   elif [ "$n_conduct" -gt 0 ]; then
-    printf 'conduct   : IN FLIGHT, so none is due. Clock: %s %s%s\n' "$ostate" "$oreason" "$orate"
+    printf 'retro     : audit IN FLIGHT, so none is due. Clock: %s %s%s\n' "$ostate" "$oreason" "$orate"
     printf '%b' "$conduct_inflight"
   elif [ "$ostate" = due ]; then
     conduct_due=1
-    printf 'conduct   : DUE — %s%s\n' "$oreason" "$orate"
+    printf 'retro     : audit DUE — %s%s\n' "$oreason" "$orate"
   elif [ "$ostate" = empty ]; then
     conduct_due=2
-    printf 'conduct   : due, nothing to sample — %s%s\n' "$oreason" "$orate"
+    printf 'retro     : audit due, nothing to sample — %s%s\n' "$oreason" "$orate"
   else
-    printf 'conduct   : not due — %s%s\n' "$oreason" "$orate"
+    printf 'retro     : audit not due — %s%s\n' "$oreason" "$orate"
   fi
-  # The fifth cycle, the same reader (retro_due) `retro` asks.
+  # The fifth cycle, retro's trace mode: the reader (retro_due) `retro` asks.
   retro_due
   rtstate="${RETRO_DUE%% *}"; rtreason="${RETRO_DUE#* }"
   while IFS=$'\t' read -r rtb rta; do
@@ -8119,19 +8231,19 @@ cmd_dispatch() {
     retro_inflight="${retro_inflight}            ${rtb}  pushed ${rta} ago\n"
   done <<<"$RETRO_ROWS"
   if [ "$rtstate" = unreadable ]; then
-    printf 'retro     : UNREADABLE — %s\n' "$rtreason"
+    printf 'retro     : trace UNREADABLE — %s\n' "$rtreason"
   elif [ "$rtstate" = off ]; then
-    printf 'retro     : off — %s\n' "$rtreason"
+    printf 'retro     : trace off — %s\n' "$rtreason"
   elif [ "$n_retro" -gt 0 ]; then
-    printf 'retro     : IN FLIGHT, so none is due. Clock: %s %s\n' "$rtstate" "$rtreason"
+    printf 'retro     : trace IN FLIGHT, so none is due. Clock: %s %s\n' "$rtstate" "$rtreason"
     printf '%b' "$retro_inflight"
   elif [ "$rtstate" = due ]; then
     retro_due=1
-    printf 'retro     : DUE — %s\n' "$rtreason"
+    printf 'retro     : trace DUE — %s\n' "$rtreason"
   elif [ "$rtstate" = empty ]; then
-    printf 'retro     : due, nothing to sample — %s\n' "$rtreason"
+    printf 'retro     : trace due, nothing to sample — %s\n' "$rtreason"
   else
-    printf 'retro     : not due — %s\n' "$rtreason"
+    printf 'retro     : trace not due — %s\n' "$rtreason"
   fi
   printf '\n'
 
@@ -8465,7 +8577,7 @@ cmd_dispatch() {
   # Subtracted here and nowhere else: every verdict below reads n_slots, so the
   # spawn count, the OVERLAP-BOUND gate and the DRAINED reading follow.
   # Managers only: a role session in flight (clerk, surveyor, scout,
-  # conduct, retro) runs beyond the cap and subtracts nothing.
+  # retro, either mode) runs beyond the cap and subtracts nothing.
   n_slots=$((cap - (n_inflight - n_blocked) - pending_used))
   [ "$n_slots" -ge 0 ] || n_slots=0
   # A RESUME or RECHECK is a spawn of this pass: it takes a slot ahead of
@@ -8913,27 +9025,28 @@ EOF_CW
   fi
   # Not gated on DRAINED: sampling merged work competes with nothing.
   if [ "$conduct_due" -eq 1 ] && [ "$cap" -eq 0 ]; then
-    printf '            conduct due, held — JOHARNESS_MAX_MANAGERS=0 is the human'"'"'s pause: spawn none\n'
+    printf '            retro audit due, held — JOHARNESS_MAX_MANAGERS=0 is the human'"'"'s pause: spawn none\n'
   elif [ "$conduct_due" -eq 1 ] && [ "$fetch_failed" -eq 1 ]; then
-    printf '            conduct due, held — no fresh view of every branch this pass (fetch failed, DISPATCH_FETCH=0, or a remote.origin.fetch that does not reach refs/heads/*), so a reviewer in flight might not show: spawn none this pass\n'
+    printf '            retro audit due, held — no fresh view of every branch this pass (fetch failed, DISPATCH_FETCH=0, or a remote.origin.fetch that does not reach refs/heads/*), so a reviewer in flight might not show: spawn none this pass\n'
   # A clerk HELD (a stale view, the pause) does not hold it.
   elif [ "$conduct_due" -eq 1 ] && { [ "$role_spawned" -eq 1 ] ||
      [ "$n_clerk" -gt 0 ]; }; then
-    printf '            conduct due, suppressed — a clerk goes first: spawn none this pass\n'
+    printf '            retro audit due, suppressed — a clerk goes first: spawn none this pass\n'
   elif [ "$conduct_due" -eq 1 ]; then
     conduct_spawned=1
-    printf '            conduct DUE: spawn ONE conduct reviewer (agent: sonnet) on /conduct — beyond the cap, holds no slot, at most one in flight. It records FINE/CONCERN/NO EVIDENCE per sampled branch in %s and merges that pull request itself (JOHARNESS_CONDUCT_HOURS, JOHARNESS_CONDUCT_SAMPLE)\n' "$CONDUCT_LEDGER"
+    printf '            retro audit DUE: spawn ONE retro reviewer (agent: sonnet) on /retro-audit — beyond the cap, holds no slot, at most one in flight. It records FINE/CONCERN/NO EVIDENCE per sampled branch in %s and merges that pull request itself (JOHARNESS_CONDUCT_HOURS, JOHARNESS_CONDUCT_SAMPLE)\n' "$CONDUCT_LEDGER"
   fi
-  # As conduct, and one reviewer of either kind a pass: conduct goes first.
+  # Trace as audit, and one retro reviewer of either mode a pass: audit
+  # goes first.
   if [ "$retro_due" -eq 1 ] && [ "$cap" -eq 0 ]; then
     printf '            retro due, held — JOHARNESS_MAX_MANAGERS=0 is the human'"'"'s pause: spawn none\n'
   elif [ "$retro_due" -eq 1 ] && [ "$fetch_failed" -eq 1 ]; then
     printf '            retro due, held — no fresh view of every branch this pass (fetch failed, DISPATCH_FETCH=0, or a remote.origin.fetch that does not reach refs/heads/*), so a reviewer in flight might not show: spawn none this pass\n'
   elif [ "$retro_due" -eq 1 ] && { [ "$role_spawned" -eq 1 ] || [ "$conduct_spawned" -eq 1 ] ||
      [ "$n_clerk" -gt 0 ] || [ "$n_conduct" -gt 0 ]; }; then
-    printf '            retro due, suppressed — a clerk or conduct goes first: spawn none this pass\n'
+    printf '            retro due, suppressed — a clerk or an audit goes first: spawn none this pass\n'
   elif [ "$retro_due" -eq 1 ]; then
-    printf '            retro DUE: spawn ONE retro reviewer (agent: sonnet) on /retro — beyond the cap, holds no slot, at most one in flight. It traces each sampled session'"'"'s failures to the check that should have caught them, files plans, adds a missing needs: edge (repair), logs each session in %s and merges that pull request itself (JOHARNESS_RETRO_HOURS, JOHARNESS_RETRO_SAMPLE, JOHARNESS_RETRO_EVENTS)\n' "$RETRO_LEDGER"
+    printf '            retro DUE: spawn ONE retro reviewer (agent: sonnet) on /retro — beyond the cap, holds no slot, at most one in flight. It traces each sampled session'"'"'s failures, and at most one audit CONCERN, to the check that should have caught them, files plans, adds a missing needs: edge (repair), logs each session in %s and merges that pull request itself (JOHARNESS_RETRO_HOURS, JOHARNESS_RETRO_SAMPLE, JOHARNESS_RETRO_EVENTS)\n' "$RETRO_LEDGER"
   fi
   [ "$n_edge" -eq 0 ] ||
     printf '            %s branch(es) at the edge with no claim file: each holds a slot because its item is STILL on %s, so that merge has not landed. The control plane says what to do about the session, never whether the slot is real\n' \
@@ -9153,6 +9266,7 @@ main() {
     halt)           cmd_release --human "$@" ;;
     guard)          cmd_guard "$@" ;;
     scout)          cmd_scout "$@" ;;
+    # The old name of `retro --audit`: identical output.
     conduct)        cmd_conduct "$@" ;;
     retro)          cmd_retro "$@" ;;
     clerk)          cmd_clerk "$@" ;;
