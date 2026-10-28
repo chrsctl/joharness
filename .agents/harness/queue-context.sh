@@ -762,7 +762,6 @@ n_withheld=0
 wentry=""
 wpath=""
 wbranch=""
-wraw=""
 wscope=""
 wshared=""
 i=0

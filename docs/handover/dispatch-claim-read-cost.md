@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK4ss2KinjRSUaz7NWc
 agent: opus
 updated: 2026-10-28
-next: Read the dfx A/B (calls-C), then full serial selftest, ci, verify, release diff, consumer SHIPS check, verifier
+next: ci and verify green (verify hit Docker Hub 429 once), then the verifier at opus
 ---
 
 ## Goal
@@ -52,6 +52,47 @@ commit for churn, and ~20 small execs (grep, comm, sort, awk).
 On this repository (19 unmerged of 455 refs): 528 git and ~640 other execs,
 6.1 s; the hooks 2.4 s and 0.55 s of it.
 
+## Measurements (2026-10-28, this container, 4 CPUs)
+
+Old build = worktree at the merge base ca892f00, `CLAUDE_PROJECT_DIR` at
+this checkout where a command reads this repo. Masking sed (`sed -E -f`),
+applied to both sides before `diff`:
+
+```
+s/[0-9]+(m|h|d)( ago| since|  |$| \(|\)|,|:| \.|;| --|\.)/AGE\2/g
+s/[0-9]+ (second|minute|hour|day|week|month|year)s? ago/AGE ago/g
+```
+
+- Slope, the run-5 wrapper rebuilt: in a scratch worktree per build,
+  `dsp()`/`dfx()` log `<name> <git for-each-ref refs/remotes/origin | wc -l>
+  <seconds>` per call, and `selftest_unit` skips topics not in `ST_ONLY`;
+  `ST_ONLY=dispatch JOHARNESS_SELFTEST_JOBS=1 bash .agents/harness/selftest.sh`,
+  old then new back to back, nothing else running; least-squares fit per
+  wrapper. Last pair (run E, head 7a0d8a3e's code): `dfx` old 0.460 s per
+  ref, new 0.219 (0.48x), total 134.4 s -> 67.9 s; `dsp` old 0.163, new
+  0.105 (0.64x). Earlier pairs on earlier heads: old 0.424 / 0.476 / 0.475,
+  so against the plan's written 0.42 the new slope is 0.52x; against every
+  old arm measured back to back, 0.46x-0.48x.
+- Execs per claim branch (strace, the n=8/n=32 fixture of the Profile, head
+  of run E's code minus the last two commits): git 26.7 (was 55), other 26
+  (was 68).
+- `JOHARNESS_SELFTEST_JOBS=1 bash .agents/harness/selftest.sh`: old 3795
+  passed, 0 failed, 1 skipped; new 3800 passed, 0 failed, 1 skipped. Sorted
+  `grep -E '^  (PASS|FAIL|SKIP) '` lines identical but for two measured-time
+  lines, the five lines of the new cache case, and one count a case name
+  carries: "a hook that may fetch has the merge bases read again (4 then 6)"
+  now "(2 then 4)" — fewer merge bases asked, the count it bounds.
+- `DISPATCH_FETCH=0 DRAIN_FETCH=0 ./joharness.sh dispatch` and
+  `./joharness.sh release` on this checkout, old then new: identical after
+  masking (dispatch 34 lines, release 11). Also identical on the `dfx`
+  snapshot (19 refs), the 32-branch fixture, and an overlap fixture.
+- SHIPS: consumer scratch repo bootstrapped from the old worktree
+  (`bootstrap-consumer.sh --env none`), two claim branches, `dispatch`
+  before, `sync-to-consumer.sh` from this branch (3 updated), `dispatch`
+  after: identical after masking (30 lines).
+- This checkout, one `dispatch`: 6.1 s -> 5.8 s; the handover hook 2.6 s ->
+  1.5 s, the queue hook 0.69 -> 0.53 s.
+
 ## Decisions
 
 - A1: confirmed — the profile above: per-branch execs (55 git, 68 other per
@@ -76,6 +117,17 @@ On this repository (19 unmerged of 455 refs): 528 git and ~640 other execs,
   readers, churn is one `log --name-only` (root commits shown as nothing,
   as `diff-tree` showed them) and its sort runs only once the paths can
   reach the threshold.
+- Memo lookups cut with `%%` and a substring (`memo_get`): bash's
+  `${memo#*key}` cost 10 ms a lookup on a 33-line memo, quadratic, and
+  `base_mb` already paid it per ref per reader.
+- Parked rows run `dispatch_defect_state` outside `$(...)` (its line in
+  DEFECT_STATE), so the retired plans its walk reads are `show`n once per
+  call (PNI_MEMO), and its file history is read once for both walks.
+- Ages read the clock with bash's `printf '%(%s)T'` where it exists (4.2+),
+  `date` otherwise: the same instant, no exec.
+- Left alone: the queue hook's per-plan `git log --diff-filter=A -1` (one
+  walk over `docs/plans` would simplify history over the directory, not the
+  file, and can pick another add commit) — per plan, not per branch.
 - `REF_MEMO` holds the unmerged refs only: over all 455 refs here, bash's
   `${var#*pattern}` made each lookup a scan and the call took 18 s.
 

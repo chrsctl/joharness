@@ -6606,6 +6606,7 @@ now_s() {
   printf -v "$1" '%(%s)T' -1 2>/dev/null || printf -v "$1" '%s' "$(date +%s)"
 }
 dispatch_age_min() {
+  # shellcheck disable=SC2034  # ab: ref_fact's abbreviation, not read here
   local ts now ab
   ref_fact "refs/remotes/origin/$1" ab ts ||
     ts="$(git -C "$ROOT" log -1 --format=%ct "refs/remotes/origin/$1" </dev/null 2>/dev/null)"
@@ -8217,6 +8218,7 @@ cmd_dispatch() {
   local st wave note hold holdmap hold_live hline hb hs holds_n blocked_claims=""
   local ebranch eitem efirst estem espaces emore epath eage eagetext
   local edge_rows="" edge_items="" edge_unver=""
+  # shellcheck disable=SC2034  # gh_ts: ref_fact's push time, not read here
   local gh_head gh_ts gh_tip gh_base n_inflight=0 n_slots n_free=0 n_stall=0 n_blocked=0 n_hold=0 n_wait=0 n_loop=0
   local pending pending_used
   local n_edge=0 n_edge_stall=0 n_leftover=0 n_leftover_noitem=0
