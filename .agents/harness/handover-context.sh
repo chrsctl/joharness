@@ -131,15 +131,18 @@ MB_MEMO=""
 mb_keep() {
   MB_MEMO="${MB_MEMO}${NL}${1}${TAB}$(git merge-base "$1" "origin/${BASE_BRANCH}" 2>/dev/null)"
 }
-# <ref>: its merge base with the base branch; false when there is none.
+# <ref>: MB = its merge base with the base branch; false when there is none.
+# A variable, so a caller forks no subshell to read it.
+# The cut is `%%` and a substring: `${MB_MEMO#*<key>}` is quadratic in bash.
 mb_of() {
-  local mb
+  local pre
   case "$MB_MEMO" in
-    *"${NL}${1}${TAB}"*) mb="${MB_MEMO#*"${NL}${1}${TAB}"}"; mb="${mb%%"${NL}"*}" ;;
-    *) mb="$(git merge-base "$1" "origin/${BASE_BRANCH}" 2>/dev/null)" ;;
+    *"${NL}${1}${TAB}"*)
+      pre="${MB_MEMO%%"${NL}${1}${TAB}"*}"
+      MB="${MB_MEMO:$((${#pre} + ${#1} + 2))}"; MB="${MB%%"${NL}"*}" ;;
+    *) MB="$(git merge-base "$1" "origin/${BASE_BRANCH}" 2>/dev/null)" ;;
   esac
-  [ -n "$mb" ] || return 1
-  printf '%s' "$mb"
+  [ -n "$MB" ]
 }
 
 # Workstream files a ref OWNS: ones it wrote or edited since it diverged from
@@ -147,7 +150,8 @@ mb_of() {
 owned_at() {
   local base
   # NO merge-base: fall back to the tree.
-  base="$(mb_of "$1")" || base=""
+  base=""
+  ! mb_of "$1" || base="$MB"
   if [ -z "$base" ]; then
     files_at "$1"
     return 3
@@ -159,7 +163,8 @@ owned_at() {
 # Paths a ref has changed since it diverged from the base branch.
 changed_at() {
   local base
-  base="$(mb_of "$1")" || return 0
+  mb_of "$1" || return 0
+  base="$MB"
   git diff --name-only "$base" "$1" 2>/dev/null | sort -u
 }
 
@@ -432,7 +437,8 @@ edge_facts() {
      ! git cat-file -e "origin/${BASE_BRANCH}:docs/plans/${plan}.md" 2>/dev/null; then
     del="$(git log -1 --format=%H --full-history -m --diff-filter=D \
       "origin/${BASE_BRANCH}" -- ":(literal)docs/plans/${plan}.md" 2>/dev/null)"
-    mb="$(mb_of "refs/remotes/${ref}")"
+    mb=""
+    ! mb_of "refs/remotes/${ref}" || mb="$MB"
     if [ -n "$del" ] && [ -n "$mb" ] &&
        ! { git cat-file -e "${ref}:docs/plans/${plan}.md" 2>/dev/null &&
            git merge-base --is-ancestor "$del" "$mb" 2>/dev/null; }; then
@@ -518,14 +524,21 @@ while IFS="$US" read -r rank _ short f status pr updated agent issue \
   if [ -n "$my_paths" ]; then
     ref_paths="$(changed_at "refs/remotes/${short}")"
     if [ -n "$ref_paths" ]; then
-      overlap="$(comm -12 <(printf '%s\n' "$my_paths") \
-        <(printf '%s\n' "$ref_paths") | head -4 | paste -sd', ' -)"
+      # The first four paths in both, in their sorted order, joined as
+      # `paste -sd', '` joins: comma and space in turn.
+      overlap=""; ov_n=0
+      while IFS= read -r ov && [ "$ov_n" -lt 4 ]; do
+        case "${NL}${my_paths}${NL}" in *"${NL}${ov}${NL}"*) ;; *) continue ;; esac
+        case "$ov_n" in 0) overlap="$ov" ;; 1 | 3) overlap="${overlap},${ov}" ;; 2) overlap="${overlap} ${ov}" ;; esac
+        ov_n=$((ov_n + 1))
+      done <<<"$ref_paths"
       [ -n "$overlap" ] &&
         others="${others}    TOUCHES THE SAME FILES AS THIS BRANCH: ${overlap}"$'\n'
     fi
   fi
 
-  churn_base="$(mb_of "refs/remotes/${short}")"
+  churn_base=""
+  ! mb_of "refs/remotes/${short}" || churn_base="$MB"
   if [ -n "$churn_base" ]; then
     # Each commit's paths against its parent, a root commit's none: what a
     # `diff-tree` per commit printed, in one walk.

@@ -176,6 +176,29 @@ expect "the session link rides under it" \
 expect "and the next step" "next: Wire the thing" "$out"
 expect "it holds a slot" "slots     : 3 of 4 free" "$out"
 refute "and is not offered for spawning" "  docs/plans/alpha.md (agent" "$out"
+# A call's facts are its own: dispatch reads each ref's head, push time and
+# merge base once per call, and the next call reads them again. The ref moves
+# between two calls in this shell; a cache kept past the first (on disk, say)
+# shows the old head, the old count. Put back after: later cases read alpha.
+dsp_was="$(git -C "$dspwork" rev-parse refs/remotes/origin/mgr-alpha)"
+expect "before the move, the row reads the old head and one commit" \
+  "head $(git -C "$dspwork" rev-parse --short=12 "$dsp_was")  base ok" "$out"
+expect "and one commit" "work: 1 commit(s) since main" "$out"
+git -C "$dspwork" checkout -q mgr-alpha
+printf 'moved\n' >"${dspwork}/moved.txt"
+git -C "$dspwork" add -A
+GIT_COMMITTER_DATE='2026-01-01T00:00:01Z' GIT_AUTHOR_DATE='2026-01-01T00:00:01Z' \
+  git -C "$dspwork" commit -qm "move alpha"
+git -C "$dspwork" push -q origin mgr-alpha
+git -C "$dspwork" checkout -q main
+out="$(dsp)"
+expect "a ref moved between two calls: the second reads its new head" \
+  "head $(git -C "$dspwork" rev-parse --short=12 mgr-alpha)  base ok" "$out"
+refute "never the head the first call read" \
+  "head $(git -C "$dspwork" rev-parse --short=12 "$dsp_was")" "$out"
+expect "and its new commit count" "work: 2 commit(s) since main" "$out"
+git -C "$dspwork" branch -qf mgr-alpha "$dsp_was"
+git -C "$dspwork" push -qf origin mgr-alpha
 # A branch sharing no history with origin/main has no merge-base: its row says
 # `base unreadable`, never an `ok` it could not know. Torn down after.
 git -C "$dspwork" checkout -q --orphan mgr-orphan
