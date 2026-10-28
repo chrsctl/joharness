@@ -22,6 +22,10 @@ Let a core-paths-only plan be added: a manager builds the core edit in a `human/
 
 ## Review
 
+- r1: stale comment above lint_plans_in_diff still said "buildable" (verifier) (fixed)
+- r2: dead `case ... continue` left last in the plan loop (verifier) (fixed)
+- r3: stale commit text and unread rc in the coreonly selftest case (verifier) (fixed)
+
 ## Blockers
 
 None.

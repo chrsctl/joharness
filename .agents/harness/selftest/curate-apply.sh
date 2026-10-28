@@ -87,8 +87,8 @@ expect "after --apply the plan reads true" "every declaration reads true" "$(cap
 
 # --- a plan scoped to core paths only is buildable (human/ pull request) ---
 caplan coreonly '.github, joharness.conf' .github/workflows/ci.yml
-commit_all "$cawork" "a plan only a human could build"
-out="$(caci)"; rc=$?
+commit_all "$cawork" "a plan scoped to core paths only"
+out="$(caci)"
 refute "ci passes a core-only plan" "names core paths only" "$(caplans "$out")"
 caplan coremix '.github, src/pkg/a.py' src/pkg/a.py
 fixture_rm "$cawork" "drop the core-only plan" docs/plans/coreonly.md

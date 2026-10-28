@@ -7702,10 +7702,9 @@ retired_ref() {
                 if (t == s) { print (NF >= 3 ? $3 : "?"); exit } }'
 }
 
-# ci stage: plans this branch ADDS must carry no curate repair and must be
-# buildable (scope: not core paths only). Edited plans are skipped: their
-# defects may predate the edit. The branch's own held plan is exempt from
-# those two, never from the ledger: a stem the base branch's ledger lists
+# ci stage: plans this branch ADDS must carry no curate repair. Edited plans
+# are skipped: their defects may predate the edit. The branch's own held plan
+# is exempt from repairs, never from the ledger: a stem the base branch's ledger lists
 # stays retired, whoever re-adds it.
 lint_plans_in_diff() {
   local over="origin/${HANDOVER_BASE_BRANCH:-main}" base rel counts regthr bad=0 kind text n=0
@@ -7765,7 +7764,6 @@ lint_plans_in_diff() {
       bad=$((bad + 1))
       printf '  %s: no "## Assumptions" heading (list each guess with evidence and confidence, or say it rests on none)\n' "$rel"
     fi
-    case "$held" in *" $(lint_stem "$rel") "*) continue ;; esac
   done < <(plans_in_diff "$base")
   if [ "$n" -eq 0 ]; then
     printf '  no plan added on this branch\n'
