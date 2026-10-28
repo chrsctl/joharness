@@ -21,6 +21,8 @@ Surveyor on rescope key defect-park-calls-clerk: mark shared registries so core-
 
 ## Review
 
+- r1: scope-only diff, both sides marked, nothing below frontmatter touched (no change)
+
 ## Blockers
 
 None.
