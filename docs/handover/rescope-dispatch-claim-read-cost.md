@@ -21,3 +21,7 @@ Surveyor on key dispatch-claim-read-cost: plan conduct-c2-tally is held on
 - Holder already declares `shared:joharness.sh` (main and its branch). The
   held plan declared it bare; it edits two functions in place, in a file
   both plans touch. Marked `shared:joharness.sh` on conduct-c2-tally. Frontmatter only.
+
+## Review
+
+- r1: one-line frontmatter change, no other file; clean pass (no change)
