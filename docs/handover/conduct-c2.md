@@ -25,7 +25,7 @@ touched once with its change and once without, and read each case's word, so
 - Tally of `-`/`N/A` (plan-checker r2): `joharness.sh:conduct_rows` maps both to unparsed. Plan scope says no joharness.sh change, so the fix is follow-up plan `conduct-c2-tally`, filed in this pull request; C1 counts and C2 FINE/CONCERN rate are unaffected meanwhile.
 - Runner line precedence: any flip prints FLIP; unread counts every label not PASS-with, or SKIP/MISSING without.
 - Follow-up plan `conduct-c2-tally` filed (sonnet, needs: conduct-c2).
-- Acceptance measured 2026-10-28, 4 CPUs: needs-cycle-lint FLIP 4 (46 s), guard-one-shot-self-kill FLIP 16 (5 s), fast-lane FLIP 28 (14 s).
+- Acceptance measured 2026-10-28, 4 CPUs: needs-cycle-lint FLIP 4 (46 s here, 53 s in the verifier's run), guard-one-shot-self-kill FLIP 16 (5 s), fast-lane FLIP 28 (14 s).
 
 ## Rejected
 
@@ -43,6 +43,12 @@ touched once with its change and once without, and read each case's word, so
 - r8: (plan-checker) FLIP vs unread precedence and SKIP side unstated (fixed: any flip = FLIP, SKIP either run)
 - r9: (plan-checker) consumer-side acceptance not a command (fixed: dry-run on mktemp dir, grep -c line)
 - r10: (plan-checker) fixture cases' failure on origin/main undefined (fixed: script absent, no runner line matches)
+- r11: (verifier) unread counted old rows the table never prints, e.g. context-watch's root SKIP (fixed: counted over the printed new-or-changed rows; case oldskip)
+- r12: (verifier) empty .out file shifted which run is which in the join (fixed: run told by ARGV file name; no fixture, the runner always prints a step line)
+- r13: (verifier) T_fix with no selftest directory exits 2 with no runner line (fixed: NO EVIDENCE: lists; case notopics)
+- r14: (verifier) retire committed onto main made P equal T_fix (fixed: a merge whose first parent already holds the delete is none; case direct)
+- r15: (verifier) C2 tally unparsed until conduct-c2-tally (no change: r2)
+- r16: (verifier) branch 1 merge behind origin/main (fixed: merged, selftest re-run)
 
 ## Blockers
 

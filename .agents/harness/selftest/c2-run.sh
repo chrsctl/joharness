@@ -21,7 +21,7 @@ c2r_script="${ROOT}/.agents/scripts/c2-run.sh"
 c2r_fx="${TMP}/c2fx"
 c2r_out="${TMP}/c2out"
 c2r_st=.agents/harness/selftest.sh
-c2r_stems="chain fix char skip death helperchar newtopic testonly random other newtopicchar twopr"
+c2r_stems="chain fix char skip death helperchar newtopic testonly random other newtopicchar direct twopr oldskip notopics"
 mkdir -p "$c2r_fx" "$c2r_out"
 
 # Base: this tree's tracked files, every topic but the fixture's own dropped.
@@ -36,6 +36,8 @@ git -C "$ROOT" ls-files -z -- . ':(exclude).agents/harness/selftest/' |
     printf '# shellcheck shell=bash\nstep "c2-%s"\nexpect "c2-%s runs" "" "$(bash "${ROOT}/.agents/scripts/c2-%s.sh" 1 1)"\n' \
       "$s" "$s" "$s" >".agents/harness/selftest/c2-$s.sh"
   done
+  # oldskip: an old case that skips on every host, beside the branch's.
+  printf 'skip "c2-oldskip host case" "never here"\n' >>.agents/harness/selftest/c2-oldskip.sh
   # chain: c2-chain reads $c2_chain_args, which c2-chaina sets; one chain.
   printf '# shellcheck shell=bash\nstep "c2-chaina"\nc2_chain_args="2 3"\npass "c2-chaina set its args"\n' \
     >.agents/harness/selftest/c2-chaina.sh
@@ -78,6 +80,15 @@ git -C "$ROOT" ls-files -z -- . ':(exclude).agents/harness/selftest/' |
   c2r_stem other "c2r_refactor other; sed -i 's/^# c2-other.*/&\\necho \"c2-other v2\" >\&2/' .agents/scripts/c2-other.sh" \
     "c2r_case other 'expect \"c2-other says v2\" v2 \"\$(bash \"\${ROOT}/.agents/scripts/c2-other.sh\" 1 1 2>&1)\"'; c2r_case other 'expect \"c2-other fix B: 5 3 is 2\" 2 \"$(c2r_r other '5 3')\"'"
   c2r_stem newtopicchar "c2r_refactor newtopicchar" "printf '%s\n' '# shellcheck shell=bash' 'step \"c2-newc\"' 'expect \"c2-newc 5 3 is 2\" 2 \"$(c2r_r newtopicchar '5 3')\"' >.agents/harness/selftest/c2-newc.sh; sed -i 's/^  c2-newtopicchar\$/  c2-newtopicchar\n  c2-newc/' $c2r_st"
+  # direct: claim, fix, case and retire committed onto main itself, a merge
+  # after them: no main merge brought the retire in.
+  printf -- '---\nworkstream: fx-direct\n---\n' >docs/handover/fx-direct.md
+  git add -A && git commit -qm "fx-direct: claim"
+  c2r_fix direct; git add -A && git commit -qm "fx-direct: code"
+  c2r_case direct "expect \"c2-direct 2 3 is 5\" 5 \"$(c2r_r direct '2 3')\""
+  git add -A && git commit -qm "fx-direct: test"
+  git rm -q docs/handover/fx-direct.md && git commit -qm "fx-direct: retire"
+  mkdir -p docs/handover
   # twopr: fix and case merge in the first pull request; a second claim of
   # the same stem changes only a doc.
   c2r_stem twopr "c2r_fix twopr" "c2r_case twopr 'expect \"c2-twopr 2 3 is 5\" 5 \"$(c2r_r twopr '2 3')\"'"
@@ -94,6 +105,10 @@ git -C "$ROOT" ls-files -z -- . ':(exclude).agents/harness/selftest/' |
   printf -- '---\nworkstream: fx-absent\n---\n' >docs/handover/fx-absent.md
   git add -A && git commit -qm "fx-absent: claim"
   git checkout -q main && git merge -q --no-ff -m "merge fx-absent" fx-absent
+  c2r_stem oldskip "c2r_refactor oldskip" "c2r_case oldskip 'expect \"c2-oldskip 5 3 is 2\" 2 \"$(c2r_r oldskip '5 3')\"'"
+  # notopics, last: its retire tree has no topic directory, as a tree from
+  # before the topic split.
+  c2r_stem notopics "c2r_fix notopics" "git rm -rq .agents/harness/selftest"
 ) >"${c2r_out}/build.log" 2>&1
 c2r_built=$?
 
@@ -128,6 +143,10 @@ c2r_line "c2-run: a new topic and no fix does not flip" newtopicchar "NO FLIP"
 c2r_line "c2-run: a label carrying \$RANDOM is unread" random "NO FLIP, 1 unread"
 c2r_line "c2-run: a stem merged twice, fix in the first, flips" twopr "FLIP 1"
 c2r_line "c2-run: a claim never retired is no evidence" absent "NO EVIDENCE: pairs (1 adds, 0 deletes)"
+c2r_line "c2-run: an old case skipping both ways is no unread" oldskip "NO FLIP"
+expect "c2-run: a retire committed onto main has no main merge" "[NO EVIDENCE: no main merge holds " \
+  "[$(tail -1 "${c2r_out}/direct.out" 2>/dev/null)]"
+c2r_line "c2-run: a tree with no topic directory is no evidence" notopics "NO EVIDENCE: lists"
 expect "c2-run: no worktree outlives a run" "worktrees 1" \
   "worktrees $(git -C "$c2r_fx" worktree list | wc -l | tr -d ' ')"
 refute "c2-run: the runner prints no diff body" "@@ " "$(cat "${c2r_out}"/*.out)"

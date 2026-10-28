@@ -12,7 +12,8 @@
 # `<label> TAB <with> TAB <without> TAB <new|old>`, then ONE runner line:
 #   FLIP <n>                n labels PASS with the change, FAIL without
 #   NO FLIP                 every label reads the same both ways
-#   NO FLIP, <n> unread     n labels SKIP, MISSING, or FAIL with the change
+#   NO FLIP, <n> unread     n new or changed labels SKIP, MISSING, or FAIL
+#                           with the change
 #   N/A, no change          own commits touch only tests and queue files
 #   NO TEST                 own commits touch no selftest file
 #   NO EVIDENCE: <why>      pairs, conflict <sha>, lists, or no main merge
@@ -79,10 +80,14 @@ printf 'topics: %s\n' "$(tr '\n' ' ' <<<"$topics")"
 # T_nofix code = P, the main commit the last branch last saw. The main merge
 # that brought the last delete in is the oldest first-parent merge holding it
 # (--ancestry-path with --first-parent misses a branch that merged main again
-# after its retire).
+# after its retire). A delete main already held before that merge (a retire
+# committed onto main itself) has none: P would be T_fix.
 mm=""
 for m in $(git rev-list --reverse --first-parent --merges "$base" --not "${adds[0]}^"); do
-  if git merge-base --is-ancestor "$fix" "$m"; then mm="$m"; break; fi
+  if git merge-base --is-ancestor "$fix" "$m"; then
+    git merge-base --is-ancestor "$fix" "${m}^1" || mm="$m"
+    break
+  fi
 done
 [ -n "$mm" ] || verdict "NO EVIDENCE: no main merge holds $(git rev-parse --short "$fix")"
 P="$(git merge-base "${mm}^1" "$fix")"
@@ -104,7 +109,8 @@ for ((i = ${#own[@]} - 1; i >= 0; i--)); do
 done
 # T_nofix tests = T_fix's runner and topics, whole. Never the parent's runner.
 git -C "${work}/nofix" rm -rq --ignore-unmatch -- .agents/harness/selftest >/dev/null
-git -C "${work}/nofix" checkout "$fix" -- "$st" .agents/harness/selftest || exit 2
+git -C "${work}/nofix" checkout "$fix" -- "$st" .agents/harness/selftest >/dev/null 2>&1 ||
+  verdict "NO EVIDENCE: lists"
 
 # <tree> <name>: one list of selftest.sh, one entry per line. Fails when the
 # list does not parse or is empty.
@@ -162,9 +168,11 @@ cat "${work}/fix.line" "${work}/nofix.line" "${work}/pre.line"
 
 # A case line: "  PASS|FAIL|SKIP <label>", above the runner's FAIL summary.
 # The k-th fix line of label L matches the k-th line of the other run that
-# is L or starts with "L (" (a FAIL line may carry a diagnostic).
+# is L or starts with "L (" (a FAIL line may carry a diagnostic). Runs are
+# told apart by file name: an empty file has no first line.
 awk -F'\t' '
-  FNR == 1 { f++; done = 0 }
+  FNR == 1 { done = 0 }
+  { f = (FILENAME == ARGV[1] ? 1 : FILENAME == ARGV[2] ? 2 : 3) }
   /^FAIL lines by topic:$/ { done = 1 }
   done { next }
   { if (!match($0, /^  (PASS|FAIL|SKIP) /)) next
@@ -182,9 +190,13 @@ awk -F'\t' '
     }
   }' "${work}/fix.out" "${work}/nofix.out" "${work}/pre.out" >"${work}/joined"
 
-awk -F'\t' '$4 == "new" || $2 != $3' "${work}/joined"
-flips="$(awk -F'\t' '$2 == "PASS" && $3 == "FAIL"' "${work}/joined" | wc -l)"
-unread="$(awk -F'\t' '$2 != "PASS" || ($3 != "PASS" && $3 != "FAIL")' "${work}/joined" | wc -l)"
+# Printed and counted alike: new rows and changed rows. An old case that
+# reads the same both ways (a SKIP on this host, a red that predates the
+# branch) says nothing about the branch.
+awk -F'\t' '$4 == "new" || $2 != $3' "${work}/joined" >"${work}/rows"
+cat "${work}/rows"
+flips="$(awk -F'\t' '$2 == "PASS" && $3 == "FAIL"' "${work}/rows" | wc -l)"
+unread="$(awk -F'\t' '$2 != "PASS" || ($3 != "PASS" && $3 != "FAIL")' "${work}/rows" | wc -l)"
 if [ "$flips" -gt 0 ]; then
   printf 'FLIP %d\n' "$flips"
 elif [ "$unread" -gt 0 ]; then
