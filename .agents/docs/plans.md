@@ -103,9 +103,8 @@ A core path in `scope:` (`./joharness.sh protocol-paths`: the conf, the
 settings, `.github`) — `shared:` or not — marks the plan `CORE ONLY` and ranks
 it after every other free plan. The agent builds it, a human merges it: its
 manager puts the core edit in a `human/<stem>` pull request
-(`.agents/docs/manage-reference.md` § Human remainder). `scope:` of core
-paths ONLY is red in `ci`. Protocol text is not a core path. Declare core
-paths anyway: the Stop guard blocks on the diff.
+(`.agents/docs/manage-reference.md` § Human remainder). Protocol text is not a
+core path. Declare core paths anyway: the Stop guard blocks on the diff.
 
 ### A human remainder
 

@@ -107,9 +107,9 @@ the pull request body with the evidence, one line each:
 - **HOLDS** — write the plan with `/plan`. Frontmatter `issue: <N>`; an issue
   titled `defect:` whose body opens `blocking:` is `urgency: urgent`, any
   other `defect:` `urgency: normal`. Tier and
-  effort by `.agents/docs/agent-selection.md`. A plan whose `scope:` would be
-  core paths only (`./joharness.sh protocol-paths`) is never written (`ci`
-  fails it; only a human can build it): verdict HUMAN instead. A plan
+  effort by `.agents/docs/agent-selection.md`. A plan whose `scope:` is core
+  paths only (`./joharness.sh protocol-paths`) is written like any other: its
+  manager builds the core edit in a `human/<stem>` pull request. A plan
   written: comment `clerk: HOLDS — plan <stem> in PR #<M>`.
 - **NARROWER** — a plan for only the part that holds, `issue: <N>`; comment
   naming `PR #<M>` and sorting each part not planned into one of two kinds.
