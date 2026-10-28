@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK4HBTEEyzrJd3aEM1B
 agent: opus
 updated: 2026-10-28
-next: Finish JOBS=1 measurement, time dispatch sections, write Findings into docs/research/selftest-runtime.md
+next: Second-context verification of Findings, then graduate into selftest.sh header and delete the research file
 ---
 
 ## Goal
