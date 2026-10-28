@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01W18Uk51vWUnKgHZiX9b4KR
 agent: sonnet
 updated: 2026-10-28
-next: Run map selftest and ci; prove new cases fail without finish_map; spawn verifier
+next: ci green, then prove cases fail without finish_map, verifier, verify when docker pulls work
 ---
 
 ## Goal
@@ -29,6 +29,8 @@ folder set, and `/map` builds the map on that branch.
   own session can write in its own pull request.
 
 ## Review
+
+- r1: three finish cases refuted `== map`, which verbose mode prints on a pass too; `ci -v` leaked verbose into the fixture and failed them — cases now pin `JOHARNESS_VERBOSE=''` and refute `run /map` (fixed)
 
 ## Blockers
 

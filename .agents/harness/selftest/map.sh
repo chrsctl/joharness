@@ -89,7 +89,7 @@ expect "non-ascii folder is named as itself" "missing : café/" "$out"
 
 # --- finish: a branch that adds or removes a product folder carries its line.
 map_finish() { CLAUDE_PROJECT_DIR="$mwork" JOHARNESS_CONF="${mwork}/joharness.conf" \
-  GITHUB_ACTIONS='' JOHARNESS_CHECKS='' "${mwork}/joharness.sh" finish 2>&1; }
+  GITHUB_ACTIONS='' JOHARNESS_CHECKS='' JOHARNESS_VERBOSE='' "${mwork}/joharness.sh" finish 2>&1; }
 mfin_sec() { sed -n '/^== map$/,/^$/p' <<<"$1"; }
 git -C "$mwork" checkout -q -b mapadd main
 mkdir -p "${mwork}/newmod"
@@ -102,18 +102,18 @@ refute "finish skips drift this branch did not cause" "café" "$out"
 mapline newmod 'a new module' >>"${mwork}/docs/MAP.md"
 commit_all "$mwork" "map newmod"
 out="$(map_finish)"
-refute "finish passes once the map carries the line" "== map" "$out"
+refute "finish passes once the map carries the line" "run /map" "$out"
 git -C "$mwork" checkout -q -b mapedit main
 printf 'z\n' >"${mwork}/app/f.txt"
 commit_all "$mwork" "edit app"
 out="$(map_finish)"
-refute "an edit in a mapped folder never fails finish" "== map" "$out"
+refute "an edit in a mapped folder never fails finish" "run /map" "$out"
 # Incremental adoption: only folders this branch creates or deletes count.
 git -C "$mwork" checkout -q -b mapold main
 printf 'x\n' >"${mwork}/café/g.txt"
 commit_all "$mwork" "add a file to an old unmapped folder"
 out="$(map_finish)"
-refute "a new file in an old unmapped folder never fails finish" "== map" "$out"
+refute "a new file in an old unmapped folder never fails finish" "run /map" "$out"
 mkdir -p "${mwork}/café/sub"
 printf 'x\n' >"${mwork}/café/sub/f.txt"
 commit_all "$mwork" "new subfolder under an old unmapped folder"
