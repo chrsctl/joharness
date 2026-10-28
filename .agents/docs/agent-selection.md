@@ -69,8 +69,9 @@ the property it adds, independence is. Its output is not privileged: record,
 judge and fix as for a self-finding. What the spawn prompt carries:
 `subagents.md`, "What a stranger's spawn prompt carries".
 A `(verifier)` finding recorded `fixed` means one more verifier pass, given
-the usual fields (`subagents.md`) with the merge base sha = the parent of the first fix commit, before the PR; that pass counts toward
-the review-churn bound, and is not a new round of the whole diff.
+the usual fields (`subagents.md`) with the merge base sha = the parent of
+the first fix commit, before the PR; that pass counts toward the review-churn
+bound, and is not a new round of the whole diff.
 
 Findings land in `## Review` (`.agents/docs/handover/README.md`, Reviewing).
 Escalating tier escalates review depth; neither ever downgrades.
