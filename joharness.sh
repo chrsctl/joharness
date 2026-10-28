@@ -7992,7 +7992,7 @@ cmd_dispatch() {
   local conduct_due=0 role_spawned=0 n_conduct=0 odue ostate oreason ob oa conduct_inflight=""
   local retro_due=0 n_retro=0 rtstate rtreason rtb rta retro_inflight="" conduct_spawned=0
   local fetch_failed=0
-  local cb ck cstat csess cnext cage bplans
+  local cb ck bplans
   local rescope_key="" rescope_paths="" rescope_inflight="" rescope_holders=""
   local n_rescope_inflight=0 n_rescope_holders=0 rescope_settled=0
   local rescope_held="" rescope_merged="" msha mkey mheld mchanged

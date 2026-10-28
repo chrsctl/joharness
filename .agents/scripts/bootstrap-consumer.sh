@@ -148,13 +148,6 @@ CONDUCT_SAMPLE="$(conf_key_default JOHARNESS_CONDUCT_SAMPLE)"
 # Same decision, same reason: whether step 7 waits for GitHub Actions or runs
 # the checks here is a question a repo answers once it has felt the wait, not
 # one a human has an opinion about before the first session.
-# Same again for the curate cycle's two triggers. Not asked: a human at first
-# contact has no opinion about how often a plan queue's declarations should be
-# re-read, and the defaults are the whole point — the key is seeded so the one
-# thing a repo DOES have an opinion about, switching it off, is a line it can
-# find rather than a knob it has to be told exists.
-CURATE_HOURS="$(conf_key_default JOHARNESS_CURATE_HOURS)"
-CURATE_PLANS="$(conf_key_default JOHARNESS_CURATE_PLANS)"
 # Re-ask every switch in a child that already runs the harness, and write
 # what changes. Off, this script's behaviour is byte-identical to before it
 # existed — the flag adds a mode, it does not alter the other two.
@@ -717,16 +710,6 @@ JOHARNESS_ENV_MD=${ENV_MD}
 #       Mid-build it only says the record is owed. Record, not count — and
 #       one of them from a reader that did not write the diff.
 JOHARNESS_REVIEW=${REVIEW}
-
-# How often ./joharness.sh curate becomes a session's item: the queue's own
-# declarations rot, and a curator repairs them (.claude/commands/curate.md).
-# TWO triggers, because production is what drives the need — plan files changed
-# since the last curate landed — and the clock catches the one thing production
-# cannot see, code moving UNDER a plan and breaking its anchors with no plan
-# file changing.
-# 0 on HOURS switches the WHOLE cycle off; 0 on PLANS leaves only the clock.
-JOHARNESS_CURATE_HOURS=${CURATE_HOURS}
-JOHARNESS_CURATE_PLANS=${CURATE_PLANS}
 
 # Hours between clerk passes; 0 = off. Open issues are the queue's top rank,
 # but dispatch reads only docs/plans/: /clerk turns each issue that holds into

@@ -40,7 +40,7 @@ git -C "$rt_work" push -qu origin main
 
 rtt() { ( cd "$rt_work" && env JOHARNESS_CONF="$rt_conf" "$@" ./joharness.sh retro 2>&1 ); }
 rtd() { ( cd "$rt_work" && env JOHARNESS_CONF="$rt_conf" DISPATCH_FETCH=1 \
-  JOHARNESS_CURATE_HOURS=0 JOHARNESS_CONDUCT_HOURS=0 JOHARNESS_CLERK_HOURS=0 \
+  JOHARNESS_CONDUCT_HOURS=0 JOHARNESS_CLERK_HOURS=0 \
   "$@" ./joharness.sh dispatch 2>&1 ); }
 # <branch> <stem> <status> <session> <date> [<Blockers line>] [<branch: value>]
 # [<next: value>] [<plan: value>]

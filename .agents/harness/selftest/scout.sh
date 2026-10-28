@@ -64,7 +64,7 @@ sctr() { sct JOHARNESS_SCOUT_REVIEWER=rev "$@"; }
 # holds the scout spawn on a view of unknown age (R-g), which is a case of
 # its own below.
 sdsp() { ( cd "$scout_work" && env JOHARNESS_CONF="$scout_conf" DISPATCH_FETCH=1 \
-  JOHARNESS_CURATE_HOURS=0 "$@" ./joharness.sh dispatch 2>&1 ); }
+  "$@" ./joharness.sh dispatch 2>&1 ); }
 sdspr() { sdsp JOHARNESS_SCOUT_REVIEWER=rev "$@"; }
 scout_go='scout     : none in flight'
 scout_off='scout     : off — JOHARNESS_SCOUT_REVIEWER names no login'
@@ -630,21 +630,6 @@ expect "dispatch: a clerk in flight goes first" "conduct due, suppressed" "$out"
 git -C "$scout_work" push -q origin --delete clerk-2026-03-02
 git -C "$scout_work" branch -q -D clerk-2026-03-02
 rm -f "${scout_work}/.claude/commands/clerk.md"
-# A curate IN FLIGHT holds it too.
-git -C "$scout_work" checkout -qb curate-run main
-mkdir -p "${scout_work}/docs/handover"
-printf -- '---\nworkstream: curate-2026-03-03\nstatus: in-progress\nplan: none\n---\n' \
-  >"${scout_work}/docs/handover/curate-2026-03-03.md"
-scommit "a curator at work"
-git -C "$scout_work" push -qu origin curate-run
-git -C "$scout_work" checkout -q main
-out="$(sdsp JOHARNESS_CURATE_HOURS=1)"
-# A fixture guard, not a case: it holds on any tree, so it only ever fails.
-grep -qF "curate    : IN FLIGHT" <<<"$out" || fail "fixture: the curate does not read in flight"
-expect "dispatch: a curate in flight goes first" "conduct due, suppressed" "$out"
-git -C "$scout_work" push -q origin --delete curate-run
-git -C "$scout_work" branch -q -D curate-run
-
 # Fail closed: a branch listing that errors is UNREADABLE, never due.
 mkdir -p "${TMP}/conduct-gitwrap"
 cat >"${TMP}/conduct-gitwrap/git" <<EOF2

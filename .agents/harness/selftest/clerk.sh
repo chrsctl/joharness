@@ -67,7 +67,6 @@ git -C "$clerk_work" push -qu origin main
 
 clerk_run() { ( cd "$clerk_work" && env JOHARNESS_CONF="$clerk_conf" "$@" ./joharness.sh clerk 2>&1 ); }
 clerk_dsp() { ( cd "$clerk_work" && env JOHARNESS_CONF="$clerk_conf" DISPATCH_FETCH=1 \
-  JOHARNESS_CURATE_HOURS=0 \
   "$@" ./joharness.sh dispatch 2>&1 ); }
 
 # --- no command, no cycle ----------------------------------------------------
