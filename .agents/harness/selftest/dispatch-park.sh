@@ -15,7 +15,7 @@ step "joharness.sh dispatch: parked claims"
 # --- a defect: block is PARKED, and RESUMEd once its fix retires ------------
 # Its own repo: every case reads the whole queue, and the dates are the
 # question (block commit against retire commit, and against the two knobs).
-dfwork="${TMP}/dfxwork"
+dfwork="${TMP:?sourced by selftest.sh}/dfxwork"
 dforigin="${TMP}/dfxorigin.git"
 git init -q --bare "$dforigin"
 git init -q "$dfwork"
@@ -644,7 +644,7 @@ expect "a stem equal to the reason word: still the human's" "BLOCKED: the human'
 # --- a park on an unplanned defect makes the clerk due early ---------------
 # Its own repo: the clerk cycle must read live (clerk.md present, a fetch that
 # reaches refs/heads/*), and the clerk's landing date is the question.
-ckwork="${TMP}/ckwork"
+ckwork="${TMP:?sourced by selftest.sh}/ckwork"
 ckorigin="${TMP}/ckorigin.git"
 git init -q --bare "$ckorigin"
 git init -q "$ckwork"
@@ -782,6 +782,41 @@ for b in park-r park-s; do
   git -C "$ckwork" push -q origin --delete "$b"
   git -C "$ckwork" branch -qD "$b"
 done
+
+# A no-op pushed after the park, by a pass that may have read before it:
+# dated the knob back, it never saw #31. One pushed past the knob after it did.
+git -C "$ckwork" push -q origin "main:refs/heads/clerk-noop-$(date -u -d "@$((cknow - 5400))" +%Y%m%dT%H%M%SZ)"
+git -C "$ckwork" fetch -q origin
+out="$(ckx)"
+expect "a no-op 30m after the park, its read unknown: still DUE" \
+  "clerk     : DUE — PARKED #31 unplanned" "$out"
+expect "the cadence dates from it all the same" "the last clerk pass found nothing to plan" "$out"
+git -C "$ckwork" push -q origin "main:refs/heads/clerk-noop-$(date -u -d "@$((cknow - 600))" +%Y%m%dT%H%M%SZ)"
+git -C "$ckwork" fetch -q origin
+out="$(ckx env JOHARNESS_DEFECT_CLERK_HOURS=1)"
+refute "a no-op past the knob after the park: no early clerk" "spawn ONE clerk" "$out"
+for r in $(git -C "$ckorigin" for-each-ref --format='%(refname)' 'refs/heads/clerk-noop-*'); do
+  git -C "$ckorigin" update-ref -d "$r"
+done
+git -C "$ckwork" fetch -q --prune origin
+
+# Fail closed: a plan scan git cannot read is no "unplanned".
+git -C "$ckwork" checkout -qb plan-x main
+ckplan fixx 99
+ckcommit 1 "a plan naming #99"
+git -C "$ckwork" push -qu origin plan-x
+git -C "$ckwork" checkout -q main
+ckblob="$(git -C "$ckwork" rev-parse plan-x:docs/plans/fixx.md)"
+ckobj="${ckwork}/.git/objects/${ckblob:0:2}/${ckblob:2}"
+mv "$ckobj" "${ckobj}.away"
+out="$(ckc)"
+refute "an unreadable plan scan makes nothing due early" "cadence   : DUE — PARKED" "$out"
+expect "and the clerk reads its planned list UNREADABLE" "UNREADABLE" "$out"
+mv "${ckobj}.away" "$ckobj"
+out="$(ckc)"
+expect "readable again: DUE" "cadence   : DUE — PARKED #31" "$out"
+git -C "$ckwork" push -q origin --delete plan-x
+git -C "$ckwork" branch -qD plan-x
 
 # A plan naming #31 on a live branch, then on the base: no early due.
 git -C "$ckwork" checkout -qb plan-31 main

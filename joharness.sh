@@ -140,7 +140,7 @@ JOHARNESS_RETRO_HOURS|168|dispatch|Hours since the retro ledger last landed befo
 JOHARNESS_RETRO_SAMPLE|3|dispatch|Sessions that did not come back clean one retro run samples; 0 = off.
 JOHARNESS_RETRO_EVENTS|200|dispatch|Transcript events a retro reviewer reads per sampled session.
 JOHARNESS_DEFECT_PLAN_HOURS|48|dispatch|Hours after the first defect: park on an issue with no plan naming it = PARKED UNPLANNED; 0 lifts it.
-JOHARNESS_DEFECT_CLERK_HOURS|1|dispatch|Hours after the first defect: park on an issue no plan names, with no clerk landed since, before the clerk is due ahead of its cadence; 0 lifts it.
+JOHARNESS_DEFECT_CLERK_HOURS|1|dispatch|Hours after the first defect: park on an issue no plan names, no clerk having read the issues since, before the clerk is due ahead of its cadence; 0 lifts it.
 JOHARNESS_DEFECT_FIX_HOURS|72|dispatch|Hours after the first defect: park on an issue with no RESUME = PARKED STUCK; 0 lifts it.
 JOHARNESS_DEFECT_RECHECK_HOURS|2|dispatch|Hours after a defect: block, the base moved since and no plan naming its issue, before PARKED RECHECK; 0 lifts it.
 JOHARNESS_SCOUT_REVIEWER||base-conf|GitHub login whose approved comment gates a scout proposal; empty = none. Read from the base branch conf.
@@ -4281,7 +4281,7 @@ clerk_due() {
 
 # A manager parked on a defect no plan names waits on the clerk, the one
 # path from an issue into the queue: past JOHARNESS_DEFECT_CLERK_HOURS since
-# the first park, with no clerk landed or no-op recorded since it, the clerk
+# the first park, with no clerk having read the issues since it, the clerk
 # is due now. Only a PARKED state counts (dispatch_defect_state): UNPLANNED
 # and STUCK already reach the human, RESUME and RECHECK are dispatch's.
 # Planned = what the clerk itself skips as planned (clerk_issue_nums all).
@@ -4298,6 +4298,11 @@ clerk_park_early() {
   CLERK_EARLY=""; CLERK_EARLY_WHY=""
   knob="$(num_knob JOHARNESS_DEFECT_CLERK_HOURS)"
   [ "$knob" -gt 0 ] || return 0
+  # A no-op record is stamped at the END of its pass, its read unrecorded:
+  # read as the knob before it. A clerk this made due lands later than that,
+  # so its no-op still ends the early due; one that read just before a park
+  # does not.
+  [ "$last" -eq 0 ] || last=$((last - knob * 3600))
   base_id="$(git -C "$ROOT" rev-parse --verify -q \
     "refs/remotes/origin/${base_branch}^{commit}" </dev/null 2>/dev/null)"
   [ -n "$base_id" ] || return 0
@@ -4388,11 +4393,19 @@ clerk_issue_nums() {
   out="$(GIT_LITERAL_PATHSPECS=0 GIT_NOGLOB_PATHSPECS=0 git -C "$ROOT" \
     -c core.quotePath=false -c grep.lineNumber=false -c grep.column=false \
     -c grep.fullName=false grep --color=never --text -h -E -e '^issue:' \
-    "${ids[@]}" -- "${dir}/*.md" </dev/null 2>/dev/null)"; rc=$?
+    "${ids[@]}" -- "${dir}/*.md" </dev/null 2>&1)"; rc=$?
   if [ "$rc" -gt 1 ]; then
     printf '?\n'
     return 0
   fi
+  # A blob git cannot read is an error line at rc 1, never a match: every
+  # match opens `issue:`, so any other line is unreadable.
+  while IFS= read -r line; do
+    case "$line" in
+      '' | issue:*) ;;
+      *) printf '?\n'; return 0 ;;
+    esac
+  done <<<"$out"
   while IFS= read -r line; do
     line="${line%$'\r'}"
     line="${line#issue:}"
