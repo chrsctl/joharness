@@ -28,6 +28,7 @@ Build plan selftest-split-heavy-topics: cut dispatch and release at fixture seam
 ## Review
 
 - r1: edge review of the diff: moved lines byte-identical, FATAL checks, unlisted names ignored in worker (fixed: none needed) (no change)
+- r2: (verifier) clean pass, no defects; timing and counts verified above by me (no change)
 
 ## Blockers
 
