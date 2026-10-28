@@ -22,6 +22,8 @@ prompt carries; add literal-reader and zoom-out lenses to plan-checker.
 
 - r1: (verifier) EXCESS line and two manage.md lines unwrapped (wontfix: plan says one line; cosmetic, ci passes)
 - r2: (verifier) re-review base ambiguous vs spawn fields (fixed: base sha = parent of first fix commit)
+- r3: (verifier) "first fix commit" two readings, and acceptance grep "fix commits" lost (fixed: earliest of the fix commits since the last pass)
+- r4: (verifier) re-review pass found nothing else (no change)
 
 ## Blockers
 
