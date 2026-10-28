@@ -40,6 +40,7 @@
 #   curate [--apply]
 #                   is the plan queue still fit; --apply makes the mechanical
 #                   repairs
+#   map             docs/MAP.md drift: folders missing, gone or stale. Report-only
 #   scout           whether a scout may run, which is in flight. Report-only
 #   clerk           whether a clerk is due, issues already planned or claimed
 #   conduct         whether a conduct reviewer is due, its sample, the ledger
@@ -1508,6 +1509,7 @@ lint_graph() {
   lint_needs_cycles "$cyc"
 
   lint_unknown_types
+  lint_map
 
   if [ "$LINT_RC" -eq 0 ] && [ "$LINT_WARNED" -eq 0 ]; then
     printf '  edges sound (%d plans, %d research, %d workstreams, %d requirements)\n' \
@@ -6849,6 +6851,130 @@ curate_marked_new() {
     END { exit !f }' "${ROOT}/$1"
 }
 
+# Folder map (docs/MAP.md): one purpose line per product folder, the only thing
+# that cannot be derived. This derives the rest. Read-only, git only.
+# The one list of folders the harness owns; the map never describes them.
+MAP_PROTOCOL_DIRS=(.agents .claude .github docs)
+MAP_DEPTH=3
+MAP_FILE="docs/MAP.md"
+
+# Fills MAP_ROWS ("<path>\t<line>"), MAP_SET, the MAP_N* counts and MAP_HAS
+# (1 when the map exists). $1 = nostale skips the diff.
+map_scan() {
+  local nostale="${1:-}" f d p seg skip line txt c
+  local -A set=() mapped=() gen=() tot=() chg=() cnt=()
+  local -a files=() segs=()
+  MAP_ROWS=() MAP_SET=() MAP_NMISS=0 MAP_NGONE=0 MAP_NSTALE=0 MAP_HAS=0
+  [ -f "${ROOT}/${MAP_FILE}" ] && MAP_HAS=1
+
+  while IFS= read -r f; do
+    [ -n "$f" ] && files+=("$f")
+  done < <(git -C "$ROOT" ls-files 2>/dev/null)
+  [ "${#files[@]}" -gt 0 ] || return 0
+
+  # One check-attr for every file; counted per directory, no fork per file.
+  while IFS= read -r line; do
+    case "$line" in
+      *": linguist-generated: set"|*": linguist-vendored: set")
+        gen["${line%%: linguist-*}"]=1 ;;
+    esac
+  done < <(printf '%s\n' "${files[@]}" | git -C "$ROOT" check-attr \
+    linguist-generated linguist-vendored --stdin 2>/dev/null)
+
+  for f in "${files[@]}"; do
+    d="${f%/*}"
+    [ "$d" != "$f" ] || continue
+    tot["$d"]=$(( ${tot["$d"]:-0} + 1 ))
+    [ -z "${gen["$f"]:-}" ] || chg["$d"]=$(( ${chg["$d"]:-0} + 1 ))
+  done
+  for d in "${!tot[@]}"; do
+    IFS=/ read -ra segs <<<"$d"
+    [ "${#segs[@]}" -le "$MAP_DEPTH" ] || continue
+    skip=0
+    for seg in "${segs[@]}"; do
+      case "$seg" in .*) skip=1 ;; esac
+    done
+    for p in "${MAP_PROTOCOL_DIRS[@]}"; do
+      [ "${segs[0]}" != "$p" ] || skip=1
+    done
+    [ "${chg["$d"]:-0}" -lt "${tot["$d"]}" ] || skip=1
+    [ "$skip" -eq 1 ] || set["$d"]=1
+  done
+
+  if [ "$MAP_HAS" -eq 1 ]; then
+    while IFS= read -r line; do
+      if [[ "$line" =~ ^-\ \`([^\`]+)/\`\ —\ .+$ ]]; then
+        mapped["${BASH_REMATCH[1]}"]=1
+      fi
+    done <"${ROOT}/${MAP_FILE}"
+  fi
+
+  for d in "${!set[@]}"; do
+    [ -n "${mapped["$d"]:-}" ] && continue
+    MAP_ROWS+=("${d}"$'\t'"missing : ${d}/")
+    MAP_NMISS=$((MAP_NMISS + 1))
+  done
+  for d in "${!mapped[@]}"; do
+    seg="${d%%/*}"; txt=""
+    for p in "${MAP_PROTOCOL_DIRS[@]}"; do
+      [ "$seg" != "$p" ] || txt=" (protocol folder)"
+    done
+    if [ -n "$txt" ] || [ -z "${set["$d"]:-}" ]; then
+      MAP_ROWS+=("${d}"$'\t'"gone    : ${d}/${txt}")
+      MAP_NGONE=$((MAP_NGONE + 1))
+    fi
+  done
+
+  if [ "$MAP_HAS" -eq 1 ] && [ -z "$nostale" ]; then
+    c="$(git -C "$ROOT" log -1 --format=%H -- "$MAP_FILE" 2>/dev/null)"
+    if [ -n "$c" ]; then
+      while IFS= read -r f; do
+        [ -n "$f" ] || continue
+        d="$f"
+        while [ "$d" != "${d%/*}" ]; do
+          d="${d%/*}"
+          [ -z "${mapped["$d"]:-}" ] || [ -z "${set["$d"]:-}" ] ||
+            cnt["$d"]=$(( ${cnt["$d"]:-0} + 1 ))
+        done
+      done < <(git -C "$ROOT" diff --name-only "${c}..HEAD" 2>/dev/null)
+      for d in "${!cnt[@]}"; do
+        MAP_ROWS+=("${d}"$'\t'"stale   : ${d}/ (${cnt["$d"]} files changed)")
+        MAP_NSTALE=$((MAP_NSTALE + 1))
+      done
+    fi
+  fi
+  MAP_SET=("${!set[@]}")
+}
+
+cmd_map() {
+  local row
+  map_scan
+  if [ "$MAP_HAS" -eq 0 ]; then
+    printf 'map       : none — /map creates it\n'
+    [ "${#MAP_SET[@]}" -eq 0 ] ||
+      printf '  %s/\n' "${MAP_SET[@]}" | LC_ALL=C sort
+    return 0
+  fi
+  [ "${#MAP_ROWS[@]}" -eq 0 ] ||
+    printf '%s\n' "${MAP_ROWS[@]}" | LC_ALL=C sort -t$'\t' -k1,1 | cut -f2-
+  if [ $((MAP_NMISS + MAP_NGONE + MAP_NSTALE)) -eq 0 ]; then
+    printf 'map       : current\n'
+  else
+    printf 'map       : %d missing, %d gone, %d stale\n' \
+      "$MAP_NMISS" "$MAP_NGONE" "$MAP_NSTALE"
+  fi
+}
+
+# Drift in the map warns; stale is the refresh work list, never a defect.
+lint_map() {
+  local row
+  map_scan nostale
+  [ "$MAP_HAS" -eq 1 ] || return 0
+  for row in "${MAP_ROWS[@]}"; do
+    lint_warn "${MAP_FILE}: ${row#*$'\t'} — /map refreshes it"
+  done
+}
+
 cmd_curate() {
   local qout rows rel stem label scope claimed prel apply=0 old new
   local regthr splitthr layersthr layers bullets reqstem hit s p
@@ -8834,6 +8960,7 @@ main() {
     curate)         cmd_curate "$@" ;;
     finish)         cmd_finish "$@" ;;
     dispatch)       cmd_dispatch ;;
+    map)            cmd_map ;;
     start)          [ -z "${1:-}" ] ||
                       die "start takes no argument; the commands that take one are /manage <item> and /plan"
                     cmd_start ;;
