@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK5rjqiJNckSSTh2gN7
 agent: opus
 updated: 2026-10-28
-next: Build joharness.sh: retro --audit alias, shared clock/inflight helpers, CONCERN hand-off, dispatch lines
+next: Selftests (scout.sh, retro.sh, role.sh, orchestrated.sh, reading-budget.sh) and docs to the new names; new CONCERN cases in retro.sh
 ---
 
 ## Goal
