@@ -4525,21 +4525,26 @@ conduct_rows() {
     }'
 }
 
-# Where the window opens: the first-parent commit the ledger last landed in
-# (the point conduct_age_h dates), else the newest first-parent commit at or
-# before JOHARNESS_CONDUCT_HOURS ago. Empty = the whole history; `?` =
-# unreadable. A range from it, not a clock compare, so a run that comes late
-# leaves no gap and a branch cut before it but merged after it is in.
+# Where the window opens: the commit that last wrote the ledger itself (the
+# reviewer's own commit, not the merge that landed it), else the newest
+# first-parent commit at or before JOHARNESS_CONDUCT_HOURS ago. Empty = the
+# whole history; `?` = unreadable. A range from it, not a clock compare: a
+# run that comes late leaves no gap, and neither does one in flight — a
+# retire merged while its pull request was open is no ancestor of the
+# reviewer's commit, so the next run still sees it.
 conduct_window() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}" ref at hours
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" ref at hours cut
   ref="refs/remotes/origin/${base_branch}"
-  at="$(git -C "$ROOT" log -1 --first-parent --format=%H "$ref" \
+  at="$(git -C "$ROOT" log -1 --format=%H "$ref" \
     -- "$CONDUCT_LEDGER" </dev/null 2>/dev/null)" || { printf '?'; return 0; }
   if [ -z "$at" ]; then
     hours="$(num_knob JOHARNESS_CONDUCT_HOURS)"
+    cut=$(( $(date +%s) - hours * 3600 ))
+    # git reads a small @<n> as something else: a window reaching before
+    # 1973 is the whole history.
+    [ "$cut" -ge 100000000 ] || return 0
     at="$(git -C "$ROOT" log -1 --first-parent --format=%H \
-      --until="@$(( $(date +%s) - hours * 3600 ))" "$ref" \
-      </dev/null 2>/dev/null)" || { printf '?'; return 0; }
+      --until="@${cut}" "$ref" </dev/null 2>/dev/null)" || { printf '?'; return 0; }
   fi
   printf '%s' "$at"
 }
@@ -4598,8 +4603,12 @@ conduct_sha1() {
 # `<rev>:<path> <key>` lines, stdout `<key>\t<value>` for each file that
 # has the field; a missing file prints nothing. Framed by %(objectsize), as
 # retro_candidates reads: a body line that looks like a header is body.
+# rc 2 = cat-file failed: no field is no answer then.
 conduct_fm() {
-  git -C "$ROOT" cat-file --batch='@@conduct %(objecttype) %(objectsize) %(rest)' 2>/dev/null |
+  local out
+  out="$(git -C "$ROOT" cat-file --batch='@@conduct %(objecttype) %(objectsize) %(rest)' 2>/dev/null)" ||
+    return 2
+  printf '%s\n' "$out" | tr -d '\r' |
     LC_ALL=C f="$1" awk '
       function body(   v) {
         nl++
@@ -4608,7 +4617,8 @@ conduct_fm() {
         if ($0 == "---") { fm = 0; return }
         if (index($0, ENVIRON["f"] ":") != 1) return
         v = $0; sub(/^[a-z]+:[ \t]*/, "", v); sub(/[ \t]+#.*$/, "", v); sub(/[ \t]+$/, "", v)
-        print key "\t" v; got = 1
+        gsub(/["\047]/, "", v)
+        print key "\t" tolower(v); got = 1
       }
       left > 0 { left -= length($0) + 1; if (on) body(); next }
       /^@@conduct / { on = ($2 == "blob"); key = $4; left = $3 + 1; nl = 0; fm = 0; got = 0 }'
@@ -4621,12 +4631,14 @@ conduct_fm() {
 # (`plan: none`, research, requirement, rename). Harness: 0 when the
 # branch's own commits, first parent from the retire back to the claim (the
 # range conduct.md §2 reads), changed joharness.sh or .agents/harness/: a
-# reconcile merge of the base branch counts nothing.
+# reconcile merge of the base branch counts nothing (--no-merges; since git
+# 2.31 --first-parent alone would list a merge's first-parent diff). Any
+# read failing = `?` alone, never a quiet "no plan, no harness".
 conduct_ranked() {
-  local cands plans agents s r h
+  local cands plans agents s r h log out=""
   cands="$(cat)"
   plans="$(printf '%s\n' "$cands" | awk -F'\t' 'NF >= 2 { print $2 "^:docs/handover/" $1 ".md " $1 }' |
-    conduct_fm plan)"
+    conduct_fm plan)" || { printf '?\n'; return 0; }
   agents="$(printf '%s\n' "$cands" | plans="$plans" awk -F'\t' '
     BEGIN {
       n = split(ENVIRON["plans"], a, "\n")
@@ -4637,18 +4649,20 @@ conduct_ranked() {
     }
     NF >= 2 && ($1 in p) && p[$1] ~ /^[A-Za-z0-9._-]+$/ && p[$1] != "none" {
       print $2 "^:docs/plans/" p[$1] ".md " $1
-    }' | conduct_fm agent)"
+    }' | conduct_fm agent)" || { printf '?\n'; return 0; }
   while IFS=$'\t' read -r s r; do
     [ -n "$s" ] || continue
-    h="$(git -C "$ROOT" log --first-parent --name-status --format='C %H' "$r" \
-      -- "docs/handover/${s}.md" joharness.sh .agents/harness </dev/null 2>/dev/null |
-      ws="docs/handover/${s}.md" awk -F'\t' '
+    log="$(git -C "$ROOT" log --first-parent --no-merges --name-status --format='C %H' "$r" \
+      -- "docs/handover/${s}.md" joharness.sh .agents/harness </dev/null 2>/dev/null)" ||
+      { printf '?\n'; return 0; }
+    h="$(printf '%s\n' "$log" | ws="docs/handover/${s}.md" awk -F'\t' '
         /^C / { if (claimed) exit; next }
         $NF == "joharness.sh" || index($NF, ".agents/harness/") == 1 { t = 1 }
         $1 == "A" && $2 == ENVIRON["ws"] { claimed = 1 }
         END { print ((claimed && t) ? 0 : 1) }')"
-    printf '%s\t%s\t%s\n' "$h" "$s" "$r"
-  done <<<"$cands" | agents="$agents" awk -F'\t' '
+    out="${out}${h}"$'\t'"${s}"$'\t'"${r}"$'\n'
+  done <<<"$cands"
+  printf '%s' "$out" | agents="$agents" awk -F'\t' '
     BEGIN {
       n = split(ENVIRON["agents"], a, "\n")
       for (i = 1; i <= n; i++) { k = a[i]; v = k; sub(/\t.*/, "", k); sub(/^[^\t]*\t/, "", v); g[k] = v }
@@ -4672,7 +4686,9 @@ conduct_sample() {
   if [ "$n" -gt 0 ]; then
     limit="$n"
     [ -n "$(printf 'x' | conduct_sha1)" ] || { printf '?\n'; return 0; }
-    cands="$(printf '%s\n' "$cands" | conduct_ranked | while IFS=$'\t' read -r t k s r; do
+    cands="$(printf '%s\n' "$cands" | conduct_ranked)"
+    [ "$cands" != '?' ] || { printf '?\n'; return 0; }
+    cands="$(printf '%s\n' "$cands" | while IFS=$'\t' read -r t k s r; do
       [ -n "$s" ] || continue
       h="$(printf '%s' "$s" | conduct_sha1)"
       printf '%s\t%s\t%s\t%s\t%s\n' "$t" "$k" "$h" "$s" "$r"
@@ -4876,7 +4892,7 @@ cmd_conduct() {
   case "$s" in
     '?') printf 'sample    : UNREADABLE — take no branch this run: a list that could not be read is no empty list\n' ;;
     '')  printf 'sample    : none — no manager workstream file retired since the window opened is left unsampled\n' ;;
-    *)   printf 'sample    : %s branch(es) retired since the ledger last landed (no ledger: the last JOHARNESS_CONDUCT_HOURS), riskiest first: plan agent haiku/sonnet, opus/fable, no plan; then harness code touched; then lowest sha1(<stem>) — review exactly these\n' \
+    *)   printf 'sample    : %s branch(es) retired since the last commit to the ledger (no ledger: the last JOHARNESS_CONDUCT_HOURS), riskiest first: plan agent haiku/sonnet, opus/fable, no plan; then harness code touched; then lowest sha1(<stem>) — review exactly these\n' \
            "$(printf '%s\n' "$s" | awk 'END { print NR + 0 }')"
          printf '%s\n' "$s" | sed 's/^/            /' ;;
   esac

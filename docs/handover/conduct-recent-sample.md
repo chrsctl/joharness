@@ -22,9 +22,9 @@ C1 CONCERN rate shows on the dispatch `conduct   :` line.
 - A2: confirmed — `conduct_age_h` is `git log -1 --first-parent` on the ledger path.
 - A3: confirmed — `conduct_rows` finds `C<n>` columns by header name.
 - A4: confirmed for the needle (scout.sh:568), but the window also breaks the fixture's dated cases (plan-checker r1).
-- Window is a commit range, not a clock compare: `<L>..base`, L = the first-parent commit `conduct_age_h` dates; no ledger = `<B>..base`, B = newest first-parent commit at or before now minus HOURS. A late run leaves no gap, and a branch cut before L but merged after it is in.
+- Window is a commit range, not a clock compare: `<L>..base`, L = the commit that last wrote the ledger (r15 moved it off the landing merge `conduct_age_h` dates); no ledger = `<B>..base`, B = newest first-parent commit at or before now minus HOURS. A late run leaves no gap, and a branch cut before L but merged after it is in.
 - retro.sh and conf-keys.sh joined `scope:`: retro.sh's zulu retire was dated outside the window, conf-keys.sh carries the HOURS row.
-- Each new case fails on the old code: plain sha1 order is scout-command hotel clerk-role delta bravo echo alpha charlie, so charlie>bravo, alpha>bravo and hotel>bravo all invert; oscar (Feb) is in the whole-history window; the old dispatch line carries no rate; the old tally prints 33%.
+- Each new case fails on the old code: plain sha1 order is scout-command hotel clerk-role delta bravo echo alpha charlie, so charlie>bravo, alpha>bravo, hotel>bravo and mike>lima all invert, and kilo>lima holds only with `--no-merges`; november is dropped by a landing-merge window; oscar (Feb) is in the whole-history window; the old dispatch line carries no rate; the old tally prints 33%.
 - Built directly, not by workers: every edit lands in joharness.sh and scout.sh, one shared file pair = sequential.
 
 ## Rejected
@@ -46,6 +46,14 @@ C1 CONCERN rate shows on the dispatch `conduct   :` line.
 - r11: (plan-checker) retro.sh and conf-keys.sh joined scope as `shared:` but drop-curator-session holds them unshared (wontfix: one-line edits each; whichever lands second reconciles, and this plan file retires at merge, holding nothing)
 - r12: (plan-checker) plan said the tally needle becomes `50%`, built text is `50% of 2 (NO EVIDENCE is no verdict)` (fixed: plan names the printed text)
 - r13: selftest git execs 28.1 per case over the 28 budget: four git calls per candidate (fixed: `conduct_fm` reads every workstream and plan file in one cat-file each; one log per candidate)
+- r14: (verifier) `--first-parent` lists a reconcile merge's first-parent diff since git 2.31, so merging main counted as touching harness code; 3 of 77 live candidates misranked (fixed: `--no-merges`; fixture kilo reconciles over a main-side harness change)
+- r15: (verifier) a retire merged while a reviewer's pull request is open lands before the ledger merge and is never sampled (fixed: window opens at the reviewer's own ledger commit, not the landing merge; fixture november)
+- r16: (verifier) stems past the cap leave the window for good (no change: the plan wants recent work; orchestrated.md row and plan now say so)
+- r17: (verifier) a failed cat-file or per-candidate log read as "no plan, no harness" (fixed: conduct_ranked prints `?`, conduct_sample passes it on)
+- r18: (verifier) HOURS large enough to put the cut before 1973 makes git misread `--until=@<n>` (fixed: such a window is the whole history)
+- r19: (verifier) the "below a plan named with no file" needle passed on the old order (fixed: needle asserts the two close the sample, tally line next)
+- r20: (verifier) fixture never touched joharness.sh nor merged main into a branch (fixed: mike and kilo)
+- r21: (verifier) tier parse missed CRLF, quotes and capitals (fixed: conduct_fm strips `\r` and quotes, lowercases)
 
 ## Blockers
 

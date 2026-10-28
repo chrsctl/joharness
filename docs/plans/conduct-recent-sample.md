@@ -23,9 +23,12 @@ retro-audit-and-trace) are not this plan.
 ## Scope
 
 1. **Window** (`joharness.sh:conduct_candidates`):
-   - Candidates are managers whose retire commit landed on the base branch
-     after the ledger's last landing, the same point `conduct_age_h` counts
-     from. A run that comes late therefore leaves no gap.
+   - Candidates are managers whose retire commit is no ancestor of the
+     commit that last wrote the ledger (the reviewer's own commit, not the
+     merge `conduct_age_h` dates). A run that comes late leaves no gap, and
+     neither does one in flight: a retire merged while its pull request was
+     open is still offered next time. Stems past the cap are not carried:
+     the sample is of recent work, never a backlog.
    - No ledger on the base branch: the window is the last
      `JOHARNESS_CONDUCT_HOURS` hours, cut at the newest first-parent commit
      dated at or before then; everything that landed after it is in. Both

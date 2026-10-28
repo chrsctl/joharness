@@ -501,10 +501,13 @@ crefute() {
     printf '    wanted %s and not %s; got:\n%s\n' "$4" "$2" "$(indent "$3")"
   fi
 }
-# <stem> [<plan>] [<agent>] [harness] [<epoch>] — a branch that claimed,
-# retired its file, and merged an hour before <epoch> (default now). <agent>
-# writes docs/plans/<plan>.md with that tier, which the retire deletes;
-# `harness` makes a commit of its own change a file under .agents/harness/.
+# <stem> [<plan>] [<agent>] [harness|joharness|reconcile] [<epoch>] — a
+# branch that claimed, retired its file, and merged an hour before <epoch>
+# (default now). <agent> writes docs/plans/<plan>.md with that tier, which
+# the retire deletes. `harness` makes a commit of its own change a file
+# under .agents/harness/, `joharness` change joharness.sh (a comment line at
+# the end); `reconcile` changes .agents/harness/ on main only, then merges
+# main into the branch, so the branch's own commits touch none of it.
 cretire() {
   local at="${5:-$(date +%s)}"
   git -C "$scout_work" checkout -qb "m-$1" main
@@ -516,10 +519,21 @@ cretire() {
     printf -- '---\nplan: %s\nagent: %s\n---\n' "${2:-$1}" "$3" >"${scout_work}/docs/plans/${2:-$1}.md"
   fi
   scommit "claim $1" "$(( at - 10800 )) +0000"
-  if [ "${4:-}" = harness ]; then
-    printf '%s\n' "$1" >>"${scout_work}/.agents/harness/touched.txt"
-    scommit "build $1" "$(( at - 9000 )) +0000"
-  fi
+  case "${4:-}" in
+    harness)
+      printf '%s\n' "$1" >>"${scout_work}/.agents/harness/touched.txt"
+      scommit "build $1" "$(( at - 9000 )) +0000" ;;
+    joharness)
+      printf '# %s\n' "$1" >>"${scout_work}/joharness.sh"
+      scommit "build $1" "$(( at - 9000 )) +0000" ;;
+    reconcile)
+      git -C "$scout_work" checkout -q main
+      printf '%s\n' "$1" >>"${scout_work}/.agents/harness/main.txt"
+      scommit "main moves under $1" "$(( at - 9500 )) +0000"
+      git -C "$scout_work" checkout -q "m-$1"
+      GIT_COMMITTER_DATE="$(( at - 9000 )) +0000" GIT_AUTHOR_DATE="$(( at - 9000 )) +0000" \
+        git -C "$scout_work" merge -q --no-ff -m "reconcile $1 with main" main ;;
+  esac
   git -C "$scout_work" rm -q "docs/handover/${1}.md"
   [ -z "${3:-}" ] || git -C "$scout_work" rm -q "docs/plans/${2:-$1}.md"
   scommit "retire $1" "$(( at - 7200 )) +0000"
@@ -624,8 +638,10 @@ crefute "conduct: no ledger, a stem retired before JOHARNESS_CONDUCT_HOURS is no
 corder "conduct: a sonnet-tier stem sorts before an opus one" charlie bravo "$out99"
 corder "conduct: of one tier, a stem that touched harness code sorts first" alpha bravo "$out99"
 corder "conduct: a plan: none stem sorts last" bravo hotel "$out99"
-expect "conduct: and below a plan named with no file" "            scout-command
-            hotel" "$out99"
+expect "conduct: a plan named with no file and plan: none close the sample" "            scout-command
+            hotel
+
+tally     :" "$out99"
 out2="$(cdt)"
 csample1="$(printf '%s\n' "$out" | grep -A3 '^sample    : 3')"
 if [ -n "$csample1" ] && [ "$csample1" = "$(printf '%s\n' "$out2" | grep -A3 '^sample    : 3')" ]; then
@@ -792,6 +808,9 @@ cat >"${scout_work}/docs/conduct-log.md" <<EOF2
 EOF2
 scommit "a reviewer's ledger, long ago" '2026-02-13T00:00:00Z'
 git -C "$scout_work" checkout -q main
+# Merged while the reviewer's pull request was open: it lands before the
+# ledger does, but after the reviewer drew its sample.
+cretire november
 GIT_COMMITTER_DATE='2026-02-13T01:00:00Z' GIT_AUTHOR_DATE='2026-02-13T01:00:00Z' \
   git -C "$scout_work" merge -q --no-ff -m "merge the ledger" conduct-2026-02-13
 git -C "$scout_work" branch -q -D conduct-2026-02-13
@@ -802,21 +821,29 @@ expect "conduct: the tally counts runs and branches, a stem once" \
   "tally     : 2 run(s), 3 branch(es) sampled" "$out"
 expect "conduct: and each verdict per question" \
   "C1  FINE 1  CONCERN 1  NO EVIDENCE 1  CONCERN rate 50% of 2" "$out"
-# Nothing retired since the ledger landed: every stem above is out.
-expect "conduct: a stem retired before the ledger last landed is not sampled" \
-  "sample    : none" "$out"
+# Of the stems above, only the one merged while the reviewer was in flight.
+expect "conduct: a retire merged while the reviewer was in flight is sampled" \
+  "sample    : 1 branch(es)" "$out"
+expect "conduct: and it is that stem" "            november" "$out"
+crefute "conduct: a stem retired before the ledger was written is not sampled" \
+  "            charlie" "$out" "sample    : 1"
 expect "dispatch: the rate leaves NO EVIDENCE out of <m>" \
   "C1 CONCERN 50% of 2" "$(sdsp | grep '^conduct   : ')"
 # Retired after the landing: sampled — but one the ledger names already, as
 # a stem reused, is not.
-cretire kilo
+# sha1 alone reads lima kilo mike: mike's joharness.sh edit lifts it first,
+# kilo's merge of main (which changed .agents/harness/) lifts it not at all.
+cretire kilo '' '' reconcile
 cretire lima
+cretire mike '' '' joharness
 cretire "$cfirst"
 git -C "$scout_work" push -q origin main
-out="$(cdt)"
-expect "conduct: a stem retired after the ledger landed is sampled" "sample    : 2 branch(es)" "$out"
+out="$(cdt JOHARNESS_CONDUCT_SAMPLE=99)"
+expect "conduct: a stem retired after the ledger landed is sampled" "sample    : 4 branch(es)" "$out"
 crefute "conduct: a stem already in the ledger is not sampled again" \
-  "            ${cfirst}" "$out" "sample    : 2"
+  "            ${cfirst}" "$out" "sample    : 4"
+corder "conduct: a stem that changed joharness.sh counts as harness code" mike lima "$out"
+corder "conduct: a merge of the base branch touches no harness code" lima kilo "$out"
 expect "conduct: an old ledger leaves the clock due" "since the ledger last landed" "$out"
 # A manager merges the base branch in TODAY and lands today: the ledger did
 # not land again, so the clock must not move (verifier r1).
