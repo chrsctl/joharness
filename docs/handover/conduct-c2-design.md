@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK7QGg4E4RrtuYft1bf
 agent: opus
 updated: 2026-10-28
-next: Measure selftest runner shape and per-case isolation; fill Method and Findings
+next: Prototype c2.sh works on 3 real stems (FINE); build trap fixtures, measure worst unit, write Findings
 ---
 
 ## Goal
@@ -19,7 +19,10 @@ without false FINE or false CONCERN, at a cost of 3 branches per run.
 
 ## Decisions
 
-None yet.
+- Design: T_fix = last retire tree; T_nofix = T_fix with the stem's own
+  non-merge commits reverted (3-way) and selftest files restored from T_fix;
+  run only the units holding touched topics, read each label's own word.
+  Why: tests from T_fix kill the missing-helper and unlisted-topic traps.
 
 ## Rejected
 
