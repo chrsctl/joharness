@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK2vXhgswWVpeaKFQiY
 agent: sonnet
 updated: 2026-10-28
-next: Drop plan_core_only refusal in joharness.sh, flip coreonly selftest, edit clerk.md and plans.md, then verify
+next: Collect verifier findings into ## Review, then retire (delete plan + workstream), open PR, run finish, merge
 ---
 
 ## Goal
@@ -16,6 +16,9 @@ next: Drop plan_core_only refusal in joharness.sh, flip coreonly selftest, edit 
 Let a core-paths-only plan be added: a manager builds the core edit in a `human/<stem>` pull request, a human only merges it.
 
 ## Decisions
+
+- A1: confirmed — `grep -n plan_core_only joharness.sh` showed only the definition and the one lint call; both removed.
+- A2: confirmed — manage.md §2 builds a plan's core part in a `human/<stem>` PR.
 
 ## Review
 
