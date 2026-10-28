@@ -15,8 +15,8 @@ ONE spelling: [`.agents/docs/glossary.md`](../../.agents/docs/glossary.md); `ci`
    ONE item (`.claude/commands/manage.md`); prompt is `/keeper` = keeper
    (`.claude/commands/keeper.md`); otherwise `/start`. The role command owns the
    picking. NOTHING builds unplanned — decompose into a plan first
-   (`.agents/docs/plans/README.md`); exceptions: copy or sync task, `plan: fast`
-   (plans README, Fast lane). Plan's `agent` tier binds (`.agents/docs/agent-selection.md`).
+   (`.agents/docs/plans.md`); exceptions: copy or sync task, `plan: fast`
+   (`.agents/docs/plans.md`, Fast lane). Plan's `agent` tier binds (`.agents/docs/agent-selection.md`).
    Boundary: no commit to a core path (`./joharness.sh protocol-paths`) outside a
    `human/<stem>` branch whose pull request a human merges (manager only,
    `.claude/commands/manage.md` §2).
@@ -54,7 +54,7 @@ ONE spelling: [`.agents/docs/glossary.md`](../../.agents/docs/glossary.md); `ci`
      `finish: pass (ci and verify ran here…)` (`.agents/docs/consumer-repos.md`,
      "Local checks"). A skipped `lint` check is never green;
    - branch 0 behind fresh-fetched `origin/main` — behind = reconcile first
-     (`.agents/docs/product/README.md`, "Conflict at finish");
+     (`.agents/docs/product.md`, "Conflict at finish");
    - `./joharness.sh verify` green when the diff touches non-`*.md` files under
      `joharness.sh`, `.agents/harness/`, `.agents/env/`, `.agents/scripts/` —
      unless this head's checks verified the selected layer (read the run; a
@@ -86,5 +86,5 @@ ONE spelling: [`.agents/docs/glossary.md`](../../.agents/docs/glossary.md); `ci`
 
 ## Handover
 
-- Shape `.agents/docs/handover/TEMPLATE.md`, protocol `.agents/docs/handover/README.md`;
+- Shape `.agents/docs/handover/TEMPLATE.md`, protocol `.agents/docs/handover.md`;
   only what git cannot tell. Copy, sync, clerk or retro task: no workstream file.

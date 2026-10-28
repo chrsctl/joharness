@@ -107,8 +107,8 @@ fields_review() {
           } print r + 0 }'
 }
 
-# Workstream files at a ref. The protocol doc (README.md) and the template are
-# not workstreams. Empty if the ref has none.
+# Workstream files at a ref. A README.md or the template is not a workstream
+# (the protocol doc itself lives at .agents/docs/handover.md). Empty if the ref has none.
 files_at() {
   git ls-tree -r --name-only "$1" -- "$HANDOVER_DIR" 2>/dev/null | ws_only
 }
@@ -178,7 +178,7 @@ if git rev-parse --verify --quiet "origin/${BASE_BRANCH}" >/dev/null 2>&1; then
   fi
 fi
 
-add "== Handover state (protocol: .agents/docs/handover/README.md) =="
+add "== Handover state (protocol: .agents/docs/handover.md) =="
 add ""
 # Compaction is the one start the session did not choose.
 if [ "${JOHARNESS_SESSION_SOURCE:-}" = "compact" ]; then
@@ -415,7 +415,7 @@ base_merges="$(git log --first-parent --merges --format=%s \
 
 # Facts git proves about an edge entry, `; `-joined, empty when none: commits
 # after its merged pull request, and a done plan the base carried and deleted.
-# Neither closes a claim (.agents/docs/handover/README.md, Status).
+# Neither closes a claim (.agents/docs/handover.md, Status).
 edge_facts() {
   local ref="$1" status="$2" pr="$3" plan="$4" n del mb out=""
   case "$pr" in
@@ -489,7 +489,7 @@ while IFS="$US" read -r rank _ short f status pr updated agent issue \
   fi
 
   [ "$entry_stale" = "1" ] &&
-    others="${others}    STALE: pushed ${pushed_rel} — read as abandoned from git alone, never hidden even when it is the only entry at this rank (.agents/docs/product/README.md, Branch flow)"$'\n'
+    others="${others}    STALE: pushed ${pushed_rel} — read as abandoned from git alone, never hidden even when it is the only entry at this rank (.agents/docs/product.md, Branch flow)"$'\n'
 
   if [ -z "$lead_ref" ] && [ "$rank" -le 2 ]; then
     lead_ref="$short"

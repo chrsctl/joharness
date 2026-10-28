@@ -928,7 +928,7 @@ lint_serves_norm() {
 }
 
 # <file> <requirement stem>: the `serves:` values must be clause numbers within
-# the requirement's count, or `all` alone (.agents/docs/plans/README.md).
+# the requirement's count, or `all` alone (.agents/docs/plans.md).
 lint_serves() {
   local rel="$1" r="$2" v t count="" nums=0 all=0
   local -a tl
@@ -1033,7 +1033,7 @@ lint_req_deleted() {
     if lint_shallow; then
       lint_warn "${rel}: deleted, clause(s) ${miss} unserved by the plans visible here (shallow history) — cannot see the plans retired before"
     else
-      lint_red "${rel}: deleted with clause(s) ${miss} of ${count} served by no plan's serves: — plan them, or a last plan serves them (.agents/docs/product/README.md)"
+      lint_red "${rel}: deleted with clause(s) ${miss} of ${count} served by no plan's serves: — plan them, or a last plan serves them (.agents/docs/product.md)"
     fi
   # --no-renames: a requirement moved to a similar new file is still deleted
   # (r21).
@@ -1395,7 +1395,7 @@ lint_graph() {
         fi
       done
     fi
-    # The `research:` edge (.agents/docs/research/README.md).
+    # The `research:` edge (.agents/docs/research.md).
     if [ -n "$rq" ] && [ "$rq" != "none" ]; then
       while IFS= read -r n; do
         [ -n "$n" ] || continue
@@ -1579,7 +1579,7 @@ lint_graph() {
     # Counted here, in the run that skipped them, so the skip stays visible
     # without a warning a consumer could never act on.
     [ "$rdocs" -eq 0 ] ||
-      printf '  %d document(s) under docs/research/ — not nodes, never scheduled (.agents/docs/research/README.md)\n' \
+      printf '  %d document(s) under docs/research/ — not nodes, never scheduled (.agents/docs/research.md)\n' \
         "$rdocs"
   fi
   return "$LINT_RC"
@@ -1726,7 +1726,7 @@ lint_ship() {
   [ "$seen" -gt 0 ] || printf '  no plan added or changed on this branch\n'
   if [ "$ships" -gt 0 ]; then
     printf '  A shipping plan lands in every consumer at its next sync. Its\n'
-    printf '  Acceptance names the consumer-side check (.agents/docs/plans/README.md).\n'
+    printf '  Acceptance names the consumer-side check (.agents/docs/plans.md).\n'
   fi
   return 0
 }
@@ -2029,7 +2029,7 @@ review_report() {
     printf '    NO findings recorded under ## Review, and this is the edge (%s)\n' "$edge"
     printf '    Review the full diff at the depth above, then write what it found —\n'
     printf '    one line per finding, BEFORE its fix, same commit as the fix\n'
-    printf '    (.agents/docs/handover/README.md, Reviewing). Clean pass records that,\n'
+    printf '    (.agents/docs/handover.md, Reviewing). Clean pass records that,\n'
     printf '    one line; an empty section is not a clean pass.\n'
     rc=1
   done < <(lint_nodes docs/handover)
@@ -2399,7 +2399,7 @@ EOF
   fi
 
   printf '\nhot spots — a file that keeps drawing findings is a rule nobody\n'
-  printf 'wrote yet. Graduate it (.agents/docs/handover/README.md, Graduation)\n'
+  printf 'wrote yet. Graduate it (.agents/docs/handover.md, Graduation)\n'
   printf 'or read what those edges found before touching it again:\n\n'
   local any=0
   while IFS= read -r line; do
@@ -2717,12 +2717,12 @@ cmd_upstream() {
   printf '\n'
 
   # The retired file, recovered from the commit that last still had it —
-  # exactly the walk .agents/docs/handover/README.md calls "Survives PR".
+  # exactly the walk .agents/docs/handover.md calls "Survives PR".
   doc="$(fb_workstream "$base" "$tip")" || doc=""
   if [ -z "$doc" ]; then
     printf 'no workstream file on this edge: nothing was recorded, so there is\n'
     printf 'nothing to route. A sync or copy edge carries none by protocol\n'
-    printf '(.agents/docs/handover/README.md, When NOT to write one).\n\n'
+    printf '(.agents/docs/handover.md, When NOT to write one).\n\n'
     printf 'verdict   : NOTHING TO REPORT\n'
     return 0
   fi
@@ -5673,7 +5673,7 @@ cmd_cleanup() {
   fi
 
   # Files under docs/research the routing test reads as documents, not nodes
-  # (.agents/docs/research/README.md, "Which files are nodes").
+  # (.agents/docs/research.md, "Which files are nodes").
   printf '\ndocs/research on %s — files routing reads as documents, not nodes\n' "$ref"
   local rf rq rstem cl_rrefs docs_n=0 decayed=0
   cl_rrefs="$(while IFS= read -r rf; do
@@ -6023,7 +6023,7 @@ fin_gate() {
   printf '  by the next session (Loop step 7). Delete them in THIS branch, as\n'
   printf '  the last commit before the merge — after it, the fix needs its own\n'
   printf '  pull request and the base branch is wrong until that lands.\n'
-  printf '  Keepers graduate first: .agents/docs/handover/README.md.\n'
+  printf '  Keepers graduate first: .agents/docs/handover.md.\n'
   printf '  Full picture, inherited files included: %s\n' "'$0 finish'"
   if [ "$strength" = "done" ]; then
     return 1
@@ -6370,7 +6370,7 @@ finish_adds() {
     "$adds" "$ref"
   printf '  the next session. Delete them in THIS branch, as the last commit\n'
   printf '  before the merge (with the done plan file). Keepers graduate first:\n'
-  printf '  .agents/docs/handover/README.md.\n'
+  printf '  .agents/docs/handover.md.\n'
   return 1
 }
 
@@ -7835,7 +7835,7 @@ lint_fast_lane() {
       "$fast" "$FAST_LANE" "$n" "$FAST_LANE_FILES"
     return 0
   fi
-  printf '\n  %s breach(es) of the fast lane (%s; .agents/docs/plans/README.md, Fast lane).\n' \
+  printf '\n  %s breach(es) of the fast lane (%s; .agents/docs/plans.md, Fast lane).\n' \
     "$bad" "$fast"
   return 1
 }

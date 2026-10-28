@@ -70,7 +70,7 @@ reached; every past sentence is paid by every reader, forever.
   designs, amendment chains, who found what.
 - Reversed decision: rewrite the rule in place; record keeps one line
   naming the decision in force. Old text = `git log -p`.
-- Workstream and plan files: same rule (handover README: only what git
+- Workstream and plan files: same rule (`handover.md`: only what git
   cannot tell).
 
 "Numbers, dates — exact" (Never touch) governs text that stays, not whether a

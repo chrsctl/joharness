@@ -156,7 +156,7 @@ expect "a layer with no smoke test is not sold as proof" \
 # The docs-only case above passes on the path, not on the suffix, so deleting
 # the suffix test left every case green.
 git -C "$kcwork" checkout -qb kcharnessdoc main
-printf '# notes\n' >"${kcwork}/.agents/harness/README.md"
+printf '# notes\n' >"${kcwork}/.agents/harness/notes.md"
 commit_all "$kcwork" "markdown under a gated path"
 git -C "$kcwork" push -qu origin kcharnessdoc 2>/dev/null
 out="$(JOHARNESS_CHECKS=local kc_finish)"

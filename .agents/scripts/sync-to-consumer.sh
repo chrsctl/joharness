@@ -3,7 +3,7 @@
 # sync-to-consumer.sh - bring a consumer repo's harness copy current.
 #
 # One-way: the joharness checkout this script lives in is canonical, the
-# consumer directory receives. Reconciliation rule (.agents/docs/product/README.md):
+# consumer directory receives. Reconciliation rule (.agents/docs/product.md):
 # a fix born in a consumer lands in joharness first, then syncs out. So a
 # consumer file whose content is not any historical canonical version of
 # that path is treated as AHEAD: warned about, never overwritten. Stale vs
@@ -124,7 +124,7 @@ top="$(cd "$top" 2>/dev/null && pwd -P)" ||
   die "canonical '$ROOT' is nested inside another git checkout (${top})"
 # Consumers receive this script too and would pass every structural
 # check, but consumer-to-consumer sync is forbidden
-# (.agents/docs/product/README.md, Reconciliation). Only canonical carries the
+# (.agents/docs/product.md, Reconciliation). Only canonical carries the
 # marker; the conf is never synced, so no sync-born consumer inherits
 # it. A whole clone of joharness carries it — bootstrap-consumer.sh
 # strips it there, joharness.conf says so at the marker.
@@ -466,7 +466,7 @@ sync_file() {
   else
     printf '  AHEAD   %s\n' "$rel"
     warn "${rel}: consumer content not in canonical history; NOT overwritten." \
-      "Land the fix in joharness first (.agents/docs/product/README.md," \
+      "Land the fix in joharness first (.agents/docs/product.md," \
       "Reconciliation) — or fetch a current canonical."
     AHEAD=$((AHEAD + 1))
   fi

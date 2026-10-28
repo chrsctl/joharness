@@ -83,7 +83,7 @@ expect "and the last word points at dispatch" \
 # This block used to assert the opposite: a plan touching one protocol file
 # and one other "is not undoable — the session does the rest and records the
 # remainder". That is partial credit the Loop does not model. Acceptance is
-# all-or-nothing (.agents/docs/plans/README.md), step 5 is all green or not
+# all-or-nothing (.agents/docs/plans.md), step 5 is all green or not
 # done, step 7 deletes a plan file only when it IS done, and
 # handover-guard.sh counts ANY protocol path in the diff — so a session that
 # starts one of these finishes nothing and hands off — the queue offering a

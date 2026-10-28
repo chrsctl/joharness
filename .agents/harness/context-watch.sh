@@ -2,7 +2,7 @@
 # PreToolUse hook: once the session's context crosses a level, the next tool
 # call carries one line — write the workstream file, commit and push now. The
 # handover then exists before compaction takes the rules, not after
-# (.agents/docs/handover/README.md, "Compaction: task state survives, the
+# (.agents/docs/handover.md, "Compaction: task state survives, the
 # rules decay").
 #
 # Reads the payload's `transcript_path`, takes the LAST assistant `usage` in

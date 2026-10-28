@@ -3,7 +3,7 @@ description: Write or update this branch's workstream file so the next session c
 ---
 
 Update workstream file for this session's work. Protocol:
-`.agents/docs/handover/README.md`. Inline — no subagent.
+`.agents/docs/handover.md`. Inline — no subagent.
 
 1. Find this branch's file under `docs/handover/`. None + real work done?
    Create from `.agents/docs/handover/TEMPLATE.md`. Name = workstream, not branch.

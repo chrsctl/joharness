@@ -11,7 +11,7 @@ scope: none
 ---
 
 <!--
-Copy to docs/plans/<plan>.md. Rules: .agents/docs/plans/README.md (Shape).
+Copy to docs/plans/<plan>.md. Rules: .agents/docs/plans.md (Shape).
 Write for a literal reader: scope and out-of-scope explicit, acceptance =
 runnable commands with expected output.
 needs: plan names whose RESULT this plan reads, or a requirement no plan
@@ -54,7 +54,7 @@ Why this work exists, requester's terms. One paragraph.
 ## Escape
 
 <!-- Optional; required in a plan made from a `defect:` issue. Delete otherwise.
-Entry, Gate, Route: answer in the PR body (plans README, Shape). -->
+Entry, Gate, Route: answer in the PR body (.agents/docs/plans.md, Shape). -->
 
 ## Where to look
 

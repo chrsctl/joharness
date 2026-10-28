@@ -6,7 +6,7 @@ redefines: a second copy of a definition rots against the first.
 
 | Canonical | Means | Defined in | Not this |
 | --- | --- | --- | --- |
-| workstream file | one file per work, live on its branch, retired by its own pull request | `.agents/docs/handover/README.md` | handover file |
+| workstream file | one file per work, live on its branch, retired by its own pull request | `.agents/docs/handover.md` | handover file |
 | agent tier | which of haiku, sonnet, opus, fable implements a plan | `.agents/docs/agent-selection.md` | model tier |
 | environment layer | one directory under `.agents/env/`, at most one selected per repo | `.agents/env/README.md` | env layer |
 | surveyor | the role that corrects held plans' `scope:` declarations on an `OVERLAP-BOUND` verdict | `.agents/docs/orchestrated.md` | rescope manager |

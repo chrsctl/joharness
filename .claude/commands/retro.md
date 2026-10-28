@@ -30,7 +30,7 @@ What you read, and NOTHING else:
   counts events before the filter); and the workstream file the row names.
 - Open plans' `## Goal` sections (`docs/plans/*.md` on `origin/main`) and
   open issues' titles, to find what already covers a failure.
-- `.agents/docs/plans/README.md` — plan shape and `## Escape`.
+- `.agents/docs/plans.md` — plan shape and `## Escape`.
 - For a `rule broken` route: the one file holding that rule.
 - For a `repair` route: the open plans whole, to find every one gated on
   the same item.
@@ -115,7 +115,7 @@ a verifier finding the session fixed.
      Then route on: the check that should have refused the prose gate is a
      mechanism.
    - The fix is a mechanism (a check, a guard, a clearer message) = a new
-     plan file, `/plan` shape (`.agents/docs/plans/README.md`), `##
+     plan file, `/plan` shape (`.agents/docs/plans.md`), `##
      Escape` holding the three answers, `agent:` at most sonnet unless the
      fix needs more. One plan per mechanism.
    - A rule already written and broken, no mechanism in sight = `rule

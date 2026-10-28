@@ -209,11 +209,11 @@ fixture_rm() {
 }
 
 # --- structure: the layer rule, enforced ------------------------------------
-# Three files state it — root AGENTS.md, .agents/env/README.md and
-# .agents/harness/README.md — and until this check nothing measured it, so the
-# tree drifted from all three: selftest.sh grew a k8s regression test whose
-# justification lived only in a code comment, while every statement of the
-# rule still read as an absolute. A rule with three statements and no test is
+# Two files state it — root AGENTS.md and .agents/env/README.md — and until
+# this check nothing measured it, so the tree drifted from both: selftest.sh
+# grew a k8s regression test whose justification lived only in a code
+# comment, while every statement of the rule still read as an absolute. A
+# rule with several statements and no test is
 # the shape the finish gate was promoted out of.
 #
 # Two things are NOT couplings, and the difference matters:
@@ -223,7 +223,7 @@ fixture_rm() {
 #          harness files do. Exempt by definition, not by exception.
 #
 #   the carve-out below   Spelled ONCE, here, in the check that reads it, so
-#          the three prose statements can point at it instead of each
+#          the prose statements can point at it instead of each
 #          re-spelling it and drifting apart the way the rule already did.
 LAYER_CARVE_OUT_FILE="selftest.sh"
 LAYER_CARVE_OUT_NAME="k8s"

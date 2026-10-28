@@ -88,7 +88,7 @@ in this container. You have no control-plane call, so no session record, no
 fleet, no live manager. A claim resting on a reading no command you can run
 here re-takes is one you can only check for internal consistency.
 
-The boundary, in the words the research README also uses: `outside this checkout`.
+The boundary, in the words the research doc also uses: `outside this checkout`.
 
 Say that, never skip it:
 
@@ -97,7 +97,7 @@ Say that, never skip it:
 - Mark it UNVERIFIED, naming the reading you could not take.
 
 UNVERIFIED is your report's word. In a research node it maps to WEAK at
-best, never GROUNDED (`.agents/docs/research/README.md`).
+best, never GROUNDED (`.agents/docs/research.md`).
 
 Silence is the failure: it turns a known limit into a hidden one.
 

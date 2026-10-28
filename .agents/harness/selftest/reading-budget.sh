@@ -10,7 +10,7 @@
 # its counted size plus a tenth, and no pointer into a history/ file.
 #
 # Bounds are counted, not estimated: `wc -c` on the split commit,
-# 2026-10-14 — handover/README.md 18979, consumer-repos.md 24986 (on
+# 2026-10-14 — handover.md (then handover/README.md) 18979, consumer-repos.md 24986 (on
 # origin/main before the split: 22234 and 26506). Raise one only by moving
 # more text out, or by a rule that has to live there; say which in the
 # commit.
@@ -40,7 +40,7 @@ rb_bound() {
   fi
 }
 
-rb_bound handover/README.md 18979
+rb_bound handover.md 18979
 rb_bound consumer-repos.md 24986
 # manage.md loads whole into every manager session; its rare branches
 # live in manage-reference.md. Counted `wc -c` on the diet commit,
@@ -90,8 +90,8 @@ fi
 
 # Unbounded: growth is visible, nothing is gated.
 rb_total=0
-for rb_rel in ../../.claude/commands/manage.md plans/README.md \
-  handover/README.md agent-selection.md subagents.md \
+for rb_rel in ../../.claude/commands/manage.md plans.md \
+  handover.md agent-selection.md subagents.md \
   ../../.claude/agents/verifier.md; do
   if [ -r "${rb_docs}/${rb_rel}" ]; then
     rb_total=$((rb_total + $(wc -c <"${rb_docs}/${rb_rel}" | tr -d ' ')))

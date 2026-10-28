@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Stop-hook guard for the finishing ritual (.agents/docs/handover/README.md):
+# Stop-hook guard for the finishing ritual (.agents/docs/handover.md):
 # update the workstream file, commit with the code, push.
 
 set -uo pipefail
@@ -122,6 +122,6 @@ fi
 
 # The facts string is built from fixed words and digits only — nothing
 # repo-controlled — so it embeds in JSON without escaping.
-printf '{"decision": "block", "reason": "Handover guard, git facts: %s. Unfinished work? /handover, commit WITH the change, push (.agents/docs/handover/README.md finishing ritual — before ending any unfinished turn). All deliberate? Stop again; this guard fires once per stop."}\n' \
+printf '{"decision": "block", "reason": "Handover guard, git facts: %s. Unfinished work? /handover, commit WITH the change, push (.agents/docs/handover.md finishing ritual — before ending any unfinished turn). All deliberate? Stop again; this guard fires once per stop."}\n' \
   "$facts"
 exit 0

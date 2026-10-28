@@ -4,20 +4,20 @@ Pre-scoped work agents execute without human in loop. One file per plan,
 under `docs/plans/`, on `main` (same-session plan: on its work branch —
 Lifecycle). Queue order (`./joharness.sh dispatch` prints it, reading git
 only): unplanned requirements
-([`docs/product/`](../product/README.md) — decompose before executing),
+([`docs/product/`](product.md) — decompose before executing),
 then oldest actionable plan here. Issues are not in the queue: the clerk
 turns them into plans (`.agents/docs/orchestrated.md`). Nothing builds
 unplanned: an issue or direct ask decomposes into a plan before code — the
 plan is where a model gets matched to the work. Exceptions: copy and sync
-tasks get no plan (`.agents/docs/handover/README.md`, "When NOT to write
+tasks get no plan (`.agents/docs/handover.md`, "When NOT to write
 one"), and the fast lane below.
 
-Written for literal readers ([`agent-selection.md`](../agent-selection.md)):
+Written for literal readers ([`agent-selection.md`](agent-selection.md)):
 scope AND out-of-scope explicit; agent does what plan says, nothing else.
 
 ## Shape
 
-Copy [`TEMPLATE.md`](TEMPLATE.md). Sections:
+Copy [`TEMPLATE.md`](plans/TEMPLATE.md). Sections:
 
 - **Goal** — why, one paragraph, requester's terms.
 - **Scope** — files to create or touch, named.
@@ -46,7 +46,7 @@ Frontmatter: `plan`, `urgency` (`normal` | `urgent`), `agent` (`haiku` |
 `sonnet` | `opus` | `fable` — tier that implements), `effort`, optional:
 
 - `needs` — plan names this one reads results of.
-- `requirement` — the one this plan serves ([`docs/product/`](../product/README.md)).
+- `requirement` — the one this plan serves ([`docs/product/`](product.md)).
 - `serves` — which of that requirement's clauses: `<n>[, <n>]` (top-level
   items of its `## Satisfied when`, numbered by position) or `all`. Absent =
   `all`, today's meaning; `serves:` with no number is red, never `all`.
@@ -54,19 +54,19 @@ Frontmatter: `plan`, `urgency` (`normal` | `urgent`), `agent` (`haiku` |
   a requirement's plans, open and retired, missing a clause = PARTLY PLANNED, offered for
   planning; a branch deleting the requirement while the plans that named it,
   open or retired, leave a clause unserved is red
-  ([`../product/README.md`](../product/README.md), Clauses).
+  ([`product.md`](product.md), Clauses).
 - `issue` — the GitHub issue a clerk turned into this plan (`#N`, `N` or
   `none`); `./joharness.sh clerk` lists it PLANNED.
 - `scope` — path prefixes the plan will touch; `none` joins no wave. The queue hook proves
   parallel safety inside a wave of disjoint scopes and names the conflict
   across waves; `needs` alone cannot say two plans edit one file.
 
-Selection rules: [`agent-selection.md`](../agent-selection.md). Implementing
+Selection rules: [`agent-selection.md`](agent-selection.md). Implementing
 session may escalate tier or effort, never downgrade.
 
 ## Dependencies and parallel work
 
-Queue = DAG (edge model: [`graph.md`](../graph.md)). `needs: other-plan`
+Queue = DAG (edge model: [`graph.md`](graph.md)). `needs: other-plan`
 blocks a plan while `docs/plans/other-plan.md` exists — file existence IS the
 edge. Hook lists blocked plans last with `blocked by:`; never suggests them.
 `needs: <requirement>`, for one no plan builds yet, blocks while

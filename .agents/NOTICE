@@ -41,7 +41,7 @@ together with the copyright line given for it.
   Copyright (c) 2026 Julius Brussee. That file reproduces the full notice
   itself, in a closing section, so a copy of it made on its own is complete.
 
-- .agents/docs/graph.md and .agents/docs/plans/README.md adapt task-graph
+- .agents/docs/graph.md and .agents/docs/plans.md adapt task-graph
   rules from Graph Engineering
   (https://github.com/codejunkie99/graph-engineering). Ideas, cited at the
   point of use; no text is reproduced. MIT License,

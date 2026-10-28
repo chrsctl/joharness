@@ -73,7 +73,7 @@ the usual fields (`subagents.md`) with the merge base sha = the parent of
 the earliest of the fix commits since the last pass, before the PR;
 that pass counts toward the review-churn bound, and is not a new round of the whole diff.
 
-Findings land in `## Review` (`.agents/docs/handover/README.md`, Reviewing).
+Findings land in `## Review` (`.agents/docs/handover.md`, Reviewing).
 Escalating tier escalates review depth; neither ever downgrades.
 
 `./joharness.sh review` prints the depth for this branch and whether the
@@ -136,4 +136,4 @@ From Anthropic migration notes, each with its harness consequence:
 
 ## Writing plans for agents
 
-Rules in `.agents/docs/plans/README.md`: an agent executes what the plan says, and nothing else.
+Rules in `.agents/docs/plans.md`: an agent executes what the plan says, and nothing else.

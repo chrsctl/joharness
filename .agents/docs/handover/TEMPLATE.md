@@ -12,7 +12,7 @@ next: One concrete action, phrased as an instruction
 ---
 
 <!--
-Copy to docs/handover/<workstream>.md. Protocol: .agents/docs/handover/README.md.
+Copy to docs/handover/<workstream>.md. Protocol: .agents/docs/handover.md.
 
 Only what git cannot tell next session. No file counts, no "tests passing",
 no diff summaries — derivable, goes stale. Hook reads frontmatter without
@@ -20,13 +20,13 @@ opening file: keep `next` one line. `agent` = tier this work wants
 (.agents/docs/agent-selection.md); hook shows it, so resuming user picks right
 model. `plan` = plan this workstream implements — THE claim; queue marks
 that plan taken. A research file under `docs/research/` is claimed through
-this same field, by its stem (`.agents/docs/research/README.md`), and so is
+this same field, by its stem (`.agents/docs/research.md`), and so is
 a requirement under `docs/product/` a planning pass decomposes
-(`.agents/docs/product/README.md`, Claiming a requirement). Not plan work?
+(`.agents/docs/product.md`, Claiming a requirement). Not plan work?
 Leave `none`.
 `issue` = GitHub issue this work claims. The hook lists it so another
 session sees the issue is taken. Write it when the work STARTS. `#114` and
-`114` both work; rules and the seam it does not cover: README, "Claiming an
+`114` both work; rules and the seam it does not cover: handover.md, "Claiming an
 issue".
 
 Push as soon as file exists. Claim does not exist until pushed.
