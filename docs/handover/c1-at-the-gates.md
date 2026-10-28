@@ -22,6 +22,8 @@ Plan-checker and verifier ask conduct's C1 before merge (plan c1-at-the-gates).
 
 ## Review
 
+- r1: clean pass, no findings (verifier) (no change)
+
 
 ## Blockers
 
