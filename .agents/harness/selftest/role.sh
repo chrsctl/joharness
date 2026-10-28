@@ -31,7 +31,7 @@ cp "${ROOT}/joharness.sh" "${role_work}/joharness.sh"
 cp "${ROOT}/.agents/harness/queue-context.sh" \
    "${ROOT}/.agents/harness/handover-context.sh" "${role_work}/.agents/harness/"
 cp "${ROOT}/.agents/docs/handover/TEMPLATE.md" "${role_work}/.agents/docs/handover/"
-for role_c in clerk scout conduct retro; do
+for role_c in clerk scout retro-audit retro; do
   printf '# %s\n' "$role_c" >"${role_work}/.claude/commands/${role_c}.md"
 done
 printf '# none\n' >"${role_work}/.agents/env/none/AGENTS.md"
@@ -55,12 +55,23 @@ expect "authority UNVERIFIED stops the prelude" "STOP: authority UNVERIFIED" "$(
 expect "a STOP exits 1" "rc=1" "$out"
 refute "and nothing is fetched or cut" "branch    :" "$out"
 
-# --- conduct not due: its plain exit -----------------------------------------
+# --- audit not due: its plain exit (role conduct is the alias) ----------------
 out="$(role_run ./joharness.sh role conduct)"
 expect "conduct not due stops" "STOP: cadence   : not due" "$(role_last "$out")"
 refute "and cuts no branch" "branch    :" "$out"
+out_audit="$(role_run ./joharness.sh role retro --audit)"
+expect "retro --audit not due stops" "STOP: cadence   : not due" "$(role_last "$out_audit")"
+refute "retro --audit not due cuts no branch" "branch    :" "$out_audit"
+expect "retro --audit prints its own header" "== role retro --audit (" "$out_audit"
+if [ -n "$(role_last "$out")" ] && [ "$(role_last "$out")" = "$(role_last "$out_audit")" ]; then
+  pass "role conduct and role retro --audit print the same last line"
+else
+  fail "role conduct and role retro --audit print the same last line"
+fi
+expect "retro --audit --retire: no claim file" "STOP: retro --audit writes no claim file: nothing to retire" \
+  "$(role_last "$(role_run ./joharness.sh role retro --audit --retire)")"
 
-# --- retro not due: its plain exit, as conduct's -----------------------------
+# --- retro not due: its plain exit, as audit's -----------------------------
 out="$(role_run ./joharness.sh role retro)"
 expect "retro not due stops" "STOP: retro : not due" "$(role_last "$out")"
 refute "retro not due cuts no branch" "branch    :" "$out"
@@ -192,6 +203,16 @@ commit_all "$role_work" "ledger rows"
 git -C "$role_work" push -q -u origin "conduct-${role_today}-0000"
 expect "conduct --twin stops when the Clock no longer reads due" "STOP: TWIN Clock: not-due" \
   "$(role_last "$(role_run ./joharness.sh role conduct --twin)")"
+# One reviewer branch at a time, or the twin sees the other as its sibling.
+git -C "$role_work" checkout -q main
+git -C "$role_work" push -q origin --delete "conduct-${role_today}-0000"
+git -C "$role_work" branch -q -D "conduct-${role_today}-0000"
+git -C "$role_work" checkout -qb "retro-audit-${role_today}-0000" main
+printf 'x\n' >"${role_work}/role-retro-audit.txt"
+commit_all "$role_work" "ledger rows"
+git -C "$role_work" push -q -u origin "retro-audit-${role_today}-0000"
+expect "retro --audit --twin stops when the Clock no longer reads due" "STOP: TWIN Clock: not-due" \
+  "$(role_last "$(role_run ./joharness.sh role retro --audit --twin)")"
 
 # --- clerk: GO alone, then the name tiebreak ---------------------------------
 git -C "$role_work" checkout -q main

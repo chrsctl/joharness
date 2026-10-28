@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK5rjqiJNckSSTh2gN7
 agent: opus
 updated: 2026-10-28
-next: Count worker returns (scout.sh role.sh orchestrated.sh reading-budget.sh; docs), commit, then ci, verify, verifier
+next: Count the docs worker return, commit, then ci, verify, verifier
 ---
 
 ## Goal
