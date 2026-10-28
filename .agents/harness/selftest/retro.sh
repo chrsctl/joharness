@@ -449,8 +449,10 @@ expect "retro: and says why" "an audit CONCERN is not yet traced" "$out"
 expect "retro: no retire prints session none" "concern   : alpha 2026-01-15 session none" "$out"
 
 # The open-PR check of each mode matches only its own branches (§0.2).
+# shellcheck disable=SC2016 # the literal is the point
 expect "retro.md: trace's open-PR check never takes an audit branch" \
   'branch (never `retro-audit-*`)' "$(cat "${ROOT}/.claude/commands/retro.md")"
+# shellcheck disable=SC2016 # the literal is the point
 expect "retro-audit.md: audit's open-PR check takes both its names" \
   'pull request from a `retro-audit-*` or `conduct-<digit>…` branch' \
   "$(tr '\n' ' ' <"${ROOT}/.claude/commands/retro-audit.md" 2>/dev/null | tr -s ' ')"
