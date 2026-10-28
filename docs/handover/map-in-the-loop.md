@@ -2,7 +2,7 @@
 workstream: map-in-the-loop
 status: in-progress
 branch: claude/map-in-the-loop
-pr: none
+pr: 673
 plan: map-in-the-loop
 issue: none
 session: https://claude.ai/code/session_01W18Uk51vWUnKgHZiX9b4KR
