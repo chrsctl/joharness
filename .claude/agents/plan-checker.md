@@ -24,6 +24,9 @@ written against the checkout.
 6. Every factual claim in the plan (a path, a number, a count, a quoted
    rule) resolves against the code. A number beside a command: run the
    command.
+7. No `## Acceptance` item expects the behaviour the `## Goal` says must be
+   refused (passes, succeeds, prints OK, is allowed). The Goal says X must be
+   refused and an item expects X to pass = a finding.
 
 ## What a finding is
 
