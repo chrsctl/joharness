@@ -549,7 +549,7 @@ commit_all "$frwork" "base"
 git -C "$frwork" remote add origin "$frorigin"
 git -C "$frwork" push -qu origin main
 fr() { ( cd "$frwork" && env JOHARNESS_CONF="$frconf" DRAIN_FETCH=0 \
-  DISPATCH_FETCH=0 "$@" ./joharness.sh dispatch 2>&1 ); }
+  DISPATCH_FETCH=0 ./joharness.sh dispatch 2>&1 ); }
 git -C "$frwork" checkout -qb carry-dr main
 printf -- '---\nworkstream: carry-dr\nstatus: done\nbranch: carry-dr\npr: none\nplan: dr\nagent: sonnet\nupdated: 2026-01-01\nnext: Nothing\n---\n\n## Goal\nFixture.\n' \
   >"${frwork}/docs/handover/carry-dr.md"
