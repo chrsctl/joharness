@@ -32,9 +32,9 @@ model calls. Drift warns in `ci`, so the map cannot rot silently.
     3 levels deep. Excluded, with everything under them:
     - PROTOCOL FOLDERS: one array constant, `MAP_PROTOCOL_DIRS`, the single
       list `cmd_map` and the lint read. It holds `.agents`, `.claude`,
-      `.github`, `docs/plans`, `docs/handover`, `docs/product`,
-      `docs/research` and `docs/findings`. The harness documents these in
-      its own READMEs; a product map never describes them.
+      `.github` and `docs`. All of `docs/` is harness: queues, ledgers,
+      records and the map itself. The harness documents these in its own
+      READMEs; a product map never describes them.
     - any other path segment starting with `.`;
     - a folder whose every tracked file `git check-attr` marks
       `linguist-generated` or `linguist-vendored` set.
@@ -81,10 +81,10 @@ model calls. Drift warns in `ci`, so the map cannot rot silently.
   - two product folders, a `linguist-generated` folder, a non-protocol dot
     folder, and a tracked file inside EACH `MAP_PROTOCOL_DIRS` entry (the
     case loops over the array, so a new entry is covered). A map listing one
-    real product folder, one absent folder and `docs/plans/`. Expect
-    `missing` for the unlisted product folder, `gone` for the absent one,
-    `gone ... (protocol folder)` for `docs/plans/`, and no line naming any
-    other excluded folder.
+    real product folder, one absent folder, `docs/` and `docs/adr/`.
+    Expect `missing` for the unlisted product folder, `gone` for the absent
+    one, `gone ... (protocol folder)` for `docs/` and for `docs/adr/`, and
+    no line naming any other excluded folder.
   - commit a change under the mapped folder: expect `stale` with
     `1 files changed`.
   - with every class empty: expect `map       : current`.
@@ -100,10 +100,10 @@ model calls. Drift warns in `ci`, so the map cannot rot silently.
   cannot be derived from them there — evidence: `joharness.sh:ship_load`
   returns non-zero outside canonical, and `.agents/scripts` is not in the
   engine's `DIRS` — confidence: high. Hence one constant.
-- A7: `docs/adr/` and `docs/rules/` are the consumer's own docs, not
-  protocol — evidence: `.claude/commands/scout.md` reads `docs/adr/` as
-  product records; `.agents/docs/handover/README.md` calls `docs/rules/` "a
-  consumer's own section" — confidence: medium.
+- A7: All of `docs/` counts as harness, by the requester's decision
+  (2026-10-28), so the map covers product folders only — evidence: the
+  harness's queues and ledgers live there (`joharness.sh:lint_nodes`
+  callers, `docs/conduct-log.md`) — confidence: high.
 - A2: Warnings never fail `ci` — evidence: `joharness.sh:lint_warn` sets
   `LINT_WARNED` only — confidence: high.
 - A3: A new selftest topic must be listed in `SELFTEST_TOPICS` or the
