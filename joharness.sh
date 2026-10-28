@@ -7465,7 +7465,9 @@ map_scan() {
   for d in "${!idx[@]}"; do
     line=""
     IFS= read -r line <"${ROOT}/${d}/${MAP_INDEX}" 2>/dev/null || :
-    [ "${line%$'\r'}" = "# ${d}/" ] && continue
+    # Trailing blanks are an edit, not an owner; an empty file is no one's prose.
+    line="${line%"${line##*[![:space:]]}"}"
+    [ "$line" = "# ${d}/" ] || [ ! -s "${ROOT}/${d}/${MAP_INDEX}" ] && continue
     unset 'idx[$d]'
     foreign["$d"]=1
   done

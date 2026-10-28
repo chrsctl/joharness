@@ -78,6 +78,12 @@ refute "a person's INDEX.md in a protocol folder is no orphan" "docs/adr/INDEX.m
 refute "a person's INDEX.md covers its product folder" "missing : hand/" "$out"
 refute "a person's INDEX.md is never link-checked" "hand/INDEX.md" "$out"
 expect "an index /map wrote in a protocol folder is still an orphan" "orphan  : docs/INDEX.md" "$out"
+printf '# app/ \n- [gone](nowhere.md)\n' >"${mwork}/app/INDEX.md"
+expect "a trailing blank on the heading keeps the index ours" "broken  : app/INDEX.md -> nowhere.md" "$(map_run)"
+git -C "$mwork" checkout -q -- app/INDEX.md
+printf 'y\n' >>"${mwork}/hand/f.txt"
+commit_all "$mwork" "change a folder a person indexes"
+refute "a person's INDEX.md is never stale" "stale   : hand/" "$(map_run)"
 mkdir -p "${mwork}/web"; printf 'x\n' >"${mwork}/web/f.txt"
 commit_all "$mwork" "unindexed web"
 mlint="$(map_ci)"
