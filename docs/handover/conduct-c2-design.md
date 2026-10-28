@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK7QGg4E4RrtuYft1bf
 agent: opus
 updated: 2026-10-28
-next: Prototype c2.sh works on 3 real stems (FINE); build trap fixtures, measure worst unit, write Findings
+next: Read scratchpad run-b.txt (code-from-last-main-merge mode); write Method/Findings; verifier; graduate
 ---
 
 ## Goal
@@ -23,10 +23,16 @@ without false FINE or false CONCERN, at a cost of 3 branches per run.
   non-merge commits reverted (3-way) and selftest files restored from T_fix;
   run only the units holding touched topics, read each label's own word.
   Why: tests from T_fix kill the missing-helper and unlisted-topic traps.
+- Verdict is per case, read against the Goal: the fixture `other` (an
+  unrelated case flips, the fix's own case passes either way) gives a
+  mechanical FINE that only the per-case table exposes.
 
 ## Rejected
 
-None yet.
+- `git revert` of own commits: conflicts in test files it then discards.
+- `git apply -R --3way` of own non-test diffs onto T_fix: conflicts when
+  main merged into the branch moved the same lines
+  (requirement-partly-served, 970de5c1 against joharness.sh).
 
 ## Review
 
