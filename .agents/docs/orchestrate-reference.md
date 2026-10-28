@@ -292,12 +292,16 @@ research step before any edit." Counts against the respawn limit.
 
 ## Release
 
-RELEASE — a row line (never `next:`) carrying `RELEASE: the queue holds it by
-needs: <stem>`, its branch on the `release DUE` line: run `./joharness.sh release
-<branch>...` with every branch that line names, once per pass. It writes
-`status: abandoned` only for a branch it still qualifies, through guard
-`release` and the lease. Each `release   :` line the WRITE (`release <branch>`) prints, never the report's or dispatch's,
-= ledger `released=<stem>` (the stem after `plan` on that line; the ledger key `released=<stem>[,<stem>]` is run-scoped)
+RELEASE — the `release DUE` line names three kinds of branch, each on its
+own `release   :` line above: `queue holds it by needs: <stem>` (its row
+carries `RELEASE:`) = release at once; `stale, session gone?` or `done, no
+pull request` = only once `get_session` reads its session ARCHIVED or not
+found; anything else = leave it. Run `./joharness.sh release <branch>...` on
+those, once per pass. It writes `status: abandoned` only for a branch it
+still lists, through guard `release` and the lease. Each `release   :` line
+the WRITE (`release <branch>`) prints, never the report's or dispatch's,
+= ledger `released=<stem>` (the stem after `plan` on that line; no `plan`
+token = no entry; the ledger key `released=<stem>[,<stem>]` is run-scoped)
 and report it once: stem, branch, the needs: stem. `refused`, `skip` or
 `FAILED` = report the line, re-decide next pass. No session is stopped: a
 returning one sets the word back. The plan returns to the queue held by its

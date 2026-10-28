@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK6KyCC596i2QaG6VSX
 agent: opus
 updated: 2026-10-28
-next: Run the touched selftest topics, fix reds, then full ci and verify; verifier at opus
+next: Full ci and verify on this head, then the retire commit, pull request, merge
 ---
 
 ## Goal
@@ -25,6 +25,8 @@ asked to simplify the commands that unstick abandoned work.
 - A4: confirmed — JOHARNESS_CLERK_STALE_HOURS row, default 24.
 - The `done, no pull request` reason also waits HANDOVER_STALE_SECONDS, and needs a plan: named (not none): a `plan: none` done record is a role's (a surveyor's holds-genuine stays unmerged by design), which the freer also refused.
 - A no-claim branch is one that never ADDED a workstream file since the base: an edge that retired its claim waits on its pull request and is not listed.
+- Behaviour lost 1: a doc-only branch with a stale claim is released, not merged; its plans stay on the branch and every release line names them `plans not landed:` for a human to re-file.
+- Behaviour lost 3: a doc-only branch that never claimed is a report-only `no claim:` line; nothing is written, branch deletes stay a human's.
 - Write order per branch: tip, guard, then the report check — as janitor --apply did, so a gone branch exits 0 whether listed or not.
 
 ## Rejected
@@ -52,6 +54,17 @@ asked to simplify the commands that unstick abandoned work.
 - r19: (plan-checker) no subject for the done reason (fixed: release: done, no pull request)
 - r20: (plan-checker) Removed omits n_freer_live and the free-* in-flight walk (fixed)
 - r21: (plan-checker) the tree moved during the round-2 read (no change: a plan check reads the plan; the verifier runs on a still tree)
+- r22: (verifier) orchestrate-reference § Release told the orchestrator to release every release DUE branch, stale and done ones included, with no session check (fixed: a needs: one at once, a stale or done one only once get_session reads ARCHIVED or not found)
+- r23: (verifier) a due release left the DRAINED verdict at exit, so the freed plan waited for a human restart (fixed: the verdict names a due release and says schedule the next pass)
+- r24: (verifier) release_done_only's whole-diff test had no case failing without it (fixed: a stale done branch carrying code is never listed)
+- r25: (verifier) dispatch dropped a branch's own claimed plan from plans not landed, the report kept it (fixed: dispatch reads release_unlanded per branch, as the report does)
+- r26: (verifier) a branch-controlled workstream path printed raw could forge a queue line in the report (fixed: paths printed through the stem charset; the report's queue section matches the write's anchored shape)
+- r27: (verifier) release_human leaked a global commit and copied release_push (fixed: calls release_push)
+- r28: (verifier) stale and done write lines carry no plan token for the ledger rule (fixed: they print plan <stem> when the claim names one; the ledger rule says no plan token = no entry); report, dispatch and write column orders differ (wontfix: report and dispatch lead with the reason, the write keeps the needs: write's path-first shape the ledger already reads)
+- r29: (verifier) release_unlanded's live filter had no case failing without it (fixed: a leftover plan is never named not landed)
+- r30: (verifier) Behaviour lost 1 and 3 not recorded in Decisions (fixed)
+- r31: (verifier) the no-claim line tells a human to re-file plans an open pull request may still land (fixed: wording names the open pull request first)
+- r32: (verifier) stale janitor comments in joharness.sh, handover-context.sh, scout.sh, retro.sh (fixed in joharness.sh and handover-context.sh; scout.sh and retro.sh: wontfix: they describe fixture history, a role stem named janitor-<date>, still true of past branches)
 
 ## Blockers
 

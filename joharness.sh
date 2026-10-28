@@ -3488,7 +3488,12 @@ release_write() {
         fi
         GIT_INDEX_FILE="$idx" git -C "$ROOT" update-index --cacheinfo "100644,${newblob},${path}" || continue
         n=$((n + 1))
-        printf 'release   : %s  %s  %s\n' "$want" "$path" "$reason"
+        plan="$(printf '%s\n' "$blob" | gr_field plan)"
+        plan="$(lint_stem "$plan" | tr -cd 'A-Za-z0-9._-')"
+        case "$plan" in
+          '' | none) printf 'release   : %s  %s  %s\n' "$want" "$path" "$reason" ;;
+          *) printf 'release   : %s  %s  %s  plan %s\n' "$want" "$path" "$reason" "$plan" ;;
+        esac
         if [ -z "$subj" ]; then
           case "$reason" in
             done*) subj="release: done, no pull request (${today})" ;;
@@ -3530,7 +3535,7 @@ release_write() {
       fi
       stems="$(printf '%s\n' "$noclaim" | awk -F'\t' -v b="$want" '$1 == b { print $2; exit }')"
       if [ -n "$stems" ]; then
-        printf 'refused   : %s — no claim: plans not landed: %s; nothing to release, a human re-files them\n' "$want" "$stems"
+        printf 'refused   : %s — no claim: plans not landed: %s; nothing to release; no open pull request lands them = a human re-files them\n' "$want" "$stems"
       else
         printf 'refused   : %s — not in the release report on this read (pushed recently, released already, blocked, or names a pr:); nothing written\n' "$want"
       fi
@@ -3649,15 +3654,9 @@ release_human() {
     fi
     tree="$(GIT_INDEX_FILE="$idx" git -C "$ROOT" write-tree)"
     rm -f "$idx"
-    commit="$(git -C "$ROOT" commit-tree "$tree" -p "$tip" \
-      -m "release: a human released the claim (${today})")" || { rc=1; continue; }
-    # The lease refuses a branch deleted or moved since the guard read.
-    if git -C "$ROOT" push -q --force-with-lease="refs/heads/${want}:${tip}" \
-      origin "${commit}:refs/heads/${want}" 2>/dev/null; then
-      printf 'pushed    : %s %s\n' "$want" "${commit:0:12}"
+    if release_push "$want" "$tip" "$tree" "release: a human released the claim (${today})"; then
       wrote=1
     else
-      printf 'FAILED    : %s — push refused (the branch moved?); nothing released\n' "$want"
       rc=1
     fi
   done
@@ -3703,10 +3702,11 @@ release_report() {
     agetext="$(dispatch_age_text "$age")"
     if [ -n "$reason" ]; then
       case " ${cands} " in *" ${branch} "*) ;; *) cands="${cands} ${branch}" ;; esac
-      printf 'release   : %s  %s  %s  %s  pushed %s\n' "$branch" "$reason" "$path" \
-        "${status:-?}" "$agetext"
+      printf 'release   : %s  %s  %s  %s  pushed %s\n' "$branch" "$reason" \
+        "$(printf '%s' "$path" | tr -cd 'A-Za-z0-9._/-')" "${status:-?}" "$agetext"
     else
-      printf '  %s  %s  %s  pushed %s\n' "$branch" "$path" "${status:-?}" "$agetext"
+      printf '  %s  %s  %s  pushed %s\n' "$branch" \
+        "$(printf '%s' "$path" | tr -cd 'A-Za-z0-9._/-')" "${status:-?}" "$agetext"
     fi
     # A stem, never the raw field: a workstream file may spell its claim as a
     # path, and `docs/plans/docs/plans/x.md.md` is what printing it raw gets.
@@ -3788,7 +3788,10 @@ release_report() {
   printf '\nqueue (a needs: edge newer than the block — no session to check):\n'
   n=0
   while IFS= read -r line; do
-    case "$line" in 'release   : '*'  queue holds it by needs: '*) ;; *) continue ;; esac
+    # The write's own shape, anchored: a path printed on a stale line cannot
+    # pass for one.
+    printf '%s\n' "$line" |
+      grep -qE '^release   : [^ ]+  queue holds it by needs: [^ ]+  plan [^ ]+  since [0-9-]+$' || continue
     n=$((n + 1)); printf '%s\n' "$line"
   done <<<"$out"
   [ "$n" -gt 0 ] || printf '  none\n'
@@ -3798,7 +3801,7 @@ release_report() {
   while IFS=$'\t' read -r branch stems; do
     [ -n "$branch" ] || continue
     n=$((n + 1))
-    printf 'release   : %s  no claim: plans not landed: %s\n' "$branch" "$stems"
+    printf 'release   : %s  no claim: plans not landed: %s — no open pull request lands them = a human re-files them\n' "$branch" "$stems"
   done <<<"$(release_noclaim_rows)"
   [ "$n" -gt 0 ] || printf '  none\n'
   printf '\n'
@@ -4326,7 +4329,8 @@ conduct_candidates() {
       if (skip[$0]) next
       s = $0; sub(/^docs\/handover\//, "", s); sub(/\.md$/, "", s)
       # Role sessions carry a date in the stem (scout-, curate-, clerk-,
-      # janitor-, findings passes); a manager item names its plan, never a day.
+      # janitor- and findings passes, past ones too); a manager item names its
+      # plan, never a day.
       if (s ~ /-[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/) next
       if (s == "README" || s == "TEMPLATE" || s == "RETIRED") next
       if (done[s] || seen[s]++) next
@@ -8419,8 +8423,8 @@ cmd_dispatch() {
   # land (report only).
   while IFS=$'\t' read -r rb rk rstat; do
     [ -n "$rb" ] || continue
-    rel_line="$(release_unlanded "$rb" "$bprows")"
-    printf 'release   : %s  %s  %s' "$rb" "$rstat" "$rk"
+    rel_line="$(release_unlanded "$rb")"
+    printf 'release   : %s  %s  %s' "$rb" "$rstat" "$(printf '%s' "$rk" | tr -cd 'A-Za-z0-9._/-')"
     [ -z "$rel_line" ] || printf '  plans not landed: %s' "$rel_line"
     [ "$fetch_failed" -eq 0 ] ||
       printf ' (or this clone is stale: fetch failed, DISPATCH_FETCH=0, or a remote.origin.fetch that does not reach refs/heads/*)'
@@ -8430,7 +8434,7 @@ cmd_dispatch() {
   [ -z "$rel_needs" ] || printf '%s' "$rel_needs"
   while IFS=$'\t' read -r rb rk; do
     [ -n "$rb" ] || continue
-    printf 'release   : %s  no claim: plans not landed: %s  — report only: nothing to release, a human re-files them\n' "$rb" "$rk"
+    printf 'release   : %s  no claim: plans not landed: %s  — report only: nothing to release; no open pull request lands them = a human re-files them\n' "$rb" "$rk"
   done <<<"$(release_noclaim_rows "$bprows")"
 
   # Finishing outranks starting, for an orchestrator too: an edge branch
@@ -8724,6 +8728,9 @@ cmd_dispatch() {
     [ "$clerk_due" -eq 1 ] && [ "$fetch_failed" -eq 0 ] && role_will_spawn=1
     if [ "$role_will_spawn" -eq 1 ]; then
       printf 'verdict   : DRAINED — nothing free, nothing in flight; a role is due: spawn it, then schedule the next pass\n'
+    elif [ -n "$release_due" ]; then
+      # A release hands a plan back to the queue: a pass must run after it.
+      printf 'verdict   : DRAINED — nothing free, nothing in flight; a release is due (release DUE below): release, then schedule the next pass\n'
     else
       printf 'verdict   : DRAINED — nothing free, nothing in flight: exit, the heartbeat re-seeds\n'
     fi

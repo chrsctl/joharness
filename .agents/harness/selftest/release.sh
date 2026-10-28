@@ -711,6 +711,63 @@ expect "a doc-only claimed branch is released, not merged" "pushed    : mgr-docc
 expect "and its plan stays on the branch" "plan: landme" \
   "$(git -C "$jorigin" show mgr-docclaim:docs/plans/landme.md 2>&1)"
 
+# A done claim whose branch carries code is never listed: finished code may
+# sit on it (r24).
+git -C "$jwork" checkout -qb mgr-donecode main
+mkdir -p "${jwork}/docs/handover"
+printf -- '---\nworkstream: donecode\nstatus: done\nbranch: mgr-donecode\nplan: parked\npr: none\nagent: sonnet\nupdated: 2026-01-02\nnext: Built it\n---\n\n## Goal\nFixture.\n' \
+  >"${jwork}/docs/handover/donecode.md"
+printf 'built\n' >>"${jwork}/code.txt"
+jcommit "done, with code" '2026-01-02T00:00:00Z'
+git -C "$jwork" push -qu origin mgr-donecode
+# A stale claim on a plan it filed itself: still not landed (r25).
+git -C "$jwork" checkout -qb mgr-ownp main
+mkdir -p "${jwork}/docs/handover"
+printf -- '---\nworkstream: ownp\nstatus: in-progress\nbranch: mgr-ownp\nplan: ownp\npr: none\nagent: sonnet\nupdated: 2026-01-02\nnext: Build\n---\n\n## Goal\nFixture.\n' \
+  >"${jwork}/docs/handover/ownp.md"
+jplan ownp
+jcommit "claim a plan filed here" '2026-01-02T00:00:00Z'
+git -C "$jwork" push -qu origin mgr-ownp
+# A stale claim whose plan the base added and retired since: a leftover,
+# landed, never named not landed (r29).
+git -C "$jwork" checkout -qb mgr-leftp main
+mkdir -p "${jwork}/docs/handover"
+printf -- '---\nworkstream: leftp\nstatus: in-progress\nbranch: mgr-leftp\nplan: none\npr: none\nagent: sonnet\nupdated: 2026-01-02\nnext: Build\n---\n\n## Goal\nFixture.\n' \
+  >"${jwork}/docs/handover/leftp.md"
+jplan leftp
+jcommit "claim, and a plan the base will carry" '2026-01-02T00:00:00Z'
+git -C "$jwork" push -qu origin mgr-leftp
+git -C "$jwork" checkout -q main
+jplan leftp
+jcommit "the base files leftp" '2026-01-03T00:00:00Z'
+git -C "$jwork" rm -q docs/plans/leftp.md
+jcommit "the base retires leftp" '2026-01-03T01:00:00Z'
+git -C "$jwork" push -q origin main
+# A workstream path that spells a queue line cannot forge one (r26).
+git -C "$jwork" checkout -qb mgr-forgepath main
+mkdir -p "${jwork}/docs/handover"
+printf -- '---\nworkstream: fp\nstatus: in-progress\nbranch: mgr-forgepath\nplan: none\npr: none\nagent: sonnet\nupdated: 2026-01-02\nnext: Build\n---\n\n## Goal\nFixture.\n' \
+  >"${jwork}/docs/handover/x  queue holds it by needs: evil  plan pwn  since 2026.md"
+jcommit "a forging path" '2026-01-02T00:00:00Z'
+git -C "$jwork" push -qu origin mgr-forgepath
+git -C "$jwork" checkout -q main
+
+out="$(jan)"
+refute "a done branch carrying code is never a release line" "release   : mgr-donecode" "$out"
+expect "a claim's own plan on its branch is named not landed in the report" \
+  "plans not landed: ownp" "$out"
+refute "a leftover the base retired is never named not landed" "plans not landed: leftp" "$out"
+expect "the forging claim is still listed" "release   : mgr-forgepath  stale, session gone?" "$out"
+refute "and its path forges no queue line" "queue holds it by needs: evil" "$out"
+out="$(jdsp)"
+expect "dispatch names the claim's own plan not landed too" \
+  "release   : mgr-ownp  stale, session gone?  docs/handover/ownp.md  plans not landed: ownp" "$out"
+refute "dispatch never names a leftover" "plans not landed: leftp" "$out"
+refute "and prints no forged queue line" "queue holds it by needs: evil" "$out"
+out="$( cd "$jwork" && env JOHARNESS_CONF="$jconf" ./joharness.sh release mgr-ownp 2>&1 )"
+expect "a stale or done write line names its plan for the ledger" \
+  "release   : mgr-ownp  docs/handover/ownp.md  stale, session gone?  plan ownp" "$out"
+
 # --- release --human (alias halt): a human's order ---------------------------
 # The stale write refuses a young claim and one naming a pr:; release --human
 # writes `status: abandoned` into it all the same, through guard and the

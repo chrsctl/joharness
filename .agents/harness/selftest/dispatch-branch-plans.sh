@@ -563,8 +563,9 @@ expect "a stale done branch is a release line" \
   "release   : carry-dr  done, no pull request  docs/handover/carry-dr.md" "$out"
 expect "and due" "release DUE: carry-dr" "$out"
 refute "no freer spawns" "freer DUE" "$out"
-expect "and no role is due for it: the verdict is the drained exit" \
-  "verdict   : DRAINED — nothing free, nothing in flight: exit" "$out"
+expect "and the verdict waits for the release: a pass must run after it" \
+  "verdict   : DRAINED — nothing free, nothing in flight; a release is due (release DUE below): release, then schedule the next pass" "$out"
+refute "never the drained exit" "nothing in flight: exit" "$out"
 
 # --- time against the item: CEILING? (issue #298) ---------------------------
 # A manager that pushes inside the stall window and under the churn limit read
