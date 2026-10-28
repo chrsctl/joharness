@@ -2,7 +2,7 @@
 # in the order that file lists.
 #
 # Not runnable alone: the runner defines the helpers and the counters.
-# shellcheck shell=bash
+# shellcheck shell=bash disable=SC2016  # backticks are the INDEX.md text under test
 
 step "joharness.sh map"
 
@@ -19,7 +19,7 @@ done
 printf '#!/usr/bin/env bash\nprintf "1 passed, 0 failed\\n"\nexit 0\n' >"${mwork}/.agents/harness/selftest.sh"
 chmod +x "${mwork}/.agents/harness/selftest.sh" "${mwork}/joharness.sh"
 printf 'gen/** linguist-generated\n' >"${mwork}/.gitattributes"
-for _d in app lib gen .hidden a/b/c/d; do printf 'x\n' >"${mwork}/${_d}/f.txt"; done
+for _d in app lib gen .hidden a a/b/c/d; do printf 'x\n' >"${mwork}/${_d}/f.txt"; done
 # A tracked file in EACH protocol folder, read from the one constant.
 mapfile -t _pd < <(bash -c 'source <(sed -n "/^MAP_PROTOCOL_DIRS=/p" "$1"); printf "%s\n" "${MAP_PROTOCOL_DIRS[@]}"' _ "${ROOT}/joharness.sh")
 for _d in "${_pd[@]}"; do
@@ -34,7 +34,7 @@ commit_all "$mwork" "scratch repo"
 map_run() { CLAUDE_PROJECT_DIR="$mwork" JOHARNESS_CONF="${mwork}/joharness.conf" \
   "${mwork}/joharness.sh" map 2>&1; }
 map_ci() { CLAUDE_PROJECT_DIR="$mwork" JOHARNESS_CONF="${mwork}/joharness.conf" \
-  GITHUB_ACTIONS='' JOHARNESS_VERBOSE='' "${mwork}/joharness.sh" ci 2>&1 |
+  GITHUB_ACTIONS='' "${mwork}/joharness.sh" ci -v 2>&1 |
   sed -n '/== graph lint/,/^$/p'; }
 # idx <folder> <purpose> [body lines...]
 idx() { local d="$1" p="$2"; shift 2
