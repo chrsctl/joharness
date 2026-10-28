@@ -2159,7 +2159,7 @@ fb_current_path() {
   FB_CUR="$p"
   [ -e "${ROOT}/${p}" ] && { printf '%s' "$p"; return 0; }
   if [ "$FB_LS_READ" -eq 0 ]; then
-    FB_LS="$(git -C "$ROOT" ls-files 2>/dev/null)"
+    FB_LS="$(git -C "$ROOT" -c core.quotepath=false ls-files 2>/dev/null)"
     FB_LS_READ=1
   fi
   while IFS= read -r f; do
@@ -7010,7 +7010,7 @@ map_scan() {
 
   while IFS= read -r f; do
     [ -n "$f" ] && files+=("$f")
-  done < <(git -C "$ROOT" ls-files 2>/dev/null)
+  done < <(git -C "$ROOT" -c core.quotepath=false ls-files 2>/dev/null)
   [ "${#files[@]}" -gt 0 ] || return 0
 
   # One check-attr for every file; counted per directory, no fork per file.
@@ -7019,7 +7019,7 @@ map_scan() {
       *": linguist-generated: set"|*": linguist-vendored: set")
         gen["${line%%: linguist-*}"]=1 ;;
     esac
-  done < <(printf '%s\n' "${files[@]}" | git -C "$ROOT" check-attr \
+  done < <(printf '%s\n' "${files[@]}" | git -C "$ROOT" -c core.quotepath=false check-attr \
     linguist-generated linguist-vendored --stdin 2>/dev/null)
 
   for f in "${files[@]}"; do

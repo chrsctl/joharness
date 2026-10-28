@@ -79,3 +79,10 @@ expect "changed folder is stale" "stale   : app/ (1 files changed)" "$out"
 mout="$(CLAUDE_PROJECT_DIR="$mwork" JOHARNESS_CONF="${mwork}/joharness.conf" \
   GITHUB_ACTIONS='' "${mwork}/joharness.sh" ci 2>&1)"
 refute "ci does not warn on stale" "stale" "$(sed -n '/== graph lint/,/^$/p' <<<"$mout")"
+
+# A non-ASCII folder name must read as itself, not as git's quoted escape.
+mkdir -p "${mwork}/café"
+printf 'x\n' >"${mwork}/café/f.txt"
+commit_all "$mwork" "non-ascii folder"
+out="$(map_run)"
+expect "non-ascii folder is named as itself" "missing : café/" "$out"
