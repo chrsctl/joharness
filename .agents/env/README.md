@@ -39,6 +39,9 @@ kernel leaves the file out; verify stays the sandbox's job for it. The marker
 never claims more than its own layer: it is coverage for that layer, not a
 stand-in for `verify` on whichever layer a repo selects.
 
+Today `docker` carries the marker; `k8s` does not (it needs the sandbox),
+and `none` has nothing to verify.
+
 Layer is self-contained: everything it owns lives in its directory, so
 selecting it is copying one directory and setting one line.
 

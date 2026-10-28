@@ -15,8 +15,8 @@ Kubernetes; this layer is for repos where Docker alone is the runtime.
 | Component | Source | Notes |
 | --- | --- | --- |
 | Docker | preinstalled | daemon started by `setup` |
-| Docker Compose | preinstalled | v5.1.1 measured in the current image |
-| buildx | preinstalled | default builder |
+| Docker Compose | preinstalled | v5.6.1 measured in the current image |
+| buildx | preinstalled | default builder; v0.38.1 measured |
 
 Nothing is downloaded: the sandbox image ships all three, so `setup` is
 "start dockerd and wait", about 2 seconds cold, under a second when the
@@ -97,6 +97,11 @@ Known reachable: `registry-1.docker.io`, `raw.githubusercontent.com`,
   egress with the CA bundle, container-to-container DNS on a user-defined
   network, and a Compose service answering. `./joharness.sh verify` runs it
   after provisioning.
+- CI-runnable: the layer carries a `ci-verify` marker, so GitHub runs
+  `verify` on it for every pull request and push to `main`, on a stock
+  runner without the proxy CA (the egress check degrades to a plain HTTPS
+  fetch there). The marker lists the images the smoke test pulls; read it
+  for its one soft spot.
 - The dockerd start logic mirrors `.agents/env/k8s/devenv.sh` rather than calling
   it: layers are self-contained by contract ([`../README.md`](../README.md)),
   so neither layer may reference the other.
