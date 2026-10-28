@@ -507,7 +507,8 @@ crefute() {
 # the retire deletes. `harness` makes a commit of its own change a file
 # under .agents/harness/, `joharness` change joharness.sh (a comment line at
 # the end); `reconcile` changes .agents/harness/ on main only, then merges
-# main into the branch, so the branch's own commits touch none of it.
+# main into the branch, so the branch's own commits touch none of it;
+# `crlf` writes the workstream and plan files with CRLF line ends.
 cretire() {
   local at="${5:-$(date +%s)}"
   git -C "$scout_work" checkout -qb "m-$1" main
@@ -517,6 +518,12 @@ cretire() {
   if [ -n "${3:-}" ]; then
     mkdir -p "${scout_work}/docs/plans"
     printf -- '---\nplan: %s\nagent: %s\n---\n' "${2:-$1}" "$3" >"${scout_work}/docs/plans/${2:-$1}.md"
+  fi
+  if [ "${4:-}" = crlf ]; then
+    for cf in "docs/handover/${1}.md" "docs/plans/${2:-$1}.md"; do
+      awk '{ printf "%s\r\n", $0 }' "${scout_work}/${cf}" >"${scout_work}/${cf}.crlf"
+      mv "${scout_work}/${cf}.crlf" "${scout_work}/${cf}"
+    done
   fi
   scommit "claim $1" "$(( at - 10800 )) +0000"
   case "${4:-}" in
@@ -638,6 +645,20 @@ crefute "conduct: no ledger, a stem retired before JOHARNESS_CONDUCT_HOURS is no
 corder "conduct: a sonnet-tier stem sorts before an opus one" charlie bravo "$out99"
 corder "conduct: of one tier, a stem that touched harness code sorts first" alpha bravo "$out99"
 corder "conduct: a plan: none stem sorts last" bravo hotel "$out99"
+# A window reaching before 1973 is the whole history: git misreads a small
+# --until=@<n> as the tip, which would empty it.
+expect "conduct: a huge JOHARNESS_CONDUCT_HOURS reaches the whole history" "            oscar" \
+  "$(cdt JOHARNESS_CONDUCT_SAMPLE=99 JOHARNESS_CONDUCT_HOURS=999999)"
+# The rank's file reads fail: the sample is unreadable, never sha1 order.
+mkdir -p "${TMP}/conduct-catwrap"
+cat >"${TMP}/conduct-catwrap/git" <<EOF2
+#!/usr/bin/env bash
+case " \$* " in *" cat-file "*) exit 1 ;; esac
+exec "$(command -v git)" "\$@"
+EOF2
+chmod +x "${TMP}/conduct-catwrap/git"
+expect "conduct: a failed plan read leaves the sample UNREADABLE" "sample    : UNREADABLE" \
+  "$(cdt PATH="${TMP}/conduct-catwrap:${PATH}")"
 expect "conduct: a plan named with no file and plan: none close the sample" "            scout-command
             hotel
 
@@ -809,8 +830,16 @@ EOF2
 scommit "a reviewer's ledger, long ago" '2026-02-13T00:00:00Z'
 git -C "$scout_work" checkout -q main
 # Merged while the reviewer's pull request was open: it lands before the
-# ledger does, but after the reviewer drew its sample.
+# ledger does, but after the reviewer drew its sample — and the reviewer
+# merges it in and touches the ledger again before landing.
 cretire november
+git -C "$scout_work" checkout -q conduct-2026-02-13
+GIT_COMMITTER_DATE='2026-02-13T00:20:00Z' GIT_AUTHOR_DATE='2026-02-13T00:20:00Z' \
+  git -C "$scout_work" merge -q --no-ff -m "reconcile the reviewer" main
+sed 's/^# Conduct log$/# Conduct log (reviewed)/' "${scout_work}/docs/conduct-log.md" >"${scout_work}/docs/conduct-log.md.new"
+mv "${scout_work}/docs/conduct-log.md.new" "${scout_work}/docs/conduct-log.md"
+scommit "a reviewer's ledger fix after the reconcile" '2026-02-13T00:30:00Z'
+git -C "$scout_work" checkout -q main
 GIT_COMMITTER_DATE='2026-02-13T01:00:00Z' GIT_AUTHOR_DATE='2026-02-13T01:00:00Z' \
   git -C "$scout_work" merge -q --no-ff -m "merge the ledger" conduct-2026-02-13
 git -C "$scout_work" branch -q -D conduct-2026-02-13
@@ -836,12 +865,18 @@ expect "dispatch: the rate leaves NO EVIDENCE out of <m>" \
 cretire kilo '' '' reconcile
 cretire lima
 cretire mike '' '' joharness
+# A CRLF, quoted, capitalised agent: still sonnet. Read first in the batch,
+# its CRs must not shift the framing onto quebec's plan.
+cretire quebec quebec sonnet
+cretire papa papa '"Sonnet"' crlf
 cretire "$cfirst"
 git -C "$scout_work" push -q origin main
 out="$(cdt JOHARNESS_CONDUCT_SAMPLE=99)"
-expect "conduct: a stem retired after the ledger landed is sampled" "sample    : 4 branch(es)" "$out"
+expect "conduct: a stem retired after the ledger landed is sampled" "sample    : 6 branch(es)" "$out"
 crefute "conduct: a stem already in the ledger is not sampled again" \
-  "            ${cfirst}" "$out" "sample    : 4"
+  "            ${cfirst}" "$out" "sample    : 6"
+corder "conduct: a CRLF, quoted, capitalised agent reads as its tier" papa mike "$out"
+corder "conduct: a plan read after a CRLF one keeps its tier" quebec mike "$out"
 corder "conduct: a stem that changed joharness.sh counts as harness code" mike lima "$out"
 corder "conduct: a merge of the base branch touches no harness code" lima kilo "$out"
 expect "conduct: an old ledger leaves the clock due" "since the ledger last landed" "$out"

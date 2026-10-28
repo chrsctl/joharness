@@ -24,8 +24,9 @@ retro-audit-and-trace) are not this plan.
 
 1. **Window** (`joharness.sh:conduct_candidates`):
    - Candidates are managers whose retire commit is no ancestor of the
-     commit that last wrote the ledger (the reviewer's own commit, not the
-     merge `conduct_age_h` dates). A run that comes late leaves no gap, and
+     base-branch commit the last ledger branch was cut from (where that
+     reviewer drew its sample; a ledger written straight on the base branch:
+     that commit), not the merge `conduct_age_h` dates. A run that comes late leaves no gap, and
      neither does one in flight: a retire merged while its pull request was
      open is still offered next time. Stems past the cap are not carried:
      the sample is of recent work, never a backlog.

@@ -4525,18 +4525,27 @@ conduct_rows() {
     }'
 }
 
-# Where the window opens: the commit that last wrote the ledger itself (the
-# reviewer's own commit, not the merge that landed it), else the newest
-# first-parent commit at or before JOHARNESS_CONDUCT_HOURS ago. Empty = the
-# whole history; `?` = unreadable. A range from it, not a clock compare: a
-# run that comes late leaves no gap, and neither does one in flight — a
-# retire merged while its pull request was open is no ancestor of the
-# reviewer's commit, so the next run still sees it.
+# Where the window opens: where the last reviewer drew its sample — the
+# base-branch commit its branch was cut from, found as the first parent of
+# the oldest first-parent commit of the merge that landed the ledger; a
+# ledger written straight on the base branch opens it at that commit. Else
+# the newest first-parent commit at or before JOHARNESS_CONDUCT_HOURS ago.
+# Empty = the whole history; `?` = unreadable. A range from it, not a clock
+# compare: a run that comes late leaves no gap, and neither does one in
+# flight — a retire merged while its pull request was open, even one the
+# reviewer merged in before writing a row, is no ancestor of that cut.
 conduct_window() {
-  local base_branch="${HANDOVER_BASE_BRANCH:-main}" ref at hours cut
+  local base_branch="${HANDOVER_BASE_BRANCH:-main}" ref at hours cut p1 p2 x
   ref="refs/remotes/origin/${base_branch}"
-  at="$(git -C "$ROOT" log -1 --format=%H "$ref" \
+  at="$(git -C "$ROOT" log -1 --first-parent --format='%H %P' "$ref" \
     -- "$CONDUCT_LEDGER" </dev/null 2>/dev/null)" || { printf '?'; return 0; }
+  read -r at p1 p2 x <<<"$at"
+  if [ -n "$p2" ]; then
+    at="$(git -C "$ROOT" rev-list --first-parent --parents "${p1}..${p2}" \
+      </dev/null 2>/dev/null)" || { printf '?'; return 0; }
+    at="$(printf '%s\n' "$at" | awk 'NF { l = $2 } END { print l }')"
+    [ -n "$at" ] || at="$p1"
+  fi
   if [ -z "$at" ]; then
     hours="$(num_knob JOHARNESS_CONDUCT_HOURS)"
     cut=$(( $(date +%s) - hours * 3600 ))
@@ -4608,9 +4617,11 @@ conduct_fm() {
   local out
   out="$(git -C "$ROOT" cat-file --batch='@@conduct %(objecttype) %(objectsize) %(rest)' 2>/dev/null)" ||
     return 2
-  printf '%s\n' "$out" | tr -d '\r' |
+  printf '%s\n' "$out" |
     LC_ALL=C f="$1" awk '
       function body(   v) {
+        # After the byte count: a CR belongs to the framing, never the value.
+        sub(/\r$/, "")
         nl++
         if (nl == 1) { fm = ($0 == "---"); return }
         if (!fm || got) return
@@ -4618,7 +4629,7 @@ conduct_fm() {
         if (index($0, ENVIRON["f"] ":") != 1) return
         v = $0; sub(/^[a-z]+:[ \t]*/, "", v); sub(/[ \t]+#.*$/, "", v); sub(/[ \t]+$/, "", v)
         gsub(/["\047]/, "", v)
-        print key "\t" tolower(v); got = 1
+        print key "\t" v; got = 1
       }
       left > 0 { left -= length($0) + 1; if (on) body(); next }
       /^@@conduct / { on = ($2 == "blob"); key = $4; left = $3 + 1; nl = 0; fm = 0; got = 0 }'
@@ -4668,9 +4679,9 @@ conduct_ranked() {
       for (i = 1; i <= n; i++) { k = a[i]; v = k; sub(/\t.*/, "", k); sub(/^[^\t]*\t/, "", v); g[k] = v }
     }
     {
-      t = 2
-      if (g[$2] == "haiku" || g[$2] == "sonnet") t = 0
-      else if (g[$2] == "opus" || g[$2] == "fable") t = 1
+      t = 2; ag = tolower(g[$2])
+      if (ag == "haiku" || ag == "sonnet") t = 0
+      else if (ag == "opus" || ag == "fable") t = 1
       print t "\t" $0
     }'
 }
@@ -4892,7 +4903,7 @@ cmd_conduct() {
   case "$s" in
     '?') printf 'sample    : UNREADABLE — take no branch this run: a list that could not be read is no empty list\n' ;;
     '')  printf 'sample    : none — no manager workstream file retired since the window opened is left unsampled\n' ;;
-    *)   printf 'sample    : %s branch(es) retired since the last commit to the ledger (no ledger: the last JOHARNESS_CONDUCT_HOURS), riskiest first: plan agent haiku/sonnet, opus/fable, no plan; then harness code touched; then lowest sha1(<stem>) — review exactly these\n' \
+    *)   printf 'sample    : %s branch(es) retired since the last reviewer drew its sample (no ledger: the last JOHARNESS_CONDUCT_HOURS), riskiest first: plan agent haiku/sonnet, opus/fable, no plan; then harness code touched; then lowest sha1(<stem>) — review exactly these\n' \
            "$(printf '%s\n' "$s" | awk 'END { print NR + 0 }')"
          printf '%s\n' "$s" | sed 's/^/            /' ;;
   esac

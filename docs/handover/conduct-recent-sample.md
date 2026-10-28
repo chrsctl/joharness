@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK3jCqjLJi3BLSYzNCG
 agent: opus
 updated: 2026-10-28
-next: verify, then verifier at the review tier, then PR and finish
+next: ci on the r22-r25 fixes, then PR and finish
 ---
 
 ## Goal
@@ -22,7 +22,7 @@ C1 CONCERN rate shows on the dispatch `conduct   :` line.
 - A2: confirmed — `conduct_age_h` is `git log -1 --first-parent` on the ledger path.
 - A3: confirmed — `conduct_rows` finds `C<n>` columns by header name.
 - A4: confirmed for the needle (scout.sh:568), but the window also breaks the fixture's dated cases (plan-checker r1).
-- Window is a commit range, not a clock compare: `<L>..base`, L = the commit that last wrote the ledger (r15 moved it off the landing merge `conduct_age_h` dates); no ledger = `<B>..base`, B = newest first-parent commit at or before now minus HOURS. A late run leaves no gap, and a branch cut before L but merged after it is in.
+- Window is a commit range, not a clock compare: `<L>..base`, L = the base commit the last ledger branch was cut from (r15, r23 moved it off the landing merge `conduct_age_h` dates); no ledger = `<B>..base`, B = newest first-parent commit at or before now minus HOURS. A late run leaves no gap, and a branch cut before L but merged after it is in.
 - retro.sh and conf-keys.sh joined `scope:`: retro.sh's zulu retire was dated outside the window, conf-keys.sh carries the HOURS row.
 - Each new case fails on the old code: plain sha1 order is scout-command hotel clerk-role delta bravo echo alpha charlie, so charlie>bravo, alpha>bravo, hotel>bravo and mike>lima all invert, and kilo>lima holds only with `--no-merges`; november is dropped by a landing-merge window; oscar (Feb) is in the whole-history window; the old dispatch line carries no rate; the old tally prints 33%.
 - Built directly, not by workers: every edit lands in joharness.sh and scout.sh, one shared file pair = sequential.
@@ -54,6 +54,12 @@ C1 CONCERN rate shows on the dispatch `conduct   :` line.
 - r19: (verifier) the "below a plan named with no file" needle passed on the old order (fixed: needle asserts the two close the sample, tally line next)
 - r20: (verifier) fixture never touched joharness.sh nor merged main into a branch (fixed: mike and kilo)
 - r21: (verifier) tier parse missed CRLF, quotes and capitals (fixed: conduct_fm strips `\r` and quotes, lowercases)
+- r22: (verifier) the r21 CR strip ran before the byte framing, so a CRLF file swallowed the next file's header and that candidate lost its tier (fixed: CR stripped per line after the count; fixture papa CRLF ahead of quebec)
+- r23: (verifier) a reviewer that merges main in and then commits the ledger again pulls retires it never sampled behind the window (fixed: window opens at the commit the ledger branch was cut from; fixture reviewer reconciles and edits the ledger after november)
+- r24: (verifier) r17, r18, r21 had no test failing without them (fixed: cat-file wrapper reads UNREADABLE, HOURS=999999 reaches oscar, papa CRLF quoted capitalised)
+- r25: (verifier) lowercasing the plan value missed a mixed-case plan file (fixed: only the agent compare lowercases)
+- r26: (verifier) a claim off the retire's first-parent line reads as no harness and walks all history (wontfix: the Loop claims on the branch's own line; a miss costs one rank step, never a wrong window)
+- r27: a ledger edited straight on the base branch opens the window at that commit, dropping earlier unsampled retires (wontfix: the ledger is reviewer-only by conduct.md §4; a human edit is a deliberate reset)
 
 ## Blockers
 
