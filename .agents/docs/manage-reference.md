@@ -75,6 +75,22 @@ any block's does (orchestrate-reference.md, Relay); resumed with the
 label gone, delete the file again in one commit, push, merge under Loop
 step 7.
 
+## Challenge
+
+Before `/plan` on a requirement, spawn `.claude/agents/challenger.md` four
+times in parallel, one per lens (`against`, `exists`, `measure`, `risk`), at
+agent tier sonnet, prompt per `.agents/docs/subagents.md`, on
+`docs/product/<r>.md`. Record findings in `## Review` tagged `(challenger)`,
+before any plan is written. Each finding is answered by a plan (an Acceptance
+command for a `measure` finding), an exit from `.agents/docs/product/README.md`
+("A requirement no plan can serve": `exists` showing a clause built = exit 3),
+or `wontfix: why`. A `measure` finding no plan's Acceptance can answer = block
+with `product:` (the requester owns the requirement text).
+
+Then every plan the pass writes gets `.claude/agents/plan-checker.md` before
+the pull request opens, whatever its `agent:`. Findings `(plan-checker)`, at
+most 3 rounds, as §2 says for the build.
+
 ## Plan issue
 
 Plan names `issue: N`? Plan carries a `## Issue remainder` section: body
