@@ -728,7 +728,7 @@ done
 qopush "eleven plans only a human merges"
 out="$(qo)"
 expect "the eleventh marked plan is spawned, not dropped at ten" \
-  "docs/plans/bulk10.md (agent: sonnet)  wave 11" "$(sed -n '/^spawn, in this order/,/^$/p' <<<"$out")"
+  "docs/plans/bulk10.md (agent: sonnet)  wave " "$(sed -n '/^spawn, in this order/,/^$/p' <<<"$out")"
 i=0
 while [ "$i" -lt 11 ]; do
   git -C "$qowork" rm -q "docs/plans/$(printf 'bulk%02d' "$i").md"

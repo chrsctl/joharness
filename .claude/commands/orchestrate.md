@@ -225,7 +225,7 @@ Ledger every spawn the moment it returns as `<stem>@new`.
 ```
 /orchestrate pass
 harness=<first 12 chars of git hash-object of origin/main:.claude/commands/orchestrate.md> pass=<this pass's number plus one> [retire=yes]
-ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] [held=<updated_at>] [unratified=<head>] [notified=<stem>] [released=<stem>[,<stem>]] [held-human=<pr>] respawns=<n> [rescoped=<key>] [corewait=<stem>[,<stem>]] [clerked=<stamp>[+human]] [scouted=<stamp>[+human]] [conducted=<stamp>[+human]] [retroed=<stamp>[+human]]; ...
+ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] [held=<updated_at>] [unratified=<head>] [notified=<stem>] [released=<stem>[,<stem>]] [held-human=<pr>] respawns=<n> [rescoped=<key>] [corewait=<stem>#<N>[,<stem>#<N>]] [clerked=<stamp>[+human]] [scouted=<stamp>[+human]] [conducted=<stamp>[+human]] [retroed=<stamp>[+human]]; ...
 lead <stem>: <40 chars, to the end of this line>
 ```
 
@@ -285,7 +285,7 @@ registered`, `heartbeat replaced`, `heartbeat not registered`,
 started (not a wake), the line of ref § Fresh session line.
 
 The `dispatch` wait line (`<n> pull request(s) wait on a human merge ...`),
-or a `corewait=` stem → ref § Core wait.
+or a `corewait=` pair → ref § Core wait.
 
 Then the lines of ref § Report: `context:`, the served model, the `plans
 on a branch` block. Then one line per manager (item, session, state,

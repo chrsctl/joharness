@@ -466,8 +466,9 @@ The `dispatch` wait line (`<n> pull request(s) wait on a human merge: #<N>
 (<stem>), ...`): print it verbatim after the verdict. Then, per `#<N>
 (<stem>)` on it, `PushNotification` once carrying the pull request's link
 (`https://github.com/<owner/repo>/pull/<N>`), the stem and the text `waits
-on your merge`; the ledger key `corewait=<stem>[,<stem>]` is run-scoped: a
-stem not yet listed = send and append it, else report only; drop a stem
+on your merge`; the ledger key `corewait=<stem>#<N>[,<stem>#<N>]` is
+run-scoped: a pair not yet listed = send and append it, else report only
+(a re-park on a new pull request is a new pair, pushed again); drop a pair
 when dispatch no longer lists it. A `DRAINED ... exit` pass arms nothing, so
 each heartbeat run starts empty and pushes again, as it does for a block.
 The claim holds no slot: never respawn on it, never read it as work; a merge

@@ -267,9 +267,9 @@ for needle in 'ledger `held-human=<pr>`' \
   'Orchestrator health pass: you stopped asking for input while status is in-progress. Do the work, or set status blocked with a reason from manage.md §3, push.' \
   'STILLBORN: `archive_session`, plain spawn of the ITEM, counted; at the limit report' \
   'ledger `held=<updated_at>`' \
-  'the ledger key `corewait=<stem>[,<stem>]` is run-scoped' \
+  'the ledger key `corewait=<stem>#<N>[,<stem>#<N>]` is' \
   'the ledger key `released=<stem>[,<stem>]` is run-scoped' \
-  'drop a stem when dispatch no longer lists it' \
+  'drop a pair' \
   'Looped, killed by the orchestrator' \
   '--force-with-lease=refs/heads/<branch>:<sha> origin HEAD:<branch>' \
   'A scout issue needs the scout.' \

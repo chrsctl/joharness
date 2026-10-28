@@ -8636,8 +8636,14 @@ cmd_dispatch() {
             fx_n+=("$dn"); fx_plan+=("-"); fx_di+=("$di"); fx_kind+=(MERGED)
           else
             blocked_claims="${blocked_claims} $(lint_stem "$path")@${branch} "
-            [ -z "$dn" ] ||
+            # On the wait line only while it truly waits: a block of known
+            # age, and no merge of #<n> on the base at any time — a merge
+            # that came before the block is no answer, but it is no pull
+            # request to merge either.
+            if [ -n "$dn" ] && [ -n "$bage" ] &&
+               ! awaited_pr_merged "$dn" 99999999; then
               mergewait="${mergewait}${dn}"$'\t'"$(lint_stem "$path")"$'\n'
+            fi
             # A block the queue has since absorbed (#626): the plan is held by
             # a needs: edge added after the park, for a reason the queue can
             # answer, on a stem the block names. Stems come from the queue's

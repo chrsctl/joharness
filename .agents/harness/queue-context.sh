@@ -625,7 +625,8 @@ if [ "$qc_boundary" -eq 0 ]; then
   printf '\nProtocol boundary NOT read (./joharness.sh protocol-paths listed\n'
   printf 'nothing here), so no plan below is marked CORE ONLY. That is\n'
   printf 'this checkout, not the plans: a plan whose scope holds a core\n'
-  printf 'path at all is one no session can finish, and nothing checked.\n'
+  printf 'path needs a human merge of its human/<stem> pull request, and\n'
+  printf 'nothing checked.\n'
 fi
 
 # Display truncates; the free count below does not — a fan-out instruction

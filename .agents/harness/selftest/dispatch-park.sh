@@ -487,6 +487,10 @@ dfmerge 12 example/human/other 1 "Merge pull request #78 from example/human/own-
 dfmerge 80 example/feature-r 1
 out="$(dfx)"
 refute "awaited PR merged before the block: no RESUME" "PARKED #79 RESUME" "$out"
+expect "awaited PRs not merged stay on the wait line" "#78 (own-t)" \
+  "$(grep 'wait on a human merge' <<<"$out")"
+refute "a PR merged before the block is no pull request to merge" "#79 (own-s)" \
+  "$(grep 'wait on a human merge' <<<"$out")"
 refute "awaited PR named only in a merge commit's body: no RESUME" "PARKED #78 RESUME" "$out"
 refute "awaited PR from a branch not human/: no RESUME" "PARKED #80 RESUME" "$out"
 
