@@ -8,14 +8,16 @@ issue: none
 session: https://claude.ai/code/session_01W18Uk51vWUnKgHZiX9b4KR
 agent: sonnet
 updated: 2026-10-28
-next: ./joharness.sh verify once Docker Hub stops answering 429, then retire commit, mark PR 673 ready, finish, merge
+next: ci on the INDEX.md rewrite; mutation check again; verifier; verify once Docker Hub allows pulls
 ---
 
 ## Goal
 
-User ask: the folder map is part of the harness and the harness knows how to
-generate it, so `finish` asks for `/map` when a branch changes the product
-folder set, and `/map` builds the map on that branch.
+User ask: folder documentation is part of the harness and the harness knows
+how to generate it, incrementally. Reshaped (user ask, 2026-10-28) from one
+`docs/MAP.md` to EGM's model: an `INDEX.md` per product folder (purpose,
+interface, invariants, side effects, verify, children); `finish` asks `/map`
+for what a branch caused.
 
 ## Decisions
 
@@ -24,6 +26,8 @@ folder set, and `/map` builds the map on that branch.
   did not do.
 
 ## Rejected
+
+- One `docs/MAP.md` with a line per folder: user chose EGM's per-folder index, which carries interface and invariants a one-line map cannot.
 
 - A dispatch item for the map: a whole session for one file the change's
   own session can write in its own pull request.
