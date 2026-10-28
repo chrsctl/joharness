@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK7QGg4E4RrtuYft1bf
 agent: opus
 updated: 2026-10-28
-next: Read scratchpad run-b.txt (code-from-last-main-merge mode); write Method/Findings; verifier; graduate
+next: Read scratchpad run-c.txt; fill research Findings with its numbers; ci; verifier; retire
 ---
 
 ## Goal
@@ -33,6 +33,9 @@ without false FINE or false CONCERN, at a cost of 3 branches per run.
 - `git apply -R --3way` of own non-test diffs onto T_fix: conflicts when
   main merged into the branch moved the same lines
   (requirement-partly-served, 970de5c1 against joharness.sh).
+- Code from the main commit the branch last merged replaces both reverts;
+  `--ancestry-path --first-parent` to find that merge returned nothing for
+  guard-one-shot-self-kill (it merged main after its retire): loop instead.
 
 ## Review
 
