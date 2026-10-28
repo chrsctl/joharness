@@ -29,16 +29,23 @@ model calls. Drift warns in `ci`, so the map cannot rot silently.
   header. Read-only, git only, no network. With no `docs/MAP.md`: prints
   `map       : none — /map creates it`, plus the folder set, and exits 0.
   - FOLDER SET: directories holding a tracked file (`git ls-files`), at most
-    3 levels deep. Excluded: any path segment starting with `.`, and
-    `docs/plans`, `docs/handover`, `docs/product`, `docs/research` (harness
-    node directories). Also excluded: a folder whose every tracked file
-    `git check-attr` marks `linguist-generated` or `linguist-vendored` set.
+    3 levels deep. Excluded, with everything under them:
+    - PROTOCOL FOLDERS: one array constant, `MAP_PROTOCOL_DIRS`, the single
+      list `cmd_map` and the lint read. It holds `.agents`, `.claude`,
+      `.github`, `docs/plans`, `docs/handover`, `docs/product`,
+      `docs/research` and `docs/findings`. The harness documents these in
+      its own READMEs; a product map never describes them.
+    - any other path segment starting with `.`;
+    - a folder whose every tracked file `git check-attr` marks
+      `linguist-generated` or `linguist-vendored` set.
     The depth is a constant in the code, not a knob.
   - MAP ENTRIES: lines of `docs/MAP.md` matching ``^- `<path>/` — <text>$``.
     Any other line is ignored.
   - Output, one line per folder, in path order. Then a count line per class:
     - `missing : <path>/` — in the set, not in the map.
-    - `gone    : <path>/` — in the map, not in the set.
+    - `gone    : <path>/` — in the map, not in the set. A map entry at or
+      under a protocol folder is `gone` too, printed `gone    : <path>/
+      (protocol folder)`.
     - `stale   : <path>/ (<n> files changed)` — mapped, with a file under it
       changed between the last commit touching `docs/MAP.md` and `HEAD`
       (`git diff --name-only <c>..HEAD`).
@@ -71,10 +78,13 @@ model calls. Drift warns in `ci`, so the map cannot rot silently.
 - `.agents/harness/selftest/map.sh` (new) and its name in
   `.agents/harness/selftest.sh` `SELFTEST_TOPICS`. Fixture repo, using the
   same scratch-repo helpers other topics use:
-  - two folders, a dot folder, a `docs/plans` folder and a
-    `linguist-generated` folder; a map listing one real folder and one
-    absent one. Expect `missing` for the unlisted real folder, `gone` for
-    the absent one, and none of the excluded folders.
+  - two product folders, a `linguist-generated` folder, a non-protocol dot
+    folder, and a tracked file inside EACH `MAP_PROTOCOL_DIRS` entry (the
+    case loops over the array, so a new entry is covered). A map listing one
+    real product folder, one absent folder and `docs/plans/`. Expect
+    `missing` for the unlisted product folder, `gone` for the absent one,
+    `gone ... (protocol folder)` for `docs/plans/`, and no line naming any
+    other excluded folder.
   - commit a change under the mapped folder: expect `stale` with
     `1 files changed`.
   - with every class empty: expect `map       : current`.
@@ -86,6 +96,14 @@ model calls. Drift warns in `ci`, so the map cannot rot silently.
 - A1: No folder map or `map` command exists today — evidence:
   `grep -n 'map)' joharness.sh` finds no subcommand; `git ls-tree -r
   --name-only origin/main | grep MAP.md` is empty — confidence: high.
+- A6: Consumers cannot read the sync engine's lists, so the protocol list
+  cannot be derived from them there — evidence: `joharness.sh:ship_load`
+  returns non-zero outside canonical, and `.agents/scripts` is not in the
+  engine's `DIRS` — confidence: high. Hence one constant.
+- A7: `docs/adr/` and `docs/rules/` are the consumer's own docs, not
+  protocol — evidence: `.claude/commands/scout.md` reads `docs/adr/` as
+  product records; `.agents/docs/handover/README.md` calls `docs/rules/` "a
+  consumer's own section" — confidence: medium.
 - A2: Warnings never fail `ci` — evidence: `joharness.sh:lint_warn` sets
   `LINT_WARNED` only — confidence: high.
 - A3: A new selftest topic must be listed in `SELFTEST_TOPICS` or the
@@ -110,6 +128,7 @@ model calls. Drift warns in `ci`, so the map cannot rot silently.
 - A dispatch entry, role or heartbeat trigger: `/map` runs when a human or
   a manager types it.
 - LLM checks inside `ci`; reading file contents in `cmd_map`.
+- Mapping protocol folders, or a second exclusion list anywhere else.
 
 ## Acceptance
 
