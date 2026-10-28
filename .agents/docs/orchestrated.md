@@ -314,6 +314,21 @@ the block `JOHARNESS_DEFECT_RECHECK_HOURS` old, the base moved = `RECHECK`
 `UNREADABLE` (the block commit is not in the clone: no RESUME). Mechanics:
 `orchestrate-reference.md`, Resume.
 
+A park on an issue no plan names waits on the clerk's cadence: in a run the
+clerk is the only automated path from an issue to a plan (a human or session
+may file a plan with `issue:` by hand), and `joharness.sh:clerk_due` reads the
+clock and the clerk's own records, never a park. A defect filed just after a
+clerk lands waits at least until `JOHARNESS_CLERK_HOURS` elapse for a pass to
+take it, longer if `JOHARNESS_CLERK_BATCH` defers it, then the clerk's pull
+request and the fix itself; `UNPLANNED` at `JOHARNESS_DEFECT_PLAN_HOURS` only
+notifies. A cadence gap, not intent: the parked manager waits on exactly that
+plan while its branch drifts, and a RECHECK respawn can re-park on the same
+red check. One consumer reading, not re-taken here (chrsctl/gx, 2026-10-28):
+two managers parked beside `clerk : not due`; a human-ordered extra clerk
+(`orchestrate-reference.md`, Role sessions) cut the wait to the plan. The
+plan `defect-park-calls-clerk` makes the clerk due early on such a park; it
+rewrites this paragraph when it retires.
+
 A block names its reason: `next:` = `<reason>: <question>`, one word from
 the closed list `joharness.sh:block_reason_ok`. A free question with no
 reason is usually work the manager should do; `dispatch` marks it `INVALID
