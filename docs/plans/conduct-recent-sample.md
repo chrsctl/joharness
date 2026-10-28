@@ -54,7 +54,8 @@ retro-audit-and-trace) are not this plan.
    with the tally's C1 rate: `; C1 CONCERN <n>% of <m>`. `<m>` counts FINE
    plus CONCERN only, because NO EVIDENCE is not a verdict on the gates.
    `conduct_tally`'s `CONCERN rate` takes the same `<m>`, so the two never
-   disagree. With no ledger rows the lines end with `; no runs yet`; rows
+   disagree, and prints it: `CONCERN rate <n>% of <m> (NO EVIDENCE is no
+   verdict)`. With no ledger rows the lines end with `; no runs yet`; rows
    but no FINE or CONCERN = `0% of 0`; a ledger that cannot be read adds
    nothing (its own UNREADABLE is the tally's).
 4. **Text that names the old order:**
@@ -114,7 +115,7 @@ retro-audit-and-trace) are not this plan.
   existing case still asserts what it did. A later fixed-date commit on the
   first-parent line moves the no-ledger cut point past them: date it now
   too (scout.sh's foxtrot, retro.sh's zulu retire). The tally's `CONCERN rate 33%`
-  needle becomes `50%` (NO EVIDENCE out of `<m>`).
+  needle becomes `50% of 2` (NO EVIDENCE out of `<m>`).
 - Consumer side (SHIPS): after its next sync a consumer runs
   `./joharness.sh ci` → `ci: pass`.
 

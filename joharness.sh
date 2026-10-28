@@ -4594,54 +4594,89 @@ conduct_sha1() {
   printf '%s' "${h%% *}"
 }
 
-# Risk keys of one candidate, `<tier> <harness>`, lower = riskier.
-# Tier: the plan's `agent:` at `<retire>^`, plan named by the workstream
-# file's `plan:` there — 0 haiku/sonnet (no plan-checker ran), 1 opus/fable,
-# 2 no plan file (`plan: none`, research, requirement, rename). Harness: 0
-# when the branch's own commits (claim^..retire, first parent, as
-# conduct.md §2 reads them) changed joharness.sh or .agents/harness/.
-conduct_risk() {
-  local stem="$1" retire="$2" plan agent tier=2 claim range touched=1
-  plan="$(git -C "$ROOT" show "${retire}^:docs/handover/${stem}.md" </dev/null 2>/dev/null |
-    awk 'NR == 1 && $0 != "---" { exit } NR > 1 && $0 == "---" { exit }
-      /^plan:/ { sub(/^plan:[ \t]*/, ""); sub(/[ \t]+#.*$/, ""); sub(/[ \t]+$/, ""); print; exit }')"
-  plan="${plan#docs/plans/}"; plan="${plan%.md}"
-  case "$plan" in '' | none | */*) ;; *)
-    agent="$(git -C "$ROOT" show "${retire}^:docs/plans/${plan}.md" </dev/null 2>/dev/null |
-      awk 'NR == 1 && $0 != "---" { exit } NR > 1 && $0 == "---" { exit }
-        /^agent:/ { sub(/^agent:[ \t]*/, ""); sub(/[ \t]+#.*$/, ""); sub(/[ \t]+$/, ""); print; exit }')"
-    case "$agent" in haiku | sonnet) tier=0 ;; opus | fable) tier=1 ;; esac ;;
-  esac
-  claim="$(git -C "$ROOT" log -1 --full-history --diff-filter=A --format=%H "$retire" \
-    -- "docs/handover/${stem}.md" </dev/null 2>/dev/null)"
-  range="$retire"
-  if [ -n "$claim" ] && git -C "$ROOT" rev-parse -q --verify "${claim}^" >/dev/null 2>&1 </dev/null; then
-    range="${claim}^..${retire}"
-  fi
-  if git -C "$ROOT" -c core.quotePath=false log --first-parent --name-only --format= "$range" \
-    -- joharness.sh .agents/harness </dev/null 2>/dev/null | grep -q .; then
-    touched=0
-  fi
-  printf '%s %s' "$tier" "$touched"
+# One frontmatter field of many files, one cat-file process: stdin is
+# `<rev>:<path> <key>` lines, stdout `<key>\t<value>` for each file that
+# has the field; a missing file prints nothing. Framed by %(objectsize), as
+# retro_candidates reads: a body line that looks like a header is body.
+conduct_fm() {
+  git -C "$ROOT" cat-file --batch='@@conduct %(objecttype) %(objectsize) %(rest)' 2>/dev/null |
+    LC_ALL=C f="$1" awk '
+      function body(   v) {
+        nl++
+        if (nl == 1) { fm = ($0 == "---"); return }
+        if (!fm || got) return
+        if ($0 == "---") { fm = 0; return }
+        if (index($0, ENVIRON["f"] ":") != 1) return
+        v = $0; sub(/^[a-z]+:[ \t]*/, "", v); sub(/[ \t]+#.*$/, "", v); sub(/[ \t]+$/, "", v)
+        print key "\t" v; got = 1
+      }
+      left > 0 { left -= length($0) + 1; if (on) body(); next }
+      /^@@conduct / { on = ($2 == "blob"); key = $4; left = $3 + 1; nl = 0; fm = 0; got = 0 }'
+}
+
+# Risk keys per candidate: stdin `<stem>\t<retire>`, stdout
+# `<tier>\t<harness>\t<stem>\t<retire>`, lower = riskier. Tier: the plan's
+# `agent:` at `<retire>^`, plan named by the workstream file's `plan:` there
+# — 0 haiku/sonnet (no plan-checker ran), 1 opus/fable, 2 no plan file
+# (`plan: none`, research, requirement, rename). Harness: 0 when the
+# branch's own commits, first parent from the retire back to the claim (the
+# range conduct.md §2 reads), changed joharness.sh or .agents/harness/: a
+# reconcile merge of the base branch counts nothing.
+conduct_ranked() {
+  local cands plans agents s r h
+  cands="$(cat)"
+  plans="$(printf '%s\n' "$cands" | awk -F'\t' 'NF >= 2 { print $2 "^:docs/handover/" $1 ".md " $1 }' |
+    conduct_fm plan)"
+  agents="$(printf '%s\n' "$cands" | plans="$plans" awk -F'\t' '
+    BEGIN {
+      n = split(ENVIRON["plans"], a, "\n")
+      for (i = 1; i <= n; i++) {
+        k = a[i]; v = k; sub(/\t.*/, "", k); sub(/^[^\t]*\t/, "", v)
+        sub(/^docs\/plans\//, "", v); sub(/\.md$/, "", v); p[k] = v
+      }
+    }
+    NF >= 2 && ($1 in p) && p[$1] ~ /^[A-Za-z0-9._-]+$/ && p[$1] != "none" {
+      print $2 "^:docs/plans/" p[$1] ".md " $1
+    }' | conduct_fm agent)"
+  while IFS=$'\t' read -r s r; do
+    [ -n "$s" ] || continue
+    h="$(git -C "$ROOT" log --first-parent --name-status --format='C %H' "$r" \
+      -- "docs/handover/${s}.md" joharness.sh .agents/harness </dev/null 2>/dev/null |
+      ws="docs/handover/${s}.md" awk -F'\t' '
+        /^C / { if (claimed) exit; next }
+        $NF == "joharness.sh" || index($NF, ".agents/harness/") == 1 { t = 1 }
+        $1 == "A" && $2 == ENVIRON["ws"] { claimed = 1 }
+        END { print ((claimed && t) ? 0 : 1) }')"
+    printf '%s\t%s\t%s\n' "$h" "$s" "$r"
+  done <<<"$cands" | agents="$agents" awk -F'\t' '
+    BEGIN {
+      n = split(ENVIRON["agents"], a, "\n")
+      for (i = 1; i <= n; i++) { k = a[i]; v = k; sub(/\t.*/, "", k); sub(/^[^\t]*\t/, "", v); g[k] = v }
+    }
+    {
+      t = 2
+      if (g[$2] == "haiku" || g[$2] == "sonnet") t = 0
+      else if (g[$2] == "opus" || g[$2] == "fable") t = 1
+      print t "\t" $0
+    }'
 }
 
 # The sample: the N candidates riskiest first — tier, then harness code
-# touched (conduct_risk), then lowest sha1(<stem>), so a re-run picks the
+# touched (conduct_ranked), then lowest sha1(<stem>), so a re-run picks the
 # same set and a test can assert it. N = 0 = any one, unordered (does one
 # exist). `?` alone = unreadable.
 conduct_sample() {
-  local n="$1" cands s r h k got=0 limit=1
+  local n="$1" cands s r h t k got=0 limit=1
   cands="$(conduct_candidates)"
   case "$cands" in '?') printf '?\n'; return 0 ;; '') return 0 ;; esac
   if [ "$n" -gt 0 ]; then
     limit="$n"
     [ -n "$(printf 'x' | conduct_sha1)" ] || { printf '?\n'; return 0; }
-    cands="$(while IFS=$'\t' read -r s r; do
+    cands="$(printf '%s\n' "$cands" | conduct_ranked | while IFS=$'\t' read -r t k s r; do
       [ -n "$s" ] || continue
       h="$(printf '%s' "$s" | conduct_sha1)"
-      k="$(conduct_risk "$s" "$r")"
-      printf '%s\t%s\t%s\t%s\t%s\n' "${k% *}" "${k#* }" "$h" "$s" "$r"
-    done <<<"$cands" | LC_ALL=C sort | cut -f4-)"
+      printf '%s\t%s\t%s\t%s\t%s\n' "$t" "$k" "$h" "$s" "$r"
+    done | LC_ALL=C sort | cut -f4-)"
   fi
   while IFS=$'\t' read -r s r; do
     [ -n "$s" ] || continue

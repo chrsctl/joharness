@@ -806,12 +806,13 @@ expect "conduct: and each verdict per question" \
 expect "conduct: a stem retired before the ledger last landed is not sampled" \
   "sample    : none" "$out"
 expect "dispatch: the rate leaves NO EVIDENCE out of <m>" \
-  "since the ledger last landed (of 168h); C1 CONCERN 50% of 2" "$(sdsp)"
+  "C1 CONCERN 50% of 2" "$(sdsp | grep '^conduct   : ')"
 # Retired after the landing: sampled — but one the ledger names already, as
 # a stem reused, is not.
 cretire kilo
 cretire lima
 cretire "$cfirst"
+git -C "$scout_work" push -q origin main
 out="$(cdt)"
 expect "conduct: a stem retired after the ledger landed is sampled" "sample    : 2 branch(es)" "$out"
 crefute "conduct: a stem already in the ledger is not sampled again" \
