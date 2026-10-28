@@ -78,7 +78,7 @@ refute "base branch: no live read" "live      :" "$out"
 # Without check 1 first, head would refuse; the refusal must name protected.
 git -C "$gother" commit -q --allow-empty -m "main moves"
 git -C "$gother" push -q origin main
-out="$(grun loop main)"; rc=$?
+out="$(grun record main)"; rc=$?
 expect "stale base ref: still refused at protected" "protected : REFUSED — main is the base branch" "$out"
 refute "stale base ref: not at head" "head      :" "$out"
 grefused "stale base ref" "$out" "$rc"
