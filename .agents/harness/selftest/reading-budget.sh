@@ -65,8 +65,6 @@ rb_bound scout.md 12432 "${ROOT}/.claude/commands"
 rb_bound keeper.md 5134 "${ROOT}/.claude/commands"
 # conduct.md 6668 bytes, 2026-10-23.
 rb_bound conduct.md 6668 "${ROOT}/.claude/commands"
-# curate.md 3449 bytes, 2026-10-23.
-rb_bound curate.md 3449 "${ROOT}/.claude/commands"
 # upstream-report.md 5671 bytes, 2026-10-23.
 rb_bound upstream-report.md 5671 "${ROOT}/.claude/commands"
 
