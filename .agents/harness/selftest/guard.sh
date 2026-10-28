@@ -179,7 +179,7 @@ expect "release --human on the base branch: refused at protected" "protected : R
 grefused "release --human on the base branch" "$out" "$rc"
 
 # --- release: the orchestrator's release of a parked claim (#626) ----------
-# The kill/loop checks plus the janitor's pr: refusal: review state is never
+# The record checks plus the stale release's pr: refusal: review state is never
 # a parked block.
 out="$(grun release g-clean)"; rc=$?
 expect "release, untouched: the pr: check passes" "protected : pass — no workstream file names a pr:" "$out"

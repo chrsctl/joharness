@@ -828,7 +828,7 @@ hqueue() { ( cd "$hwork" && env JOHARNESS_CONF="$hconf" \
 # <branch> <out>: the dispatch lines that name the branch as holding a slot.
 hrows() { printf '%s\n' "$2" | grep -E "^  .*  $1  " || :; }
 
-# --- 1. a live claim at the edge: the janitor refuses, halt releases ---------
+# --- 1. a live claim at the edge: the plain write refuses, halt releases ---------
 hclaim mgr-live livework 12
 out="$(hrun release mgr-live)"
 expect "release refuses a claim naming pr:, at its guard" \

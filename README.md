@@ -75,7 +75,6 @@ and don't use up the manager budget:
 | Helper | What it does |
 | --- | --- |
 | Clerk | Turns open GitHub issues into plans, about once a day. Issues reach the queue only this way. |
-| Curator | Suggests splitting big plans or reordering the queue. Suggests only. |
 | Surveyor | When plans wait on each other because they seem to touch the same files, checks whether they really do and corrects them. |
 | Scout | Researches new ideas and files them as issues. An idea becomes work only after you approve it. |
 | Conduct reviewer | Weekly, samples finished work and checks its tests prove the right things. |

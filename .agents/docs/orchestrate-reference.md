@@ -115,7 +115,7 @@ queue cannot see").
 5. Heartbeat, here and on every pass after the first (`orchestrate.md`,
    Pass entry): `list_triggers` (no filter: a paused one must show). The
    heartbeat is a Routine named exactly `heartbeat: <owner/repo>` with a
-   non-empty `cron_expression`; any other Routine (a nightly `/curate`)
+   non-empty `cron_expression`; any other Routine
    never counts. None: REGISTER, below. Two or more with `enabled` true:
    `heartbeat duplicated: <id>, <id>` (each firing pays twice). Otherwise
    check the enabled one (none enabled: the newest), up to date only when
@@ -335,12 +335,11 @@ no handover, and no handover is no replace. Why:
   (dispatch's header block says), `create_session` as § Create session,
   prompt =
   the command + the lines its row names (clerk, conduct and retro: "the role lines";
-  curator, scout, surveyor: "the standard lines" — they claim by workstream
+  scout, surveyor: "the standard lines" — they claim by workstream
   file):
 
   | line | model (Lineup) | title | prompt | ledger |
   | --- | --- | --- | --- | --- |
-  | `curate DUE` naming proposals (any verdict) | sonnet | `🧭 curator: <UTC date>` | `/curate` | `curated=<stamp>` |
   | `clerk DUE` (any verdict; `held` = nothing) | sonnet | `📋 clerk: <UTC date>` | `/clerk` | `clerked=<stamp>` |
   | `scout     : none in flight`, AND the human's order (below) or a scout issue that needs the scout (below); any other `scout :` row = nothing | fable | `scout: <UTC date>` | `/scout` | `scouted=<stamp>` |
   | `conduct DUE: spawn` (any verdict; `held`, `suppressed` = nothing) | sonnet | `🧐 conduct: <UTC date>` | `/conduct` | `conducted=<stamp>` |

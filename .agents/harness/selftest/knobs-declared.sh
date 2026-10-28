@@ -77,9 +77,9 @@ if [ -r "$kd_keys" ] && [ -r "$kd_doc" ]; then
   printf ': "$(num_knob JOHARNESS_VIA_NUM_KNOB)"\n' >>"${kdw}/b.sh"
   expect "a num_knob first argument with no row reds" \
     "no KNOBS row: JOHARNESS_VIA_NUM_KNOB" "$(kd_problems "${kdw}/b.sh" "$kd_doc" "$kd_keys")"
-  sed 's/^JOHARNESS_CURATE_PLANS|10|/JOHARNESS_CURATE_PLANS|11|/' "$kd_script" >"${kdw}/c.sh"
+  sed 's/^JOHARNESS_CLERK_HOURS|24|/JOHARNESS_CLERK_HOURS|25|/' "$kd_script" >"${kdw}/c.sh"
   expect "a default that differs from conf-keys.sh reds" \
-    "default differs from conf-keys.sh: JOHARNESS_CURATE_PLANS" \
+    "default differs from conf-keys.sh: JOHARNESS_CLERK_HOURS" \
     "$(kd_problems "${kdw}/c.sh" "$kd_doc" "$kd_keys")"
   grep -vF '| `JOHARNESS_CLERK_BATCH` |' "$kd_doc" >"${kdw}/d.md"
   expect "a dispatch key with no table row reds" \
@@ -102,10 +102,10 @@ fi
 kdfix="${TMP}/kdfix"
 git init -q "$kdfix"
 cp "$kd_script" "${kdfix}/joharness.sh"
-printf 'JOHARNESS_MAX_MANAGERS=3\nJOHARNESS_SCOUT_REVIEWER=carol\nJOHARNESS_CURATE_PLANS=\n' >"${kdfix}/joharness.conf"
+printf 'JOHARNESS_MAX_MANAGERS=3\nJOHARNESS_SCOUT_REVIEWER=carol\nJOHARNESS_CLERK_HOURS=\n' >"${kdfix}/joharness.conf"
 commit_all "$kdfix" "base"
 git -C "$kdfix" update-ref refs/remotes/origin/main HEAD
-printf 'JOHARNESS_SCOUT_REVIEWER=alice\nJOHARNESS_MAX_MANAGERS=3\nJOHARNESS_CURATE_PLANS=\n' >"${kdfix}/joharness.conf"
+printf 'JOHARNESS_SCOUT_REVIEWER=alice\nJOHARNESS_MAX_MANAGERS=3\nJOHARNESS_CLERK_HOURS=\n' >"${kdfix}/joharness.conf"
 kdconf() { ( cd "$kdfix" && JOHARNESS_CONF="${kdfix}/joharness.conf" env "$@" ./joharness.sh conf 2>&1 ); }
 
 out="$(kdconf)"
@@ -119,7 +119,7 @@ expect "the computed default is the value, twice the threshold" \
 expect "a scout key reads the BASE branch's conf, not the checkout's" \
   "JOHARNESS_SCOUT_REVIEWER = carol (base conf)" "$out"
 expect "an empty conf line is a skipped layer, not a value" \
-  "JOHARNESS_CURATE_PLANS = 10 (default; conf set but empty, ignored)" "$out"
+  "JOHARNESS_CLERK_HOURS = 24 (default; conf set but empty, ignored)" "$out"
 expect "the environment wins" \
   "JOHARNESS_SCOUT_REVIEWER = bob (env)" "$(kdconf JOHARNESS_SCOUT_REVIEWER=bob)"
 expect "an empty environment falls through to conf and says so" \
@@ -142,3 +142,33 @@ expect "a rejected login is read as none and says so" \
 expect "a non-number recurrence window is the reader's 8" \
   "JOHARNESS_RECURRENCE_WINDOW = 8 (default; env set but not a number, ignored)" \
   "$(kdconf JOHARNESS_RECURRENCE_WINDOW=abc)"
+
+# --- a consumer conf still carrying a removed knob -----------------------------
+# JOHARNESS_CURATE_HOURS went with the curator session role. A consumer whose
+# conf was seeded earlier still sets it: ci must neither red on the undeclared
+# key nor print a verdict other than `ci: pass`.
+kdold="${TMP}/kdold"
+git init -q "$kdold"
+git -C "$kdold" symbolic-ref HEAD refs/heads/main
+mkdir -p "${kdold}/.agents/harness" "${kdold}/.agents/env/none" \
+  "${kdold}/docs/plans" "${kdold}/docs/handover"
+cp "$kd_script" "${kdold}/joharness.sh"
+printf '#!/usr/bin/env bash\nprintf "1 passed, 0 failed\\n"\nexit 0\n' >"${kdold}/.agents/harness/selftest.sh"
+chmod +x "${kdold}/.agents/harness/selftest.sh" "${kdold}/joharness.sh"
+printf '# none\n' >"${kdold}/.agents/env/none/AGENTS.md"
+printf 'JOHARNESS_ENV=none\nJOHARNESS_CURATE_HOURS=168\nJOHARNESS_CURATE_PLANS=10\n' >"${kdold}/joharness.conf"
+commit_all "$kdold" "base"
+git init -q --bare "${TMP}/kdold.git"
+git -C "$kdold" remote add origin "${TMP}/kdold.git"
+git -C "$kdold" push -qu origin main
+git -C "$kdold" checkout -qb work
+printf 'code\n' >"${kdold}/code.txt"
+commit_all "$kdold" "work"
+out="$( cd "$kdold" && JOHARNESS_CONF="${kdold}/joharness.conf" GITHUB_ACTIONS='' \
+  JOHARNESS_VERBOSE='' ./joharness.sh ci 2>&1 )"; rc=$?
+if [ "$out" = "ci: pass" ] && [ "$rc" -eq 0 ]; then
+  pass "a conf still setting the removed JOHARNESS_CURATE_HOURS and _PLANS keeps ci green"
+else
+  fail "a conf still setting the removed JOHARNESS_CURATE_HOURS keeps ci green (rc ${rc})"
+  printf '%s\n' "$(indent "$out")"
+fi

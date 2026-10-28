@@ -122,7 +122,7 @@ Act on the FIRST row that matches:
 
 | control plane | push age | ledger | do |
 | --- | --- | --- | --- |
-| any | any | branch merged (dispatch no longer lists it), or a plan/research/requirement entry still `new` whose item file is gone from fresh `origin/main` (merged between passes, or curated away; never a `rescope-<key>` entry, which has no item file) | done: drop the ledger entry. A message carrying `lead <stem>: <text>` is the one exception that is never nothing: carry it and print it |
+| any | any | branch merged (dispatch no longer lists it), or a plan/research/requirement entry still `new` whose item file is gone from fresh `origin/main` (merged between passes; never a `rescope-<key>` entry, which has no item file) | done: drop the ledger entry. A message carrying `lead <stem>: <text>` is the one exception that is never nothing: carry it and print it |
 | any | any | a `rescope-<key>` entry whose dispatch row reads `done: finished rescope, holds no slot — never nudge` (genuine holds: it merges nothing, ever) | done: drop the entry, keep `rescoped=<key>`. Nudge nothing, respawn nothing |
 | any | `LOOP?`, or head moved and `next:` unchanged with `same=2` already | any | LOOP, below. No nudge |
 | IDLE | any | `retired, no claim file`, last turn asks a human to merge or grant merge permission (`status_detail` / needs-action) | HELD BY HUMAN → ref § Held by human |
@@ -165,8 +165,8 @@ GUARD `<verb>`, before every push onto a manager's branch → ref § GUARD.
 ## 3. Spawn
 
 Managers: up to `slots`, dispatch's order, rows under `spawn` only. A ledger `held-human=<pr>` entry holds no slot (dropped per ref § Held by human): spawn up to `slots` plus the number of such entries whose branch dispatch still lists as `retired, no claim file`.
-`JOHARNESS_MAX_MANAGERS` caps managers only. Every role session (curator,
-clerk, scout, conduct reviewer, retro reviewer, surveyor) runs beyond it and holds no
+`JOHARNESS_MAX_MANAGERS` caps managers only. Every role session (clerk,
+scout, conduct reviewer, retro reviewer, surveyor) runs beyond it and holds no
 slot: spawn its line even with every slot full, at most one of each in
 flight. `JOHARNESS_MAX_MANAGERS=0` (`PAUSED`) holds every role too. A line
 or command that says nothing to do spawns nothing.
@@ -184,7 +184,7 @@ or command that says nothing to do spawns nothing.
   Run `./joharness.sh release <branch>...` yourself — no session. It
   refuses a claim with `pr:` set. Skip any branch the health pass
   respawned this pass: it has a live manager now.
-- Role sessions (`curate DUE`, `clerk DUE`, `scout     :`, `conduct DUE`, `retro DUE`,
+- Role sessions (`clerk DUE`, `scout     :`, `conduct DUE`, `retro DUE`,
   `OVERLAP-BOUND`, the human's order) → ref § Role
   sessions ("A scout issue needs the scout").
 
@@ -224,7 +224,7 @@ Ledger every spawn the moment it returns as `<stem>@new`.
 ```
 /orchestrate pass
 harness=<first 12 chars of git hash-object of origin/main:.claude/commands/orchestrate.md> pass=<this pass's number plus one> [retire=yes]
-ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] [held=<updated_at>] [unratified=<head>] [notified=<stem>] [released=<stem>[,<stem>]] [held-human=<pr>] respawns=<n> [rescoped=<key>] [corewait=<stem>[,<stem>]] [curated=<stamp>[+human]] [clerked=<stamp>[+human]] [scouted=<stamp>[+human]] [conducted=<stamp>[+human]] [retroed=<stamp>[+human]]; ...
+ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] [held=<updated_at>] [unratified=<head>] [notified=<stem>] [released=<stem>[,<stem>]] [held-human=<pr>] respawns=<n> [rescoped=<key>] [corewait=<stem>[,<stem>]] [clerked=<stamp>[+human]] [scouted=<stamp>[+human]] [conducted=<stamp>[+human]] [retroed=<stamp>[+human]]; ...
 lead <stem>: <40 chars, to the end of this line>
 ```
 
