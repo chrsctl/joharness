@@ -713,6 +713,9 @@ expect "a park on an unplanned issue past the knob makes the clerk DUE, naming w
 expect "and the tail line spawns it, naming the park" \
   "clerk DUE (PARKED #31 unplanned, JOHARNESS_DEFECT_CLERK_HOURS): spawn ONE clerk (agent: sonnet) on /clerk" "$out"
 expect "the park itself still reads PARKED" "PARKED #31: a defect's, holds no slot" "$out"
+out="$(ckx env GIT_LITERAL_PATHSPECS=1)"
+expect "a caller's literal pathspecs do not hide the park" \
+  "clerk     : DUE — PARKED #31 unplanned" "$out"
 out="$(ckc)"
 expect "clerk reads the same early due as dispatch: one reader" \
   "cadence   : DUE — PARKED #31 unplanned 2h after its first park" "$out"
@@ -749,10 +752,10 @@ git -C "$ckwork" branch -qD clerk-20260102
 # A clerk landed after the first park had its chance: the cadence again. The
 # landing is undone after, on the fixture's own origin.
 cksha="$(git -C "$ckwork" rev-parse main)"
-ckland clerk-20260103 1
+ckland clerk-20260103 0
 out="$(ckx)"
 expect "a clerk landed since the park: the cadence only" \
-  "clerk     : not due — 1h since the last clerk landed" "$out"
+  "clerk     : not due — 0h since the last clerk landed" "$out"
 refute "and no early clerk" "spawn ONE clerk" "$out"
 git -C "$ckwork" reset -q --hard "$cksha"
 git -C "$ckorigin" update-ref refs/heads/main "$cksha"
@@ -760,7 +763,7 @@ git -C "$ckwork" branch -qD clerk-20260103
 out="$(ckx)"
 expect "undone: DUE again" "clerk     : DUE — PARKED #31 unplanned" "$out"
 # A clerk that read the issues before the park, landing after it, never saw
-# the issue: its first commit dates its read, not its merge.
+# the issue: its first commit, less the knob, dates its read, not its merge.
 ckland clerk-20260104 1 3
 out="$(ckx env JOHARNESS_DEFECT_RECHECK_HOURS=0)"
 expect "a clerk cut before the park, merged after: still DUE" \
@@ -768,6 +771,22 @@ expect "a clerk cut before the park, merged after: still DUE" \
 git -C "$ckwork" reset -q --hard "$cksha"
 git -C "$ckorigin" update-ref refs/heads/main "$cksha"
 git -C "$ckwork" branch -qD clerk-20260104
+# Its first commit 30m after the park, less the knob: read before it.
+git -C "$ckwork" checkout -qb clerk-20260106 main
+printf 'y\n' >"${ckwork}/clerk-20260106.txt"
+git -C "$ckwork" add -A
+GIT_AUTHOR_DATE="@$((cknow - 5400)) +0000" GIT_COMMITTER_DATE="@$((cknow - 5400)) +0000" \
+  git -C "$ckwork" commit -qm "clerk pass clerk-20260106"
+git -C "$ckwork" checkout -q main
+GIT_AUTHOR_DATE="@$((cknow - 3600)) +0000" GIT_COMMITTER_DATE="@$((cknow - 3600)) +0000" \
+  git -C "$ckwork" merge -q --no-ff -m "Merge pull request #7 from o/clerk-20260106" clerk-20260106
+git -C "$ckwork" push -q origin main
+out="$(ckx env JOHARNESS_DEFECT_RECHECK_HOURS=0)"
+expect "a first commit 30m after the park, less the knob: still DUE" \
+  "clerk     : DUE — PARKED #31 unplanned" "$out"
+git -C "$ckwork" reset -q --hard "$cksha"
+git -C "$ckorigin" update-ref refs/heads/main "$cksha"
+git -C "$ckwork" branch -qD clerk-20260106
 # Two parks on #31 are one issue; a park on #32 is named beside it.
 ckplan own-r none; ckplan own-s none
 ckcommit 3 "own-r, own-s"

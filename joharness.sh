@@ -4298,11 +4298,6 @@ clerk_park_early() {
   CLERK_EARLY=""; CLERK_EARLY_WHY=""
   knob="$(num_knob JOHARNESS_DEFECT_CLERK_HOURS)"
   [ "$knob" -gt 0 ] || return 0
-  # A no-op record is stamped at the END of its pass, its read unrecorded:
-  # read as the knob before it. A clerk this made due lands later than that,
-  # so its no-op still ends the early due; one that read just before a park
-  # does not.
-  [ "$last" -eq 0 ] || last=$((last - knob * 3600))
   base_id="$(git -C "$ROOT" rev-parse --verify -q \
     "refs/remotes/origin/${base_branch}^{commit}" </dev/null 2>/dev/null)"
   [ -n "$base_id" ] || return 0
@@ -4316,14 +4311,18 @@ clerk_park_early() {
   done <<<"$out"
   [ "${#refs[@]}" -gt 0 ] || return 0
   # Every claim file whose next: opens `defect:`, one `git grep` over them all.
-  out="$(git -C "$ROOT" -c core.quotePath=false -c grep.lineNumber=false \
+  out="$(GIT_LITERAL_PATHSPECS=0 GIT_NOGLOB_PATHSPECS=0 git -C "$ROOT" \
+    -c core.quotePath=false -c grep.lineNumber=false \
     -c grep.column=false -c grep.fullName=false grep --color=never -l -E \
     -e "^next:[[:space:]]*[\"']?defect:" "${refs[@]}" -- 'docs/handover/*.md' \
     </dev/null 2>/dev/null)"; rc=$?
   [ "$rc" -le 1 ] || return 0
   [ -n "$out" ] || return 0
-  # A landed clerk read the issues before its first commit, not at its
-  # merge: a park after that read was never in front of it.
+  # Neither record dates the clerk's read of the issues: a no-op is stamped
+  # at the END of its pass, a landed clerk's first commit follows its read.
+  # Each is read as the knob before it. A clerk this made due commits later
+  # than that, so it still ends the early due; one that read just before a
+  # park does not.
   mh="$(git -C "$ROOT" log -1 --first-parent --merges -E \
     --grep='^Merge pull request #[0-9]+ from [^/ ]+/clerk-[0-9]' \
     --format=%H "$base_id" </dev/null 2>/dev/null)"
@@ -4335,6 +4334,7 @@ clerk_park_early() {
     case "$rd" in '' | *[!0-9]*) return 0 ;; esac
     [ "$rd" -le "$last" ] || last="$rd"
   fi
+  [ "$last" -eq 0 ] || last=$((last - knob * 3600))
   now="$(date +%s)"
   while IFS= read -r hit; do
     [ -n "$hit" ] || continue
@@ -4399,10 +4399,10 @@ clerk_issue_nums() {
     return 0
   fi
   # A blob git cannot read is an error line at rc 1, never a match: every
-  # match opens `issue:`, so any other line is unreadable.
+  # match opens `issue:`, so any other line but a warning is unreadable.
   while IFS= read -r line; do
     case "$line" in
-      '' | issue:*) ;;
+      '' | issue:* | warning:*) ;;
       *) printf '?\n'; return 0 ;;
     esac
   done <<<"$out"
