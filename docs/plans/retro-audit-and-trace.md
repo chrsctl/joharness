@@ -116,6 +116,29 @@ one exception.
 - reading-budget.sh: conduct.md's `rb_bound` (6668) moves to
   retro-audit.md.
 
+**Settled at build (plan-checker r1–r10)**
+
+- Audit's off gate checks `.claude/commands/retro-audit.md`; sync ships it
+  to every consumer beside a stale `conduct.md`.
+- Spawn lines: `retro audit DUE: spawn ONE retro reviewer (agent: sonnet)
+  on /retro-audit`, `retro audit due, held`, `retro audit due, suppressed`;
+  trace keeps `retro DUE: spawn ONE retro reviewer (agent: sonnet) on
+  /retro` and its held and suppressed lines.
+- Trace is due on its clock as today. When the clock is due and no failed
+  session waits, an untraced CONCERN makes it `due`, not `empty`.
+- Retire = a commit that deleted `docs/handover/<stem>.md`, from
+  `git log --full-history --diff-filter=D` on `origin/<base>`, committer
+  date as a UTC day, compared `<=` the audit row's date.
+- The CONCERN's retro-log row: `branch` = the stem, `session` = the key,
+  outcome as any other row's.
+- retro.md's "another role's ledger" stays: audit's ledger is trace's own
+  role now, and the read list names the CONCERN rows only.
+- conf-keys.sh: the CONDUCT rows' text names `retro --audit`.
+- "Same last line": the same `GO retro-audit-<date>-<HHMM>` shape, both
+  cut by one code path.
+- The stale-branch rule (a seventh of the clock, at least 24h) covers
+  `retro-audit-<digit>…` as it covers `conduct-<digit>…`.
+
 ## Assumptions
 
 - A1: conduct and retro share the `role` prelude path — evidence:
@@ -143,6 +166,7 @@ one exception.
 test ! -e .claude/commands/conduct.md && test -s .claude/commands/retro-audit.md   # exit 0
 ./joharness.sh dispatch | grep -c '^retro     : \(audit\|trace\) '   # 2
 ./joharness.sh dispatch | grep -c 'conduct DUE\|^conduct   :\|on /conduct'   # 0
+grep -c 'on /retro-audit' joharness.sh   # 1: the audit spawn line
 diff <(./joharness.sh conduct) <(./joharness.sh retro --audit)   # no output
 ./joharness.sh ci       # ci: pass
 ./joharness.sh verify   # 0 failed
@@ -160,6 +184,8 @@ diff <(./joharness.sh conduct) <(./joharness.sh retro --audit)   # no output
   - a `conduct-<digit>` branch reads as audit in flight;
   - an open `retro-audit-*` PR does not stop trace;
   - `role conduct` and `role retro --audit` print the same last line.
+  - a due audit spawns on `/retro-audit`; a due trace on `/retro`;
+  - an untraced CONCERN with no failed session makes trace due.
 - The existing conduct cases (in `selftest/scout.sh`) and retro cases
   (`selftest/retro.sh`) are moved or rewritten to the new names, never
   deleted to get green.
