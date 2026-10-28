@@ -33,12 +33,18 @@ command, and remove `free` and the freer role.
   releasable branch, one per line:
   `release   : <branch>  <reason>  <detail>`. It takes over plain
   `janitor`'s report, keeping its per-claim detail: `holds:`, the session
-  line, `pr:` exempt, and push age. Two reasons qualify:
+  line, `pr:` exempt, and push age. A stale claim that does not qualify
+  (blocked, `pr:` set, unreadable) is still listed, indented, with the reason
+  it is never released. Three reasons qualify:
   - `stale, session gone?`: janitor's test (`janitor_releasable` over
     `claim_branches`), including `plan: none`, fast-lane and branch-only
     plans. The caller still proves the session ARCHIVED or not found, as
     today.
   - `queue holds it by needs: <stem>`: today's `RELEASABLE` test.
+  - `done, no pull request`: Behaviour lost 2.
+
+  A fourth line kind, `no claim: plans not landed: <stems>`, is report-only
+  (Behaviour lost 3): `release <branch>` refuses it.
 - **`./joharness.sh release <branch>...`: the write.** It releases each
   branch the report lists, and refuses any other with the reason.
 - **`./joharness.sh release --human <branch>...`: halt's path.** Any age,
@@ -49,8 +55,9 @@ command, and remove `free` and the freer role.
   - `halt <branch>` stays as an alias of `release --human`, because a human
     types it.
   - `janitor` and `janitor --apply` are removed.
-  - The janitor report's leftovers and merged-still-standing sections move
-    to `cleanup`'s report.
+  - The janitor report's leftovers and merged-still-standing sections go:
+    `cleanup`'s report already carries both. Its merged section gains the
+    first five branch names the janitor printed.
 - **Commit subjects:**
   - `release: session gone` and `release: the queue holds <plan> by a
     needs: edge`;
@@ -63,7 +70,8 @@ command, and remove `free` and the freer role.
 **dispatch:**
 - The `release   :` report lines replace the `janitor   :` line and the
   `RELEASABLE:` row flag.
-- One tail line, `release DUE: <branches>`.
+- The existing tail line `release DUE: <branches>` names every branch of
+  the three reasons, not only the needs: ones.
 - The `freer DUE` and `FREEABLE` rows go.
 
 **Removed:**
@@ -72,7 +80,8 @@ command, and remove `free` and the freer role.
   `free_plan_claimed`, `dispatch_freeable` and `free_claimed_ever`.
 - The `free-*` handling in rescope, the `n_freer` count, and the freer's
   terms in `role_will_spawn`.
-- The freer's Lineup row and spawn-table row, and README.md's Freer row.
+- The freer's `## Roles` row in orchestrated.md, its spawn-table row in
+  orchestrate-reference.md, and README.md's Freer row.
 - manage.md's free route, manage-reference.md § Free (with its `ref §`
   pointer: `orchestrated.sh` pointer test), and
   `.agents/harness/selftest/free.sh`.
@@ -89,7 +98,10 @@ merged `free-*` branch on origin/main.**
 3. **A doc-only branch with no claim** (a clerk branch that never opened
    its pull request) prints in the report as `no claim: plans not landed:
    <stems>`. Nothing is written: there is no claim to release, and deleting
-   branches stays human-only.
+   branches stays human-only. The scan that finds it replaces
+   `dispatch_freeable`: an unmerged branch that never added a workstream
+   file, whose whole diff is under docs/plans, docs/product or docs/research,
+   past HANDOVER_STALE_SECONDS, with at least one plan not landed.
 
 **Docs:**
 
@@ -117,16 +129,18 @@ merged `free-*` branch on origin/main.**
 - A2: free is a merge on the caller's own branch, never a release —
   evidence: `joharness.sh:cmd_free` — confidence: high.
 - A3: `guard kill|loop` have no in-script caller, only the orchestrator's
-  records — evidence: `grep -n 'guard kill\|guard loop'
-  .agents/docs/orchestrate-reference.md joharness.sh` — confidence: medium.
-- A4: a role branch with no claim (e.g. `clerk-<date>-b`) is none of these
-  commands' business. `JOHARNESS_CLERK_STALE_HOURS` (24) already stops it
+  records — evidence: `grep -n 'GUARD .kill\|guard <verb>'
+  .agents/docs/orchestrate-reference.md`; `grep -n 'cmd_guard' joharness.sh`
+  names janitor, halt and release only — confidence: medium.
+- A4: a role branch with no claim (e.g. `clerk-<date>-b`) is never
+  written by these commands; the report may only name its plans (Behaviour
+  lost 3). `JOHARNESS_CLERK_STALE_HOURS` (24) already stops it
   holding the clerk — evidence: `joharness.sh` KNOBS row — confidence: high.
 
 ## Out of scope
 
 - Deleting branches: `git push --delete` stays human-only.
-- Role branches with no claim (A4).
+- Writing to role branches with no claim (A4).
 - Changing who proves a session gone (the orchestrator, by `/who`).
 - Core paths.
 
@@ -162,7 +176,7 @@ merged `free-*` branch on origin/main.**
   write.
 - `joharness.sh:janitor_apply`, `joharness.sh:cmd_halt`,
   `joharness.sh:cmd_release`: the three releasers.
-- `joharness.sh:cmd_guard`: checks 1-4.
+- `joharness.sh:cmd_guard`: checks 1-5; `--human` skips check 5 (`pr:`).
 - `joharness.sh:cmd_free`, `joharness.sh:dispatch_freeable`: what goes.
 - `.agents/docs/orchestrate-reference.md:GUARD`: the orchestrator's use.
 
@@ -170,8 +184,10 @@ merged `free-*` branch on origin/main.**
 
 - Pinned needles quote these commands' output in the test files listed in
   `scope:`. Rewrite each needle with its text; never skip one.
-- Plan retro-audit-and-trace also edits joharness.sh and the orchestration
-  docs. dispatch holds overlapping plans apart; reconcile by merge if both
+- Plans retro-audit-and-trace, drop-curator-session, conduct-recent-sample,
+  anchor-symbol-drift, stranger-spawn-contract and challenge-before-planning
+  also edit joharness.sh, the orchestration docs, manage.md or
+  manage-reference.md. dispatch holds overlapping plans apart; reconcile by merge if both
   are open.
 - Never skip, disable or quarantine a test to get green.
 - Glossary lint bans `handover file`, `model tier`, `env layer`, `rescope
