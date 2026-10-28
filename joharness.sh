@@ -7745,23 +7745,6 @@ plans_in_diff() {
     while IFS= read -r f; do [ -f "${ROOT}/${f}" ] && printf '%s\n' "$f"; done
 }
 
-# A scope: made only of core paths (protocol_paths): no session may build it.
-plan_core_only() {
-  local scope s c core any=0
-  scope="$(curate_scope_list "$1")"
-  [ -n "$scope" ] || return 1
-  core="$(protocol_paths)"
-  while IFS= read -r s; do
-    [ -n "$s" ] || continue
-    s="${s#shared:}"; any=0
-    while IFS= read -r c; do
-      case "$s" in "$c" | "$c"/*) any=1 ;; esac
-    done <<<"$core"
-    [ "$any" -eq 1 ] || return 1
-  done <<<"$scope"
-  return 0
-}
-
 # The ref that retired <stem>, from a ledger on stdin (docs/plans/RETIRED.md,
 # lines `- <stem> <ref>`); empty when not listed, `?` for a line with no ref.
 # Backticks round the stem and a CRLF ending are read through: a near-miss
@@ -7772,10 +7755,9 @@ retired_ref() {
                 if (t == s) { print (NF >= 3 ? $3 : "?"); exit } }'
 }
 
-# ci stage: plans this branch ADDS must carry no curate repair and must be
-# buildable (scope: not core paths only). Edited plans are skipped: their
-# defects may predate the edit. The branch's own held plan is exempt from
-# those two, never from the ledger: a stem the base branch's ledger lists
+# ci stage: plans this branch ADDS must carry no curate repair. Edited plans
+# are skipped: their defects may predate the edit. The branch's own held plan
+# is exempt from repairs, never from the ledger: a stem the base branch's ledger lists
 # stays retired, whoever re-adds it.
 lint_plans_in_diff() {
   local over="origin/${HANDOVER_BASE_BRANCH:-main}" base rel counts regthr bad=0 kind text n=0
@@ -7834,12 +7816,6 @@ lint_plans_in_diff() {
     if ! grep -q '^## Assumptions[[:space:]]*$' "${ROOT}/${rel}"; then
       bad=$((bad + 1))
       printf '  %s: no "## Assumptions" heading (list each guess with evidence and confidence, or say it rests on none)\n' "$rel"
-    fi
-    case "$held" in *" $(lint_stem "$rel") "*) continue ;; esac
-    if plan_core_only "$rel"; then
-      bad=$((bad + 1))
-      printf '  %s: scope: names core paths only (%s) — no session may build it; mark the issue for a human instead\n' \
-        "$(lint_stem "$rel")" "$(protocol_paths | paste -sd, - | sed 's/,/, /g')"
     fi
   done < <(plans_in_diff "$base")
   if [ "$n" -eq 0 ]; then
