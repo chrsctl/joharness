@@ -334,7 +334,7 @@ no handover, and no handover is no replace. Why:
 - At most ONE of each per run and none while one is in flight
   (dispatch's header block says), `create_session` as § Create session,
   prompt =
-  the command + the lines its row names (clerk, conduct and retro: "the role lines";
+  the command + the lines its row names (clerk and retro, either mode: "the role lines";
   scout, surveyor: "the standard lines" — they claim by workstream
   file):
 
@@ -342,11 +342,11 @@ no handover, and no handover is no replace. Why:
   | --- | --- | --- | --- | --- |
   | `clerk DUE` (any verdict; `held` = nothing) | sonnet | `📋 clerk: <UTC date>` | `/clerk` | `clerked=<stamp>` |
   | `scout     : none in flight`, AND the human's order (below) or a scout issue that needs the scout (below); any other `scout :` row = nothing | fable | `scout: <UTC date>` | `/scout` | `scouted=<stamp>` |
-  | `conduct DUE: spawn` (any verdict; `held`, `suppressed` = nothing) | sonnet | `🧐 conduct: <UTC date>` | `/conduct` | `conducted=<stamp>` |
+  | `retro audit DUE: spawn` (any verdict; `held`, `suppressed` = nothing) | sonnet | `🩺 retro: audit <UTC date>` | `/retro-audit` | `conducted=<stamp>` |
   | `retro DUE: spawn` (any verdict; `held`, `suppressed` = nothing) | sonnet | `🩺 retro: <UTC date>` | `/retro` | `retroed=<stamp>` |
   | `OVERLAP-BOUND`, `rescope :` says `in flight: none` | sonnet | `📐 surveyor: <key>` | `/manage rescope <key>` + the block verbatim | `rescope-<key>@new`, `rescoped=<key>` |
 
-  "the role lines", for clerk, conduct and retro (they write no
+  "the role lines", for clerk and retro (either mode) (they write no
   workstream file, so no claim line):
 
   ```

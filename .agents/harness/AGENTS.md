@@ -87,4 +87,4 @@ ONE spelling: [`.agents/docs/glossary.md`](../../.agents/docs/glossary.md); `ci`
 ## Handover
 
 - Shape `.agents/docs/handover/TEMPLATE.md`, protocol `.agents/docs/handover/README.md`;
-  only what git cannot tell. Copy, sync, clerk, conduct or retro task: no workstream file.
+  only what git cannot tell. Copy, sync, clerk or retro task: no workstream file.
