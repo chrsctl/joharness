@@ -226,6 +226,18 @@ consumer gets the numbers as prose only — they are not in
 `.agents/scripts/conf-keys.sh`. A session proposes a change with a run's
 evidence; it never sets one (`.agents/harness/AGENTS.md`, Decide alone).
 
+**Why the knobs stay knobs** (settled by a sweep of all 49 `KNOBS` rows).
+None can be made a constant on evidence in this repository. 45 of 49 are
+assigned by a selftest to reach a branch, and constanting one means first
+showing the test reaches it another way; 6 are set by this repo's conf and
+11 are seeded into every consumer's conf (`conf-keys.sh`). The two nothing
+here sets, `JOHARNESS_RESPAWN_LIMIT` and `JOHARNESS_RETRO_EVENTS`, are read
+through `num_knob`, so a consumer conf can set them. The one known consumer,
+`chrsctl/gx`, was not readable in the sweep, so they stay UNKNOWN, never
+CONSTANT. A plan cutting them waits on a session granted `gx` that reads its
+`joharness.conf`. A doc table row, or no doc at all, is not evidence of no
+setter.
+
 ## Bounds
 
 The rules that bind every session.
