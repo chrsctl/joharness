@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK4ss2KinjRSUaz7NWc
 agent: opus
 updated: 2026-10-28
-next: ci and verify green (verify hit Docker Hub 429 once), then the verifier at opus
+next: Retire, open the pull request, finish, merge
 ---
 
 ## Goal
@@ -73,7 +73,10 @@ s/[0-9]+ (second|minute|hour|day|week|month|year)s? ago/AGE ago/g
   C (6bd9ee85) 0.476 / 0.230; D (beb8805d) 0.475 / 0.232; E (2a2d15c8) 0.460 / 0.219 = 0.48x, `dfx` total 134.4 s -> 67.9 s,
   `dsp` 0.163 / 0.105. The verifier's own pair at 0b93724c (`dispatch-park`
   topic, where `dfx` now lives): 0.436 / 0.199 = 0.46x. Against the plan's
-  written 0.42: E 0.52x, the verifier's 0.47x. Final pair: see below.
+  written 0.42: E 0.52x, the verifier's 0.47x. Final pair at 458026f8,
+  old = worktree at the merge base 8c4a1719, `ST_ONLY=dispatch-park`: `dfx`
+  0.440 / 0.203 s per ref = 0.46x (0.48x against the written 0.42), total
+  127.2 s -> 65.6 s, both arms 162 passed, 0 failed.
 - Execs per claim branch (strace, the n=8/n=32 fixture of the Profile, the
   code of c43b0c09): git 24.2 ((806 - 226) / 24, was 55), other 17.5
   ((658 - 238) / 24, was 68).
