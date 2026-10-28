@@ -666,8 +666,15 @@ SELFTEST_CHAINS=(
 # is ignored, so a fixture with its own topics runs unchanged; at top level
 # an unlisted name, or a name that is not the first topic of its unit, is
 # FATAL below. The array's own order decides nothing.
-SELFTEST_FIRST=(dispatch-park dispatch release scout release-halt
-  dispatch-branch-plans bootstrap-consumer)
+SELFTEST_FIRST=(
+  dispatch-park
+  dispatch
+  release
+  scout
+  release-halt
+  dispatch-branch-plans
+  bootstrap-consumer
+)
 
 selftest_topics_dir="${ROOT}/.agents/harness/selftest"
 
