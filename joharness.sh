@@ -7424,7 +7424,7 @@ map_dir_ok() {
 # the MAP_N* counts. $1 = nostale skips the per-folder history reads.
 map_scan() {
   local nostale="${1:-}" f d p line c n tgt sym file rest
-  local -A set=() idx=() gen=() tot=() chg=() old=() now=()
+  local -A set=() idx=() foreign=() gen=() tot=() chg=() old=() now=()
   local -a files=()
   MAP_ROWS=() MAP_SET=() MAP_NIDX=0
   MAP_NMISS=0 MAP_NORPH=0 MAP_NSTALE=0 MAP_NBROKEN=0
@@ -7459,10 +7459,22 @@ map_scan() {
       d="${d%/*}"
     done
   done
+  # Ours only when its first line is `# <dir>/`, the line /map writes. Any
+  # other INDEX.md is a person's: never flagged, written over or deleted,
+  # and it covers its folder.
+  for d in "${!idx[@]}"; do
+    line=""
+    IFS= read -r line <"${ROOT}/${d}/${MAP_INDEX}" 2>/dev/null || :
+    # Trailing blanks are an edit, not an owner; an empty file is no one's prose.
+    line="${line%"${line##*[![:space:]]}"}"
+    [ "$line" = "# ${d}/" ] || [ ! -s "${ROOT}/${d}/${MAP_INDEX}" ] && continue
+    unset 'idx[$d]'
+    foreign["$d"]=1
+  done
   MAP_NIDX="${#idx[@]}"
 
   for d in "${!set[@]}"; do
-    [ -n "${idx["$d"]:-}" ] && continue
+    [ -n "${idx["$d"]:-}" ] || [ -n "${foreign["$d"]:-}" ] && continue
     MAP_ROWS+=("${d}"$'\t'"missing : ${d}/"$'\t\t')
     MAP_NMISS=$((MAP_NMISS + 1))
   done
