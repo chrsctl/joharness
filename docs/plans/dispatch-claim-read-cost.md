@@ -69,7 +69,8 @@ the build measures it.
   s per ref); git execs per call beside it. Numbers and command in the workstream file.
 - A case in `.agents/harness/selftest/dispatch.sh` (or the file its fixture
   moved to): a ref moved between two calls in one shell is read fresh by
-  the second; it fails if a cache outlives its call on disk. "Call" is one
+  the second, on disk or in the process: two calls, and inside one call a
+  ref a hook's fetch moves after the call primed its facts. "Call" is one
   `cmd_dispatch` run; one nested in `release` runs inside `$(...)`, so a
   shell-variable cache cannot reach the release code after it.
 - SHIPS: in a consumer scratch clone (`.agents/scripts/bootstrap-consumer.sh

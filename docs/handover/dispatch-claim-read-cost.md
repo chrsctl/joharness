@@ -68,11 +68,12 @@ s/[0-9]+ (second|minute|hour|day|week|month|year)s? ago/AGE ago/g
   <seconds>` per call, and `selftest_unit` skips topics not in `ST_ONLY`;
   `ST_ONLY=dispatch JOHARNESS_SELFTEST_JOBS=1 bash .agents/harness/selftest.sh`,
   old then new back to back, nothing else running; least-squares fit per
-  wrapper. Last pair (run E, the code of 2a2d15c8): `dfx` old 0.460 s per
-  ref, new 0.219 (0.48x), total 134.4 s -> 67.9 s; `dsp` old 0.163, new
-  0.105 (0.64x). Earlier pairs on earlier heads: old 0.424 / 0.476 / 0.475,
-  so against the plan's written 0.42 the new slope is 0.52x; against every
-  old arm measured back to back, 0.46x-0.48x.
+  wrapper, `dfx` 41 calls over refs 2-19. Pairs, old / new s per ref:
+  A (code of 16687630) 0.465 / 0.276; B (a8b98c84) 0.424 / 0.236;
+  C (6bd9ee85) 0.476 / 0.230; D (beb8805d) 0.475 / 0.232; E (2a2d15c8) 0.460 / 0.219 = 0.48x, `dfx` total 134.4 s -> 67.9 s,
+  `dsp` 0.163 / 0.105. The verifier's own pair at 0b93724c (`dispatch-park`
+  topic, where `dfx` now lives): 0.436 / 0.199 = 0.46x. Against the plan's
+  written 0.42: E 0.52x, the verifier's 0.47x. Final pair: see below.
 - Execs per claim branch (strace, the n=8/n=32 fixture of the Profile, the
   code of c43b0c09): git 24.2 ((806 - 226) / 24, was 55), other 17.5
   ((658 - 238) / 24, was 68).
@@ -148,6 +149,10 @@ s/[0-9]+ (second|minute|hour|day|week|month|year)s? ago/AGE ago/g
 - r9: (plan-checker) consumer clone and sync command unnamed (fixed: plan names them)
 - r10: (plan-checker) "8 s late calls" unverified (wontfix: a pointer in Where to look, no acceptance rests on it)
 - r11: (plan-checker) an existing per-branch cache (`evcache`) is not named (no change: the build extends `mb_prime`'s memo, no parallel mechanism)
+- r12: (verifier) the cache case cannot fail: two `dsp` calls are two processes, and every cache is a shell variable; the plan's "outlives its call on disk" was a narrowing (fixed: an in-call case — the remote moves where only the hook's DRAIN_FETCH=1 fetch sees it, the row must read the fetched head; red with the post-fetch `mb_prime` removed, 2 FAIL; the plan item names both cases)
+- r13: (verifier) Decisions claims full ref names, but the claim file feeding parked rows is still read as `origin/<branch>` (fixed: `refs/remotes/origin/<branch>`)
+- r14: (verifier) the slope record's ratios do not follow from its numbers; against the written 0.42 the recorded 0.219 is 0.52x (fixed: every pair recorded with both arms; a final pair at the head)
+- r15: (verifier) `tab_rows` and `claim_of` compare stems as strings where `awk '$1 == s'` compared numeric-looking ones as numbers (`1` matched `01`) (wontfix: only stems spelled as numbers differ, and there two different plans stop reading as one)
 
 ## Blockers
 

@@ -197,6 +197,23 @@ expect "a ref moved between two calls: the second reads its new head" \
 refute "never the head the first call read" \
   "head $(git -C "$dspwork" rev-parse --short=12 "$dsp_was")" "$out"
 expect "and its new commit count" "work: 2 commit(s) since main" "$out"
+# Inside one call: the queue hooks fetch when DRAIN_FETCH=1, after dispatch
+# primed its ref facts. The remote moves where only that fetch sees it (the
+# object pushed under a ref no fetch maps, the branch then set on origin
+# itself), so the row is right only if the call reads the facts again.
+dsp_mid="$(git -C "$dspwork" rev-parse mgr-alpha)"
+git -C "$dspwork" branch -qf mgr-alpha "$dsp_was"
+git -C "$dspwork" push -qf origin mgr-alpha
+git -C "$dspwork" push -q origin "${dsp_mid}:refs/selftest/mid"
+git -C "$dsporigin" update-ref refs/heads/mgr-alpha "$dsp_mid"
+expect "the moved head is not yet in the tracking ref" \
+  "$dsp_was" "$(git -C "$dspwork" rev-parse refs/remotes/origin/mgr-alpha)"
+out="$(dsp env DRAIN_FETCH=1)"
+expect "a ref a hook's fetch moved mid-call: the row reads the head it fetched" \
+  "head $(git -C "$dspwork" rev-parse --short=12 "$dsp_mid")  base ok" "$out"
+refute "never the head read before the fetch" \
+  "head $(git -C "$dspwork" rev-parse --short=12 "$dsp_was")" "$out"
+git -C "$dsporigin" update-ref -d refs/selftest/mid
 git -C "$dspwork" branch -qf mgr-alpha "$dsp_was"
 git -C "$dspwork" push -qf origin mgr-alpha
 # A branch sharing no history with origin/main has no merge-base: its row says

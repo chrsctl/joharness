@@ -8534,7 +8534,7 @@ cmd_dispatch() {
       sed -n "s#^  origin/${branch}: \(docs/handover/[^ ]*\.md\)\$#\1#p" | head -1)"
     status=""; session=""; next=""; doc=""; pr=""
     if [ -n "$ws" ]; then
-      doc="$(git -C "$ROOT" show "origin/${branch}:${ws}" 2>/dev/null)"
+      doc="$(git -C "$ROOT" show "refs/remotes/origin/${branch}:${ws}" 2>/dev/null)"
       { read -r status; read -r session; read -r next; read -r pr; } \
         <<<"$(printf '%s\n' "$doc" | gr_fields status session next pr)"
     fi
