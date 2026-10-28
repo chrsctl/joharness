@@ -7423,7 +7423,8 @@ map_dir_ok() {
 # Fills MAP_ROWS ("<dir>\t<line>\t<path>\t<symbol>"), MAP_SET, MAP_NIDX and
 # the MAP_N* counts. $1 = nostale skips the per-folder history reads.
 map_scan() {
-  local nostale="${1:-}" f d p line c n tgt sym file rest sec
+  local nostale="${1:-}" f d p line c n tgt sym file rest sec seg
+  local -a segs=()
   local -A set=() idx=() foreign=() gen=() tot=() chg=() old=() now=()
   local -a files=()
   MAP_ROWS=() MAP_SET=() MAP_NIDX=0
@@ -7506,12 +7507,20 @@ map_scan() {
       while [[ "$rest" =~ \`([A-Za-z0-9_./-]+\.[A-Za-z][A-Za-z0-9]*):([^\`]+)\` ]]; do
         file="${BASH_REMATCH[1]}"; sym="${BASH_REMATCH[2]}"
         rest="${rest#*"${BASH_REMATCH[0]}"}"
+        # A port is no symbol: `host.example.com:443` is an address.
+        case "$sym" in *[!0-9]*) ;; *) continue ;; esac
         p="${d}/${file}"
         [ -f "${ROOT}/${p}" ] || [ ! -f "${ROOT}/${file}" ] || p="$file"
-        if [ -f "${ROOT}/${p}" ] && { grep -qF -- "$sym" "${ROOT}/${p}" 2>/dev/null ||
-             grep -qF -- "${sym##*.}" "${ROOT}/${p}" 2>/dev/null; }; then
-          continue
+        # Every dotted part must be in the file: a wrong class name is broken.
+        tgt=""
+        if [ -f "${ROOT}/${p}" ]; then
+          tgt=1
+          IFS=. read -ra segs <<<"$sym"
+          for seg in "${segs[@]}"; do
+            [ -z "$seg" ] || grep -qF -- "$seg" "${ROOT}/${p}" 2>/dev/null || tgt=""
+          done
         fi
+        [ -z "$tgt" ] || continue
         MAP_ROWS+=("${d}"$'\t'"broken  : ${d}/${MAP_INDEX} -> ${file}:${sym}"$'\t'"${p}"$'\t'"${sym##*.}")
         MAP_NBROKEN=$((MAP_NBROKEN + 1))
       done

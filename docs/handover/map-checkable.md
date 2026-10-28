@@ -31,6 +31,12 @@ kept. Fix: an index states only what a reader can check.
 ## Review
 
 - r1: mutation — new selftest against origin/main's joharness.sh, `ci` 2026-10-28: 3 cases FAIL (dotted symbol, repo-root path, address); the fourth (Interface-only) passed without the fix because `make x:nosuch` never matched a file — now `f.txt:nosuch` under `## Verify` (fixed)
+- r2: mutation re-run with r1's fix, `ci` 2026-10-28: all 4 new cases FAIL against origin/main's joharness.sh; head `ci: pass` (no change)
+- r3: (verifier) spawn prompt carried the head sha beyond the listed fields (no change: no rationale or findings passed)
+- r4: (verifier) `api.example.com:443` still read as file:symbol — an all-digit symbol is a port, never a symbol; case added (fixed)
+- r5: (verifier) `t.py:Missing.permits` passed on `permits` alone — every dotted part must be in the file; case added (fixed)
+- r6: (verifier) caps in map.md (8 lines, 8 words, 12 words, 8 folders) have no counting command (wontfix: cost guidance for workers, not a correctness claim; correctness is the reference check)
+- r7: (verifier) worker-prompt rules and the gx evidence are not re-taken in this checkout (no change: the gx re-run of /map measures them)
 
 ## Blockers
 
