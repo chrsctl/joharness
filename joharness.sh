@@ -4272,7 +4272,7 @@ clerk_due() {
   else
     CLERK_DUE="not-due ${age}h since ${base_word} (of ${hours}h)"
     # Here, not in a print: dispatch and `clerk` read the same due state.
-    clerk_park_early "$ts"
+    clerk_park_early "${noop%%$'\t'*}"
     [ -z "$CLERK_EARLY" ] ||
       CLERK_DUE="due ${CLERK_EARLY_WHY}, ahead of the cadence: ${age}h since ${base_word} (of ${hours}h)"
   fi
@@ -4286,14 +4286,15 @@ clerk_due() {
 # and STUCK already reach the human, RESUME and RECHECK are dispatch's.
 # Planned = what the clerk itself skips as planned (clerk_issue_nums all).
 # Fails closed: any read that fails makes nothing due early.
-# arg: <last clerk time, unix; 0 = none>. Sets CLERK_EARLY (`#<n>`, the
-# oldest such park) and CLERK_EARLY_WHY, or leaves both empty.
+# arg: <newest no-op record time, unix; empty = none>. Sets CLERK_EARLY
+# (`#<n>`, the oldest such park) and CLERK_EARLY_WHY, or leaves both empty.
 CLERK_EARLY=""
 CLERK_EARLY_WHY=""
 clerk_park_early() {
   local last="${1:-0}" knob base_branch="${HANDOVER_BASE_BRANCH:-main}" base_id
-  local refs=() r out rc hit ref ws doc st nx planned="" b now
-  local dst dn dplan dage best="" bage=-1 more=0
+  local refs=() r out rc hit ref ws doc st nx planned="" b now mh rd
+  local dst dn dplan dage best="" bage=-1 seen=" "
+  case "$last" in '' | *[!0-9]*) last=0 ;; esac
   CLERK_EARLY=""; CLERK_EARLY_WHY=""
   knob="$(num_knob JOHARNESS_DEFECT_CLERK_HOURS)"
   [ "$knob" -gt 0 ] || return 0
@@ -4315,6 +4316,20 @@ clerk_park_early() {
     -e "^next:[[:space:]]*[\"']?defect:" "${refs[@]}" -- 'docs/handover/*.md' \
     </dev/null 2>/dev/null)"; rc=$?
   [ "$rc" -le 1 ] || return 0
+  [ -n "$out" ] || return 0
+  # A landed clerk read the issues before its first commit, not at its
+  # merge: a park after that read was never in front of it.
+  mh="$(git -C "$ROOT" log -1 --first-parent --merges -E \
+    --grep='^Merge pull request #[0-9]+ from [^/ ]+/clerk-[0-9]' \
+    --format=%H "$base_id" </dev/null 2>/dev/null)"
+  if [ -n "$mh" ]; then
+    rd="$(git -C "$ROOT" log --format=%at "${mh}^1..${mh}^2" </dev/null 2>/dev/null |
+      sort -n | head -1)"
+    # Unreadable = the merge itself: errs toward no early clerk.
+    [ -n "$rd" ] || rd="$(git -C "$ROOT" log -1 --format=%ct "$mh" </dev/null 2>/dev/null)"
+    case "$rd" in '' | *[!0-9]*) return 0 ;; esac
+    [ "$rd" -le "$last" ] || last="$rd"
+  fi
   now="$(date +%s)"
   while IFS= read -r hit; do
     [ -n "$hit" ] || continue
@@ -4332,24 +4347,21 @@ clerk_park_early() {
     [ "$dst" = PARKED ] || continue
     case "$dage" in '' | *[!0-9]*) continue ;; esac
     [ "$dage" -ge $((knob * 60)) ] || continue
-    # A clerk that landed after the first park had its chance: the cadence
-    # and PARKED UNPLANNED take it from there.
+    # A clerk that read the issues after the first park had its chance: the
+    # cadence and PARKED UNPLANNED take it from there.
     [ $((now - (dage + 1) * 60)) -gt "$last" ] || continue
     if [ -z "$planned" ]; then
       planned=" $(clerk_issue_nums docs/plans all | tr '\n' ' ')"
     fi
     case "$planned" in *'?'*) return 0 ;; *" ${dn} "*) continue ;; esac
-    if [ "$dage" -gt "$bage" ]; then
-      [ -z "$best" ] || more=$((more + 1))
-      best="$dn"; bage="$dage"
-    else
-      more=$((more + 1))
-    fi
+    case "$seen" in *" ${dn} "*) ;; *) seen="${seen}${dn} " ;; esac
+    if [ "$dage" -gt "$bage" ]; then best="$dn"; bage="$dage"; fi
   done <<<"$out"
   [ -n "$best" ] || return 0
+  seen="${seen// ${best} / }"; seen="${seen# }"; seen="${seen% }"
   CLERK_EARLY="#${best}"
   CLERK_EARLY_WHY="PARKED #${best} unplanned $(dispatch_age_text "$bage") after its first park (>= ${knob}h: JOHARNESS_DEFECT_CLERK_HOURS)"
-  [ "$more" -eq 0 ] || CLERK_EARLY_WHY="${CLERK_EARLY_WHY}, and ${more} more such park(s)"
+  [ -z "$seen" ] || CLERK_EARLY_WHY="${CLERK_EARLY_WHY}, and #${seen// /, #} too"
 }
 
 # Issue numbers an `issue:` field names under one directory, one per line,

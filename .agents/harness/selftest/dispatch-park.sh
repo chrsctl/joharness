@@ -671,11 +671,12 @@ ckplan() {
   printf -- '---\nplan: %s\nurgency: normal\nagent: sonnet\neffort: high\nissue: %s\nscope: src/%s\n---\n\n## Goal\nFixture.\n' \
     "$1" "$2" "$1" >"${ckwork}/docs/plans/${1}.md"
 }
-# <branch> <hours ago>: a clerk's pull request merged on the first parent.
+# <branch> <hours ago> [commit hours ago]: a clerk's pull request merged on
+# the first parent; its one commit dated the merge's time, or earlier.
 ckland() {
   git -C "$ckwork" checkout -qb "$1" main
   printf '%s\n' "$1" >"${ckwork}/${1}.txt"
-  ckcommit "$2" "clerk pass $1"
+  ckcommit "${3:-$2}" "clerk pass $1"
   git -C "$ckwork" checkout -q main
   GIT_AUTHOR_DATE="@$((cknow - $2 * 3600)) +0000" \
     GIT_COMMITTER_DATE="@$((cknow - $2 * 3600)) +0000" \
@@ -690,6 +691,7 @@ ckland clerk-20260101 3
 # <branch> <own plan> <next:> <hours ago>: claim, then park.
 ckpark() {
   git -C "$ckwork" checkout -qb "$1" origin/main
+  mkdir -p "${ckwork}/docs/handover"
   printf -- '---\nworkstream: %s\nstatus: in-progress\nbranch: %s\nplan: %s\nsession: https://example.invalid/session_%s\nagent: sonnet\nupdated: 2026-01-02\nnext: Build it\n---\n\n## Goal\nFixture.\n' \
     "$2" "$1" "$2" "$2" >"${ckwork}/docs/handover/${2}.md"
   ckcommit "$(($4 + 1))" "claim $2"
@@ -757,6 +759,29 @@ git -C "$ckorigin" update-ref refs/heads/main "$cksha"
 git -C "$ckwork" branch -qD clerk-20260103
 out="$(ckx)"
 expect "undone: DUE again" "clerk     : DUE — PARKED #31 unplanned" "$out"
+# A clerk that read the issues before the park, landing after it, never saw
+# the issue: its first commit dates its read, not its merge.
+ckland clerk-20260104 1 3
+out="$(ckx env JOHARNESS_DEFECT_RECHECK_HOURS=0)"
+expect "a clerk cut before the park, merged after: still DUE" \
+  "clerk     : DUE — PARKED #31 unplanned" "$out"
+git -C "$ckwork" reset -q --hard "$cksha"
+git -C "$ckorigin" update-ref refs/heads/main "$cksha"
+git -C "$ckwork" branch -qD clerk-20260104
+# Two parks on #31 are one issue; a park on #32 is named beside it.
+ckplan own-r none; ckplan own-s none
+ckcommit 3 "own-r, own-s"
+git -C "$ckwork" push -q origin main
+ckpark park-r own-r 'defect: #31: the build breaks too' 2
+out="$(ckx)"
+refute "a second park on #31 is no second issue" "too" "$(printf '%s\n' "$out" | grep '^clerk     :')"
+ckpark park-s own-s 'defect: #32: the lint breaks' 2
+out="$(ckx)"
+expect "a park on another issue is named beside it" "and #32 too" "$out"
+for b in park-r park-s; do
+  git -C "$ckwork" push -q origin --delete "$b"
+  git -C "$ckwork" branch -qD "$b"
+done
 
 # A plan naming #31 on a live branch, then on the base: no early due.
 git -C "$ckwork" checkout -qb plan-31 main

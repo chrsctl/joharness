@@ -120,7 +120,7 @@ expect "and spawns one under a verdict that is not DRAINED" \
 expect "the fixture's verdict really is not drained" "NOT DRAINED" "$out"
 out="$(clerk_dsp DISPATCH_FETCH=0)"
 expect "a view of unknown age holds the spawn" "clerk due, held — no fresh view" "$out"
-refute "and holds it, not spawns it" "clerk DUE: spawn" "$out"
+refute "and holds it, not spawns it" "spawn ONE clerk" "$out"
 
 # Every manager slot full: the clerk still spawns. JOHARNESS_MAX_MANAGERS caps
 # managers only; a role runs beyond it.
@@ -139,7 +139,7 @@ refute "and never holds it for a slot" "no free slot" "$out"
 out="$(clerk_dsp JOHARNESS_MAX_MANAGERS=0)"
 expect "the human's pause still holds the clerk" \
   "clerk due, held — JOHARNESS_MAX_MANAGERS=0 is the human's pause" "$out"
-refute "and spawns none under it" "clerk DUE: spawn" "$out"
+refute "and spawns none under it" "spawn ONE clerk" "$out"
 git -C "$clerk_work" push -q origin --delete mgr-full
 git -C "$clerk_work" branch -qD mgr-full
 
@@ -302,7 +302,7 @@ expect "while the same ref with no window does: the reader saw it" \
   "clerk-2026-02-04-c  tip-0h  in-flight" "$out"
 out="$(clerk_dsp)"
 expect "(b) dispatch says IN FLIGHT" "clerk     : IN FLIGHT, so none is due" "$out"
-refute "(b) and spawns no clerk" "clerk DUE: spawn" "$out"
+refute "(b) and spawns no clerk" "spawn ONE clerk" "$out"
 
 # (a) It merges: GitHub's subject, on the first parent, dates the cycle.
 GIT_COMMITTER_DATE="$(clerk_ago 2)" GIT_AUTHOR_DATE="$(clerk_ago 2)" \
