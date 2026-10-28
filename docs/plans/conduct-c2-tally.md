@@ -6,7 +6,7 @@ effort: medium
 needs: conduct-c2
 requirement: none
 issue: none
-scope: joharness.sh, .agents/harness/selftest/scout.sh
+scope: shared:joharness.sh, .agents/harness/selftest/scout.sh
 ---
 
 ## Goal
