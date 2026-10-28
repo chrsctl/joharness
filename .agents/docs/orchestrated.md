@@ -15,9 +15,9 @@ commit `649b832` — docs only, no text reproduced (`.agents/NOTICE`).
 | --- | --- |
 | `joharness.sh:unattended` | The ONE predicate the boundary, the marking and `authority` read. |
 | `session-start` banner | Routes by role: prompt names `/manage <item>` = manager; nothing named = orchestrator, run `/orchestrate`. Prints the core-path boundary. |
-| Queue hook | Marks a plan with ANY core path (`./joharness.sh protocol-paths`) in `scope:` and ranks it out of the free list. Prints `in flight: <free> overlaps <claimed> on <path>` per collision with a held plan. |
+| Queue hook | Marks a plan with ANY core path (`./joharness.sh protocol-paths`) in `scope:` `CORE ONLY` and ranks it after every other free plan. Prints `in flight: <free> overlaps <claimed> on <path>` per collision with a held plan. |
 | `./joharness.sh dispatch` | The orchestrator's one read: the human's numbers, managers in flight with push age and marks (`STALL?`, `LOOP?`, `CEILING?`), slots under the cap, the spawn order with waves and `HOLD`s, the `deferred  :` lines for held requirements, the cycle lines, one verdict. Reports only. |
-| `dispatch` wait line | Under any `DRAINED` verdict, when `CORE ONLY` plans wait: `<n> plan(s) wait on a human core edit (oldest <d>d): <stems>`. The verdict word is unchanged; the orchestrator reports the line and pushes each stem to the human once per run. Never on `NOT DRAINED`, `OVERLAP-BOUND` or `PAUSED`. |
+| `dispatch` wait line | Under any verdict, when claims are parked `core path: waiting on #<N>` and the base carries no merge of #<N>: `<n> pull request(s) wait on a human merge: #<N> (<stem>), …`. Read from git, so a closed pull request stays listed until the human answers the block. The verdict word is unchanged; the orchestrator reports the line and pushes each pull request to the human once per run. |
 | `dispatch` verdict `OVERLAP-BOUND` | Slots free but every free plan HELD behind work in flight. A `rescope :` block names the holder key and the held paths; the verdict spawns ONE surveyor to correct the `scope:` declarations. |
 | `./joharness.sh release` (no argument) + `release   :` lines | The report of claims to release, in the dispatch read too. `stale, session gone?` (stale claim, in-progress/review/no status, no `pr:`; the caller proves the session ARCHIVED or not found first), `done, no pull request` (`status: done, pr: none`, a `plan:` named, whole branch diff workstream files, stale), `queue holds it by needs: <stem>` (no session check). Report-only `no claim: plans not landed: <stems>`: a doc-only branch that never claimed; nothing is written, a human re-files the plans. A stale claim that does not qualify is listed indented with why. Writes nothing. |
 | `./joharness.sh release <branch>...` | The write: releases each listed branch through the guard and the lease (`status: abandoned`), refuses any other with the reason. Subjects `release: session gone (<date>)`, `release: done, no pull request (<date>)`, `release: the queue holds <plan> by a needs: edge (<date>)`. Deletes nothing; git only, never the GitHub API. Output per file: `release   : <branch>  <path>  <reason>` or `... plan <p>  held by needs: <s>`, then `pushed    : <branch> <sha>`. |
@@ -250,22 +250,21 @@ The rules that bind every session.
   the banner, the Stop guard and the queue hook — the early warning;
   `.github/CODEOWNERS` plus a branch-protection rule requiring code-owner
   review (the human's setting) is the guarantee. A plan with ANY core path in
-  `scope:` is `CORE ONLY` and de-ranked: acceptance is all-or-nothing.
+  `scope:` is `CORE ONLY` and ranked after every other free plan.
   `.agents/env/` is not core. One exception, merged by a human: a manager's
   `human/<stem>` pull request labelled `human-review`, carrying only the
-  core-path edit its plan leaves to a human, from a separate worktree
-  (`.claude/commands/manage.md` §2). A hook `.claude/settings.json` registers
+  core-path edit, from a separate worktree (`.claude/commands/manage.md` §2). A hook `.claude/settings.json` registers
   runs from the working tree: it is built unregistered, tested through
   fixtures, and registered in that pull request, never edited in place.
-- **A `CORE ONLY` plan is a wait on a human, and the verdict must say so.**
-  Nothing left but `CORE ONLY` plans reads `DRAINED`, and a requirement whose
-  only plan is `CORE ONLY` counts as planned. The de-rank stays: a manager on
-  a partly-core plan spends a slot to end `core path:` blocked, and a
-  surveyor never splits a plan. The orchestrator pushes `dispatch`'s wait
-  line to the human once per run, never spawning on it. The human's move is a
-  split by hand: the core edit on their own commit, then the plan without it
-  in BOTH `scope:` and `## Scope` — dropping the path from one is hiding
-  (`.agents/docs/plans.md`, "A core path in `scope:`").
+- **A `CORE ONLY` plan: the agent builds it, a human merges it.** A human
+  waits on a pull request, never on an implementation. dispatch spawns a
+  manager on it after every other free item, so it never takes a slot ahead
+  of work that needs no human. The manager builds the core edit in a
+  `human/<stem>` pull request (`.agents/docs/manage-reference.md` § Human
+  remainder) and, when its Acceptance needs that merged, parks `core path:
+  waiting on #<N>` — no slot held, RESUMEd once #<N> merges. Nothing left but
+  such parked claims reads `DRAINED`; the orchestrator pushes `dispatch`'s
+  wait line to the human once per run, so the human's one move is the merge.
 - **Merging uses the step 7 conditions unchanged.** The mode removes the
   human, never the gate.
 - **No state store, no status field.** Every view derives from git and the
@@ -295,8 +294,8 @@ layers is a human's call.
 
 DRAINED, at the queue edge, with nothing in flight. Anything else that ends a
 run — a rate limit, a session asking a question, a failed spawn — is a
-finding, not a stop. A queue of only `CORE ONLY` plans is DRAINED and a
-wait for a human (Bounds).
+finding, not a stop. Claims parked on a human merge hold no slot: with
+nothing else left the queue is DRAINED and a wait for a human (Bounds).
 
 A human decision is a PUSH, never a wait. A manager that asks inside the
 session writes nothing: its slot stays held and the question reaches nobody.

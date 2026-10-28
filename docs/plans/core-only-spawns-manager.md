@@ -7,7 +7,7 @@ needs: none
 requirement: none
 serves: all
 issue: none
-scope: shared:joharness.sh, .agents/harness/queue-context.sh, .agents/harness/selftest/dispatch.sh, .agents/harness/selftest/dispatch-order.sh, shared:.agents/harness/selftest/dispatch-park.sh, .agents/harness/selftest/queue-context-core-only.sh, shared:.agents/docs/orchestrated.md, .agents/docs/plans.md, .agents/docs/manage-reference.md, .agents/docs/orchestrate-reference.md, shared:.claude/commands/orchestrate.md, .claude/commands/manage.md
+scope: shared:joharness.sh, .agents/harness/queue-context.sh, .agents/harness/selftest/dispatch.sh, .agents/harness/selftest/dispatch-order.sh, shared:.agents/harness/selftest/dispatch-park.sh, .agents/harness/selftest/queue-context-core-only.sh, .agents/harness/selftest/orchestrated.sh, shared:.agents/docs/orchestrated.md, .agents/docs/plans.md, .agents/docs/manage-reference.md, .agents/docs/orchestrate-reference.md, shared:.claude/commands/orchestrate.md, .claude/commands/manage.md
 ---
 
 ## Goal
@@ -74,6 +74,7 @@ The one missing piece is that dispatch never spawns the manager.
   - `dispatch-park.sh`: a claim parked `core path: waiting on #77` holds no slot and prints `1 pull request(s) wait on a human merge: #77 (own-w)`; once `#77` merges, the line is gone and the RESUME row prints.
   - `queue-context-core-only.sh`: a lone `CORE ONLY` plan is free work in the hook (no `Edge reached` line).
 - `./joharness.sh ci` prints `ci: pass`; `./joharness.sh verify` prints `0 failed`.
+- Consumer-side, after its next sync: `./joharness.sh dispatch` in a consumer lists each unclaimed `CORE ONLY` plan under `spawn` with `CORE ONLY — build it`, and prints no `NOT YOURS` block.
 
 ## Where to look
 

@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK5BpmpDmvYP7cKXntH
 agent: opus
 updated: 2026-10-28
-next: Build queue-context.sh free set + dispatch spawn row and wait line, then selftests, then docs
+next: Run ci and verify green, then the verifier at opus, then PR
 ---
 
 ## Goal
@@ -36,9 +36,9 @@ None yet.
 - r1: (plan-checker) a spawned CORE ONLY plan gets no wave/HOLD: the hook leaves it out of its free set — queue-context.sh added to scope (fixed)
 - r2: (plan-checker) ci still reds a core-paths-only added plan — out of scope, follow-up plan core-only-scope-lint (fixed)
 - r3: (plan-checker) retire in the human/ PR contradicts § Human remainder step 2 — retire stays on the manager branch (fixed)
-- r4: (plan-checker) defect-park-calls-clerk edits the same dispatch lines — wontfix: both declare shared:, reconcile at step 7
+- r4: (plan-checker) defect-park-calls-clerk edits the same dispatch lines (wontfix: both declare shared:, reconcile at step 7)
 - r5: (plan-checker) acceptance fixture item not runnable — rewritten as named selftest cases (fixed)
-- r6: (plan-checker) consumer-side acceptance not runnable here — dropped; ship-scope covers the sync (fixed)
+- r6: (plan-checker) consumer-side acceptance not runnable here — reworded to the dispatch line a consumer reads after sync (fixed)
 - r7: (plan-checker) acceptance item 1 had no expected output and wrong claim — rewritten (fixed)
 - r8: (plan-checker) open PRs cannot be read from git — wait line reads unmerged parked claims (fixed)
 - r9: (plan-checker) A4 half false — reworded (fixed)

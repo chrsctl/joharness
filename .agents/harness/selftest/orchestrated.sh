@@ -668,7 +668,9 @@ expect "the line is bounded, or a compaction truncates it silently" \
   "at most five, newest first, one per" "$orctext"
 expect "a lead outlives the pass its subject merges in, by one report" \
   "so a lead arriving in the same pass its subject merges is still printed" "$orctext"
-expect "and a stem no manager will ever work holds no slot" \
+# A CORE ONLY stem has a manager now (its core edit goes in a human/<stem>
+# pull request), so a lead on it is kept like any other.
+refute "and a lead on a CORE ONLY stem is no longer dropped unprinted" \
   "Drop it at once, unprinted, when dispatch marks that stem" "$orctext"
 
 # The stem is the field one to the LEFT of the one the stripping rule
