@@ -13,7 +13,7 @@ next: Fill F4 with run 9, write Verification, re-verify, delete research file, m
 
 ## Goal
 
-Settle research `selftest-runtime`: where the ~493 s of the selftest go, and
+Settle research `selftest-runtime`: where the ~406 s (measured here) of the selftest go, and
 which changes cut it most without dropping a case's fail-without-the-fix
 property. Graduate to `.agents/harness/selftest.sh` header.
 
@@ -24,8 +24,8 @@ property. Graduate to `.agents/harness/selftest.sh` header.
 - First run (4 CPUs, jobs 4): 406 s wall, topic sum 1254 s; dispatch 362 s
   is the critical path (start 38 s, end 401 s); 86.5k git execs, dispatch
   29.5k. dispatch.sh splits clean at line 1096 (dspwork vs dfwork).
-- jobs 1: 996 s wall, sum 988 s. A fixture dispatch call costs ~0.45 s per
-  claim branch (dfx: 4 branches 1.3 s, 19 branches 8.7 s). release.sh
+- jobs 1: 996 s wall, sum 988 s. A fixture dispatch call costs 0.15 (dsp) to
+  0.42 s (dfx) per origin ref. release.sh
   splits clean at line 771 (jwork vs hwork). Scratch run with both splits
   and heavy-first claim order measured (runs 6, 9 in the research file).
 
@@ -52,6 +52,17 @@ property. Graduate to `.agents/harness/selftest.sh` header.
 - r15: (verifier) plan 2 scope has no room for its cache trap's test (fixed: dispatch.sh in scope, case named)
 - r16: (verifier) plan 1 silent on selftest-shards fixture, no order case, no threshold, one FATAL half tested (fixed: names ignored per run, shards case, 0.9x on n=2, both halves)
 - r17: (verifier) -19.5% from one sample per arm (fixed: run 9, n=2 alternating on a quiet box, in F4)
+- r19: (verifier) plan 2 per-call 0.5x fails a build that halves per-ref cost (fixed: slope of the fit at most 0.5x)
+- r20: (verifier) plan 2 case may land in dispatch-park.sh outside scope; dispatch.sh unshared in plan 1 (fixed: both shared in both)
+- r21: (verifier) header states grep cost as settled (fixed: estimated)
+- r22: (verifier) runs 1-5 were at f4eb2729, not d8cc1328 (fixed: Method; header says harness bytes)
+- r23: (verifier) Sweep: pretool-feedback, clerk, curate-apply uncaused, no proposals for three (fixed: F6 names each, proposal or saving 0)
+- r24: (verifier) simulation figures 332/314 not reproducible (fixed: replaced by what sim.py prints, 399/362)
+- r25: (verifier) quiet box unverified (fixed: says what ran during run 9)
+- r26: (verifier) handover Decisions and Goal kept old figures (fixed)
+- r27: (verifier) plan 2 A1 says branch count (fixed: origin refs)
+- r28: (verifier) 319 s called a floor, run 9 beats it (fixed: a per-run figure)
+- r29: (verifier) duplicate fixtures and assertions not searched one by one (no change: marked STUB and not searched in F7, bounded by estimate)
 - r18: (verifier) run 7 was the scratch worktree, wall is date difference, review counted a placeholder, branch behind main (fixed: Method says so; placeholder gone; main merged before finish)
 
 ## Blockers

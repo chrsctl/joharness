@@ -15,9 +15,9 @@
 #
 # Where the time goes (research selftest-runtime; its timing patch and
 # commands are in the research file, recoverable with `git log --all --
-# docs/research/selftest-runtime.md`): at d8cc1328 on 4 CPUs, 406 s wall
+# docs/research/selftest-runtime.md`): at d8cc1328 (harness bytes) on 4 CPUs, 406 s wall
 # with 4 workers, 996 s with 1. The time is commands, not assertions: case
-# greps cost under 1%, fixture builds an estimated few percent. The topics
+# greps and fixture builds are estimated at under 1% and a few percent. The topics
 # built on `joharness.sh dispatch` calls (dispatch, dispatch-*, release)
 # were 53% of the serial sum, a call priced 0.15 to 0.42 s per origin ref
 # of its fixture. Chains were 8.6%.

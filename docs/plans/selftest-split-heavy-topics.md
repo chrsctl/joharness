@@ -7,7 +7,7 @@ needs: none
 requirement: none
 serves: all
 issue: none
-scope: shared:.agents/harness/selftest.sh, .agents/harness/selftest/selftest-shards.sh, .agents/harness/selftest/dispatch.sh, .agents/harness/selftest/dispatch-park.sh, .agents/harness/selftest/release.sh, .agents/harness/selftest/release-halt.sh, .agents/harness/selftest/ci-selftest-scope.sh
+scope: shared:.agents/harness/selftest.sh, .agents/harness/selftest/selftest-shards.sh, shared:.agents/harness/selftest/dispatch.sh, shared:.agents/harness/selftest/dispatch-park.sh, .agents/harness/selftest/release.sh, .agents/harness/selftest/release-halt.sh, .agents/harness/selftest/ci-selftest-scope.sh
 ---
 
 ## Goal

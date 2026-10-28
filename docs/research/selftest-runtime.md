@@ -44,10 +44,10 @@ Settled either way: "no change saves over 20%" is an answer too.
 
 ## Method
 
-All runs in one cloud container (4 CPUs, `nproc`). Runs 1-5 and 8 on
-`origin/main` at d8cc1328; run 7 in the scratch worktree at f4eb2729 (d8cc1328
-plus this branch's claim commit, a handover file only); run 9 on d8cc1328 and
-on the candidate. Wall times are `date +%s.%N` differences around
+All runs in one cloud container (4 CPUs, `nproc`). Runs 1-7 in a scratch
+worktree at f4eb2729: d8cc1328 plus this branch's claim commit, which adds
+only a handover file (no harness byte differs). Run 9: base arm in a
+worktree at d8cc1328, candidate arm at f4eb2729 plus the split. Wall times are `date +%s.%N` differences around
 `bash .agents/harness/selftest.sh`, not `time`.
 
 The runner patch below, applied UNCOMMITTED in a scratch `git worktree`,
@@ -232,11 +232,14 @@ identical but for two measured-time lines and the shipped-file count
 
 F4. **Split plus heavy-first reaches the floor.** Run 6 (n=1): split alone
 355 s (-12.5% on run 1's 406 s); split with the `ST_FIRST` units claimed
-first, in list order, 327 s (-19.5%), against a floor of 319 s (topic sum /
-4). Run 9 (n=2 per arm, quiet box, alternating): base 405.6 and 406.8 s,
+first, in list order, 327 s (-19.5%), near run 6's topic sum / 4 = 319 s (a
+per-run figure, not a hard floor: run 9 kept no per-topic file). Run 9 (n=2 per arm, alternating; no other suite or verifier ran, the
+session made one commit during it): base 405.6 and 406.8 s,
 candidate 317.4 and 306.1 s, means 406.2 and 311.8 (-23.2%); all four
 3736 passed, 0 failed, 1 skipped. `dispatch-park` (221 s under
-contention) is then the critical path. The simulation predicted 332 and 314.
+contention) is then the critical path. `sim.py` over run 1's `t4` gives list order 399 s, longest-first 362 s
+(the unsplit list); it models no `ST_FIRST` order and predicts nothing
+about the split.
 GROUNDED (runs 6, 9); the simulation WEAK. Run 1 sat inside run 9's
 base range; the Echo's 494 and 532 s were another box or load.
 
@@ -254,8 +257,15 @@ Proposed: a `ci` that runs only the named stage when a fixture asks for
 one section would cut the `ci`-driven topics (`review`, `checks`,
 `ci-graph-lint`, ~94 s serial, ~10%) by perhaps half, ~5% of the suite
 (estimate). The rest have no cheap cut: their cases ask the command whole.
-Under the 20% bar; filed as no plan. WEAK (counts grounded, savings
-estimated).
+Also: `pretool-feedback` 20 s, 24 hook runs plus 7 `feedback` runs (1844
+git); `clerk` 19 s, 31 `clerk` runs plus 11 dispatch calls (1392 git:
+the dispatch-family price again); `curate-apply` 15 s, 9 `curate` plus 6
+fixture `ci` runs. Proposed per topic: `clerk` — its 11 dispatch calls
+fall under plan `dispatch-claim-read-cost` (not measured); `scout`,
+`retro`, `bootstrap-consumer`, `pretool-feedback` — no change proposed,
+estimated saving 0 (each case asks its command whole; not profiled
+further). The stage-only `ci` is under the
+20% bar; filed as no plan. WEAK (counts grounded, savings estimated).
 
 F7. **Duplicate fixtures and assertions are noise.** 145 `git init` lines
 across the runner and topic files (`cat .agents/harness/selftest.sh
@@ -263,8 +273,9 @@ across the runner and topic files (`cat .agents/harness/selftest.sh
 ~10-20 git execs, so all builds are a few thousand of 86 517 (under 5%,
 estimate). Run 8: 3736 `grep -qF` took 9.6 s under load, an upper bound
 under 1% of the serial sum (3736 is the case count reused, not the suite's
-grep count). No duplicate assertion found whose removal saves time without
-its command going too. WEAK.
+grep count). Duplicate fixtures: not identified repo by repo (STUB); the estimate
+above bounds what sharing them could save. Duplicate assertions: not
+searched; the run 8 bound says removing any could save under 1%. WEAK.
 
 F8. **A stale written number.** `ci-selftest-scope.sh` says "16s of a 22s
 ci run"; runs 1 and 3 refute it. GROUNDED.

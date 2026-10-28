@@ -7,7 +7,7 @@ needs: none
 requirement: none
 serves: all
 issue: none
-scope: shared:joharness.sh, .agents/harness/queue-context.sh, .agents/harness/handover-context.sh, shared:.agents/harness/selftest/dispatch.sh
+scope: shared:joharness.sh, .agents/harness/queue-context.sh, .agents/harness/handover-context.sh, shared:.agents/harness/selftest/dispatch.sh, shared:.agents/harness/selftest/dispatch-park.sh
 ---
 
 ## Goal
@@ -35,7 +35,7 @@ the build measures it.
 
 - A1: per-branch git and helper-program execs, not one slow command, are the
   cost — evidence: research run 7 (git lines replay in 3.6 of 6.1 s;
-  repeats listed) and run 5 (linear in branch count) — confidence: medium.
+  repeats listed) and run 5 (linear in origin refs) — confidence: medium.
 - A2: the dispatch family's selftest output is the full contract — every
   printed line has a case — confidence: low; check by diffing the real
   checkout's `dispatch` output before and after too.
@@ -56,9 +56,9 @@ the build measures it.
   old and new build run back to back on the same refs: identical output
   after masking clock-relative ages (the masking `sed` named in the
   workstream file; a line differing in anything but an age is a failure).
-- Seconds per `dfx` call on the `dfwork` fixture at its 19-ref state, old
-  against new, measured the same way: at most 0.5x; git exec count beside
-  it. Numbers and command in the workstream file.
+- The slope of a linear fit of seconds per `dfx` call against origin refs
+  (the research's run-5 wrapper), old against new: at most 0.5x (old: 0.42
+  s per ref); git execs per call beside it. Numbers and command in the workstream file.
 - A case in `.agents/harness/selftest/dispatch.sh` (or the file its fixture
   moved to): a ref moved between two calls in one shell is read fresh by
   the second; it fails if a cache outlives its call.
