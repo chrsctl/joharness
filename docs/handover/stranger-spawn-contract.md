@@ -20,6 +20,9 @@ prompt carries; add literal-reader and zoom-out lenses to plan-checker.
 
 ## Review
 
+- r1: (verifier) EXCESS line and two manage.md lines unwrapped (wontfix: plan says one line; cosmetic, ci passes)
+- r2: (verifier) re-review base ambiguous vs spawn fields (fixed: base sha = parent of first fix commit)
+
 ## Blockers
 
 None.
