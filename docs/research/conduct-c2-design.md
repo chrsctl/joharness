@@ -48,11 +48,12 @@ merge; keep the rule at the verifier".
 ## Method
 
 Prototype and fixtures: `docs/research/conduct-c2-design-prototype/`
-(`c2-run.sh`, `fixtures.sh`, commit 04974b1f; deleted at retire, read with
-`git show 04974b1f:<path>`). Container: 4 CPUs (`nproc`), 2026-10-28.
+(`c2-run.sh`, `fixtures.sh`; deleted at retire, read with `git show
+<this branch's last commit before retire>:<path>`, named in the pull
+request body). Container: 4 CPUs (`nproc`), 2026-10-28.
 
 - `bash c2-run.sh <stem>` from the checkout, per real stem below.
-- `bash fixtures.sh <dir>` builds a clone of origin/main plus one merged
+- `bash fixtures.sh <dir> .` builds a clone of the checkout's origin/main plus one merged
   stem per trap (`fx-*`), then `cd <dir>; bash c2-run.sh fx-<s> main`, and
   the same with `C2_NAIVE=1` (the design the traps were found against:
   the parent's own tree and runner, the touched topic files copied in, the
@@ -86,15 +87,23 @@ Real stems (`c2-run.sh <stem>`, run-c, 2026-10-28):
 | conduct-recent-sample | 1 | 17 | 87 s |
 | hold-requirement (handover-context chain, 9 topics) | 1 | 14 | 76 s |
 | curate-subsystem-split | 1 | 2 | 69 s |
-| issue-pr-link-comment | 1 | N/A: no code | 0 s |
-| heartbeat-check-each-pass | 1 | N/A: no code | 1 s |
+| issue-pr-link-comment (command `.md` only) | 1 | 4 | 13 s |
+| heartbeat-check-each-pass (command `.md` only) | 1 | 7, 1 MISSING | 13 s |
 
-Every real run: `PASS->MISSING: 0`, `PASS->SKIP: 0` — labels were
-deterministic across the three runs of a stem (GROUNDED, 7 stems). The
-last conduct sample (curate-subsystem-split, issue-pr-link-comment,
-heartbeat-check-each-pass) cost 70 s in all; the worst unit measured is
-87 s. Three branches a run fit easily against the 493 s full suite
-(GROUNDED).
+The two `.md`-only rows are run-d, after the verifier's r1: the first gate
+called any `*.md` "no code" and skipped both, though their `orchestrated.sh`
+cases grep the command files they changed.
+
+`PASS->SKIP: 0` everywhere; `PASS->MISSING: 0` on every stem but
+heartbeat-check-each-pass (one label whose text differs without the
+change). Determinism, measured apart: the same stem run twice gives an
+identical table and identical T_fix labels (needs-cycle-lint, 225 labels;
+guard-one-shot-self-kill, 47; run-d, `diff` of the two `joined` files: 0
+lines) — GROUNDED for those two, WEAK beyond. The next conduct sample
+`./joharness.sh conduct` draws (curate-subsystem-split,
+issue-pr-link-comment, heartbeat-check-each-pass) costs 95 s in all; the
+worst stem measured is 87 s. Three branches a run fit against the 493 s
+full suite (GROUNDED).
 
 Traps, fixture verdicts (design / naive):
 
@@ -105,8 +114,8 @@ Traps, fixture verdicts (design / naive):
 | whole-topic red: unit dies | fx-death (`exit` after the case) | NO EVIDENCE (MISSING) | FINE |
 | whole-topic red: helper missing on parent | fx-helperchar (helper added to selftest.sh, no fix) | CONCERN | FINE |
 | whole-topic red: another case changed | fx-other (wording case flips, fix-B case passes either way) | FINE + table row `fix B PASS PASS new` | FINE |
-| chained topic | needs-cycle-lint, hold-requirement (real) | FINE | not run |
-| two pull requests | fast-lane (real); fx-twopr | FINE (28 flips); FINE | last pair alone: N/A, own commits touch no code |
+| chained topic | fx-chain (case reads a variable its chain's first topic sets); needs-cycle-lint, hold-requirement (real) | FINE | FINE (the naive mode here also runs the chain whole; run alone, the case fails with the fix too — reasoned, not run) |
+| two pull requests | fast-lane (real); fx-twopr | FINE (28 flips); FINE | FINE on fx-twopr (the naive mode here takes the FIRST claim's parent, so it does not show the trap); taking the LAST pair alone (`C2_LAST_PAIR_ONLY=1`, fast-lane) sees 3 own commits and no change at all: N/A, the trap in its N/A form, not the false CONCERN of a parent-of-last-claim runner (reasoned) |
 | case reaches skip() | fx-skip | NO EVIDENCE (SKIP SKIP) | CONCERN |
 | refactor / characterization | fx-char | CONCERN, row `PASS PASS new` | CONCERN |
 | new topic file parent does not list | fx-newtopic | FINE | FINE, but by the runner fatal |
@@ -129,8 +138,7 @@ gives it 20 flips).
 
 Limits (WEAK): the branch is the unit, not each `(fixed)` row; a stem
 with an earlier pull request whose reverse no longer applies on P reads
-NO EVIDENCE; 7 code-touching real stems, all FINE, so no real CONCERN was
-observed.
+NO EVIDENCE; 9 real stems, all FINE, so no real CONCERN was observed.
 
 ## Consequence for the queue
 
@@ -139,7 +147,12 @@ the script, the ledger column, the per-case verdict in retro-audit.md.
 
 ## Verification
 
-Pending: the verifier re-runs `c2-run.sh` on one real stem and one fixture.
+The verifier (opus, this branch) re-ran needs-cycle-lint (4 flips, 39 s),
+fast-lane (28, 11 s), guard-one-shot-self-kill (16, 5 s) and all 22
+fixture verdicts of run-c: all matched. Its r1 (`.md` gate) changed two
+rows above; the timings of requirement-partly-served, conduct-recent-sample,
+hold-requirement and curate-subsystem-split rest on this session's runs
+only (UNVERIFIED by a second context).
 
 ## Graduates to
 

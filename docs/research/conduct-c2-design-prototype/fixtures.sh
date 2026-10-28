@@ -3,18 +3,24 @@
 # Each stem owns script .agents/scripts/c2-<stem>.sh (a+b, shipped as a-b)
 # and topic .agents/harness/selftest/c2-<stem>.sh, both in the base commit.
 set -euo pipefail
-d="$1"; rm -rf "$d"; git clone -q --no-local /home/user/joharness "$d"; cd "$d"
-git checkout -q -B main origin/main
+# Usage: fixtures.sh <dir> [source checkout, default .]: builds on the
+# source's origin/main, not its local main.
+d="$1"; src="$(cd "${2:-.}" && pwd)"; tip="$(git -C "$src" rev-parse origin/main)"
+rm -rf "$d"; git clone -q --no-local "$src" "$d"; cd "$d"
+git fetch -q "$src" "$tip"; git checkout -q -B main "$tip"
 export GIT_AUTHOR_NAME=fx GIT_AUTHOR_EMAIL=fx@invalid GIT_COMMITTER_NAME=fx GIT_COMMITTER_EMAIL=fx@invalid
 st=.agents/harness/selftest.sh
-stems="fix char skip death helperchar newtopic testonly random other newtopicchar twopr"
-list=""
+stems="chain fix char skip death helperchar newtopic testonly random other newtopicchar twopr"
+list="\n  c2-chaina"
 for s in $stems; do
   printf '#!/usr/bin/env bash\n# c2-%s <a> <b>: print a+b.\necho $(( $1 - $2 ))\n' "$s" > ".agents/scripts/c2-$s.sh"
   printf '# shellcheck shell=bash\nstep "c2-%s"\nexpect "c2-%s runs" "" "$(bash "${ROOT}/.agents/scripts/c2-%s.sh" 1 1)"\n' "$s" "$s" "$s" > ".agents/harness/selftest/c2-$s.sh"
   list="$list\n  c2-$s"
 done
+# chain: c2-chainb reads $c2_chain_args, which c2-chaina sets; one chain.
+printf '# shellcheck shell=bash\nstep "c2-chaina"\nc2_chain_args="2 3"\npass "c2-chaina set its args"\n' > .agents/harness/selftest/c2-chaina.sh
 sed -i "s/^  selftest-shards\$/  selftest-shards$list/" $st
+sed -i 's/^SELFTEST_CHAINS=($/&\n  "c2-chaina c2-chain"/' $st
 git add -A; git commit -qm "fixture base: one a-b bug per stem"
 
 stem() { # stem <s> <code-step> <test-step>
@@ -30,6 +36,7 @@ refactor() { sed -i 's/^echo \$((/printf "%s\\n" $((/' ".agents/scripts/c2-$1.sh
 addcase() { printf '%s\n' "$2" >> ".agents/harness/selftest/c2-$1.sh"; }
 r() { printf '$(bash "${ROOT}/.agents/scripts/c2-%s.sh" %s)' "$1" "$2"; }
 
+stem chain "fix chain" "addcase chain 'expect \"c2-chain chained args sum to 5\" 5 \"\$(bash \"\${ROOT}/.agents/scripts/c2-chain.sh\" \$c2_chain_args 2>/dev/null)\"'"
 stem fix "fix fix" "addcase fix 'expect \"c2-fix 2 3 is 5\" 5 \"$(r fix '2 3')\"'"
 stem char "refactor char" "addcase char 'expect \"c2-char 5 3 is 2\" 2 \"$(r char '5 3')\"'"
 stem skip "fix skip" "addcase skip 'if [ -n \"\${C2_NEVER:-}\" ]; then expect \"c2-skip 2 3 is 5\" 5 \"$(r skip '2 3')\"; else skip \"c2-skip 2 3 is 5\" \"C2_NEVER unset\"; fi'"

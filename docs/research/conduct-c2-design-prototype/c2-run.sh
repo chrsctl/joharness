@@ -25,9 +25,11 @@ fix="${dels[$((${#dels[@]} - 1))]}"
 echo "pairs: ${#adds[@]}  own commits: ${#own[@]}  T_fix: $(git rev-parse --short "$fix")"
 
 files="$(for c in "${own[@]}"; do git diff-tree --no-commit-id --name-only -r "$c"; done | sort -u)"
-code="$(grep -vE "$tests_re" <<<"$files" | grep -vE '\.md$' || true)"
+# A command or doc .md is product here (a selftest case may grep it); only
+# the queue's own bookkeeping files are not.
+code="$(grep -vE "$tests_re" <<<"$files" | grep -vE '^docs/(handover|plans|research)/' || true)"
 topics="$(grep -E '^\.agents/harness/selftest/' <<<"$files" | sed 's|.*/||; s|\.sh$||' | sort -u)"
-[ -n "$code" ] || { echo "C2 N/A: own commits touch no non-test, non-md path"; exit 0; }
+[ -n "$code" ] || { echo "C2 N/A: own commits touch only selftest files and queue files"; exit 0; }
 [ -n "$topics" ] || grep -qx '.agents/harness/selftest.sh' <<<"$files" || { echo "C2 NO TEST: own commits touch no selftest file"; exit 0; }
 echo "topics: $(tr '\n' ' ' <<<"$topics")"
 

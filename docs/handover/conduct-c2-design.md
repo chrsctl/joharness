@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK7QGg4E4RrtuYft1bf
 agent: opus
 updated: 2026-10-28
-next: Read scratchpad run-c.txt; fill research Findings with its numbers; ci; verifier; retire
+next: Retire: delete research file, prototype and workstream file; PR; finish; merge
 ---
 
 ## Goal
@@ -38,6 +38,18 @@ without false FINE or false CONCERN, at a cost of 3 branches per run.
   guard-one-shot-self-kill (it merged main after its retire): loop instead.
 
 ## Review
+
+- r1: `.md` gate calls command-file fixes N/A; 2 of the next sample hidden (verifier) (fixed: gate excludes only docs/handover, plans, research; both stems re-run, FINE)
+- r2: determinism claim rested on three different trees (verifier) (fixed: same stem run twice, two stems, tables identical; A1 rewritten)
+- r3: plan's 80 s bound contradicts the measured 87 s (verifier) (fixed)
+- r4: plan's fixtures drop fx-other, fx-newtopicchar, no chain fixture (verifier) (fixed: fx-chain added and run; all three in the plan's Acceptance)
+- r5: two-PR naive cell quotes a different run (verifier) (fixed: cell says what each run shows)
+- r6: fixtures.sh built on the source's local main (verifier) (fixed: builds on the source's origin/main)
+- r7: "last conduct sample" is the next draw (verifier) (fixed)
+- r8: workstream file stale across two commits (verifier) (fixed: this commit)
+- r9: plan names a `## C2` heading, shared:joharness.sh scope, open sync choice (verifier) (fixed: paragraph named, scope dropped, canonical-only decided)
+- r10: research branch adds code and a plan (verifier) (wontfix: the scripts are deleted at retire, kept in branch history as evidence; the plan is the research file's own YES consequence, manage.md: follow-up work = a plan file in the pull request)
+- r11: spawn prompt carried more than the listed fields, base sha moved by a later merge (verifier) (no change: prompt practice, nothing in the diff)
 
 ## Blockers
 

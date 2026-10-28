@@ -6,7 +6,7 @@ effort: high
 needs: retro-audit-and-trace
 requirement: none
 issue: none
-scope: shared:joharness.sh, .agents/scripts/c2-run.sh, .claude/commands/retro-audit.md, docs/conduct-log.md, .agents/harness/selftest/c2-run.sh, shared:.agents/harness/selftest.sh, .agents/harness/selftest/reading-budget.sh
+scope: .agents/scripts/c2-run.sh, .claude/commands/retro-audit.md, docs/conduct-log.md, .agents/harness/selftest/c2-run.sh, shared:.agents/harness/selftest.sh, .agents/harness/selftest/reading-budget.sh
 ---
 
 ## Goal
@@ -16,7 +16,7 @@ it after merge. Research conduct-c2-design (pull request that deleted
 `docs/research/conduct-c2-design.md`) settled that the audit mode can: run
 the selftest cases a sampled branch touched once with its change and once
 without, and read each case's own word. Add that as audit question C2,
-beside C1, at a measured 0 to 80 s per branch.
+beside C1, at a measured 0 to 87 s per branch (research run, 4 CPUs).
 
 ## Scope
 
@@ -36,8 +36,11 @@ beside C1, at a measured 0 to 80 s per branch.
     EVIDENCE: conflict <sha>`.
   - **T_nofix tests** = `.agents/harness/selftest.sh` and
     `.agents/harness/selftest/` from T_fix, whole. Never the parent's runner.
-  - **Gate.** Own commits touch no path outside the selftest files and
-    `*.md` = N/A, no code. Touch no selftest file = `NO TEST`.
+  - **Gate.** Own commits touch nothing outside the selftest files and
+    `docs/handover/`, `docs/plans/`, `docs/research/` = N/A, no change. A
+    command or doc `.md` is product: a case may grep it
+    (issue-pr-link-comment's `orchestrated.sh` cases read manage.md). Touch
+    no selftest file = `NO TEST`.
   - **Selection.** In each tree, rewrite `SELFTEST_TOPICS` and
     `SELFTEST_CHAINS` to the units holding a touched topic (a chain whole),
     `git rm` every other topic file, commit in the scratch worktree so
@@ -54,9 +57,11 @@ beside C1, at a measured 0 to 80 s per branch.
     or MISSING or FAIL-with present).
   - Worktrees under a `mktemp -d`, removed on exit; runs in parallel, each
     under `timeout 1800`.
-- `joharness.sh` — `retro --audit` (or the alias `conduct`) gains nothing;
-  the reviewer runs the script per sampled stem. Add `c2-run.sh` to the
-  sync manifest only if `retro-audit.md` ships to consumers.
+- No `joharness.sh` change: the reviewer runs the script per sampled stem.
+  `.agents/scripts/` and the selftest are canonical-only
+  (`.agents/scripts/sync-to-consumer.sh:CANONICAL_ONLY_DIRS`), so the script
+  never ships; retro-audit.md does, and says C2 is `-` where
+  `.agents/scripts/c2-run.sh` is absent.
 - `.claude/commands/retro-audit.md` — §3 gains C2 (wording below); §4 ledger
   gains a `C2` column after `C1`; read list gains the script's output.
 - `docs/conduct-log.md` — header gains `C2`. Earlier rows read as `-`.
@@ -80,8 +85,9 @@ beside C1, at a measured 0 to 80 s per branch.
 ## Assumptions
 
 - A1: a unit's labels are deterministic across runs of one tree — evidence:
-  research conduct-c2-design, 9 real stems, `PASS->MISSING: 0` in each —
-  confidence: medium.
+  research conduct-c2-design, the same stem run twice gave identical tables
+  (needs-cycle-lint, guard-one-shot-self-kill) — confidence: medium (two
+  stems).
 - A2: `SELFTEST_TOPICS=(` … `)` and `SELFTEST_CHAINS=(` … `)` keep their
   one-name-per-line, one-chain-per-line shape — evidence:
   `.agents/harness/selftest.sh:SELFTEST_TOPICS` — confidence: high.
@@ -102,15 +108,15 @@ beside C1, at a measured 0 to 80 s per branch.
 
 ```bash
 bash .agents/scripts/c2-run.sh needs-cycle-lint | tail -1        # FLIP 4
-bash .agents/scripts/c2-run.sh issue-pr-link-comment | tail -1   # N/A, no code
+bash .agents/scripts/c2-run.sh guard-one-shot-self-kill | tail -1  # FLIP 16
 bash .agents/scripts/c2-run.sh fast-lane | tail -1               # FLIP 28
 ./joharness.sh ci       # ci: pass
 ./joharness.sh verify   # 0 failed
 ```
 
-- Consumer-side: the selftest topic ships with selftest.sh and runs in a
-  consumer's `./joharness.sh ci` against fixture stems only (no real stem
-  is assumed there).
+- Consumer-side: `.agents/scripts/sync-to-consumer.sh --dry-run <dir>`
+  lists `.claude/commands/retro-audit.md` and not `c2-run.sh`; a consumer's
+  audit writes `-` in the C2 column (retro-audit.md's own sentence).
 
 - Selftest cases on fixture stems, each failing on origin/main:
   - fix with a new case: FLIP;
@@ -120,7 +126,13 @@ bash .agents/scripts/c2-run.sh fast-lane | tail -1               # FLIP 28
   - characterization case through a helper the branch adds to
     selftest.sh: NO FLIP (the parent's runner would print FAIL);
   - fix tested in a new topic file the parent does not list: FLIP;
-  - test-only branch: N/A: no code;
+  - test-only branch: N/A, no change;
+  - a case reading a variable its chain's earlier topic sets: FLIP (the
+    unit runs whole);
+  - another case of the branch flips while the fix's own case passes
+    either way: FLIP, and the table row reads `PASS PASS new` (fx-other);
+  - a new topic file and no fix: NO FLIP (the parent's runner would die
+    on the unlisted file);
   - label carrying `$RANDOM`: NO FLIP, 1 unread;
   - stem merged in two pull requests, fix in the first: FLIP.
 
@@ -133,8 +145,8 @@ bash .agents/scripts/c2-run.sh fast-lane | tail -1               # FLIP 28
 - `.agents/harness/selftest.sh:selftest_units` — chain = one unit.
 - `.agents/harness/selftest.sh:selftest_unit` — a unit that dies leaves
   labels printed so far, no counts.
-- `.claude/commands/conduct.md` — C1, the ledger header, `## C2` (the
-  research's answer).
+- `.claude/commands/conduct.md` — C1, the ledger header, and the
+  paragraph "C2 is not asked yet" (the research's answer).
 
 ## Traps
 
