@@ -600,6 +600,7 @@ SELFTEST_TOPICS=(
   cleanup
   orchestrated
   dispatch
+  dispatch-park
   dispatch-rescope
   dispatch-curate
   dispatch-order
@@ -608,6 +609,7 @@ SELFTEST_TOPICS=(
   retired-ledger
   analysis
   release
+  release-halt
   guard
   scout
   ci-canonical-only-selftest
@@ -655,6 +657,23 @@ SELFTEST_CHAINS=(
   "ci-churn ci-canonical-only-selftest"
   "ci-graph-lint clerk"
   "sync-to-consumer sync-layer-only"
+)
+
+# Units a worker claims before the rest, longest first, both groups in LIST
+# order (research selftest-runtime F3, F4: the longest units started first
+# put the run at the floor, topic sum over the job count, 312 s against 406 s
+# on 4 CPUs). Names the unit's FIRST topic. A name this run has no unit for
+# is ignored, so a fixture with its own topics runs unchanged; at top level
+# an unlisted name, or a name that is not the first topic of its unit, is
+# FATAL below. The array's own order decides nothing.
+SELFTEST_FIRST=(
+  dispatch-park
+  dispatch
+  release
+  scout
+  release-halt
+  dispatch-branch-plans
+  bootstrap-consumer
 )
 
 selftest_topics_dir="${ROOT}/.agents/harness/selftest"
@@ -759,6 +778,23 @@ selftest_chain_problems() {
     sort | uniq -d | sed 's/^/topic in two chains: /'
 }
 
+# A SELFTEST_FIRST name not listed, or listed but not the first topic of its
+# unit (a chain member after the first never starts a unit). FATAL, like the
+# chain checks.
+selftest_first_problems() {
+  local f
+  for f in ${SELFTEST_FIRST[@]+"${SELFTEST_FIRST[@]}"}; do
+    printf '%s\n' "${SELFTEST_TOPICS[@]}" | grep -qxF -- "$f" ||
+      printf 'first name not listed: %s\n' "$f"
+  done
+  selftest_units | awk '{print $1}' >"${TMP}/units-first"
+  for f in ${SELFTEST_FIRST[@]+"${SELFTEST_FIRST[@]}"}; do
+    printf '%s\n' "${SELFTEST_TOPICS[@]}" | grep -qxF -- "$f" || continue
+    grep -qxF -- "$f" "${TMP}/units-first" ||
+      printf 'first name not the first topic of its unit: %s\n' "$f"
+  done
+}
+
 # The units, one per line: a chain whole, at its first member's place in the
 # list; every other topic alone.
 selftest_units() {
@@ -797,18 +833,27 @@ selftest_unit() {
   printf '%s\n' "$?" >"${_st_out}/u${_st_n}.done"
 }
 
-# <out dir> <unit>...: claim units in list order until none is left. mkdir is
-# the claim, atomic across workers.
+# <out dir> <unit>...: claim units until none is left, the units whose first
+# topic SELFTEST_FIRST names before the rest, each group in list order. mkdir
+# is the claim, atomic across workers. A unit's index is its list position,
+# whatever the claim order.
 selftest_worker() {
-  local _st_wout="$1" _st_wn=0 _st_unit
+  local _st_wout="$1" _st_i _st_unit _st_pass
   shift
-  for _st_unit in "$@"; do
-    if mkdir "${_st_wout}/u${_st_wn}.claim" 2>/dev/null; then
-      date +%s >"${_st_wout}/u${_st_wn}.claim/start"
-      # shellcheck disable=SC2086  # a unit is a space-separated topic list
-      selftest_unit "$_st_wn" "$_st_wout" $_st_unit
-    fi
-    _st_wn=$((_st_wn + 1))
+  local -a _st_units=("$@")
+  for _st_pass in first rest; do
+    for _st_i in "${!_st_units[@]}"; do
+      _st_unit="${_st_units[$_st_i]}"
+      case " ${SELFTEST_FIRST[*]-} " in
+        *" ${_st_unit%% *} "*) [ "$_st_pass" = first ] || continue ;;
+        *) [ "$_st_pass" = rest ] || continue ;;
+      esac
+      if mkdir "${_st_wout}/u${_st_i}.claim" 2>/dev/null; then
+        date +%s >"${_st_wout}/u${_st_i}.claim/start"
+        # shellcheck disable=SC2086  # a unit is a space-separated topic list
+        selftest_unit "$_st_i" "$_st_wout" $_st_unit
+      fi
+    done
   done
 }
 
@@ -895,9 +940,9 @@ selftest_report() {
   [ "$FAIL" -eq 0 ]
 }
 
-selftest_chain_bad="$(selftest_chain_problems)"
+selftest_chain_bad="$(selftest_chain_problems)$(selftest_first_problems)"
 if [ -n "$selftest_chain_bad" ]; then
-  printf 'selftest: SELFTEST_CHAINS disagrees with the list:\n%s\n' \
+  printf 'selftest: SELFTEST_CHAINS or SELFTEST_FIRST disagrees with the list:\n%s\n' \
     "$selftest_chain_bad" >&2
   exit 1
 fi

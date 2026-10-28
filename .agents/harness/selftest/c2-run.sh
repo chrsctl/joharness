@@ -43,6 +43,7 @@ git -C "$ROOT" ls-files -z -- . ':(exclude).agents/harness/selftest/' |
     >.agents/harness/selftest/c2-chaina.sh
   awk -v list="chaina $c2r_stems" '
     /^SELFTEST_TOPICS=\(/ { print; n = split(list, a, " "); for (i = 1; i <= n; i++) print "  c2-" a[i]; skip = 1; next }
+    /^SELFTEST_FIRST=\(/ { print; skip = 1; next }
     /^SELFTEST_CHAINS=\(/ { print; print "  \"c2-chaina c2-chain\""; skip = 1; next }
     skip && /^\)/ { skip = 0 }
     !skip { print }' "$c2r_st" >st.tmp && mv st.tmp "$c2r_st"
