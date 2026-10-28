@@ -7547,7 +7547,8 @@ finish_map() {
       d="${d%/*}"
       touched["$d"]=1
     done
-  done < <(git -C "$ROOT" -c core.quotepath=false diff --name-only \
+  # A move is a delete plus an add here: renames would hide the new folder.
+  done < <(git -C "$ROOT" -c core.quotepath=false diff --name-only --no-renames \
     --diff-filter=AD "${base}" HEAD 2>/dev/null)
   for row in "${MAP_ROWS[@]}"; do
     d="${row%%$'\t'*}"; kind="${row#*$'\t'}"; kind="${kind%% *}"

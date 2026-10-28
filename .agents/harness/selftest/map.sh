@@ -125,6 +125,14 @@ git -C "$mwork" rm -rq lib
 commit_all "$mwork" "delete lib"
 out="$(mfin_sec "$(map_finish)")"
 expect "finish names a mapped folder this branch deleted" "gone    : lib/" "$out"
+# A move is a create and a delete: a rename must not hide either folder.
+git -C "$mwork" checkout -q -b mapmove main
+mkdir -p "${mwork}/moved"
+git -C "$mwork" mv lib/f.txt moved/f.txt
+commit_all "$mwork" "move lib into a new folder"
+out="$(mfin_sec "$(map_finish)")"
+expect "a move names the new folder" "missing : moved/" "$out"
+expect "a move names the emptied mapped folder" "gone    : lib/" "$out"
 git -C "$mwork" checkout -q -b mapnone main
 git -C "$mwork" rm -q docs/MAP.md
 mkdir -p "${mwork}/fresh"

@@ -31,6 +31,8 @@ folder set, and `/map` builds the map on that branch.
 ## Review
 
 - r1: three finish cases refuted `== map`, which verbose mode prints on a pass too; `ci -v` leaked verbose into the fixture and failed them — cases now pin `JOHARNESS_VERBOSE=''` and refute `run /map` (fixed)
+- r2: (verifier) a branch that only moves files into a new folder (`git mv a/f n/f`) passed finish: `--diff-filter=AD` drops renames, so the new folder never counted; same for a mapped folder emptied by a move — diff now runs `--no-renames`, selftest case `mapmove` (fixed)
+- r3: (verifier) Loop step 4 sentence differs from the plan's — the plan predates the incremental-adoption ask; plan text updated to the sentence in force (fixed)
 
 ## Blockers
 

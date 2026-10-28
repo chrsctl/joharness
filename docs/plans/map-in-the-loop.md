@@ -52,8 +52,8 @@ never all at once, and an unmapped old folder never warns or blocks.
     `docs/MAP.md` there. Otherwise branch from fresh `origin/main` and run
     Loop steps 5 and 7.
 - `.agents/harness/AGENTS.md`, Loop step 4: replace the `docs/MAP.md`
-  sentence with "`docs/MAP.md`: read it before grepping; absent or drifting =
-  `/map` generates it (`finish` asks)."
+  sentence with "`docs/MAP.md`: read it before grepping; a folder your
+  branch creates or deletes = `/map <folders>` (`finish` asks)."
 - `.agents/harness/selftest/map.sh` — finish cases on the existing fixture,
   each on its own branch off `main`:
   - a branch adding a file in a new product folder with no map entry:
