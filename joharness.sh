@@ -4484,6 +4484,8 @@ conduct_rows() {
         if (v ~ /^FINE/) v = "FINE"
         else if (v ~ /^CONCERN/) v = "CONCERN"
         else if (v ~ /^NO EVIDENCE/) v = "NO-EVIDENCE"
+        else if (v ~ /^N\/A/) v = "N/A"
+        else if (v == "-") v = "-"
         else v = "?"
         line = line "\t" qn[k] "=" v
       }
@@ -4778,6 +4780,8 @@ conduct_tally() {
       for (j = 1; j <= nq; j++) {
         q = order[j]
         printf "            %s  FINE %d  CONCERN %d  NO EVIDENCE %d", q, c[q, "FINE"], c[q, "CONCERN"], c[q, "NO-EVIDENCE"]
+        if (c[q, "N/A"]) printf "  N/A %d", c[q, "N/A"]
+        if (c[q, "-"]) printf "  not asked %d", c[q, "-"]
         if (c[q, "?"]) printf "  unparsed %d", c[q, "?"]
         m = c[q, "FINE"] + c[q, "CONCERN"]
         printf "  CONCERN rate %d%% of %d (NO EVIDENCE is no verdict)\n", (m ? int(100 * c[q, "CONCERN"] / m + 0.5) : 0), m

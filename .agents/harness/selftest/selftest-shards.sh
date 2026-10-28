@@ -35,6 +35,7 @@ st_run() { # <jobs> <run dir> <topic>... — the runner over the fixture topics
   (
     SELFTEST_TOPICS=("$@")
     SELFTEST_CHAINS=("st-d st-e")
+    [ -z "${st_firsts+x}" ] || read -r -a SELFTEST_FIRST <<<"$st_firsts"
     selftest_topics_dir="${st_dir}/topics"
     selftest_unit_seconds="${st_secs:-1800}"
     PASS=0 FAIL=0 SKIP=0
@@ -113,4 +114,45 @@ if [ -z "$st_missing" ]; then
   pass "every name a topic unsets at top level, the runner unsets for all"
 else
   fail "every name a topic unsets at top level, the runner unsets for all:${st_missing}"
+fi
+
+# The claim order: a unit whose first topic SELFTEST_FIRST names is claimed
+# before the rest, and the printed order does not move.
+for st_m in m1 m2 m3; do
+  printf 'step st-%s\necho st-%s >>"$st_mark"\npass "st-%s asks"\n' "$st_m" "$st_m" "$st_m" \
+    >"${st_dir}/topics/st-${st_m}.sh"
+done
+st_mark="${st_dir}/order"
+: >"$st_mark"
+st_first="$(st_mark="$st_mark" st_firsts=st-m3 st_run 1 "${st_dir}/first" st-m1 st-m2 st-m3)"
+if [ "$(tr '\n' ' ' <"$st_mark")" = "st-m3 st-m1 st-m2 " ]; then
+  pass "a unit SELFTEST_FIRST names is claimed before the rest, both groups in list order"
+else
+  fail "a unit SELFTEST_FIRST names is claimed before the rest, both groups in list order: $(tr '\n' ' ' <"$st_mark")"
+fi
+if [ "$(grep -n '^== st-' <<<"$st_first" | cut -d' ' -f2 | tr '\n' ' ')" = "st-m1 st-m2 st-m3 " ]; then
+  pass "and the output still prints in list order"
+else
+  fail "and the output still prints in list order"
+  printf '%s\n' "$(indent "$st_first")"
+fi
+: >"$st_mark"
+st_mark="$st_mark" st_run 1 "${st_dir}/nofirst" st-m1 st-m2 st-m3 >/dev/null
+if [ "$(tr '\n' ' ' <"$st_mark")" = "st-m1 st-m2 st-m3 " ]; then
+  pass "with no SELFTEST_FIRST name in the run, the claim order is the list's"
+else
+  fail "with no SELFTEST_FIRST name in the run, the claim order is the list's"
+fi
+
+# The two FATAL halves, over the runner's own check.
+st_bad="$(SELFTEST_TOPICS=(a b c) SELFTEST_CHAINS=("a b") SELFTEST_FIRST=(zz); selftest_first_problems)"
+expect "a SELFTEST_FIRST name not in the list is a problem" "first name not listed: zz" "$st_bad"
+st_bad="$(SELFTEST_TOPICS=(a b c) SELFTEST_CHAINS=("a b") SELFTEST_FIRST=(b); selftest_first_problems)"
+expect "a name that is not the first topic of its unit is a problem" \
+  "first name not the first topic of its unit: b" "$st_bad"
+st_bad="$(SELFTEST_TOPICS=(a b c) SELFTEST_CHAINS=("a b") SELFTEST_FIRST=(a c); selftest_first_problems)"
+if [ -z "$st_bad" ]; then
+  pass "first topics of units, chain or alone, are no problem"
+else
+  fail "first topics of units, chain or alone, are no problem"
 fi

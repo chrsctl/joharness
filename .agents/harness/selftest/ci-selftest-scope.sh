@@ -9,7 +9,7 @@
 
 step "joharness.sh ci: selftest scope"
 
-# The suite is 16s of a 22s ci run and covers harness code only, so a diff that
+# The suite is most of a ci run and covers harness code only, so a diff that
 # touches none of it should not pay for it. The gate is single-sided (the
 # windows job that also ran the suite is `if: false`), so these cases are the
 # whole proof that it skips ONLY when nothing harness-shaped changed.
