@@ -1565,7 +1565,7 @@ refute "awaited PR merged before the block: no RESUME" "PARKED #79 RESUME" "$out
 refute "awaited PR named only in a merge commit's body: no RESUME" "PARKED #78 RESUME" "$out"
 refute "awaited PR from a branch not human/: no RESUME" "PARKED #80 RESUME" "$out"
 
-# --- a block the queue has since absorbed is RELEASABLE (#626) ---------------
+# --- a block the queue has since absorbed is released (#626) ---------------
 # A claim parked on a reason the queue can answer, whose plan the base then
 # holds by a needs: edge added AFTER the park: the orchestrator releases it
 # with `release`. Every other parked claim stays the human's.
@@ -1617,10 +1617,13 @@ dfneeds rel-g dep-a 1
 dfneeds rel-h dep-a 1
 dfneeds rel-i dep-a 1
 out="$(dfx)"
-expect "a needs: edge newer than a product: block: RELEASABLE, dated by the edge" \
-  "RELEASABLE: held by needs: dep-a since $(date -u -d "@$((dfnow - 3600))" +%Y-%m-%d)" "$(dfrow rel-a)"
-expect "a requirement as the needs: target: RELEASABLE" \
-  "RELEASABLE: held by needs: req-b since" "$(dfrow rel-b)"
+expect "a needs: edge newer than a product: block: RELEASE, dated by the edge" \
+  "RELEASE: the queue holds it by needs: dep-a since $(date -u -d "@$((dfnow - 3600))" +%Y-%m-%d)" "$(dfrow rel-a)"
+expect "a requirement as the needs: target: RELEASE" \
+  "RELEASE: the queue holds it by needs: req-b since" "$(dfrow rel-b)"
+expect "and a release line names the branch, reason and plan" \
+  "release   : park-rel-a  queue holds it by needs: dep-a  plan rel-a  since" "$out"
+refute "the old row flag is gone" "RELEASABLE" "$out"
 expect "and the tail line names both branches" "release DUE: park-rel-a park-rel-b" "$out"
 expect "an edge older than the block: still the human's" "BLOCKED: the human's" "$(dfrow rel-c)"
 expect "a money: block under a newer edge: still the human's" "BLOCKED: the human's" "$(dfrow rel-d)"
@@ -1630,7 +1633,8 @@ expect "a newer edge the block does not name: still the human's" "BLOCKED: the h
 expect "a block with no reason word: still the human's, and marked invalid" "INVALID BLOCK?" "$(dfrow rel-h)"
 expect "a capitalised Money: block: still the human's" "BLOCKED: the human's" "$(dfrow rel-i)"
 for s in rel-c rel-d rel-e rel-f rel-g rel-h rel-i; do
-  refute "${s}: no RELEASABLE" "RELEASABLE" "$(dfrow "$s")"
+  refute "${s}: no RELEASE" "RELEASE:" "$(dfrow "$s")"
+  refute "${s}: no release line" "release   : park-${s} " "$out"
   refute "${s}: not due" "park-${s} " "$(printf '%s\n' "$out" | grep 'release DUE:') "
 done
 # The human's count holds the releasable out: releasing one moves nothing.
@@ -1641,10 +1645,10 @@ dfrel() { ( cd "$dfwork" && JOHARNESS_CONF="$dfconf" DRAIN_FETCH=0 \
   DISPATCH_FETCH=0 ./joharness.sh release "$@" 2>&1 ); }
 dfhead_c="$(git -C "$dforigin" rev-parse park-rel-c)"
 out="$(dfrel park-rel-a park-rel-c)"; rc=$?
-expect "release writes the RELEASABLE claim" "release   : park-rel-a  docs/handover/rel-a.md  plan rel-a  held by needs: dep-a" "$out"
+expect "release writes the listed claim" "release   : park-rel-a  docs/handover/rel-a.md  plan rel-a  held by needs: dep-a" "$out"
 expect "release pushes it" "pushed    : park-rel-a" "$out"
 expect "release refuses a branch off the list" \
-  "refused   : park-rel-c — dispatch does not print it RELEASABLE on this read" "$out"
+  "refused   : park-rel-c — not in the release report on this read" "$out"
 if [ "$rc" -ne 0 ]; then pass "a refused branch makes release exit non-zero"
 else fail "a refused branch makes release exit non-zero"; fi
 if [ "$(git -C "$dforigin" rev-parse park-rel-c)" = "$dfhead_c" ]; then
@@ -1701,8 +1705,8 @@ git -C "$dfwork" push -qu origin park-rel-j
 git -C "$dfwork" checkout -q main
 dfneeds rel-j dep-a 1
 out="$(dfx)"
-expect "two claims, one plan: the judged product: block is RELEASABLE" \
-  "RELEASABLE: held by needs: dep-a" "$(dfrow rel-j)"
+expect "two claims, one plan: the judged product: block is RELEASE" \
+  "RELEASE: the queue holds it by needs: dep-a" "$(dfrow rel-j)"
 out="$(dfrel park-rel-j)"
 expect "release writes the product: claim" "release   : park-rel-j  docs/handover/rj-a.md  plan rel-j" "$out"
 expect "and skips the money: claim on its own words" \

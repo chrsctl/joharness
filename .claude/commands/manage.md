@@ -35,12 +35,10 @@ pointer fires.
    - `docs/research/<q>.md` — settle it, graduate the answer, delete the
      file (`.agents/docs/research/README.md`). Same claim, same finish.
    - `docs/product/<r>.md` — UNPLANNED (PARTLY PLANNED: the unserved
-     clauses only, `serves:`): decompose into plans (`/plan`), pull
+     clauses only, `serves:`): challenge first (ref § Challenge.), then decompose into plans (`/plan`), pull
      request carrying the plans only, merge, exit. Never implement. Nothing
      left to plan? One of the exits in `.agents/docs/product/README.md`, "A
      requirement no plan can serve".
-   - `free <branch>` — a doc-only branch whose author is gone (dispatch
-     `FREEABLE`). ref § Free.
    - `rescope <key>` — you are the SURVEYOR: section R. Claim on
      `docs/handover/rescope-<key>.md` with `workstream: rescope-<key>` and
      `plan: none`. One pull request rewriting `scope:` lines, merge, exit.
@@ -67,7 +65,7 @@ literal reader:
   above the plan's `agent:`
 
 Plan `agent: opus` or `fable`? Before the first worker, spawn
-`.claude/agents/plan-checker.md` on the plan file. Record its findings in
+`.claude/agents/plan-checker.md` on the plan file (prompt: `.agents/docs/subagents.md`). Record its findings in
 `## Review` as `(plan-checker)`; fix the plan on the branch or `wontfix:
 why`. At most 3 rounds; open count not falling between rounds = stop, take
 the review-churn route (`.agents/docs/agent-selection.md`).
@@ -131,7 +129,7 @@ Your `$ARGUMENTS` carries the `rescope` block. ref § Surveyor.
 ## 4. Finish
 
 Loop step 5 at your tier (`.claude/agents/verifier.md`, findings tagged
-`(verifier)`), Loop step 7, exit. The orchestrator reads your merge from
+`(verifier)`; prompt: `.agents/docs/subagents.md`), Loop step 7, exit. The orchestrator reads your merge from
 git; send nothing for it.
 
 `human-review` at merge (Loop step 7) = do not merge: ref § Label at merge.

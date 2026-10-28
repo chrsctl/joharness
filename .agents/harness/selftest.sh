@@ -591,9 +591,7 @@ SELFTEST_TOPICS=(
   curate-apply
   retired-ledger
   analysis
-  janitor
-  halt
-  free
+  release
   guard
   scout
   ci-canonical-only-selftest
