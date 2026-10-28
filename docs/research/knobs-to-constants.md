@@ -13,7 +13,7 @@ fixed constants without changing behaviour for any consumer?
 
 ## Echo
 
-`joharness.sh` declares 50 `JOHARNESS_*` knobs in its KNOBS table
+`joharness.sh` declares 49 (the file said 50; `grep -c` counts 49) `JOHARNESS_*` knobs in its KNOBS table
 (`sed -n '/# KNOBS-BEGIN/,/# KNOBS-END/p' joharness.sh`), with defaults and
 scopes. This repository's `joharness.conf` sets 6 of them. Counted by
 `grep -rqw <key> .claude .agents/docs .agents/harness/AGENTS.md`: 14 appear
@@ -71,7 +71,7 @@ consumer conf carries it); selftest sets = files under
 | `JOHARNESS_REVIEW` | conf | yes | yes | 4 | README.md,agent-selection.md | KEEP (consumer conf carries it) |
 | `JOHARNESS_CHECKS` | session | no | no | 1 | consumer-repos.md | KEEP (human/session knob) |
 | `JOHARNESS_LOCAL_CHECK_MINUTES` | session | no | no | 1 | consumer-repos.md | KEEP (human/session knob) |
-| `JOHARNESS_MAX_MANAGERS` | dispatch | yes | no | 11 | agent-selection.md,orchestrate.md | KEEP (consumer conf carries it) |
+| `JOHARNESS_MAX_MANAGERS` | dispatch | yes | no | 11 | agent-selection.md,orchestrate.md | KEEP (this conf and a selftest set it; not seeded) |
 | `JOHARNESS_STALL_MINUTES` | dispatch | no | no | 4 | manage.md,orchestrate-reference.md | KEEP (selftest sets it) |
 | `JOHARNESS_HEALTH_MINUTES` | dispatch | no | no | 1 | agent-selection.md,orchestrate.md | KEEP (selftest sets it) |
 | `JOHARNESS_RESPAWN_LIMIT` | dispatch | no | no | 0 | orchestrate-reference.md,orchestrate.md | UNKNOWN (gx conf unread; no test or conf here sets it) |
@@ -96,7 +96,7 @@ consumer conf carries it); selftest sets = files under
 | `JOHARNESS_DEFECT_RECHECK_HOURS` | dispatch | no | no | 1 | orchestrate-reference.md | KEEP (selftest sets it) |
 | `JOHARNESS_SCOUT_REVIEWER` | base-conf | no | yes | 4 | - | KEEP (consumer conf carries it) |
 | `JOHARNESS_SCOUT_RESEARCH` | base-conf | no | yes | 1 | - | KEEP (consumer conf carries it) |
-| `JOHARNESS_CANONICAL` | session | yes | no | 11 | clerk.md,consumer-repos.md | KEEP (consumer conf carries it) |
+| `JOHARNESS_CANONICAL` | session | yes | no | 11 | clerk.md,consumer-repos.md | KEEP (this conf and a selftest set it; not seeded) |
 | `JOHARNESS_CONF` | session | no | no | 42 | - | KEEP (human/session knob) |
 | `JOHARNESS_VERBOSE` | session | no | no | 5 | - | KEEP (human/session knob) |
 | `JOHARNESS_SELFTEST` | session | no | no | 2 | - | KEEP (human/session knob) |
@@ -125,7 +125,7 @@ Totals: 47 KEEP, 0 CONSTANT, 2 UNKNOWN.
   are `conf-keys_rows` and `joharness.conf`; the selftest column is the grep
   above. Whether a selftest could reach its branch without the knob is a
   design question this file did not settle; a plan cutting a KEEP row must.
-- The only two knobs nothing here sets: `JOHARNESS_RESPAWN_LIMIT`
+- The only two knobs no selftest assigns and no conf here sets (RESPAWN_LIMIT is only a commented template line in joharness.conf and an unset in selftest.sh; RETRO_EVENTS is only named in a retro.sh header assertion): `JOHARNESS_RESPAWN_LIMIT`
   (`joharness.sh` `num_knob` at the dispatch print) and
   `JOHARNESS_RETRO_EVENTS` (`num_knob` in the retro header). Both are
   consumer-conf-readable, so they are candidates once gx is read, not
