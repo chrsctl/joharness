@@ -483,8 +483,9 @@ git -C "$scout_work" branch -q -D scout-race
 # A sampling conduct reviewer: clock dated from the ledger's landing, in
 # flight = an unmerged branch named conduct-* under any prefix (a closed one
 # past a seventh of the window is dropped), a sample of retired items that
-# worked a plan, picked by sha1(<stem>), never by date, and a tally the owner
-# reads. Same fixture as the scout: its history already holds a retired
+# worked a plan, retired since the ledger landed (no ledger: the last
+# JOHARNESS_CONDUCT_HOURS), riskiest first — plan tier, harness code touched,
+# then sha1(<stem>) — and a tally the owner reads. Same fixture as the scout: its history already holds a retired
 # scout file, which the sample must never offer.
 #
 # Every refute is ANCHORED (crefute): it passes only when the output also
@@ -500,19 +501,44 @@ crefute() {
     printf '    wanted %s and not %s; got:\n%s\n' "$4" "$2" "$(indent "$3")"
   fi
 }
-# <stem> [<plan>] — a branch that claimed, retired its file, and merged.
+# <stem> [<plan>] [<agent>] [harness] [<epoch>] — a branch that claimed,
+# retired its file, and merged an hour before <epoch> (default now). <agent>
+# writes docs/plans/<plan>.md with that tier, which the retire deletes;
+# `harness` makes a commit of its own change a file under .agents/harness/.
 cretire() {
+  local at="${5:-$(date +%s)}"
   git -C "$scout_work" checkout -qb "m-$1" main
   mkdir -p "${scout_work}/docs/handover"
   printf -- '---\nworkstream: %s\nstatus: done\nplan: %s\n---\n' "$1" "${2:-$1}" \
     >"${scout_work}/docs/handover/${1}.md"
-  scommit "claim $1" '2026-02-10T00:00:00Z'
+  if [ -n "${3:-}" ]; then
+    mkdir -p "${scout_work}/docs/plans"
+    printf -- '---\nplan: %s\nagent: %s\n---\n' "${2:-$1}" "$3" >"${scout_work}/docs/plans/${2:-$1}.md"
+  fi
+  scommit "claim $1" "$(( at - 10800 )) +0000"
+  if [ "${4:-}" = harness ]; then
+    printf '%s\n' "$1" >>"${scout_work}/.agents/harness/touched.txt"
+    scommit "build $1" "$(( at - 9000 )) +0000"
+  fi
   git -C "$scout_work" rm -q "docs/handover/${1}.md"
-  scommit "retire $1" '2026-02-10T01:00:00Z'
+  [ -z "${3:-}" ] || git -C "$scout_work" rm -q "docs/plans/${2:-$1}.md"
+  scommit "retire $1" "$(( at - 7200 )) +0000"
   git -C "$scout_work" checkout -q main
-  GIT_COMMITTER_DATE='2026-02-10T02:00:00Z' GIT_AUTHOR_DATE='2026-02-10T02:00:00Z' \
+  GIT_COMMITTER_DATE="$(( at - 3600 )) +0000" GIT_AUTHOR_DATE="$(( at - 3600 )) +0000" \
     git -C "$scout_work" merge -q --no-ff -m "merge $1" "m-$1"
   git -C "$scout_work" branch -q -D "m-$1"
+}
+# <label> <first> <second> <haystack> — both sample rows, <first> above.
+corder() {
+  local a b
+  a="$(grep -nxF -- "            $2" <<<"$4" | head -1 | cut -d: -f1)"
+  b="$(grep -nxF -- "            $3" <<<"$4" | head -1 | cut -d: -f1)"
+  if [ -n "$a" ] && [ -n "$b" ] && [ "$a" -lt "$b" ]; then
+    pass "$1"
+  else
+    fail "$1"
+    printf '    wanted %s above %s; got:\n%s\n' "$2" "$3" "$(indent "$4")"
+  fi
 }
 cran='== conduct ('
 dran='conduct   :'
@@ -542,10 +568,23 @@ expect "conduct: the scout's retired file is never offered" "sample    : none" "
 out="$(sdsp)"
 expect "dispatch: conduct due with nothing to sample is said" \
   "conduct   : due, nothing to sample" "$out"
+expect "dispatch: no ledger row ends the line with no runs yet" "; no runs yet" "$(grep '^conduct   :' <<<"$out")"
 crefute "dispatch: and spawns no reviewer" "conduct DUE: spawn" "$out" "$dran"
 
-for cstem in alpha bravo charlie delta echo scout-command clerk-role; do cretire "$cstem"; done
-# A manager item worked off an issue names no plan: still sampled.
+# No ledger: the window is the last JOHARNESS_CONDUCT_HOURS. A stem retired
+# long before that is out, landed first so the dates stay in order.
+cretire oscar oscar sonnet harness 1770688800  # 2026-02-10T02:00:00Z
+# Tiers and harness touches chosen so each key overturns sha1(<stem>) order:
+# sha1 alone reads scout-command hotel clerk-role delta bravo echo alpha charlie.
+cretire alpha alpha opus harness
+cretire bravo bravo opus
+cretire charlie charlie sonnet
+cretire delta delta fable
+cretire echo echo haiku harness
+cretire clerk-role clerk-role sonnet
+# Names a plan with no file at the retire: sorts with no plan.
+cretire scout-command
+# A manager item worked off an issue names no plan: still sampled, last.
 cretire hotel none
 # Role sessions: never sampled. Each names a plan here, so the stem's shape
 # alone is what keeps it out (verifier round 2).
@@ -555,17 +594,22 @@ cretire janitor-2026-02-10
 # One still standing on main: not retired, never sampled.
 mkdir -p "${scout_work}/docs/handover"
 printf -- '---\nworkstream: foxtrot\nplan: foxtrot\n---\n' >"${scout_work}/docs/handover/foxtrot.md"
-scommit "foxtrot claimed straight on main" '2026-02-10T03:00:00Z'
+# Dated now: the no-ledger window opens at the newest first-parent commit
+# before JOHARNESS_CONDUCT_HOURS, so an old date here would close it.
+scommit "foxtrot claimed straight on main"
 git -C "$scout_work" push -q origin main
 
-# The expected sample, computed here the way the plan states it.
+# The expected sample, computed here the way the plan states it: tier
+# (haiku/sonnet 0, opus/fable 1, no plan 2), harness touched (0), sha1(<stem>).
 csha() { if command -v sha1sum >/dev/null; then sha1sum; else shasum -a 1; fi | cut -d' ' -f1; }
-cwant="$(for cstem in alpha bravo charlie delta echo scout-command clerk-role hotel; do
-  printf '%s %s\n' "$(printf '%s' "$cstem" | csha)" "$cstem"; done |
-  LC_ALL=C sort | head -3 | cut -d' ' -f2 | sed 's/^/            /')"
+cwant="$(for ck in 'alpha 1 0' 'bravo 1 1' 'charlie 0 1' 'delta 1 1' 'echo 0 0' \
+  'scout-command 2 1' 'clerk-role 0 1' 'hotel 2 1'; do
+  read -r cs ct ch <<<"$ck"
+  printf '%s %s %s %s\n' "$ct" "$ch" "$(printf '%s' "$cs" | csha)" "$cs"; done |
+  LC_ALL=C sort | head -3 | cut -d' ' -f4 | sed 's/^/            /')"
 out="$(cdt)"
 expect "conduct: retired manager files make it due" "cadence   : DUE" "$out"
-expect "conduct: the sample is the three lowest sha1(<stem>)" "$cwant" "$out"
+expect "conduct: the sample is the three riskiest: tier, harness touched, lowest sha1(<stem>)" "$cwant" "$out"
 expect "conduct: the sample says how many" "sample    : 3 branch(es)" "$out"
 out99="$(cdt JOHARNESS_CONDUCT_SAMPLE=99)"
 expect "conduct: every manager stem is eligible" "sample    : 8 branch(es)" "$out99"
@@ -575,6 +619,13 @@ crefute "conduct: a curate session is never sampled" "curate-2026-02-10" "$out99
 crefute "conduct: a clerk session is never sampled" "clerk-2026-02-10" "$out99" "sample    : "
 crefute "conduct: a janitor session is never sampled" "janitor-2026-02-10" "$out99" "sample    : "
 crefute "conduct: a file still standing is never sampled" "foxtrot" "$out99" "sample    : "
+crefute "conduct: no ledger, a stem retired before JOHARNESS_CONDUCT_HOURS is not sampled" \
+  "            oscar" "$out99" "sample    : 8"
+corder "conduct: a sonnet-tier stem sorts before an opus one" charlie bravo "$out99"
+corder "conduct: of one tier, a stem that touched harness code sorts first" alpha bravo "$out99"
+corder "conduct: a plan: none stem sorts last" bravo hotel "$out99"
+expect "conduct: and below a plan named with no file" "            scout-command
+            hotel" "$out99"
 out2="$(cdt)"
 csample1="$(printf '%s\n' "$out" | grep -A3 '^sample    : 3')"
 if [ -n "$csample1" ] && [ "$csample1" = "$(printf '%s\n' "$out2" | grep -A3 '^sample    : 3')" ]; then
@@ -750,9 +801,21 @@ out="$(cdt)"
 expect "conduct: the tally counts runs and branches, a stem once" \
   "tally     : 2 run(s), 3 branch(es) sampled" "$out"
 expect "conduct: and each verdict per question" \
-  "C1  FINE 1  CONCERN 1  NO EVIDENCE 1  CONCERN rate 33%" "$out"
+  "C1  FINE 1  CONCERN 1  NO EVIDENCE 1  CONCERN rate 50% of 2" "$out"
+# Nothing retired since the ledger landed: every stem above is out.
+expect "conduct: a stem retired before the ledger last landed is not sampled" \
+  "sample    : none" "$out"
+expect "dispatch: the rate leaves NO EVIDENCE out of <m>" \
+  "since the ledger last landed (of 168h); C1 CONCERN 50% of 2" "$(sdsp)"
+# Retired after the landing: sampled — but one the ledger names already, as
+# a stem reused, is not.
+cretire kilo
+cretire lima
+cretire "$cfirst"
+out="$(cdt)"
+expect "conduct: a stem retired after the ledger landed is sampled" "sample    : 2 branch(es)" "$out"
 crefute "conduct: a stem already in the ledger is not sampled again" \
-  "            ${cfirst}" "$out" "sample    : 3"
+  "            ${cfirst}" "$out" "sample    : 2"
 expect "conduct: an old ledger leaves the clock due" "since the ledger last landed" "$out"
 # A manager merges the base branch in TODAY and lands today: the ledger did
 # not land again, so the clock must not move (verifier r1).

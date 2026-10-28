@@ -183,10 +183,11 @@ refute "dispatch: and spawns none" "retro DUE: spawn" "$out"
 # A conduct reviewer spawning this pass goes first too: one retired
 # manager file on main makes conduct due.
 printf -- '---\nworkstream: zulu\nstatus: done\nplan: zulu\n---\n' >"${rt_work}/docs/handover/zulu.md"
-rt_commit "zulu claim" '2026-01-10T11:00:00Z'
+# Dated now: conduct samples what retired in its last JOHARNESS_CONDUCT_HOURS.
+rt_commit "zulu claim" "$(( $(date +%s) - 600 )) +0000"
 git -C "$rt_work" rm -q docs/handover/zulu.md
 mkdir -p "${rt_work}/docs/handover"
-rt_commit "zulu retire" '2026-01-10T11:10:00Z'
+rt_commit "zulu retire" "$(date +%s) +0000"
 git -C "$rt_work" push -q origin main
 # Untracked: the fixture's rules stay the ones origin carries.
 printf '# conduct\n' >"${rt_work}/.claude/commands/conduct.md"

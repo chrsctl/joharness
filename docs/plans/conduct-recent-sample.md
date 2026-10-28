@@ -6,7 +6,7 @@ effort: high
 needs: none
 requirement: none
 issue: none
-scope: shared:joharness.sh, .claude/commands/conduct.md, shared:.agents/docs/orchestrated.md, shared:.agents/harness/selftest/scout.sh, shared:.agents/harness/selftest/orchestrated.sh
+scope: shared:joharness.sh, .claude/commands/conduct.md, shared:.agents/docs/orchestrated.md, shared:.agents/harness/selftest/scout.sh, shared:.agents/harness/selftest/orchestrated.sh, shared:.agents/harness/selftest/retro.sh, shared:.agents/scripts/conf-keys.sh
 ---
 
 ## Goal
@@ -27,7 +27,11 @@ retro-audit-and-trace) are not this plan.
      after the ledger's last landing, the same point `conduct_age_h` counts
      from. A run that comes late therefore leaves no gap.
    - No ledger on the base branch: the window is the last
-     `JOHARNESS_CONDUCT_HOURS` hours.
+     `JOHARNESS_CONDUCT_HOURS` hours, cut at the newest first-parent commit
+     dated at or before then; everything that landed after it is in. Both
+     windows are a commit range from that cut point, never a date compare
+     per retire. `JOHARNESS_CONDUCT_HOURS`'s rows (KNOBS, orchestrated.md,
+     `.agents/scripts/conf-keys.sh`) say it also sets this reach.
    - Stems already in the ledger, still standing, or a role session's dated
      stem stay excluded as today.
 2. **Risk order** (`joharness.sh:conduct_sample`). Sort the candidates by
@@ -38,8 +42,9 @@ retro-audit-and-trace) are not this plan.
       `opus` and `fable` next. `plan: none`, research, requirement, or no plan
       file at that commit sort last.
    2. Touched harness code: the retire range changed `joharness.sh` or a path
-      under `.agents/harness/` (`git log --name-only` over the range conduct.md
-      §2 already uses) sorts before one that did not.
+      under `.agents/harness/` (`git log --first-parent --name-only` over the
+      `claim^..retire` range conduct.md §2 already uses, so a reconcile
+      merge of the base branch counts nothing) sorts before one that did not.
    3. Tie-break: lowest sha1 of the stem, as today, so a re-run picks the same
       set and a test can assert it.
 
@@ -49,7 +54,9 @@ retro-audit-and-trace) are not this plan.
    with the tally's C1 rate: `; C1 CONCERN <n>% of <m>`. `<m>` counts FINE
    plus CONCERN only, because NO EVIDENCE is not a verdict on the gates.
    `conduct_tally`'s `CONCERN rate` takes the same `<m>`, so the two never
-   disagree. With no ledger rows the lines end with `; no runs yet`.
+   disagree. With no ledger rows the lines end with `; no runs yet`; rows
+   but no FINE or CONCERN = `0% of 0`; a ledger that cannot be read adds
+   nothing (its own UNREADABLE is the tally's).
 4. **Text that names the old order:**
    - the `JOHARNESS_CONDUCT_SAMPLE` row in orchestrated.md;
    - `cmd_conduct`'s printed "lowest sha1(<stem>) first";
@@ -104,7 +111,9 @@ retro-audit-and-trace) are not this plan.
 - The existing conduct fixture dates its retires 2026-02-10 and lands its
   ledger after them: under the window those cases sample nothing. Re-date
   `cretire` to recent hours and retire stems after the ledger lands, so each
-  existing case still asserts what it did; the tally's `CONCERN rate 33%`
+  existing case still asserts what it did. A later fixed-date commit on the
+  first-parent line moves the no-ledger cut point past them: date it now
+  too (scout.sh's foxtrot, retro.sh's zulu retire). The tally's `CONCERN rate 33%`
   needle becomes `50%` (NO EVIDENCE out of `<m>`).
 - Consumer side (SHIPS): after its next sync a consumer runs
   `./joharness.sh ci` → `ci: pass`.

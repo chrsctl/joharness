@@ -138,7 +138,7 @@ JOHARNESS_CLERK_HOURS|24|dispatch|Hours between clerk passes over the open issue
 JOHARNESS_CLERK_BATCH|3|dispatch|Open issues one clerk pass takes at most.
 JOHARNESS_CLERK_STALE_HOURS|24|dispatch|An unmerged clerk branch older than this holds nothing; 0 = every one holds.
 JOHARNESS_SCOUT_READS|12|dispatch|Outside reads one scout pass makes before it proposes from what it has.
-JOHARNESS_CONDUCT_HOURS|168|dispatch|Hours since the conduct ledger last landed before a reviewer is due; 0 = off.
+JOHARNESS_CONDUCT_HOURS|168|dispatch|Hours since the conduct ledger last landed before a reviewer is due; no ledger = also the sample's reach; 0 = off.
 JOHARNESS_CONDUCT_SAMPLE|3|dispatch|Retired branches one conduct run samples; 0 = off.
 JOHARNESS_RETRO_HOURS|168|dispatch|Hours since the retro ledger last landed before a retro reviewer is due; 0 = off.
 JOHARNESS_RETRO_SAMPLE|3|dispatch|Sessions that did not come back clean one retro run samples; 0 = off.
