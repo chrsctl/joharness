@@ -3,7 +3,7 @@ name: update
 # Keeps a consumer repo's harness copy current with its canonical joharness.
 # Runs canonical's .agents/scripts/sync-to-consumer.sh against this checkout on a
 # schedule and opens a pull request with whatever changed — the same
-# steady-state sync a session runs by hand (.agents/docs/product/README.md,
+# steady-state sync a session runs by hand (.agents/docs/product.md,
 # Reconciliation), automated.
 #
 # Consumer-own file, same delivery as ci.yml: seeded once by
@@ -113,7 +113,7 @@ jobs:
           case "$rc" in
             0) echo "ahead=0" >>"$GITHUB_OUTPUT" ;;
             2) echo "ahead=1" >>"$GITHUB_OUTPUT"
-               echo "::warning::consumer files AHEAD of canonical; land those fixes in ${CANONICAL_REPO} first (.agents/docs/product/README.md, Reconciliation)" ;;
+               echo "::warning::consumer files AHEAD of canonical; land those fixes in ${CANONICAL_REPO} first (.agents/docs/product.md, Reconciliation)" ;;
             *) exit "$rc" ;;
           esac
 
