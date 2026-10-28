@@ -850,17 +850,18 @@ expect "dispatch: the rate leaves NO EVIDENCE out of <m>" \
 cretire kilo '' '' reconcile
 cretire lima
 cretire mike '' '' joharness
-# A CRLF, quoted, capitalised agent: still sonnet. Read first in the batch,
-# its CRs must not shift the framing onto quebec's plan.
+# A CRLF, quoted, capitalised agent in a plan named in capitals: still
+# sonnet. Read first in the batch, its CRs must not shift the framing onto
+# quebec's plan.
 cretire quebec quebec sonnet
-cretire papa papa '"Sonnet"' crlf
+cretire papa Papa '"Sonnet"' crlf
 cretire "$cfirst"
 git -C "$scout_work" push -q origin main
 out="$(cdt JOHARNESS_CONDUCT_SAMPLE=99)"
 expect "conduct: a stem retired after the ledger landed is sampled" "sample    : 6 branch(es)" "$out"
 crefute "conduct: a stem already in the ledger is not sampled again" \
   "            ${cfirst}" "$out" "sample    : 6"
-corder "conduct: a CRLF, quoted, capitalised agent reads as its tier" papa mike "$out"
+corder "conduct: a CRLF, quoted, capitalised agent in a capitalised plan reads as its tier" papa mike "$out"
 corder "conduct: a plan read after a CRLF one keeps its tier" quebec mike "$out"
 corder "conduct: a stem that changed joharness.sh counts as harness code" mike lima "$out"
 corder "conduct: a merge of the base branch touches no harness code" lima kilo "$out"

@@ -1,6 +1,6 @@
 ---
 workstream: conduct-recent-sample
-status: in-progress
+status: review
 branch: claude/conduct-recent-sample
 pr: none
 plan: conduct-recent-sample
@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK3jCqjLJi3BLSYzNCG
 agent: opus
 updated: 2026-10-28
-next: ci on the r22-r25 fixes, then PR and finish
+next: Retire, open PR, finish, merge
 ---
 
 ## Goal
@@ -60,6 +60,7 @@ C1 CONCERN rate shows on the dispatch `conduct   :` line.
 - r25: (verifier) lowercasing the plan value missed a mixed-case plan file (fixed: only the agent compare lowercases)
 - r26: (verifier) a claim off the retire's first-parent line reads as no harness and walks all history (wontfix: the Loop claims on the branch's own line; a miss costs one rank step, never a wrong window)
 - r27: a ledger edited straight on the base branch opens the window at that commit, dropping earlier unsampled retires (wontfix: the ledger is reviewer-only by conduct.md §4; a human edit is a deliberate reset)
+- r28: (verifier) no test fails if the plan value is lowercased again (fixed: papa's plan is `Papa`)
 
 ## Blockers
 
