@@ -21,10 +21,10 @@
 
 set -uo pipefail
 
-[ "$#" -ge 1 ] && [ "$#" -le 2 ] || {
+if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
   printf 'usage: c2-run.sh <stem> [base]\n' >&2
   exit 2
-}
+fi
 stem="$1"
 base="${2:-origin/main}"
 repo="$(git rev-parse --show-toplevel)" || exit 2
@@ -54,8 +54,9 @@ tests_re='^\.agents/harness/selftest(\.sh$|/)'
 # Pairs: every add and every delete of the workstream file, oldest first.
 mapfile -t adds < <(git log --reverse --full-history --diff-filter=A --format=%H "$base" -- "$hf")
 mapfile -t dels < <(git log --reverse --full-history --diff-filter=D --format=%H "$base" -- "$hf")
-[ "${#adds[@]}" -gt 0 ] && [ "${#adds[@]}" -eq "${#dels[@]}" ] ||
+if [ "${#adds[@]}" -eq 0 ] || [ "${#adds[@]}" -ne "${#dels[@]}" ]; then
   verdict "NO EVIDENCE: pairs (${#adds[@]} adds, ${#dels[@]} deletes)"
+fi
 
 # Own commits, every pair unioned: a stem merged in several pull requests
 # counts all of them.
@@ -125,6 +126,7 @@ c2_restrict() {
     while IFS= read -r c; do
       case " ${c} " in *" ${want} "*) unit="$c" ;; esac
     done <<<"$chains"
+    # shellcheck disable=SC2086  # a unit is a space-separated topic list
     printf '%s\n' $unit
   done | sort -u)"
   list="$(grep -xF -f <(printf '%s\n' "$keep") <<<"$all" || true)"

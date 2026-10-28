@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK5wBEqA2zM6S2dy3iq
 agent: opus
 updated: 2026-10-28
-next: Write selftest topic c2-run (12 fixture stems), retro-audit.md C2, conduct-log header, follow-up plan conduct-c2-tally
+next: Full selftest, consumer dry-run, verifier at opus, then retire and PR
 ---
 
 ## Goal
@@ -24,6 +24,7 @@ touched once with its change and once without, and read each case's word, so
 - A3: confirmed — `.claude/commands/retro-audit.md` exists on origin/main and carries C1 and "C2 is not asked yet"; `git show 9d76769e^:docs/plans/retro-audit-and-trace.md` names it.
 - Tally of `-`/`N/A` (plan-checker r2): `joharness.sh:conduct_rows` maps both to unparsed. Plan scope says no joharness.sh change, so the fix is follow-up plan `conduct-c2-tally`, filed in this pull request; C1 counts and C2 FINE/CONCERN rate are unaffected meanwhile.
 - Runner line precedence: any flip prints FLIP; unread counts every label not PASS-with, or SKIP/MISSING without.
+- Follow-up plan `conduct-c2-tally` filed (sonnet, needs: conduct-c2).
 - Acceptance measured 2026-10-28, 4 CPUs: needs-cycle-lint FLIP 4 (46 s), guard-one-shot-self-kill FLIP 16 (5 s), fast-lane FLIP 28 (14 s).
 
 ## Rejected
