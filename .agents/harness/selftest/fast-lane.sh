@@ -105,11 +105,11 @@ expect "the verifier still runs on the fast lane" \
 git -C "$fwork" push -q origin typo
 out="$(fj dispatch)"
 refute "dispatch prints no row for a plan: fast claim" "typo" "$out"
-# The janitor names what a stale fast claim holds: nothing, not a lost plan.
-out="$(HANDOVER_STALE_SECONDS=0 fj janitor)"
-expect "janitor reads a fast claim as holding no item" \
+# The release report names what a stale fast claim holds: nothing, not a lost plan.
+out="$(HANDOVER_STALE_SECONDS=0 fj release)"
+expect "release reads a fast claim as holding no item" \
   "holds: no item — the fast lane" "$out"
-refute "janitor does not call the fast claim a typo" "docs/plans/fast.md" "$out"
+refute "release does not call the fast claim a typo" "docs/plans/fast.md" "$out"
 
 # Four files, one of them a docs/handover/ file that is not the workstream
 # file: only the fast workstream file itself is exempt.

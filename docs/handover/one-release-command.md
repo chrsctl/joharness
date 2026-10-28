@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK6KyCC596i2QaG6VSX
 agent: opus
 updated: 2026-10-28
-next: Write release in joharness.sh (scratchpad parts A, B), then dispatch, then tests and docs
+next: Run the touched selftest topics, fix reds, then full ci and verify; verifier at opus
 ---
 
 ## Goal
@@ -45,6 +45,13 @@ asked to simplify the commands that unstick abandoned work.
 - r12: (plan-checker) the release DUE tail line already exists (fixed: worded as extending it)
 - r13: (plan-checker) cmd_guard has five checks, the anchor names four (fixed)
 - r14: (plan-checker) the Lineup has no freer row; it is orchestrated.md's Roles table (fixed)
+- r15: (plan-checker) a stale blocked claim with a needs: reason reads both qualifying and never released (fixed: listed once, by its needs: reason)
+- r16: (plan-checker) report lines share the release   : prefix the orchestrator's ledger rule counts (fixed: the ledger reads the write's lines only)
+- r17: (plan-checker) a release topic needs a file scope: lacks (fixed: release.sh in scope, janitor.sh and halt.sh go)
+- r18: (plan-checker) cleanup's five merged names have no test in scope (fixed: cleanup.sh in scope and pinned)
+- r19: (plan-checker) no subject for the done reason (fixed: release: done, no pull request)
+- r20: (plan-checker) Removed omits n_freer_live and the free-* in-flight walk (fixed)
+- r21: (plan-checker) the tree moved during the round-2 read (no change: a plan check reads the plan; the verifier runs on a still tree)
 
 ## Blockers
 

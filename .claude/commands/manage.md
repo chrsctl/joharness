@@ -39,8 +39,6 @@ pointer fires.
      request carrying the plans only, merge, exit. Never implement. Nothing
      left to plan? One of the exits in `.agents/docs/product/README.md`, "A
      requirement no plan can serve".
-   - `free <branch>` — a doc-only branch whose author is gone (dispatch
-     `FREEABLE`). ref § Free.
    - `rescope <key>` — you are the SURVEYOR: section R. Claim on
      `docs/handover/rescope-<key>.md` with `workstream: rescope-<key>` and
      `plan: none`. One pull request rewriting `scope:` lines, merge, exit.

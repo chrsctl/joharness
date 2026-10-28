@@ -235,7 +235,7 @@ ref_merged() {
 # How close to merging, low first.
 rank_of() {
   case "$1" in
-    # RELEASED, and below even a blocked entry: the janitor writes this word
+    # RELEASED, and below even a blocked entry: `release` writes this word
     # only after proving that session gone, so nothing here is anybody's next
     # move.
     abandoned ) printf 5 ;;

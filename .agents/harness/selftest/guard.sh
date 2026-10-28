@@ -57,20 +57,20 @@ grefused() {
 # --- untouched: every check passes ------------------------------------------
 gclaim g-clean none
 gorig_refs="$(git -C "$gorigin" for-each-ref)"
-out="$(grun janitor g-clean)"; rc=$?
+out="$(grun release g-clean)"; rc=$?
 expect "untouched: protected passes" "protected : pass — g-clean is not the base branch" "$out"
 expect "untouched: live passes" "live      : pass — origin has g-clean" "$out"
 expect "untouched: head passes" "head      : pass — live" "$out"
 expect "untouched: the pr: check passes" "protected : pass — no workstream file names a pr:" "$out"
-expect "untouched: the verdict" "guard     : pass — janitor may push" "$out"
+expect "untouched: the verdict" "guard     : pass — release may push" "$out"
 if [ "$rc" -eq 0 ]; then pass "untouched: exit 0"
 else fail "untouched: exit 0 (rc ${rc})"; fi
-out="$(grun kill g-clean --expect "$(git -C "$gwork" rev-parse origin/g-clean)")"; rc=$?
+out="$(grun record g-clean --expect "$(git -C "$gwork" rev-parse origin/g-clean)")"; rc=$?
 if [ "$rc" -eq 0 ]; then pass "an explicit --expect at the live head passes"
 else fail "an explicit --expect at the live head passes (rc ${rc})"; printf '%s\n' "$(indent "$out")"; fi
 
 # --- base branch: refused by name, before any network read -----------------
-out="$(grun janitor main)"; rc=$?
+out="$(grun release main)"; rc=$?
 expect "base branch: refused at protected" "protected : REFUSED — main is the base branch" "$out"
 grefused "base branch" "$out" "$rc"
 refute "base branch: no live read" "live      :" "$out"
@@ -86,7 +86,7 @@ grefused "stale base ref" "$out" "$rc"
 # --- deleted on origin: released already ------------------------------------
 gclaim g-deleted none
 git -C "$gorigin" branch -qD g-deleted
-out="$(grun janitor g-deleted)"; rc=$?
+out="$(grun release g-deleted)"; rc=$?
 expect "deleted ref: refused at live" "live      : REFUSED — g-deleted gone on origin: already released" "$out"
 grefused "deleted ref" "$out" "$rc"
 if [ "$rc" -eq 2 ]; then pass "deleted ref: exit 2, the released code"
@@ -98,7 +98,7 @@ else fail "deleted ref: origin still has no such branch (re-created)"; fi
 # --- unreachable origin: a question unanswered is a refusal -----------------
 gurl="$(git -C "$gwork" config remote.origin.url)"
 git -C "$gwork" config remote.origin.url "${TMP}/no-such-guard-origin.git"
-out="$(grun kill g-clean)"; rc=$?
+out="$(grun record g-clean)"; rc=$?
 git -C "$gwork" config remote.origin.url "$gurl"
 expect "unreachable: refused at live" "live      : REFUSED — g-clean: cannot ask origin" "$out"
 grefused "unreachable" "$out" "$rc"
@@ -112,7 +112,7 @@ git -C "$gother" checkout -q -b g-moved origin/g-moved
 printf 'more\n' >>"${gother}/code.txt"
 git -C "$gother" commit -qam "manager pushed"
 git -C "$gother" push -q origin g-moved
-out="$(grun kill g-moved)"; rc=$?
+out="$(grun record g-moved)"; rc=$?
 expect "moved head: refused at head" "head      : REFUSED — live" "$out"
 expect "moved head: says re-decide" ": re-decide" "$out"
 grefused "moved head" "$out" "$rc"
@@ -121,12 +121,12 @@ expect "moved head: claim line, unchanged claim both sides" \
 
 # A bare re-run reads the same stale decision: the claim fetch moved
 # FETCH_HEAD only, so "re-decide" cannot be skipped by running guard again.
-out="$(grun kill g-moved)"; rc=$?
+out="$(grun record g-moved)"; rc=$?
 expect "moved head, re-run: still refused at head" "head      : REFUSED — live" "$out"
 grefused "moved head, re-run" "$out" "$rc"
 # A decision read this clone never fetched is no read: refused, never passed.
 gnew=0123456789abcdef0123456789abcdef01234567
-out="$(grun janitor g-moved --expect "$gnew")"; rc=$?
+out="$(grun release g-moved --expect "$gnew")"; rc=$?
 expect "unfetched --expect: refused at head" "head      : REFUSED — decision read ${gnew} is not a commit here" "$out"
 grefused "unfetched --expect" "$out" "$rc"
 
@@ -139,7 +139,7 @@ printf 'pr move\n' >>"${gother}/code.txt"
 git -C "$gother" commit -qam "manager pushed at the edge"
 git -C "$gother" push -q origin g-prmoved
 glive="$(git -C "$gorigin" rev-parse g-prmoved)"
-out="$(grun janitor g-prmoved --expect "$glive")"; rc=$?
+out="$(grun release g-prmoved --expect "$glive")"; rc=$?
 expect "live sha never fetched: refused at head" "head      : REFUSED — decision read ${glive} is not a commit here" "$out"
 grefused "live sha never fetched" "$out" "$rc"
 
@@ -152,7 +152,7 @@ sed -i.bak -e 's/session_g-reclaim/session_successor/' -e 's/^status: .*/status:
 rm -f "${gother}/docs/handover/g-reclaim.md.bak"
 git -C "$gother" commit -qam "successor resumes"
 git -C "$gother" push -q origin g-reclaim
-out="$(grun janitor g-reclaim)"; rc=$?
+out="$(grun release g-reclaim)"; rc=$?
 expect "re-claimed: refused at head" "head      : REFUSED — live" "$out"
 expect "re-claimed: claim line prints both sides" \
   "read: session https://example.invalid/session_g-reclaim status in-progress; live: session https://example.invalid/session_successor status review" "$out"
@@ -160,23 +160,23 @@ grefused "re-claimed" "$out" "$rc"
 
 # --- pr: set at live head ---------------------------------------------------
 gclaim g-withpr 77
-out="$(grun janitor g-withpr)"; rc=$?
-expect "pr: set, janitor: refused at protected" \
+out="$(grun release g-withpr)"; rc=$?
+expect "pr: set, release (stale): refused at protected" \
   "protected : REFUSED — docs/handover/g-withpr.md names pr: 77 at live head" "$out"
-grefused "pr: set, janitor" "$out" "$rc"
-out="$(grun kill g-withpr)"; rc=$?
-expect "pr: set, kill: passes, a stalled manager stays killable" "guard     : pass — kill may push" "$out"
-if [ "$rc" -eq 0 ]; then pass "pr: set, kill: exit 0"
-else fail "pr: set, kill: exit 0 (rc ${rc})"; fi
-refute "pr: set, kill: the pr: check never runs" "names pr:" "$out"
-out="$(grun halt g-withpr)"; rc=$?
-expect "pr: set, halt: passes, a human's order" "guard     : pass — halt may push" "$out"
-if [ "$rc" -eq 0 ]; then pass "pr: set, halt: exit 0"
-else fail "pr: set, halt: exit 0 (rc ${rc})"; fi
-refute "pr: set, halt: the pr: check never runs" "names pr:" "$out"
-out="$(grun halt main)"; rc=$?
-expect "halt on the base branch: refused at protected" "protected : REFUSED — main is the base branch" "$out"
-grefused "halt on the base branch" "$out" "$rc"
+grefused "pr: set, release (stale)" "$out" "$rc"
+out="$(grun record g-withpr)"; rc=$?
+expect "pr: set, record: passes, a stalled manager stays killable" "guard     : pass — record may push" "$out"
+if [ "$rc" -eq 0 ]; then pass "pr: set, record: exit 0"
+else fail "pr: set, record: exit 0 (rc ${rc})"; fi
+refute "pr: set, record: the pr: check never runs" "names pr:" "$out"
+out="$(grun release g-withpr --human)"; rc=$?
+expect "pr: set, release --human: passes, a human's order" "guard     : pass — release --human may push" "$out"
+if [ "$rc" -eq 0 ]; then pass "pr: set, release --human: exit 0"
+else fail "pr: set, release --human: exit 0 (rc ${rc})"; fi
+refute "pr: set, release --human: the pr: check never runs" "names pr:" "$out"
+out="$(grun release main --human)"; rc=$?
+expect "release --human on the base branch: refused at protected" "protected : REFUSED — main is the base branch" "$out"
+grefused "release --human on the base branch" "$out" "$rc"
 
 # --- release: the orchestrator's release of a parked claim (#626) ----------
 # The kill/loop checks plus the janitor's pr: refusal: review state is never
@@ -198,13 +198,21 @@ expect "release on the base branch: refused at protected" "protected : REFUSED �
 grefused "release on the base branch" "$out" "$rc"
 
 # --- usage ------------------------------------------------------------------
+out="$(grun record g-clean --human)"; rc=$?
+if [ "$rc" -ne 0 ] && grep -qF "usage:" <<<"$out"; then pass "--human is release's alone"
+else fail "--human is release's alone (rc ${rc})"; fi
+for gverb in janitor kill loop halt; do
+  out="$(grun "$gverb" g-clean)"; rc=$?
+  if [ "$rc" -ne 0 ] && grep -qF "usage:" <<<"$out"; then pass "the old verb ${gverb} is a usage error"
+  else fail "the old verb ${gverb} is a usage error (rc ${rc})"; fi
+done
 out="$(grun bogus g-clean)"; rc=$?
 if [ "$rc" -ne 0 ]; then pass "an unknown verb is a usage error"
 else fail "an unknown verb is a usage error"; fi
-out="$(grun janitor)"; rc=$?
+out="$(grun release)"; rc=$?
 if [ "$rc" -ne 0 ]; then pass "no branch is a usage error"
 else fail "no branch is a usage error"; fi
-out="$(grun kill g-moved --expect --output=o)"; rc=$?
+out="$(grun record g-moved --expect --output=o)"; rc=$?
 if [ "$rc" -ne 0 ] && grep -qF "usage:" <<<"$out"; then pass "an option as --expect is a usage error"
 else fail "an option as --expect is a usage error (rc ${rc})"; fi
 

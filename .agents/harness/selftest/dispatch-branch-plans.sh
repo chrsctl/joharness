@@ -4,7 +4,7 @@
 # Not runnable alone and not meant to be: the runner defines the assertion
 # helpers, the counters and the shared fixtures, and sourcing is inlining.
 #
-# Plans on a branch, FREEABLE, CEILING? and a stopped fleet. Split from dispatch.sh so the runner can
+# Plans on a branch, release lines, CEILING? and a stopped fleet. Split from dispatch.sh so the runner can
 # run it beside the rest: every fixture here is its own repository and
 # nothing in another dispatch topic reads it. How a case uses a fixture:
 # dispatch.sh's header.
@@ -474,16 +474,14 @@ else
   fail "and no DONE ON MAIN or live branch plan reaches the spawn list"
 fi
 
-# --- FREEABLE: a doc-only branch nobody will merge (issue #423) -------------
-# Same fixture. A fresh plan branch is no row: its author may be mid-pull-
-# request. A plan branch past HANDOVER_STALE_SECONDS is `free <branch>`, a
-# freer's row: a role beyond the cap, never a free manager item. An empty done
-# branch needs no wait.
-refute "a fresh plan branch is not FREEABLE" "free plan-only (agent" "$out"
-expect "an empty done branch is FREEABLE at once" \
-  "  free carry-pa (agent: sonnet)  FREEABLE — its only diff is a status: done, pr: none workstream file" "$out"
-# The verdict before the stale branch, to pin that a FREEABLE row adds no free
-# manager item: a freer runs beyond the cap.
+# --- release lines for doc-only branches (was FREEABLE, issue #423) --------
+# Same fixture. A fresh plan branch is no line: its author may be mid-pull-
+# request. A plan branch past HANDOVER_STALE_SECONDS that never claimed is a
+# report-only `no claim:` line: nothing to release, never a manager item. A
+# done branch waits for the stale window like any claim.
+refute "a fresh plan branch is no release line" "release   : plan-only" "$out"
+refute "a fresh done branch is no release line yet" "release   : carry-pa" "$out"
+refute "and the freer is gone" "FREEABLE" "$out"
 bpverd0="$(grep '^verdict   : ' <<<"$out")"
 git -C "$bpwork" checkout -qb gone-q main
 bpplan "${bpwork}/docs/plans/q.md" q normal
@@ -493,157 +491,30 @@ GIT_COMMITTER_DATE='2026-01-01T00:00:00Z' GIT_AUTHOR_DATE='2026-01-01T00:00:00Z'
 git -C "$bpwork" push -qu origin gone-q
 git -C "$bpwork" checkout -q main
 out="$(bp)"
-expect "a plan branch past the stale window is FREEABLE" \
-  "  free gone-q (agent: sonnet)  FREEABLE — 1 plan(s) on a doc-only branch" "$out"
-expect "and it spawns beyond the cap, one freer at a time" \
-  "Beyond the cap, holds no slot, ONE freer per pass" "$out"
+expect "a plan branch past the stale window that never claimed: a no-claim line" \
+  "release   : gone-q  no claim: plans not landed: q  — report only" "$out"
+refute "and it is never due" "gone-q" "$(grep 'release DUE:' <<<"$out" || :)"
 if [ -n "$bpverd0" ] && [ "$(grep '^verdict   : ' <<<"$out")" = "$bpverd0" ]; then
   pass "and it adds no free manager item: the verdict does not move"
 else
   fail "and it adds no free manager item: the verdict does not move"
 fi
-refute "plan-only, still fresh, is still no row" "free plan-only (agent" "$out"
-bpslotsf="$(sed -n 's/^slots     : \([0-9][0-9]*\) of.*/\1/p' <<<"$out")"
-# The manager's claim: the row goes, the claim holds a slot, and the claim's
-# own doc-only branch is never FREEABLE.
-git -C "$bpwork" checkout -qb mgr-free-q main
+# A branch that claimed and retired its claim is an edge waiting on its pull
+# request: never a no-claim line.
+git -C "$bpwork" checkout -qb edge-q2 main
+bpplan "${bpwork}/docs/plans/q2.md" q2 normal
 mkdir -p "${bpwork}/docs/handover"
-printf -- '---\nworkstream: free-gone-q\nstatus: in-progress\nbranch: mgr-free-q\npr: none\nplan: none\nagent: sonnet\nupdated: 2026-01-01\nnext: Run free\n---\n\n## Goal\nFixture.\n' \
-  >"${bpwork}/docs/handover/free-gone-q.md"
-commit_all "$bpwork" "claim free gone-q"
-git -C "$bpwork" push -qu origin mgr-free-q
-git -C "$bpwork" checkout -q main
-out="$(bp)"
-refute "a free claim on its key drops the row" "free gone-q (agent" "$out"
-expect "the claim is a freer in flight" "  free-gone-q  mgr-free-q  in-progress" "$out"
-expect "and the other FREEABLE row waits: one freer at a time" \
-  "  free carry-pa (agent: sonnet)  HOLD — a freer is in flight" "$out"
-expect "and a freer in flight holds no manager slot" "slots     : ${bpslotsf:-x} of" "$out"
-refute "and the claim's own branch is never FREEABLE" "free mgr-free-q (agent" "$out"
-# Past its retire commit the claim file is gone, the pull request open: the
-# owner sits merged in the manager's branch, so neither is offered (r3).
-git -C "$bpwork" checkout -q mgr-free-q
-git -C "$bpwork" merge -q --no-ff -m "free: merge gone-q (fixture)" gone-q
-git -C "$bpwork" rm -q docs/handover/free-gone-q.md
-commit_all "$bpwork" "retire the free claim"
-git -C "$bpwork" push -q origin mgr-free-q
-git -C "$bpwork" checkout -q main
-out="$(bp)"
-refute "a freed owner past the retire commit is not offered again" "free gone-q (agent" "$out"
-refute "nor is the free manager's own branch" "free mgr-free-q (agent" "$out"
-# A free merged by hand, git's own subject, claim retired: the owner is
-# still held, and the manager's branch is still never offered (round 3).
-git -C "$bpwork" checkout -qb gone-hm main
-bpplan "${bpwork}/docs/plans/fhm.md" fhm normal
+printf -- '---\nworkstream: q2\nstatus: in-progress\nbranch: edge-q2\npr: none\nplan: none\nagent: sonnet\nupdated: 2026-01-01\nnext: Plan\n---\n\n## Goal\nFixture.\n' \
+  >"${bpwork}/docs/handover/q2.md"
 git -C "$bpwork" add -A
 GIT_COMMITTER_DATE='2026-01-01T00:00:00Z' GIT_AUTHOR_DATE='2026-01-01T00:00:00Z' \
-  git -C "$bpwork" commit -qm "file fhm, long ago"
-git -C "$bpwork" push -qu origin gone-hm
-git -C "$bpwork" checkout -qb mgr-free-hm main
-mkdir -p "${bpwork}/docs/handover"
-printf -- '---\nworkstream: free-gone-hm\nstatus: in-progress\nbranch: mgr-free-hm\npr: none\nplan: none\nagent: sonnet\nupdated: 2026-01-01\nnext: Merge by hand\n---\n\n## Goal\nFixture.\n' \
-  >"${bpwork}/docs/handover/free-gone-hm.md"
-git -C "$bpwork" add -A
-GIT_COMMITTER_DATE='2026-01-02T00:00:00Z' GIT_AUTHOR_DATE='2026-01-02T00:00:00Z' \
-  git -C "$bpwork" commit -qm "claim free gone-hm"
-GIT_COMMITTER_DATE='2026-01-02T00:00:00Z' GIT_AUTHOR_DATE='2026-01-02T00:00:00Z' \
-  git -C "$bpwork" merge -q --no-ff --no-edit gone-hm
-git -C "$bpwork" rm -q docs/handover/free-gone-hm.md
-commit_all "$bpwork" "retire the free claim"
-git -C "$bpwork" push -qu origin mgr-free-hm
-git -C "$bpwork" checkout -q main
-out="$(bp)"
-refute "a hand-merged free still holds its owner" "free gone-hm (agent" "$out"
-refute "and its manager's branch is never offered" "free mgr-free-hm (agent" "$out"
-# A retired claim past the stale window: its session is gone and no pull
-# request merged it; nothing else can release it, so it holds nothing (round 4).
-git -C "$bpwork" checkout -qb gone-st main
-bpplan "${bpwork}/docs/plans/fst.md" fst normal
-git -C "$bpwork" add -A
+  git -C "$bpwork" commit -qm "claim and plan q2"
+git -C "$bpwork" rm -q docs/handover/q2.md
 GIT_COMMITTER_DATE='2026-01-01T00:00:00Z' GIT_AUTHOR_DATE='2026-01-01T00:00:00Z' \
-  git -C "$bpwork" commit -qm "file fst, long ago"
-git -C "$bpwork" push -qu origin gone-st
-git -C "$bpwork" checkout -qb mgr-free-st main
-mkdir -p "${bpwork}/docs/handover"
-printf -- '---\nworkstream: free-gone-st\nstatus: in-progress\nbranch: mgr-free-st\npr: none\nplan: none\nagent: sonnet\nupdated: 2026-01-01\nnext: Free\n---\n\n## Goal\nFixture.\n' \
-  >"${bpwork}/docs/handover/free-gone-st.md"
-git -C "$bpwork" add -A
-GIT_COMMITTER_DATE='2026-01-02T00:00:00Z' GIT_AUTHOR_DATE='2026-01-02T00:00:00Z' \
-  git -C "$bpwork" commit -qm "claim free gone-st"
-GIT_COMMITTER_DATE='2026-01-02T00:00:00Z' GIT_AUTHOR_DATE='2026-01-02T00:00:00Z' \
-  git -C "$bpwork" merge -q --no-ff -m "free: merge gone-st (fixture)" gone-st
-git -C "$bpwork" rm -q docs/handover/free-gone-st.md
-GIT_COMMITTER_DATE='2026-01-02T00:00:00Z' GIT_AUTHOR_DATE='2026-01-02T00:00:00Z' \
-  git -C "$bpwork" commit -qm "retire the free claim, then the session died"
-git -C "$bpwork" push -qu origin mgr-free-st
+  git -C "$bpwork" commit -qm "retire q2's claim"
+git -C "$bpwork" push -qu origin edge-q2
 git -C "$bpwork" checkout -q main
-# A builder file named free-* for a plan of that name is no free claim
-# (round 4): its branch, cut from an owner, never holds it.
-git -C "$bpwork" checkout -qb gone-ft main
-bpplan "${bpwork}/docs/plans/fft.md" fft normal
-git -C "$bpwork" add -A
-GIT_COMMITTER_DATE='2026-01-01T00:00:00Z' GIT_AUTHOR_DATE='2026-01-01T00:00:00Z' \
-  git -C "$bpwork" commit -qm "file fft, long ago"
-git -C "$bpwork" push -qu origin gone-ft
-git -C "$bpwork" checkout -qb build-ft gone-ft
-mkdir -p "${bpwork}/docs/handover"
-printf -- '---\nworkstream: free-text\nstatus: in-progress\nbranch: build-ft\npr: none\nplan: free-text\nagent: sonnet\nupdated: 2026-01-01\nnext: Build\n---\n\n## Goal\nFixture.\n' \
-  >"${bpwork}/docs/handover/free-text.md"
-commit_all "$bpwork" "builder of plan free-text"
-git -C "$bpwork" push -qu origin build-ft
-git -C "$bpwork" checkout -q main
-out="$(bp)"
-expect "a stale retired free claim no longer holds its owner" "  free gone-st (agent: sonnet)  FREEABLE" "$out"
-expect "a free-* file that is a builder's, not a claim, holds nothing" \
-  "  free gone-ft (agent: sonnet)  FREEABLE" "$out"
-# A released free claim lends nothing: its owner is offered again (r4).
-git -C "$bpwork" checkout -qb gone-w main
-bpplan "${bpwork}/docs/plans/fw.md" fw normal
-git -C "$bpwork" add -A
-GIT_COMMITTER_DATE='2026-01-01T00:00:00Z' GIT_AUTHOR_DATE='2026-01-01T00:00:00Z' \
-  git -C "$bpwork" commit -qm "file w, long ago"
-git -C "$bpwork" push -qu origin gone-w
-git -C "$bpwork" checkout -qb mgr-free-w main
-git -C "$bpwork" merge -q --no-ff -m "free: merge gone-w (fixture)" gone-w
-mkdir -p "${bpwork}/docs/handover"
-printf -- '---\nworkstream: free-gone-w\nstatus: abandoned\nbranch: mgr-free-w\npr: none\nplan: none\nagent: sonnet\nupdated: 2026-01-01\nnext: Released\n---\n\n## Goal\nFixture.\n' \
-  >"${bpwork}/docs/handover/free-gone-w.md"
-commit_all "$bpwork" "free claim released"
-git -C "$bpwork" push -qu origin mgr-free-w
-git -C "$bpwork" checkout -q main
-# A branch cut from the owner frees nothing: it never hides the owner (v4).
-git -C "$bpwork" checkout -qb prod-w gone-w
-printf 'product\n' >"${bpwork}/prod-w.txt"
-commit_all "$bpwork" "product work on top of gone-w"
-git -C "$bpwork" push -qu origin prod-w
-git -C "$bpwork" checkout -q main
-out="$(bp)"
-expect "a released free claim offers its owner again" "  free gone-w (agent: sonnet)  FREEABLE" "$out"
-# A done free claim with no merge pushed holds no key: the owner is offered
-# (round 2, v2: a refusal must not park it for the stale window).
-git -C "$bpwork" checkout -qb gone-d main
-bpplan "${bpwork}/docs/plans/fd.md" fd normal
-git -C "$bpwork" add -A
-GIT_COMMITTER_DATE='2026-01-01T00:00:00Z' GIT_AUTHOR_DATE='2026-01-01T00:00:00Z' \
-  git -C "$bpwork" commit -qm "file fd, long ago"
-git -C "$bpwork" push -qu origin gone-d
-git -C "$bpwork" checkout -qb mgr-free-d main
-mkdir -p "${bpwork}/docs/handover"
-printf -- '---\nworkstream: free-gone-d\nstatus: done\nbranch: mgr-free-d\npr: none\nplan: none\nagent: sonnet\nupdated: 2026-01-01\nnext: Nothing\n---\n\n## Goal\nFixture.\n' \
-  >"${bpwork}/docs/handover/free-gone-d.md"
-commit_all "$bpwork" "a done free claim, no merge"
-git -C "$bpwork" push -qu origin mgr-free-d
-git -C "$bpwork" checkout -q main
-# A branch that merges the owner but never claimed a free holds nothing,
-# whatever its merge subject says (round 3).
-git -C "$bpwork" checkout -qb spoof-d main
-git -C "$bpwork" merge -q --no-ff -m "free: merge gone-d (spoof)" gone-d
-git -C "$bpwork" push -qu origin spoof-d
-git -C "$bpwork" checkout -q main
-out="$(bp)"
-expect "a done free claim with no merge does not hide its owner" \
-  "  free gone-d (agent: sonnet)  FREEABLE" "$out"
-# Parked on a human: never offered, however old (r2).
+# Parked on a human: never a release line, however old (r2).
 git -C "$bpwork" checkout -qb held-h main
 bpplan "${bpwork}/docs/plans/fh.md" fh normal
 mkdir -p "${bpwork}/docs/handover"
@@ -655,24 +526,12 @@ GIT_COMMITTER_DATE='2026-01-01T00:00:00Z' GIT_AUTHOR_DATE='2026-01-01T00:00:00Z'
 git -C "$bpwork" push -qu origin held-h
 git -C "$bpwork" checkout -q main
 out="$(bp)"
-refute "a branch parked on a human is never FREEABLE" "free held-h (agent" "$out"
-# A free claim at done is mid-retire: listed, no slot.
-bpslots0="$(sed -n 's/^slots     : \([0-9][0-9]*\) of.*/\1/p' <<<"$out")"
-git -C "$bpwork" checkout -qb mgr-free-held main
-mkdir -p "${bpwork}/docs/handover"
-printf -- '---\nworkstream: free-held-h\nstatus: done\nbranch: mgr-free-held\npr: none\nplan: none\nagent: sonnet\nupdated: 2026-01-01\nnext: free refused: held-h is blocked\n---\n\n## Goal\nFixture.\n' \
-  >"${bpwork}/docs/handover/free-held-h.md"
-commit_all "$bpwork" "free refused"
-git -C "$bpwork" push -qu origin mgr-free-held
-git -C "$bpwork" checkout -q main
-out="$(bp)"
-expect "a done free claim is listed" \
-  "  free-held-h  mgr-free-held  done  pushed 0m  done: holds no slot" "$out"
-expect "and holds no slot" "slots     : ${bpslots0:-x} of" "$out"
+refute "a retired claim's edge is no no-claim line" "release   : edge-q2" "$out"
+refute "a branch parked on a human is never a release line" "release   : held-h" "$out"
 
-# --- a freer is a role: beyond the cap, under any verdict but PAUSED --------
-# Own fixture: nothing on the queue but one FREEABLE row, so the verdict is the
-# DRAINED one that would otherwise say exit.
+# --- a stale done branch: the release reason, no role -------------------------
+# Own fixture: nothing on the queue but one done branch, so the verdict is the
+# DRAINED one that says exit, and the release line is the work left.
 frwork="${TMP}/freerwork"
 frorigin="${TMP}/freerorigin.git"
 git init -q --bare "$frorigin"
@@ -694,32 +553,18 @@ fr() { ( cd "$frwork" && env JOHARNESS_CONF="$frconf" DRAIN_FETCH=0 \
 git -C "$frwork" checkout -qb carry-dr main
 printf -- '---\nworkstream: carry-dr\nstatus: done\nbranch: carry-dr\npr: none\nplan: dr\nagent: sonnet\nupdated: 2026-01-01\nnext: Nothing\n---\n\n## Goal\nFixture.\n' \
   >"${frwork}/docs/handover/carry-dr.md"
-commit_all "$frwork" "carrier finds dr done"
+git -C "$frwork" add -A
+GIT_COMMITTER_DATE='2026-01-01T00:00:00Z' GIT_AUTHOR_DATE='2026-01-01T00:00:00Z' \
+  git -C "$frwork" commit -qm "carrier finds dr done, long ago"
 git -C "$frwork" push -qu origin carry-dr
 git -C "$frwork" checkout -q main
 out="$(fr)"
-expect "a lone FREEABLE row keeps the drained orchestrator from exiting" \
-  "verdict   : DRAINED — nothing free, nothing in flight; a role is due: spawn it" "$out"
-expect "and the tail line says to spawn the freer" \
-  "freer DUE: spawn ONE freer (agent: sonnet) on the first FREEABLE row above" "$out"
-out="$(fr JOHARNESS_MAX_MANAGERS=0)"
-expect "the human's pause holds the freer row" \
-  "  free carry-dr (agent: sonnet)  HOLD — JOHARNESS_MAX_MANAGERS=0 is the human's pause" "$out"
-refute "and prints no freer spawn under it" "freer DUE" "$out"
-# A BLOCKED freer is still in flight, as a blocked curator is: no second one
-# beside it. It holds no slot either way.
-git -C "$frwork" checkout -qb mgr-free-x main
-mkdir -p "${frwork}/docs/handover"
-printf -- '---\nworkstream: free-x\nstatus: blocked\nbranch: mgr-free-x\npr: none\nplan: none\nsession: https://example.invalid/session_fx\nagent: sonnet\nupdated: 2026-01-01\nnext: conflict: x does not merge clean\n---\n\n## Goal\nFixture.\n' \
-  >"${frwork}/docs/handover/free-x.md"
-commit_all "$frwork" "a freer blocks"
-git -C "$frwork" push -qu origin mgr-free-x
-git -C "$frwork" checkout -q main
-out="$(fr)"
-expect "a blocked freer holds the other FREEABLE row" \
-  "  free carry-dr (agent: sonnet)  HOLD — a freer is in flight" "$out"
-refute "so no second freer spawns" "freer DUE" "$out"
-expect "and it holds no slot" "slots     : 4 of 4 free" "$out"
+expect "a stale done branch is a release line" \
+  "release   : carry-dr  done, no pull request  docs/handover/carry-dr.md" "$out"
+expect "and due" "release DUE: carry-dr" "$out"
+refute "no freer spawns" "freer DUE" "$out"
+expect "and no role is due for it: the verdict is the drained exit" \
+  "verdict   : DRAINED — nothing free, nothing in flight: exit" "$out"
 
 # --- time against the item: CEILING? (issue #298) ---------------------------
 # A manager that pushes inside the stall window and under the churn limit read
@@ -946,15 +791,15 @@ expect "the row still stalls, so the refute below reads a live case" \
   "STALL? no push for 100h" "$out"
 refute "a base that moved prints no stopped-fleet line" "suspect a stopped fleet" "$out"
 
-# The janitor row on a view nobody refreshed: a stale remote-tracking ref can
-# name a branch already deleted on origin (#397), so the row carries the same
+# The release line on a view nobody refreshed: a stale remote-tracking ref can
+# name a branch already deleted on origin (#397), so the line carries the same
 # stale-clone caveat as the fleet line. A 1h window makes the 100h claim stale.
 sfjan="this clone is stale: fetch failed, DISPATCH_FETCH=0, or a remote.origin.fetch that does not reach refs/heads/*"
 out="$(sf env HANDOVER_STALE_SECONDS=3600)"
-expect "an old claim with no pr: is a janitor row" "janitor   : stale claim(s) on" "$out"
+expect "an old claim with no pr: is a release line" "  stale, session gone?  " "$(grep '^release   :' <<<"$out" || :)"
 expect "and an unrefreshed view says the clone may be stale on that row" \
-  "$sfjan" "$(grep '^janitor   :' <<<"$out" || :)"
+  "$sfjan" "$(grep '^release   :' <<<"$out" || :)"
 out="$(sf env HANDOVER_STALE_SECONDS=3600 DISPATCH_FETCH=1)"
-expect "a fetched view still names the stale claim" "janitor   : stale claim(s) on" "$out"
+expect "a fetched view still names the stale claim" "  stale, session gone?  " "$(grep '^release   :' <<<"$out" || :)"
 refute "and carries no caveat on that row" "this clone is stale" \
-  "$(grep '^janitor   :' <<<"$out" || :)"
+  "$(grep '^release   :' <<<"$out" || :)"

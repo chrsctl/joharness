@@ -6,7 +6,7 @@ effort: high
 needs: none
 requirement: none
 issue: none
-scope: shared:README.md, shared:joharness.sh, shared:.claude/commands/orchestrate.md, shared:.claude/commands/manage.md, .agents/docs/manage-reference.md, shared:.agents/docs/orchestrated.md, shared:.agents/docs/orchestrate-reference.md, .agents/docs/handover/README.md, shared:.agents/harness/AGENTS.md, .agents/harness/handover-context.sh, shared:.agents/harness/selftest.sh, .agents/harness/selftest/janitor.sh, .agents/harness/selftest/halt.sh, .agents/harness/selftest/free.sh, .agents/harness/selftest/guard.sh, .agents/harness/selftest/dispatch.sh, .agents/harness/selftest/dispatch-branch-plans.sh, .agents/harness/selftest/dispatch-rescope.sh, .agents/harness/selftest/fast-lane.sh
+scope: shared:README.md, shared:joharness.sh, shared:.claude/commands/orchestrate.md, shared:.claude/commands/manage.md, .agents/docs/manage-reference.md, shared:.agents/docs/orchestrated.md, shared:.agents/docs/orchestrate-reference.md, .agents/docs/handover/README.md, shared:.agents/harness/AGENTS.md, .agents/harness/handover-context.sh, shared:.agents/harness/selftest.sh, .agents/harness/selftest/janitor.sh, .agents/harness/selftest/halt.sh, .agents/harness/selftest/release.sh, .agents/harness/selftest/cleanup.sh, .agents/harness/selftest/free.sh, .agents/harness/selftest/guard.sh, .agents/harness/selftest/dispatch.sh, .agents/harness/selftest/dispatch-branch-plans.sh, .agents/harness/selftest/dispatch-rescope.sh, .agents/harness/selftest/fast-lane.sh
 ---
 
 ## Goal
@@ -43,6 +43,9 @@ command, and remove `free` and the freer role.
   - `queue holds it by needs: <stem>`: today's `RELEASABLE` test.
   - `done, no pull request`: Behaviour lost 2.
 
+  A blocked claim the queue holds by a needs: edge is listed once, by that
+  reason, never as "never released": the needs: write releases it.
+
   A fourth line kind, `no claim: plans not landed: <stems>`, is report-only
   (Behaviour lost 3): `release <branch>` refuses it.
 - **`./joharness.sh release <branch>...`: the write.** It releases each
@@ -61,6 +64,7 @@ command, and remove `free` and the freer role.
 - **Commit subjects:**
   - `release: session gone` and `release: the queue holds <plan> by a
     needs: edge`;
+  - `release: done, no pull request`, with the stale reason's `next:`;
   - `release: a human released the claim`, keeping halt's `next:` wording.
 - **guard:** `guard release <branch> [--human] [--expect <sha>]`, where
   `--human` skips the `pr:` check, and `guard record <branch> [--expect
@@ -78,8 +82,9 @@ command, and remove `free` and the freer role.
 
 - `cmd_free`, `free_key`, `free_path_ok`, `free_owner_held`,
   `free_plan_claimed`, `dispatch_freeable` and `free_claimed_ever`.
-- The `free-*` handling in rescope, the `n_freer` count, and the freer's
-  terms in `role_will_spawn`.
+- The `free-*` handling in rescope, dispatch's in-flight walk over
+  `free-*` claims, the `n_freer` and `n_freer_live` counts (and their term
+  in the slot arithmetic), and the freer's terms in `role_will_spawn`.
 - The freer's `## Roles` row in orchestrated.md, its spawn-table row in
   orchestrate-reference.md, and README.md's Freer row.
 - manage.md's free route, manage-reference.md § Free (with its `ref §`
@@ -105,6 +110,9 @@ merged `free-*` branch on origin/main.**
 
 **Docs:**
 
+- orchestrate-reference.md § Release's ledger rule reads the `release   :`
+  lines the WRITE prints (`release <branch>`), never the report's or
+  dispatch's.
 - Every janitor, halt, release, free and freer mention in orchestrate.md,
   orchestrated.md, orchestrate-reference.md (§GUARD, spawn table),
   handover/README.md, README.md, and the handover-context.sh comment.
@@ -113,8 +121,10 @@ merged `free-*` branch on origin/main.**
 
 **Tests:**
 
-- Fold the janitor.sh and halt.sh cases into one release topic in the
-  `selftest.sh` topic list. The report cases (`holds:`, `pr:` exempt,
+- Fold the janitor.sh and halt.sh cases into one topic file,
+  `.agents/harness/selftest/release.sh`, listed as `release` in the
+  `selftest.sh` topic list; janitor.sh and halt.sh go.
+- cleanup.sh pins the five merged branch names cleanup now prints. The report cases (`holds:`, `pr:` exempt,
   candidates) move to `./joharness.sh release` output.
 - Rewrite the release, FREEABLE and janitor needles in dispatch.sh,
   dispatch-branch-plans.sh, dispatch-rescope.sh and fast-lane.sh.
