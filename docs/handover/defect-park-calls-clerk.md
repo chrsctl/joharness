@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK6ujSkf22kYBVj7zeA
 agent: opus
 updated: 2026-10-28
-next: Run ci and verify, then verifier at opus, then step 7
+next: Await ci rerun and verifier, record findings in Review, then step 7
 ---
 
 ## Goal

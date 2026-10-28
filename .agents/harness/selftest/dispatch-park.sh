@@ -644,7 +644,6 @@ expect "a stem equal to the reason word: still the human's" "BLOCKED: the human'
 # --- a park on an unplanned defect makes the clerk due early ---------------
 # Its own repo: the clerk cycle must read live (clerk.md present, a fetch that
 # reaches refs/heads/*), and the clerk's landing date is the question.
-unset JOHARNESS_DEFECT_CLERK_HOURS
 ckwork="${TMP}/ckwork"
 ckorigin="${TMP}/ckorigin.git"
 git init -q --bare "$ckorigin"
@@ -701,7 +700,7 @@ ckpark() {
   git -C "$ckwork" checkout -q main
 }
 ckx() { ( cd "$ckwork" && JOHARNESS_CONF="$ckconf" DRAIN_FETCH=0 "$@" ./joharness.sh dispatch 2>&1 ); }
-ckc() { ( cd "$ckwork" && JOHARNESS_CONF="$ckconf" "$@" ./joharness.sh clerk 2>&1 ); }
+ckc() { ( cd "$ckwork" && JOHARNESS_CONF="$ckconf" ./joharness.sh clerk 2>&1 ); }
 
 out="$(ckx)"
 expect "no park: the cadence alone, 3h of 24h" "clerk     : not due — 3h since the last clerk landed" "$out"
