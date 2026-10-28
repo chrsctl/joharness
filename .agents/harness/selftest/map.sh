@@ -90,12 +90,12 @@ printf 'def permits():\n' >"${mwork}/app/t.py"
 git -C "$mwork" add app/t.py
 idx app 'the application' '## Interface' '- `f.txt:x` — the thing' \
   '- `t.py:Table.permits` — dotted' '- `app/t.py:permits` — from the root' \
-  '- `127.0.0.1:8000` — an address, not a file' '## Verify' '- `make x:nosuch` (Makefile)'
+  '- `127.0.0.1:8000` — an address, not a file' '## Verify' '- `f.txt:nosuch` (not an interface line)'
 out="$(map_run)"
 refute "a dotted symbol is found by its last name" "Table.permits" "$out"
 refute "a path from the repo root resolves" "app/t.py:permits" "$out"
 refute "an address is not a file reference" "127.0.0.1" "$out"
-refute "only Interface lines are reference-checked" "x:nosuch" "$out"
+refute "only Interface lines are reference-checked" "f.txt:nosuch" "$out"
 git -C "$mwork" checkout -q -- app/INDEX.md
 git -C "$mwork" rm -q --cached app/t.py; rm -f "${mwork}/app/t.py"
 mkdir -p "${mwork}/web"; printf 'x\n' >"${mwork}/web/f.txt"

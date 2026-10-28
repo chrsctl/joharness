@@ -30,6 +30,8 @@ kept. Fix: an index states only what a reader can check.
 
 ## Review
 
+- r1: mutation — new selftest against origin/main's joharness.sh, `ci` 2026-10-28: 3 cases FAIL (dotted symbol, repo-root path, address); the fourth (Interface-only) passed without the fix because `make x:nosuch` never matched a file — now `f.txt:nosuch` under `## Verify` (fixed)
+
 ## Blockers
 
 None.
