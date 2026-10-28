@@ -7,7 +7,7 @@ needs: none
 requirement: none
 serves: all
 issue: none
-scope: shared:joharness.sh, .agents/harness/selftest/dispatch.sh, .agents/harness/selftest/dispatch-order.sh, shared:.agents/harness/selftest/dispatch-park.sh, .agents/harness/selftest/queue-context-core-only.sh, shared:.agents/docs/orchestrated.md, .agents/docs/plans.md, .agents/docs/manage-reference.md, .agents/docs/orchestrate-reference.md, shared:.claude/commands/orchestrate.md, .claude/commands/manage.md
+scope: shared:joharness.sh, .agents/harness/queue-context.sh, .agents/harness/selftest/dispatch.sh, .agents/harness/selftest/dispatch-order.sh, shared:.agents/harness/selftest/dispatch-park.sh, .agents/harness/selftest/queue-context-core-only.sh, shared:.agents/docs/orchestrated.md, .agents/docs/plans.md, .agents/docs/manage-reference.md, .agents/docs/orchestrate-reference.md, shared:.claude/commands/orchestrate.md, .claude/commands/manage.md
 ---
 
 ## Goal
@@ -30,9 +30,10 @@ The one missing piece is that dispatch never spawns the manager.
 
 ## Scope
 
+- `.agents/harness/queue-context.sh`: the hook already ranks a `CORE ONLY` plan after every free plan (`rank + 2`), but leaves it out of the free set, so it gets no `wave`, `WAIT` or `in flight: … overlaps` line. An unclaimed, unblocked `CORE ONLY` plan joins the free set after every plan ranked free, so overlaps hold and wave it like any other. The edge line stops naming `CORE ONLY`.
 - `joharness.sh` (dispatch):
   - A `CORE ONLY` plan becomes spawnable. It is ranked after every free plan, so it never takes a slot ahead of work that needs no human. Its spawn row says the core edit goes in a `human/<stem>` pull request a human merges.
-  - Replace the `NOT YOURS — CORE ONLY` block, and the wait line `<n> plan(s) wait on a human core edit`. The new wait line counts open `human/` pull requests holding a claim at `core path: waiting on #<N>`: `<n> pull request(s) wait on a human merge: #<N> …`. This is read from git and the claims (as RESUME is today), never from the GitHub API.
+  - Replace the `NOT YOURS — CORE ONLY` block, and the wait line `<n> plan(s) wait on a human core edit`. The new wait line counts the pull requests named by claims parked at `core path: waiting on #<N>` whose merge the base does not carry yet (git cannot tell open from closed; a closed one stays listed until the human answers the block): `<n> pull request(s) wait on a human merge: #<N> …`. This is read from git and the claims (as RESUME is today), never from the GitHub API.
   - `DRAINED` stays the verdict when nothing is left but claims parked on a human merge.
 - `.agents/harness/selftest/dispatch.sh`, `.agents/harness/selftest/dispatch-order.sh`, `.agents/harness/selftest/dispatch-park.sh`, `.agents/harness/selftest/queue-context-core-only.sh`:
   - A `CORE ONLY` plan is spawned when slots are free and no free plan is waiting.
@@ -44,31 +45,35 @@ The one missing piece is that dispatch never spawns the manager.
   2. builds the core edit in the `human/<stem>` worktree, with `ci` green there;
   3. opens and labels that pull request.
 
-  If its Acceptance needs the core edit merged (a CI job that must run green, a hook that must be registered), it blocks `core path: waiting on #<N>`. Once resumed, it verifies and retires as normal. The retire (plan and requirement deletion) may ride in the `human/` pull request when the whole plan is the core edit, as chrsctl/gx#1041 did. Say which way in Decisions.
+  If its Acceptance needs the core edit merged (a CI job that must run green, a hook that must be registered), it blocks `core path: waiting on #<N>`. Once resumed, it verifies and retires as normal. The retire stays on the manager's own branch: the `human/` pull request carries ONLY the core-path edit (§ Human remainder step 2).
 - `.claude/commands/orchestrate.md` / `.agents/docs/orchestrate-reference.md`:
-  - remove "never spawning on it" for `CORE ONLY`;
+  - remove "Never spawn on it" (`orchestrate-reference.md` § Core wait) and the lead drop on `CORE ONLY` (`orchestrate.md`, `orchestrate-reference.md`): the stem now has a manager;
   - the orchestrator pushes the new wait line's pull request links to the human once per run, so the human's only action is a merge.
-- `.agents/docs/orchestrated.md` (Bounds, "A `CORE ONLY` plan is a wait on a human") and `.agents/docs/plans.md` ("A core path in `scope:`"): rewrite to "the agent builds it, a human merges it". The human's split-by-hand move goes.
+- `.agents/docs/orchestrated.md` (the `dispatch` wait line table row, Bounds including the de-rank rationale and "A `CORE ONLY` plan is a wait on a human", The one stop) and `.agents/docs/plans.md` ("A core path in `scope:`"): rewrite to "the agent builds it, a human merges it". The human's split-by-hand move goes.
 
 ## Assumptions
 
 - A1: A manager can already open a labelled `human/<stem>` PR for a core edit — evidence: `.agents/docs/manage-reference.md:Human remainder` — confidence: high
 - A2: `core path: waiting on #<N>` blocks hold no slot and RESUME on merge — evidence: `.agents/docs/orchestrate-reference.md:Resume` (`PARKED #<n> RESUME — #<n> merged`) — confidence: high
 - A3: The core-path guarantee is CODEOWNERS plus branch protection, not dispatch's ranking, so spawning does not weaken it — evidence: `.agents/docs/orchestrated.md` Bounds ("`.github/CODEOWNERS` … is the guarantee") — confidence: high
-- A4: The Stop guard and the queue hook still refuse a core-path commit on a non-`human/` branch — evidence: `joharness.sh:protocol_paths` readers — confidence: medium. Confirm before changing the ranking.
+- A4: The Stop guard still flags a core-path change on the manager's branch — evidence: `.agents/harness/handover-guard.sh` reads `./joharness.sh protocol-paths` — confidence: high. (The queue hook only marks; it refuses nothing.)
 
 ## Out of scope
 
 - Letting any session merge a core-path pull request. The human still merges, the `human-review` label stays, and only a human removes it.
 - Changing the core-path list.
 - Reading GitHub from harness commands (git only, as today).
+- `ci`'s refusal of an added plan whose `scope:` is core paths ONLY (`joharness.sh:lint_plans_in_diff`, `.claude/commands/clerk.md`): follow-up plan `core-only-scope-lint`.
 
 ## Acceptance
 
-- `bash .agents/harness/selftest.sh` (or the dispatch selftests it runs): every new case passes, and existing cases are unchanged apart from the CORE ONLY wording they assert.
-- `./joharness.sh ci` and `./joharness.sh verify` are green.
-- Fixture with one free plan and one `CORE ONLY` plan, 2 slots: `./joharness.sh dispatch` lists both under `spawn`, the free plan first, and prints no `NOT YOURS — CORE ONLY` block.
-- Consumer-side check: after sync, a consumer's dispatch spawns its `CORE ONLY` plans instead of printing the wait line.
+- `bash .agents/harness/selftest.sh` prints `0 failed`, with these cases among the passes (fails before this change):
+  - `dispatch.sh`: a lone partly-core plan, 4 slots — its spawn row carries `CORE ONLY — build it`, the verdict reads `NOT DRAINED — 1 free item(s) now`, and no `NOT YOURS` line prints.
+  - `dispatch-order.sh`: one free plan and one `CORE ONLY` plan, 2 slots — both under `spawn`, the free plan's row first.
+  - `dispatch.sh`: a `CORE ONLY` plan whose scope overlaps a claimed plan reads `HOLD — overlaps`.
+  - `dispatch-park.sh`: a claim parked `core path: waiting on #77` holds no slot and prints `1 pull request(s) wait on a human merge: #77 (own-w)`; once `#77` merges, the line is gone and the RESUME row prints.
+  - `queue-context-core-only.sh`: a lone `CORE ONLY` plan is free work in the hook (no `Edge reached` line).
+- `./joharness.sh ci` prints `ci: pass`; `./joharness.sh verify` prints `0 failed`.
 
 ## Where to look
 

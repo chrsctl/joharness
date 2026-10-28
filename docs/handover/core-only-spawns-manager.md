@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK5BpmpDmvYP7cKXntH
 agent: opus
 updated: 2026-10-28
-next: Confirm A1-A4, then change dispatch so a CORE ONLY plan spawns after free plans
+next: Build queue-context.sh free set + dispatch spawn row and wait line, then selftests, then docs
 ---
 
 ## Goal
@@ -18,7 +18,14 @@ CORE ONLY plan gets a manager; the human only merges its `human/<stem>` PR.
 
 ## Decisions
 
-- (pending)
+- A1: confirmed — `manage-reference.md` § Human remainder: worktree, `ci`, PR, `human-review` label.
+- A2: confirmed — `joharness.sh:cmd_dispatch` blocked claims raise `n_blocked`; `awaited_pr_merged` gives `PARKED #<n> RESUME — #<n> merged`.
+- A3: confirmed — `.github/CODEOWNERS` header: "This file is the GUARANTEE".
+- A4: refuted as written — the queue hook marks, refuses nothing; the Stop guard (`handover-guard.sh`) flags any core-path diff. Plan reworded.
+- Retire never rides in the `human/` PR: § Human remainder step 2 keeps it to the core edit only.
+- Wait line reads claims parked `core path: waiting on #<N>` whose merge the base lacks (git cannot see open/closed); printed under every verdict, not only DRAINED: a human merge is news whatever else runs. Ledger key `corewait=<stem>` keeps its name (pinned in orchestrated.sh selftest); stems now name the parked claims.
+- The hook puts unclaimed, unblocked CORE ONLY plans in its free set AFTER every rank-free plan, so overlap holds and waves apply to them.
+- `ci`'s refusal of a core-paths-only added plan stays here; follow-up plan `core-only-scope-lint` in this PR.
 
 ## Rejected
 
@@ -26,7 +33,19 @@ None yet.
 
 ## Review
 
-None yet.
+- r1: (plan-checker) a spawned CORE ONLY plan gets no wave/HOLD: the hook leaves it out of its free set — queue-context.sh added to scope (fixed)
+- r2: (plan-checker) ci still reds a core-paths-only added plan — out of scope, follow-up plan core-only-scope-lint (fixed)
+- r3: (plan-checker) retire in the human/ PR contradicts § Human remainder step 2 — retire stays on the manager branch (fixed)
+- r4: (plan-checker) defect-park-calls-clerk edits the same dispatch lines — wontfix: both declare shared:, reconcile at step 7
+- r5: (plan-checker) acceptance fixture item not runnable — rewritten as named selftest cases (fixed)
+- r6: (plan-checker) consumer-side acceptance not runnable here — dropped; ship-scope covers the sync (fixed)
+- r7: (plan-checker) acceptance item 1 had no expected output and wrong claim — rewritten (fixed)
+- r8: (plan-checker) open PRs cannot be read from git — wait line reads unmerged parked claims (fixed)
+- r9: (plan-checker) A4 half false — reworded (fixed)
+- r10: (plan-checker) orchestrated.md rewrite list incomplete — table row, de-rank rationale, The one stop added (fixed)
+- r11: (plan-checker) lead drop on CORE ONLY not addressed — removed with the never-spawn rule (fixed)
+- r12: (plan-checker) "never spawning on it" quoted from the wrong file — corrected (fixed)
+- r13: (plan-checker) chrsctl/gx history unverified (no change)
 
 ## Blockers
 
