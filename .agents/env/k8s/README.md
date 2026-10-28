@@ -229,6 +229,9 @@ k3d release asset unavailable? `.agents/env/k8s/devenv.sh` falls back to
   storage class present.
 - Cluster state lives in sandbox container, reclaimed at session end. Commit
   and push what matters.
+- Not CI-runnable: no `ci-verify` marker — the cluster needs the sandbox
+  workarounds above, so `./joharness.sh verify` in a session is the only
+  proof this layer works.
 - Restored cluster comes back unhealthy? `cluster-up` deletes and recreates —
   never leaves half-working cluster.
 - cgroups v1 (hybrid). Converting host to v2 deliberately avoided: sandbox

@@ -76,21 +76,26 @@ and don't use up the manager budget:
 | --- | --- |
 | Clerk | Turns open GitHub issues into plans, about once a day. Issues reach the queue only this way. |
 | Surveyor | When plans wait on each other because they seem to touch the same files, checks whether they really do and corrects them. |
-| Scout | Researches new ideas and files them as issues. An idea becomes work only after you approve it. |
+| Scout | Researches new ideas and files them as issues, each with the case against it from a reviewer that didn't write it. An idea becomes work only after you approve it. Reading outside the repo is off until you switch it on. |
 | Retro reviewer | Weekly, in two modes. Audit samples finished work and checks its tests prove the right things. Trace reads the sessions that ended badly, plus audit concerns, and files plans for the checks that would have caught each failure. |
 
 ## How work flows
 
 1. **An idea comes in** — a requirement you write, an issue anyone opens,
    or a scout idea you approve.
-2. **It becomes a plan.** A plan says which files change, what is out of
-   scope, and which commands prove it is done. Nothing is built without
-   one, except tiny fixes.
+2. **It becomes a plan.** A requirement is challenged first — a reader
+   that didn't write it looks for holes — and then split into plans. A
+   plan says which files change, what is out of scope, which commands
+   prove it is done, and which model tier builds it. Nothing is built
+   without one, except tiny fixes. Plans for the bigger tiers get a second
+   reader before building starts.
 3. **The orchestrator hands the plan to a manager** once there is room in
    the budget and no running work overlaps it.
 4. **The manager builds, checks and merges.** All checks must pass, a
    reviewer that didn't write the change must look at it, and the branch must
-   be up to date with `main`. Finished work leaves no files behind.
+   be up to date with `main`. Where GitHub Actions don't run, the manager's
+   final check runs the same checks itself before merging. Finished work
+   leaves no files behind.
 5. **The slot frees up**, and the orchestrator fills it on its next round.
 
 ## How the roles talk to each other
@@ -131,7 +136,8 @@ The start of your prompt decides the role:
 - `/keeper` — the keeper (normally only the hourly heartbeat sends this).
 - anything else — an orchestrator.
 
-`/who` shows which sessions are working on the repo right now.
+`/who` shows which sessions are working on the repo right now. `/map`
+refreshes `docs/MAP.md`, the one-line purpose of each product folder.
 
 ## Commands
 
@@ -140,6 +146,9 @@ The start of your prompt decides the role:
 ./joharness.sh ci         # the checks
 ./joharness.sh verify     # set up the environment and smoke-test it
 ./joharness.sh dispatch   # what is queued and what is running
+./joharness.sh finish     # whether this branch may merge now
+./joharness.sh release    # claims left behind by sessions that are gone
+./joharness.sh conf       # every setting, its live value and where it came from
 ```
 
 ## Add it to your repo
@@ -161,10 +170,13 @@ joharness/.agents/scripts/bootstrap-consumer.sh --env docker ../my-project
 ```
 
 Then follow the steps it prints. To stay current, merge the weekly update
-pull request or run `./joharness.sh upgrade`.
+pull request (opened every Monday) or run `./joharness.sh upgrade`.
 
-Your repo keeps its own `docs/` (requirements, plans, notes) and
-`joharness.conf`; everything else is the harness and gets synced.
+Your repo keeps its own `docs/` (requirements, plans, notes, and
+`docs/MAP.md`, the folder map sessions read before searching the tree) and
+`joharness.conf`; everything else is the harness and gets synced. It
+receives one environment layer — the one its `joharness.conf` names — not
+all of them (`.agents/env/README.md`).
 
 ## License
 
