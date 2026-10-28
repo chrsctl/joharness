@@ -6813,27 +6813,47 @@ defect_issue() {
 # args: <branch> <workstream path> <merge base> <next:> <branch-plan rows>
 # The line lands in DEFECT_STATE, never on stdout.
 DEFECT_STATE=""
+# <commit>: DS_NEXT = the raw next: of dispatch_defect_state's file <ws> at
+# <commit>, kept in its local `nx` (dynamic scope): one `show` per commit
+# though both of its walks read it.
+DS_NEXT=""
+ds_next() {
+  if memo_get "$nx" $'\n'"${1}"$'\t'; then
+    DS_NEXT="$MEMO_VAL"
+  else
+    DS_NEXT="$(git -C "$ROOT" show "${1}:${ws}" </dev/null 2>/dev/null | gr_field_raw next)"
+    nx="${nx}"$'\n'"${1}"$'\t'"${DS_NEXT}"
+  fi
+}
 dispatch_defect_state() {
   local branch="$1" ws="$2" base="$3" next="$4" bprows="$5"
   local ref n h cur prev bh="" bt now age phours fhours rhours retired="" named=0
-  local ft fage
+  local ft fage hist hct nx=""
   local line rh rt p kind b st
   ref="refs/remotes/origin/${branch}"
-  # The caller's next: went through gr_fields, which cut ` #<n>…` as a comment.
-  next="$(git -C "$ROOT" show "${ref}:${ws}" </dev/null 2>/dev/null | gr_field_raw next)"
+  # The caller's next: went through gr_fields, which cut ` #<n>…` as a comment:
+  # the raw line, from the claim file the caller read ($6) or from git.
+  if [ "$#" -ge 6 ]; then
+    next="$6"
+  else
+    next="$(git -C "$ROOT" show "${ref}:${ws}" </dev/null 2>/dev/null | gr_field_raw next)"
+  fi
+  # The file's first-parent history, `<commit> <committer time>` newest
+  # first, read once for both walks below; each commit's next: read once.
+  hist="$(git -C "$ROOT" log --first-parent --format='%H %ct' \
+    "${base:+${base}..}${ref}" -- "$ws" </dev/null 2>/dev/null)"
   n="$(defect_issue "$next")"
   [ -n "$n" ] || { printf -v DEFECT_STATE 'UNREADABLE\t?\t-\t-'; return 0; }
   # The block commit: the oldest commit of the unbroken run, back from the
   # tip, whose file reads this next:. Its first parent must be readable and
   # read otherwise; a shallow boundary or a missing object proves nothing.
   cur="$next"
-  while IFS= read -r h; do
+  while read -r h hct; do
     [ -n "$h" ] || continue
-    [ "$(git -C "$ROOT" show "${h}:${ws}" </dev/null 2>/dev/null | gr_field_raw next)" = "$cur" ] ||
-      break
-    bh="$h"
-  done < <(git -C "$ROOT" log --first-parent --format=%H \
-    "${base:+${base}..}${ref}" -- "$ws" </dev/null 2>/dev/null)
+    ds_next "$h"
+    [ "$DS_NEXT" = "$cur" ] || break
+    bh="$h"; bt="$hct"
+  done <<<"$hist"
   if [ -n "$bh" ]; then
     if git -C "$ROOT" cat-file -e "${bh}^1^{commit}" </dev/null 2>/dev/null; then
       prev="$(git -C "$ROOT" show "${bh}^1:${ws}" </dev/null 2>/dev/null | gr_field_raw next)"
@@ -6845,7 +6865,6 @@ dispatch_defect_state() {
   if [ -z "$bh" ]; then
     printf -v DEFECT_STATE 'UNREADABLE\t%s\t-\t-' "$n"; return 0
   fi
-  bt="$(git -C "$ROOT" log -1 --format=%ct "$bh" </dev/null 2>/dev/null)"
   case "$bt" in '' | *[!0-9]*) printf -v DEFECT_STATE 'UNREADABLE\t%s\t-\t-' "$n"; return 0 ;; esac
   now_s now
   age=$(( (now - bt) / 60 ))
@@ -6854,16 +6873,14 @@ dispatch_defect_state() {
   # it (orchestrate-reference.md, Resume) — its wording only: a KILL
   # handover's or a manager's own `Resume:` closes nothing.
   ft="$bt"
-  while IFS= read -r h; do
+  while read -r h hct; do
     [ -n "$h" ] || continue
-    p="$(git -C "$ROOT" show "${h}:${ws}" </dev/null 2>/dev/null | gr_field_raw next)"
+    ds_next "$h"; p="$DS_NEXT"
     case "${p#[\"\']}" in "Resume: the fix for #${n} merged"*) break ;; esac
     [ "$(defect_issue "$p")" = "$n" ] || continue
-    h="$(git -C "$ROOT" log -1 --format=%ct "$h" </dev/null 2>/dev/null)"
-    case "$h" in '' | *[!0-9]*) continue ;; esac
-    [ "$h" -ge "$ft" ] || ft="$h"
-  done < <(git -C "$ROOT" log --first-parent --format=%H \
-    "${base:+${base}..}${ref}" -- "$ws" </dev/null 2>/dev/null)
+    case "$hct" in '' | *[!0-9]*) continue ;; esac
+    [ "$hct" -ge "$ft" ] || ft="$hct"
+  done <<<"$hist"
   fage=$(( (now - ft) / 60 ))
   [ "$fage" -ge 0 ] || fage=0
   # A retire after the block: a plan file DELETED on the base's first parent,
@@ -8544,7 +8561,8 @@ cmd_dispatch() {
             DS_RECHECK_HOURS="$(num_knob JOHARNESS_DEFECT_RECHECK_HOURS)"
           fi
           # Not in `$(...)`: PNI_MEMO, filled by one parked row, serves the next.
-          dispatch_defect_state "$branch" "$ws" "$base" "$next" "$bprows"
+          dispatch_defect_state "$branch" "$ws" "$base" "$next" "$bprows" \
+            "$(printf '%s\n' "$doc" | gr_field_raw next)"
           IFS=$'\t' read -r dst dn dplan dage <<<"$DEFECT_STATE"
           di="$(lint_stem "$path") (${branch})"
           case "$dst" in
