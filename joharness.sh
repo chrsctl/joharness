@@ -8423,7 +8423,7 @@ cmd_dispatch() {
   # shellcheck disable=SC2034  # gh_ts: ref_fact's push time, not read here
   local gh_head gh_ts gh_tip gh_base n_inflight=0 n_slots n_free=0 n_stall=0 n_blocked=0 n_hold=0 n_wait=0 n_loop=0
   local pending pending_used
-  local n_edge=0 n_edge_stall=0 n_leftover=0 n_leftover_noitem=0
+  local n_edge=0 n_edge_stall=0 n_human_edge=0 n_leftover=0 n_leftover_noitem=0
   local leftover_rows="" estate="" fleet_age stall_young=""
   local rel_stale rel_needs="" rel_line
   local scout_inflight="" n_scout=0 sstate sreason sb sw ss spend
@@ -8642,12 +8642,32 @@ cmd_dispatch() {
       leftover_rows="${leftover_rows}  ?  ${ebranch}  leftover  pushed ${eagetext}  names NO item, so nothing here says a merge is coming, and it has not pushed in ${eagetext} (>= $((stall * 24))m): nothing to look up, nothing to cross-check, so it holds no slot. REPORT it — the human deletes the branch or finishes it by hand."$'\n'
       continue
     fi
-    n_inflight=$((n_inflight + 1))
-    n_edge=$((n_edge + 1))
     # Word count without splitting: the spaces left when everything else is
     # stripped, plus one.
     espaces="${eitem//[! ]/}"
     if [ -z "$eitem" ]; then emore=0; else emore=$(( ${#espaces} + 1 )); fi
+    # `<item>@<branch>`, because the hook holds this item's peers off its
+    # paths and the hold line has to name the branch they are waiting on.
+    if [ -n "$eitem" ]; then
+      for epath in $eitem; do
+        edge_items="${edge_items} ${epath}@${ebranch} "
+      done
+    fi
+    # A human/<stem> branch's pull request is merged by a human (Loop step 2),
+    # so past its retire commit nothing is left for a manager: like a blocked
+    # claim it holds no slot, and its push age says nothing. Its items stay
+    # withheld above, so no peer is spawned on them.
+    case "$ebranch" in
+      human/*)
+        n_human_edge=$((n_human_edge + 1))
+        edge_rows="${edge_rows}  ${efirst:-?}  ${ebranch}  retired  pushed ${eagetext}  retired, no claim file — a human/ branch: its pull request waits on a human merge, so it holds NO slot. Never respawn on it"
+        [ "$emore" -le 1 ] ||
+          edge_rows="${edge_rows} (and $((emore - 1)) more item(s) retired here: ${eitem#* })"
+        edge_rows="${edge_rows}"$'\n'
+        continue ;;
+    esac
+    n_inflight=$((n_inflight + 1))
+    n_edge=$((n_edge + 1))
     edge_rows="${edge_rows}  ${efirst:-?}  ${ebranch}  retired  pushed ${eagetext}  retired, no claim file — a pull request is expected; this reader does not read pull request state — the health pass does: step 7 retired the workstream file before the pull request opened, so this branch commits a slot and names no owner"
     [ "$emore" -le 1 ] ||
       edge_rows="${edge_rows} (and $((emore - 1)) more item(s) retired here: ${eitem#* })"
@@ -8670,13 +8690,6 @@ cmd_dispatch() {
         # blind onto a branch nobody can name is two sessions on one branch.
         edge_rows="${edge_rows}    STALL? no push for ${eagetext} (>= ${stall}m): this row names no item, so there is no title to look up and no successor to spawn. REPORT it to the human — merging or retiring that branch is what frees the slot"$'\n'
       fi
-    fi
-    # `<item>@<branch>`, because the hook holds this item's peers off its
-    # paths and the hold line has to name the branch they are waiting on.
-    if [ -n "$eitem" ]; then
-      for epath in $eitem; do
-        edge_items="${edge_items} ${epath}@${ebranch} "
-      done
     fi
   done <<<"$(dispatch_retired_edges)"
 
@@ -9420,6 +9433,9 @@ cmd_dispatch() {
   [ "$n_edge" -eq 0 ] ||
     printf '            %s branch(es) at the edge with no claim file: each holds a slot because its item is STILL on %s, so that merge has not landed. The control plane says what to do about the session, never whether the slot is real\n' \
       "$n_edge" "${HANDOVER_BASE_BRANCH:-main}"
+  [ "$n_human_edge" -eq 0 ] ||
+    printf '            %s human/ branch(es) at the edge waiting on a human merge: NOT counted, never respawned\n' \
+      "$n_human_edge"
   if [ "$n_leftover" -gt 0 ]; then
     printf '            %s leftover branch(es) listed and NOT counted' "$n_leftover"
     [ "$n_leftover" -eq "$n_leftover_noitem" ] ||

@@ -164,7 +164,7 @@ GUARD `<verb>`, before every push onto a manager's branch → ref § GUARD.
 
 ## 3. Spawn
 
-Managers: up to `slots`, dispatch's order, rows under `spawn` only. A ledger `held-human=<pr>` entry holds no slot (dropped per ref § Held by human): spawn up to `slots` plus the number of such entries whose branch dispatch still lists as `retired, no claim file`.
+Managers: up to `slots`, dispatch's order, rows under `spawn` only. A ledger `held-human=<pr>` entry holds no slot (dropped per ref § Held by human): spawn up to `slots` plus the number of such entries whose branch dispatch still lists as `retired, no claim file` and counts (a `human/` row says `holds NO slot`: dispatch already freed it).
 `JOHARNESS_MAX_MANAGERS` caps managers only. Every role session (clerk,
 scout, retro reviewer (audit or trace), surveyor) runs beyond it and holds no
 slot: spawn its line even with every slot full, at most one of each in
