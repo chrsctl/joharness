@@ -8188,6 +8188,27 @@ awaited_pr_merged() {
       END { exit !f }'
 }
 
+# <tab table> <key>: the lines whose first field is <key>, read as
+# `awk -F'\t' '$1 == key'` reads them, in builtins (dispatch asks per free
+# plan): TR_F2 and TR_F3 the first such line's second and third fields,
+# TR_ALL every such line's second field, newline-joined.
+TR_F2="" TR_F3="" TR_ALL=""
+tab_rows() {
+  local l f1 f2 f3 hit=0
+  TR_F2=""; TR_F3=""; TR_ALL=""
+  while IFS= read -r l; do
+    f1="${l%%$'\t'*}"
+    [ "$f1" = "$2" ] || continue
+    f2=""; f3=""
+    if [ "$f1" != "$l" ]; then
+      l="${l#*$'\t'}"; f2="${l%%$'\t'*}"
+      [ "$f2" = "$l" ] || { f3="${l#*$'\t'}"; f3="${f3%%$'\t'*}"; }
+    fi
+    if [ "$hit" -eq 0 ]; then TR_F2="$f2"; TR_F3="$f3"; TR_ALL="$f2"; hit=1
+    else TR_ALL="${TR_ALL}"$'\n'"${f2}"; fi
+  done <<<"$1"
+}
+
 cmd_dispatch() {
   local cap stall health passes respawn churnt churnl hout qout rows wavemap edge req sup
   local path label branch ws doc status session next age agetext flag tier
@@ -8217,7 +8238,7 @@ cmd_dispatch() {
   local inflight="" free="" questions=""
   local n_parked=0 n_fixed=0 n_resume=0 n_recheck=0 parked_lines="" dst dn dplan dage di ri rtext dresume=0
   local fx_label fx_wait fx_k fx_r fx_c fx_slot fx_lim
-  local bts redge rstem rts n_release=0 release_due=""
+  local bts redge rstem rts n_release=0 release_due="" hseen hst
   local -a fx_rows=() fx_lines=() fx_n=() fx_plan=() fx_di=() fx_kind=()
 
   cap="$(num_knob JOHARNESS_MAX_MANAGERS)"
@@ -8677,14 +8698,16 @@ cmd_dispatch() {
     if [ "$status" != "blocked" ] && [ -n "$holdmap" ]; then
       # Keyed on the CLAIM, not the branch: one branch can carry two workstream
       # files, and each claim holds what ITS scope holds.
-      holds_n="$(printf '%s\n' "$holdmap" |
-        awk -F'\t' -v st="$(lint_stem "$path")" -v b="$branch" '
-          { pre = st " on "
-            suf = " (claimed on " b ")"
-            if (substr($2, 1, length(pre)) == pre &&
-                substr($2, length($2) - length(suf) + 1) == suf &&
-                !seen[$1]++) n++ }
-          END { print n + 0 }')"
+      # Distinct stems whose hold reads `<stem> on … (claimed on <branch>)`.
+      holds_n=0; hseen=$'\n'; hst="$(lint_stem "$path")"
+      while IFS= read -r hline; do
+        hs="${hline%%$'\t'*}"; hb="${hline#*$'\t'}"; hb="${hb%%$'\t'*}"
+        [ "$hs" != "$hline" ] || hb=""
+        case "$hb" in "${hst} on "*) ;; *) continue ;; esac
+        case "$hb" in *" (claimed on ${branch})") ;; *) continue ;; esac
+        case "$hseen" in *$'\n'"${hs}"$'\n'*) continue ;; esac
+        hseen="${hseen}${hs}"$'\n'; holds_n=$((holds_n + 1))
+      done <<<"$holdmap"
       case "$holds_n" in '' | *[!0-9]*) holds_n=0 ;; esac
       [ "$holds_n" -eq 0 ] ||
         flag="${flag}  holds ${holds_n} plan(s) out of the queue"
@@ -8851,13 +8874,19 @@ cmd_dispatch() {
     case "$path" in docs/product/*) continue ;; esac
     # An item whose branch is past the retire commit is not free either.
     case "$edge_items" in *" ${path}@"*) continue ;; esac
-    tier="$(sed -n 's/.*agent: \([a-z]*\).*/\1/p' <<<"$label")"
+    # The last `agent: ` and the lower-case letters after it, as
+    # `sed -n 's/.*agent: \([a-z]*\).*/\1/p'` read it; letters spelled out.
+    tier=""
+    case "$label" in *"agent: "*)
+      tier="${label##*agent: }"
+      tier="${tier%%[!abcdefghijklmnopqrstuvwxyz]*}" ;;
+    esac
     st="${path##*/}"; st="${st%.md}"
     wave=""; note=""
-    { read -r wave; read -r note; } <<<"$(printf '%s\n' "$wavemap" |
-      awk -F'\t' -v s="$st" '$1 == s { print $2; print $3; exit }')"
-    hold="$(printf '%s\n' "$holdmap" |
-      awk -F'\t' -v s="$st" '$1 == s { print $2; exit }')"
+    tab_rows "$wavemap" "$st"
+    read -r wave <<<"$TR_F2"; read -r note <<<"$TR_F3"
+    tab_rows "$holdmap" "$st"
+    hold="${TR_ALL%%$'\n'*}"
     # EVERY holder, not the first.
     hold_live=0
     while IFS= read -r hline; do
@@ -8866,8 +8895,7 @@ cmd_dispatch() {
       # The holder's own claim, out of "<stem> on <path> (claimed on <branch>)".
       hs="${hline%% on *}"
       [ "${blocked_claims#* "${hs}@${hb}" }" != "$blocked_claims" ] || hold_live=1
-    done <<<"$(printf '%s\n' "$holdmap" |
-      awk -F'\t' -v s="$st" '$1 == s { print $2 }')"
+    done <<<"$TR_ALL"
     case "$path" in
       docs/research/*)
         n_free=$((n_free + 1))

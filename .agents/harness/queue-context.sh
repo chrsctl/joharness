@@ -261,6 +261,8 @@ rows_raw="$(
       read -r needs;   read -r requirement; read -r rneeds; read -r scope; } \
       <<<"$(printf '%s\n' "$doc" | fields urgency agent effort needs requirement research scope)"
     requirement="$(stem "$requirement")"
+    # The scope as read here, for scope_split below: no second read.
+    printf 'SCP\t%s\t%s\n' "$f" "$scope"
     # Which of the requirement's clauses this plan serves (#626): one SRV
     # line per plan naming a requirement, read by the listing below.
     if [ -n "$requirement" ] && [ "$requirement" != "none" ]; then
@@ -335,6 +337,12 @@ rows_raw="$(
 )"
 rows="$(awk -F'\t' '$1 == "ROW"' <<<"$rows_raw" | cut -f2- |
   sort -t$'\t' -k1,1n -k2,2n)"
+# Each plan's raw `scope:` as the pass above read it: `\n<path>\t<scope>`.
+plan_scopes="$NL"
+while IFS= read -r l; do
+  case "$l" in "SCP${TAB}"*) l="${l#SCP"${TAB}"}"; plan_scopes="${plan_scopes}${l}${NL}" ;; esac
+done <<<"$rows_raw"
+
 # Stems the open plans route to, one per line — the referenced half of the
 # node test the research listing applies below.
 plan_rrefs="$(awk -F'\t' '$1 == "REF" { print $2 }' <<<"$rows_raw")"
@@ -641,10 +649,17 @@ qc_print_research
 # trailing slashes gone, empty and `none` dropped. One read, then builtins:
 # it runs per free plan and again per claim and per withheld item.
 scope_split() {
-  local raw l nx=0 ns=0
+  local raw l nx=0 ns=0 pre
   local -a parts=()
   SC_X=""; SC_S=""
-  raw="$(git show "${ref}:$1" 2>/dev/null | field scope)"
+  # Read by the plan pass when it listed the file; `%%` and a substring, as
+  # `${var#*key}` is quadratic in bash.
+  case "$plan_scopes" in
+    *"${NL}${1}${TAB}"*)
+      pre="${plan_scopes%%"${NL}${1}${TAB}"*}"
+      raw="${plan_scopes:$((${#pre} + ${#1} + 2))}"; raw="${raw%%"${NL}"*}" ;;
+    *) raw="$(git show "${ref}:$1" 2>/dev/null | field scope)" ;;
+  esac
   IFS=, read -r -a parts <<<"$raw"
   for l in ${parts[@]+"${parts[@]}"}; do
     l="${l#"${l%%[![:space:]]*}"}"
@@ -673,7 +688,14 @@ while IFS=$'\t' read -r rank _ f label _; do
   [ -n "$f" ] || continue
   [ "$rank" -lt 2 ] || continue
   free_count=$((free_count + 1))
-  tier="$(sed -n 's/.*agent: \([a-z]*\).*/\1/p' <<<"$label")"
+  # The last `agent: ` and the lower-case letters after it, as
+  # `sed -n 's/.*agent: \([a-z]*\).*/\1/p'` read it; the letters spelled out,
+  # a glob range following the locale's collation.
+  tier=""
+  case "$label" in *"agent: "*)
+    tier="${label##*agent: }"
+    tier="${tier%%[!abcdefghijklmnopqrstuvwxyz]*}" ;;
+  esac
   free_list="${free_list:+${free_list}, }$(stem "$f") (${tier:-sonnet})"
   free_names+=("$(stem "$f")")
   free_tiers+=("${tier:-sonnet}")
@@ -712,15 +734,16 @@ wave_split_hit() {
 }
 
 # F1: a plan whose scope is ENTIRELY shared paths is scoped, not unscoped.
+# Every overlap, space-joined, in HITS: a variable, as HIT is.
 scopes_overlap_all() {
-  local a b out=""
+  local a b
+  HITS=""
   for a in $1; do
     for b in $2; do
-      case "$a" in "$b" | "$b"/*) out="${out:+${out} }$b"; continue ;; esac
-      case "$b" in "$a"/*) out="${out:+${out} }$a" ;; esac
+      case "$a" in "$b" | "$b"/*) HITS="${HITS:+${HITS} }$b"; continue ;; esac
+      case "$b" in "$a"/*) HITS="${HITS:+${HITS} }$a" ;; esac
     done
   done
-  printf '%s' "$out"
 }
 
 scoped_any=0
@@ -839,7 +862,8 @@ if [ "$free_count" -ge 2 ] && [ "$scoped_any" = "1" ]; then
           # Joining is decided; now record any shared path this plan meets in
           # the wave, so the line can say what reconcile the parallelism costs.
           for m in ${waves[$w]}; do
-            for sh in $(scopes_overlap_all "${free_shared[$i]}" "${free_shared[$m]}"); do
+            scopes_overlap_all "${free_shared[$i]}" "${free_shared[$m]}"
+            for sh in $HITS; do
               case " ${wave_shared[$w]:-} " in
                 *" $sh "*) ;;
                 *) wave_shared[w]="${wave_shared[$w]:-}${wave_shared[$w]:+ }$sh" ;;
