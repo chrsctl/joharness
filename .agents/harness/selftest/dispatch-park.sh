@@ -430,6 +430,10 @@ else
   fail "awaited PR open: the core path: block stays the human's"; printf '%s\n' "$out" | indent
 fi
 refute "awaited PR open: no RESUME" "PARKED #77 RESUME" "$out"
+expect "awaited PRs open: the wait line names each, with the claim it holds" \
+  "            2 pull request(s) wait on a human merge: #7 (own-v), #77 (own-w)" "$out"
+refute "and a block on another reason is not on it" "(own-u)" \
+  "$(grep 'wait on a human merge' <<<"$out")"
 git -C "$dfwork" checkout -qb human/own-w main
 printf 'edit\n' >"${dfwork}/core-edit.txt"
 dfcommit 1 "the human's core edit"
@@ -441,6 +445,8 @@ expect "awaited PR merged: the block RESUMEs, naming the PR" \
   "PARKED #77 RESUME — #77 merged, the human pull request its core path: block waits on" "$out"
 expect "awaited PR merged: listed under the verdict" \
   "            PARKED #77 RESUME own-w (park-w): #77 merged, resume it this pass" "$out"
+expect "awaited PR merged: it leaves the wait line" \
+  "            1 pull request(s) wait on a human merge: #7 (own-v)" "$out"
 if printf '%s\n' "$out" | grep '^  docs/plans/own-v.md' | grep -q 'BLOCKED: the human'"'"'s' &&
    ! printf '%s\n' "$out" | grep -q 'PARKED #7 '; then
   pass "awaited PR #7 is not #77: still the human's"
@@ -481,6 +487,10 @@ dfmerge 12 example/human/other 1 "Merge pull request #78 from example/human/own-
 dfmerge 80 example/feature-r 1
 out="$(dfx)"
 refute "awaited PR merged before the block: no RESUME" "PARKED #79 RESUME" "$out"
+expect "awaited PRs not merged stay on the wait line" "#78 (own-t)" \
+  "$(grep 'wait on a human merge' <<<"$out")"
+refute "a PR merged before the block is no pull request to merge" "#79 (own-s)" \
+  "$(grep 'wait on a human merge' <<<"$out")"
 refute "awaited PR named only in a merge commit's body: no RESUME" "PARKED #78 RESUME" "$out"
 refute "awaited PR from a branch not human/: no RESUME" "PARKED #80 RESUME" "$out"
 

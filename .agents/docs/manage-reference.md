@@ -5,9 +5,11 @@ lines say when to read each; its terms hold here.
 
 ## Human remainder
 
-fits no plan and dies at retire (`.agents/docs/plans.md`,
-"A human remainder"). Home: ONE pull request on branch `human/<stem>`,
-opened before the retire commit, ready for a human to merge:
+A core-path edit — a `CORE ONLY` plan's core part, or one the plan leaves
+to a human — never lands on your branch, and left there it dies at retire
+(`.agents/docs/plans.md`, "A human remainder"). You build it; the human
+only merges it. Home: ONE pull request on branch `human/<stem>`, opened
+before the retire commit, ready for a human to merge:
 
 1. A separate worktree from fresh-fetched `origin/main`, never your own
    tree: `git worktree add -b human/<stem> ../<repo>-human origin/main`.
@@ -26,7 +28,15 @@ opened before the retire commit, ready for a human to merge:
 4. `git worktree remove ../<repo>-human`.
 
 Your own pull request body says `Refs #<core PR>`. The core pull request
-carries the plan's carve-out, nothing new. Push, `create_pull_request` or label fails = step 4,
+carries the plan's carve-out, nothing new.
+
+A `CORE ONLY` plan: build the non-core part on your branch, the core part
+here (steps 1 to 4). Acceptance needs the core edit merged (a CI job that
+must run green, a hook that must be registered)? Block `core path: waiting
+on #<N>: <question>` (manage.md §3); dispatch RESUMEs you once #<N> merges,
+then verify and retire as normal. Otherwise retire now. The retire stays on
+your branch, never in the `human/` pull request: that one carries the core
+edit only. Push, `create_pull_request` or label fails = step 4,
 then `status: blocked`, `next:` = `github: human PR not opened: <error, 40
 chars>`, push, exit — never retire with it unopened or unlabelled.
 

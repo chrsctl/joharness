@@ -64,20 +64,16 @@ out="$(soq)"
 expect "an all-protocol scope is marked CORE ONLY" \
   "CORE ONLY" "$out"
 expect "and the mark says why" "scope is all core paths" "$out"
-# The mark alone is not the fix. De-ranking is: this plan must stop being
-# free. With it as the only plan, that is exactly the endurance retry's
-# queue — and the edge is what a fleet should have met there instead of 55
-# minutes of undoable work.
-expect "the edge is reached instead" "Edge reached: no free plan" "$out"
-expect "and the edge names the marking as a reason" \
-  "blocked or CORE ONLY" "$out"
-refute "and it is not offered as free work" "top free plan above" "$out"
+# The mark is a rank, not a refusal: a manager builds the core edit in a
+# human/<stem> pull request and a human merges it
+# (.agents/docs/manage-reference.md, Human remainder). Alone in the queue it
+# is free work, so the edge is not reached over it.
+refute "the edge is not reached over it" "Edge reached: no free plan" "$out"
+expect "it is offered as free work" "top free plan above" "$out"
 expect "and the plan is listed rather than hidden" \
   "docs/plans/allprotocol.md" "$out"
 expect "and the last word points at dispatch" \
   "./joharness.sh dispatch and spawns." "$out"
-# What the edge MEANS — not a gap to fill, do not re-file — is dispatch's to
-# say, from this row (selftest/dispatch.sh, NOT YOURS).
 
 # --- partial overlap disqualifies too, and that REVERSES the first rule ----
 # This block used to assert the opposite: a plan touching one protocol file
@@ -95,6 +91,10 @@ expect "and the last word points at dispatch" \
 # a plan declared one protocol path among several, read `mixed`, went
 # unmarked, and the queue answered with it — a plan whose own Traps said a
 # human builds it.
+#
+# Since then the mark ranks, it no longer refuses: the manager builds the
+# core part in a human/<stem> pull request a human merges, so the plan can
+# be FINISHED after all. Both labels stay, so a reader still sees which.
 fixture_rm "$sowork" "drop the all-protocol plan" docs/plans/allprotocol.md
 soplan mixed 'joharness.conf, docs/product/thing.md'
 sopush "a plan with one protocol path and one other"
@@ -107,8 +107,8 @@ expect "a partly-protocol scope is marked too" "CORE ONLY" "$out"
 expect "and the mark says it is only part of the scope" \
   "scope includes a core path" "$out"
 refute "never the all-protocol wording" "scope is all core paths" "$out"
-refute "and it stops being free work" "top free plan above" "$out"
-expect "so the edge is reached over it" "Edge reached: no free plan" "$out"
+expect "and it is free work too" "top free plan above" "$out"
+refute "so the edge is not reached over it" "Edge reached: no free plan" "$out"
 
 # --- absent is not empty ---------------------------------------------------
 # A plan with no scope: could be entirely protocol text; nobody wrote it

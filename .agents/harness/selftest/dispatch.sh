@@ -103,23 +103,19 @@ expect "and a pause over an unseen spawn keeps the health pass instead" \
   "verdict   : PAUSED — JOHARNESS_MAX_MANAGERS=0: spawn nothing; 1 spawned this pass has not pushed (JOHARNESS_PENDING_SPAWNS): keep the health pass going" "$out"
 refute "never the pause's own exit" "spawn nothing, exit; the human unpauses" "$out"
 
-# --- a CORE ONLY plan is a wait on a human: the verdict names it -----------
+# --- a CORE ONLY plan is spawned: a manager builds it, a human merges it ----
 # Preconditions set here: the queue holds only this plan, nothing in flight.
 dspplan corewait '.github/workflows/ci.yml platform/web/src scripts'
 dsppush "a partly-core plan, alone"
 out="$(dsp)"
-expect "the core-only block names the plan" "NOT YOURS — CORE ONLY" "$out"
-expect "the exit verdict is unchanged" \
-  "verdict   : DRAINED — nothing free, nothing in flight: exit, the heartbeat re-seeds" "$out"
-expect "the wait line counts it, dates it and names the stem" \
-  "            1 plan(s) wait on a human core edit (oldest 0d): corewait" "$out"
-dspplan corefree 'src/free'
-dsppush "a free plan beside it"
-out="$(dsp)"
-refute "no wait line when slots are not idle" "wait on a human core edit" "$out"
-git -C "$dspwork" rm -q docs/plans/corewait.md docs/plans/corefree.md
+expect "a lone CORE ONLY plan is spawned, its core edit routed to a human merge" \
+  "  docs/plans/corewait.md (agent: sonnet)  CORE ONLY — build it; the core edit goes in a human/<stem> pull request a human merges" "$out"
+expect "and the verdict spawns it" "NOT DRAINED — 1 free item(s) now" "$out"
+refute "no NOT YOURS block" "NOT YOURS" "$out"
+refute "and no wait on a human core edit" "wait on a human core edit" "$out"
+git -C "$dspwork" rm -q docs/plans/corewait.md
 mkdir -p "${dspwork}/docs/plans"
-dsppush "drop the core-wait fixtures"
+dsppush "drop the core-wait fixture"
 
 # --- the knobs are the human's: conf, then environment, digits only ---------
 printf 'JOHARNESS_ENV=none\nJOHARNESS_MAX_MANAGERS=2\nJOHARNESS_STALL_MINUTES=30\n' >"$dspconf"
@@ -599,13 +595,20 @@ out="$(dsp)"
 expect "nothing free with a manager in flight is not the exit" \
   "DRAINED — nothing free; 3 manager(s) in flight: keep the health pass going" "$out"
 
-# --- the marked plan is NOT YOURS -------------------------------------------
+# --- a CORE ONLY plan overlapping work in flight is HELD like any other ------
 dspplan protocol '.github/workflows'
 dsppush "a plan scoped to a core path"
 out="$(dsp)"
-expect "a CORE ONLY plan is named as not yours" \
-  "NOT YOURS — CORE ONLY" "$out"
-refute "and never spawned" "docs/plans/protocol.md (agent" "$out"
+expect "a CORE ONLY plan is spawned beside managers in flight" \
+  "docs/plans/protocol.md (agent: sonnet)  CORE ONLY — build it" "$out"
+refute "and is never named as not yours" "NOT YOURS" "$out"
+dspplan coreheld 'src/a/x, .github/workflows/ci.yml'
+dsppush "a CORE ONLY plan on alpha's scope"
+out="$(dsp)"
+expect "a CORE ONLY plan overlapping a live claim is HELD, not spawned" \
+  "coreheld.md (agent: sonnet)  HOLD — overlaps alpha on src/a (claimed on mgr-alpha): spawn once that branch merges  CORE ONLY — build it" "$out"
+fixture_rm "$dspwork" "drop coreheld" docs/plans/coreheld.md
+git -C "$dspwork" push -q origin main
 
 # --- another branch's status field is repo-controlled input -------------------
 # A manager claims by pushing BEFORE it ever runs ci, so a status ci would

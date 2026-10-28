@@ -85,9 +85,9 @@ A worker's return is a claim: run the acceptance command yourself. Commit
 per sub-task, workstream file in the same commit. Follow-up work that must
 outlive this session = a plan file in your pull request. Never a second item.
 
-A remainder only a human can build — a core-path edit
-(`./joharness.sh protocol-paths`) the plan leaves to a human, under whatever
-heading — ref § Human remainder.
+A core-path edit (`./joharness.sh protocol-paths`) — a `CORE ONLY` plan's
+core part, or one the plan leaves to a human under whatever heading — you
+build in a `human/<stem>` pull request a human merges: ref § Human remainder.
 
 Hook work: never edit a hook `.claude/settings.json` registers — it runs from
 the working tree on your own calls. Build a new hook unregistered, test it

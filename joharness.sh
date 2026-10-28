@@ -6571,12 +6571,6 @@ drain_requirement() {
     done | head -1
 }
 
-# Plans the queue hook marked CORE ONLY, one indented path per line.
-drain_core_only() {
-  printf '%s\n' "$1" |
-    sed -n 's#^  \(docs/plans/[^ ]*\.md\)  .*CORE ONLY.*#  \1#p'
-}
-
 # --- dispatch: the orchestrator's one read (.agents/docs/orchestrated.md)
 
 # A knob the human sets: the environment for one command, the conf for the
@@ -8318,7 +8312,7 @@ tab_rows() {
 }
 
 cmd_dispatch() {
-  local cap stall health passes respawn churnt churnl hout qout rows wavemap edge req sup
+  local cap stall health passes respawn churnt churnl hout qout rows wavemap edge req
   local path label branch ws doc status session next age agetext flag tier
   local pr hours cage_min n_ceiling=0
   local base commits churn churn_n churn_f marks rounds work
@@ -8344,7 +8338,7 @@ cmd_dispatch() {
   local bprows
   local DISPATCH_WITHHELD=
   local printed_deferred=
-  local inflight="" free="" questions=""
+  local inflight="" free="" questions="" corefree="" row mergewait=""
   local n_parked=0 n_fixed=0 n_resume=0 n_recheck=0 parked_lines="" dst dn dplan dage di ri rtext dresume=0
   local fx_label fx_wait fx_k fx_r fx_c fx_slot fx_lim
   local bts redge rstem rts n_release=0 release_due="" hseen hst
@@ -8745,6 +8739,14 @@ cmd_dispatch() {
             fx_n+=("$dn"); fx_plan+=("-"); fx_di+=("$di"); fx_kind+=(MERGED)
           else
             blocked_claims="${blocked_claims} $(lint_stem "$path")@${branch} "
+            # On the wait line only while it truly waits: a block of known
+            # age, and no merge of #<n> on the base at any time — a merge
+            # that came before the block is no answer, but it is no pull
+            # request to merge either.
+            if [ -n "$dn" ] && [ -n "$bage" ] &&
+               ! awaited_pr_merged "$dn" 99999999; then
+              mergewait="${mergewait}${dn}"$'\t'"$(lint_stem "$path")"$'\n'
+            fi
             # A block the queue has since absorbed (#626): the plan is held by
             # a needs: edge added after the park, for a reason the queue can
             # answer, on a stem the block names. Stems come from the queue's
@@ -8974,11 +8976,13 @@ cmd_dispatch() {
   fi
 
   # --- what to spawn, in the queue's order --------------------------------
-  # Free = neither claimed, blocked nor CORE ONLY, every row.
+  # Free = neither claimed nor blocked, every row. A CORE ONLY plan is free
+  # too, listed after every other item: its manager builds the core edit in
+  # a human/<stem> pull request a human merges.
   while IFS='|' read -r path label; do
     [ -n "$path" ] || continue
     case "$label" in
-      *'claimed on '* | *'blocked by'* | *'CORE ONLY'*) continue ;;
+      *'claimed on '* | *'blocked by'*) continue ;;
     esac
     case "$path" in docs/product/*) continue ;; esac
     # An item whose branch is past the retire commit is not free either.
@@ -9010,21 +9014,25 @@ cmd_dispatch() {
         n_free=$((n_free + 1))
         questions="${questions}  ${path} (agent: ${tier:-unreadable})"$'\n' ;;
       *)
-        free="${free}  ${path} (agent: ${tier:-unreadable})"
-        [ -z "$wave" ] || free="${free}  wave ${wave}"
+        row="  ${path} (agent: ${tier:-unreadable})"
+        [ -z "$wave" ] || row="${row}  wave ${wave}"
         if [ -n "$note" ]; then
           n_wait=$((n_wait + 1))
-          free="${free}  WAIT — overlaps ${note} in this pass: spawn it only after that one"
+          row="${row}  WAIT — overlaps ${note} in this pass: spawn it only after that one"
         elif [ -n "$hold" ] && [ "$hold_live" -eq 0 ]; then
           n_free=$((n_free + 1))
-          free="${free}  overlaps ${hold} — that branch is BLOCKED on a human: spawn, reconcile expected at step 7"
+          row="${row}  overlaps ${hold} — that branch is BLOCKED on a human: spawn, reconcile expected at step 7"
         elif [ -n "$hold" ]; then
           n_hold=$((n_hold + 1))
-          free="${free}  HOLD — overlaps ${hold}: spawn once that branch merges"
+          row="${row}  HOLD — overlaps ${hold}: spawn once that branch merges"
         else
           n_free=$((n_free + 1))
         fi
-        free="${free}"$'\n' ;;
+        case "$label" in
+          *'CORE ONLY'*)
+            corefree="${corefree}${row}  CORE ONLY — build it; the core edit goes in a human/<stem> pull request a human merges (manage-reference.md § Human remainder)"$'\n' ;;
+          *) free="${free}${row}"$'\n' ;;
+        esac ;;
     esac
   done <<<"$rows"
 
@@ -9044,7 +9052,8 @@ cmd_dispatch() {
   fi
   [ -z "$free" ] || printf '%s' "$free"
   [ -z "$questions" ] || printf '%s' "$questions"
-  [ -n "$req$free$questions" ] || printf '  nothing free\n'
+  [ -z "$corefree" ] || printf '%s' "$corefree"
+  [ -n "$req$free$questions$corefree" ] || printf '  nothing free\n'
 
   # Requirements the hook listed as held or deferred: never offered, holds no
   # slot. The reason is read from the base here, not from the hook's label.
@@ -9074,13 +9083,6 @@ cmd_dispatch() {
     printf 'deferred  : %s — %s\n' "$dpath" "$dline"
   done <<<"$(printf '%s\n' "$qout" |
     sed -n 's#^  \(docs/product/[^ ]*\.md\)  \(\[.*\]\)$#\1|\2#p')"
-
-  local drained=0
-  sup="$(drain_core_only "$qout")"
-  if [ -n "$sup" ]; then
-    printf '\nNOT YOURS — CORE ONLY (scope holds a core path; only a human builds\n'
-    printf 'it, by hand. Never spawn a manager on these, never re-file them):\n%s\n' "$sup"
-  fi
 
   if [ "$n_hold" -gt 0 ] && [ "$n_slots" -gt 0 ] &&
      [ "$n_free" -eq 0 ] && [ "$n_wait" -eq 0 ]; then
@@ -9227,17 +9229,14 @@ cmd_dispatch() {
         "$n_slots" "$n_hold" "${rescope_key:-none}"
     fi
   elif [ $((n_inflight - n_blocked)) -gt 0 ]; then
-    drained=1
     printf 'verdict   : DRAINED — nothing free; %s manager(s) in flight: keep the health pass going\n' \
       "$((n_inflight - n_blocked))"
   elif [ "$pending" != 0 ]; then
-    drained=1
     # EXIT is the one irreversible verdict on this line, and a manager spawned
     # this pass is exactly what the git view cannot see.
     printf 'verdict   : DRAINED — nothing free, nothing in flight in the git view; %s spawned this pass has not pushed (JOHARNESS_PENDING_SPAWNS): keep the health pass going, never exit on a manager this view cannot see\n' \
       "$pending"
   else
-    drained=1
     # A clerk spawn line follows below when it is due (roles
     # need no slot; cap is not 0 here): the verdict must not say exit then.
     local role_will_spawn=0
@@ -9251,30 +9250,15 @@ cmd_dispatch() {
       printf 'verdict   : DRAINED — nothing free, nothing in flight: exit, the heartbeat re-seeds\n'
     fi
   fi
-  if [ -n "$sup" ] && [ "$drained" -eq 1 ]; then
-    local cw_n cw_stems="" cw_oldest="" cw_unread=0 cw_p cw_t cw_base cw_d
-    cw_n="$(printf '%s\n' "$sup" | grep -c .)"
-    cw_base="refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}"
-    git -C "$ROOT" rev-parse -q --verify "$cw_base" >/dev/null 2>&1 || cw_base=HEAD
-    while IFS= read -r cw_p; do
-      cw_p="${cw_p#"${cw_p%%[! ]*}"}"
-      [ -n "$cw_p" ] || continue
-      cw_t="${cw_p##*/}"
-      cw_stems="${cw_stems:+$cw_stems }${cw_t%.md}"
-      cw_t="$(git -C "$ROOT" log --diff-filter=A --format=%ct "$cw_base" -- "$cw_p" 2>/dev/null | tail -1)"
-      case "$cw_t" in '' | *[!0-9]*) cw_unread=1; continue ;; esac
-      if [ -z "$cw_oldest" ] || [ "$cw_t" -lt "$cw_oldest" ]; then cw_oldest="$cw_t"; fi
-    done <<EOF_CW
-$sup
-EOF_CW
-    if [ -n "$cw_oldest" ] && [ "$cw_unread" -eq 0 ]; then
-      cw_d="$(( ($(date +%s) - cw_oldest) / 86400 ))"
-      [ "$cw_d" -ge 0 ] || cw_d=0
-    else
-      cw_d="?"
-    fi
-    printf '            %s plan(s) wait on a human core edit (oldest %sd): %s\n' \
-      "$cw_n" "$cw_d" "$cw_stems"
+  # Claims parked on a human merge (`core path: waiting on #<n>`, no merge
+  # of #<n> on the base yet): one entry per pull request, under any verdict.
+  # Read from git; open or closed is GitHub's, so a closed one stays listed
+  # until the human answers the block.
+  if [ -n "$mergewait" ]; then
+    printf '            %s\n' "$(printf '%s' "$mergewait" | awk -F'\t' '
+      NF == 2 { if (!($1 in s)) { o[++n] = $1; s[$1] = $2 } else s[$1] = s[$1] " " $2 }
+      END { printf "%d pull request(s) wait on a human merge:", n
+            for (i = 1; i <= n; i++) printf "%s #%s (%s)", (i > 1 ? "," : ""), o[i], s[o[i]] }')"
   fi
   # Parked on a defect: listed apart from the human's blocks, never in n_wait.
   [ -z "$parked_lines" ] || printf '%s' "$parked_lines"

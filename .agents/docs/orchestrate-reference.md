@@ -7,7 +7,7 @@ lines say when to read each; its terms hold here.
 
 | absent | what changes |
 | --- | --- |
-| `PushNotification` (or the environment's equivalent) | a valid block, and a `corewait` stem, are reported in the pass report only, no push to the human: say so once. |
+| `PushNotification` (or the environment's equivalent) | a valid block, and a `corewait` pull request, are reported in the pass report only, no push to the human: say so once. |
 | any transport that delivers | no nudge: still two passes, the first sends nothing; the KILL's interrupt does the asking. `JOHARNESS_STALL_MINUTES` becomes a kill threshold — say so. |
 | `interrupt_session` | cannot stop, so must not replace: write the handover from the branch, `status: blocked`, `next:` = "stalled: Stalled; the orchestrator could not stop the session that holds this.", report, no respawn. A session already gone (ARCHIVED, not found, FAILED twice) is respawned anyway. BLOCKED BEFORE CLAIM: report, spawn nothing. |
 | `archive_session` | the stopped session is left in place; report, respawn as written. UNCLAIMED: report, spawn nothing. |
@@ -462,11 +462,14 @@ orchestrator session for the next run`. It only informs; the pass still runs.
 
 ## Core wait
 
-The `dispatch` wait line (`<n> plan(s) wait on a human core edit ...`):
-print it verbatim after the verdict. Then, per stem on it, `PushNotification`
-once carrying the stem, the plan path and the text `waits on a human core
-edit`; the ledger key `corewait=<stem>[,<stem>]` is run-scoped: a stem not
-yet listed = send and append it, else report only; drop a stem when dispatch
-no longer lists it. A `DRAINED ... exit` pass arms nothing, so each heartbeat
-run starts empty and pushes again, as it does for a block. Never spawn on it,
-never read it as work; the lead drop on `CORE ONLY` stays.
+The `dispatch` wait line (`<n> pull request(s) wait on a human merge: #<N>
+(<stem>), ...`): print it verbatim after the verdict. Then, per `#<N>
+(<stem>)` on it, `PushNotification` once carrying the pull request's link
+(`https://github.com/<owner/repo>/pull/<N>`), the stem and the text `waits
+on your merge`; the ledger key `corewait=<stem>#<N>[,<stem>#<N>]` is
+run-scoped: a pair not yet listed = send and append it, else report only
+(a re-park on a new pull request is a new pair, pushed again); drop a pair
+when dispatch no longer lists it. A `DRAINED ... exit` pass arms nothing, so
+each heartbeat run starts empty and pushes again, as it does for a block.
+The claim holds no slot: never respawn on it, never read it as work; a merge
+of #<N> comes back as a `PARKED #<N> RESUME` row (§ Resume).

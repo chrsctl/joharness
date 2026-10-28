@@ -696,39 +696,39 @@ expect "a plan serving no requirement is spawned like any other" \
 fixture_rm "$qowork" "drop the note" docs/plans/recorded-note.md
 git -C "$qowork" push -q origin main
 
-# CORE ONLY plans are never spawned, and every one is NAMED — a verdict that
-# went quiet over work sitting in the tree is the defect drain_requirement
-# fixed once already. Both scope shapes: a single file, and a core TREE
-# (`.github`) on a plan that serves a requirement.
-qoplan protocolonly normal sonnet 'joharness.conf, .github/workflows'
+# CORE ONLY plans are spawned: a manager builds the core edit in a
+# human/<stem> pull request, a human merges it. Both scope shapes: a single
+# file, and a core TREE (`.github`) on a plan that serves a requirement.
+# Disjoint, so neither waits on the other (a wave, as for any plan).
+qoplan protocolonly normal sonnet 'joharness.conf'
 qopush "a plan scoped entirely to core paths"
 qoreq boundarygoal
 qoplan servesit normal sonnet '.github' boundarygoal
 qopush "a goal, and a second plan inside the boundary"
 out="$(qo)"
-nyblock="$(sed -n '/^NOT YOURS — CORE ONLY/,/^$/p' <<<"$out")"
-expect "the plans no manager may take are named" "docs/plans/protocolonly.md" "$nyblock"
-expect "both of them, the core tree included" "docs/plans/servesit.md" "$nyblock"
-expect "and it says not to re-file the same work" "never re-file them" "$out"
-refute "neither is spawned" "docs/plans/protocolonly.md (agent" "$out"
-refute "nor the one serving a requirement" "docs/plans/servesit.md (agent" "$out"
+spawnblock="$(sed -n '/^spawn, in this order/,/^$/p' <<<"$out")"
+expect "a core-only plan is spawned" \
+  "docs/plans/protocolonly.md (agent: sonnet)  wave 1  CORE ONLY — build it" "$spawnblock"
+expect "and the core tree one serving a requirement" \
+  "docs/plans/servesit.md (agent: sonnet)  wave 1  CORE ONLY — build it" "$spawnblock"
+refute "no NOT YOURS block" "NOT YOURS" "$out"
 refute "and the requirement it serves is not offered for planning" \
   "boundarygoal.md — UNPLANNED" "$out"
-expect "with only marked work the queue is drained, and says so" \
-  "DRAINED — nothing free, nothing in flight" "$out"
+expect "with only marked work the queue is not drained" \
+  "NOT DRAINED — 2 free item(s) now" "$out"
 
 # The queue hook TRUNCATES its listing for a human at QUEUE_MAX_ENTRIES, and
-# the marked list is parsed from the hook. Zero-padded, so the name order IS
+# the spawn order is parsed from the hook. Zero-padded, so the name order IS
 # the numeric order and the eleventh row is the one a cap of ten drops.
 i=0
 while [ "$i" -lt 11 ]; do
   qoplan "$(printf 'bulk%02d' "$i")" normal sonnet 'joharness.conf'
   i=$((i + 1))
 done
-qopush "eleven plans no manager may take"
+qopush "eleven plans only a human merges"
 out="$(qo)"
-expect "the eleventh marked plan is named, not dropped at ten" \
-  "docs/plans/bulk10.md" "$(sed -n '/^NOT YOURS — CORE ONLY/,/^$/p' <<<"$out")"
+expect "the eleventh marked plan is spawned, not dropped at ten" \
+  "docs/plans/bulk10.md (agent: sonnet)  wave " "$(sed -n '/^spawn, in this order/,/^$/p' <<<"$out")"
 i=0
 while [ "$i" -lt 11 ]; do
   git -C "$qowork" rm -q "docs/plans/$(printf 'bulk%02d' "$i").md"
@@ -736,14 +736,25 @@ while [ "$i" -lt 11 ]; do
 done
 qopush "drop the bulk plans"
 
-# A takeable plan beside the marked ones: de-ranked is not hidden, and the
-# marked rows must not stop the order before it.
+# A takeable plan beside the marked ones leads them: a slot goes to work
+# that needs no human first. Two slots, one free plan, two marked ones.
 qoplan takeable
 qopush "a plan a manager can finish"
-out="$(qo)"
+out="$( cd "$qowork" && JOHARNESS_CONF="$qoconf" DRAIN_FETCH=0 \
+  DISPATCH_FETCH=0 JOHARNESS_MAX_MANAGERS=2 ./joharness.sh dispatch 2>&1 )"
 expect "the takeable plan leads the order over the marked ones" \
   "docs/plans/takeable.md (agent: sonnet)" "$(qofirst "$out")"
-expect "and the verdict spawns it" "NOT DRAINED — 1 free item(s) now" "$out"
+spawnblock="$(sed -n '/^spawn, in this order/,/^$/p' <<<"$out")"
+expect "and a marked one follows it under spawn" \
+  "docs/plans/protocolonly.md (agent: sonnet)  wave 1  CORE ONLY" "$spawnblock"
+if [ "$(grep -n 'takeable.md' <<<"$spawnblock" | cut -d: -f1)" -lt \
+     "$(grep -n 'protocolonly.md' <<<"$spawnblock" | cut -d: -f1)" ] 2>/dev/null; then
+  pass "the free plan is listed before the CORE ONLY one"
+else
+  fail "the free plan is listed before the CORE ONLY one"
+fi
+expect "and the verdict spawns up to the slots" \
+  "NOT DRAINED — 3 free item(s) now, 2 slot(s): spawn up to 2 now" "$out"
 
 # Edge work in flight is named before the order: finishing outranks starting.
 git -C "$qowork" checkout -qb edger

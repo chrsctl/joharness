@@ -324,7 +324,7 @@ rows_raw="$(
     [ "$urgency" = "urgent" ] && rank=0
     [ -z "$claimed_on" ] || rank=$((rank + 2))
     [ -z "$blockers" ] || rank=$((rank + 4))
-    # Not free for any session.
+    # After every free plan: its core edit waits on a human merge.
     [ -z "$scope_derank" ] || rank=$((rank + 2))
     printf 'ROW\t%s\t%s\t%s\t[%s, agent: %s, effort: %s%s%s%s]\t%s\n' \
       "$rank" "${added:-9999999999}" "$f" \
@@ -625,7 +625,8 @@ if [ "$qc_boundary" -eq 0 ]; then
   printf '\nProtocol boundary NOT read (./joharness.sh protocol-paths listed\n'
   printf 'nothing here), so no plan below is marked CORE ONLY. That is\n'
   printf 'this checkout, not the plans: a plan whose scope holds a core\n'
-  printf 'path at all is one no session can finish, and nothing checked.\n'
+  printf 'path needs a human merge of its human/<stem> pull request, and\n'
+  printf 'nothing checked.\n'
 fi
 
 # Display truncates; the free count below does not — a fan-out instruction
@@ -684,9 +685,15 @@ free_names=()
 free_tiers=()
 free_scopes=()
 free_shared=()
-while IFS=$'\t' read -r rank _ f label _; do
+# Free = ranked free, then every unclaimed, unblocked CORE ONLY plan: a
+# manager builds it too, its core edit in a human/<stem> pull request a human
+# merges (.agents/docs/manage-reference.md, Human remainder). After the rest,
+# so it joins a wave or a HOLD like any plan but never leads one.
+free_rows="$(awk -F'\t' '$1 < 2' <<<"$rows"
+  awk -F'\t' '$1 >= 2 && index($4, ", CORE ONLY: ") &&
+    !index($4, "claimed on ") && !index($4, ", blocked by:")' <<<"$rows")"
+while IFS=$'\t' read -r _ _ f label _; do
   [ -n "$f" ] || continue
-  [ "$rank" -lt 2 ] || continue
   free_count=$((free_count + 1))
   # The last `agent: ` and the lower-case letters after it, as
   # `sed -n 's/.*agent: \([a-z]*\).*/\1/p'` read it; the letters spelled out,
@@ -706,7 +713,7 @@ while IFS=$'\t' read -r rank _ f label _; do
   scope_split "$f"
   free_scopes+=("$SC_X")
   free_shared+=("$SC_S")
-done <<<"$rows"
+done <<<"$free_rows"
 
 # Two path prefixes overlap when equal or one contains the other at a
 # boundary; the path sets HIT. Word-splitting of the scope strings is the
@@ -941,7 +948,7 @@ elif [ "$free_count" -eq 0 ] && [ -z "$unplanned_free" ] &&
      [ "$qc_unreadable" -eq 0 ]; then
   # The tail below ("top free plan above") would point at a plan that is not
   # free.
-  printf '\nEdge reached: no free plan — every plan claimed, blocked or CORE ONLY.\n'
+  printf '\nEdge reached: no free plan — every plan claimed or blocked.\n'
   exit 0
 fi
 

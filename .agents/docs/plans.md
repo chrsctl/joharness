@@ -101,14 +101,16 @@ specific file and mark a true registry `shared:` to spare that pass.
 
 A core path in `scope:` (`./joharness.sh protocol-paths`: the conf, the
 settings, `.github`) — `shared:` or not — marks the plan `CORE ONLY` and ranks
-it out of the free list; `scope:` of core paths ONLY is red in `ci`. Protocol
-text is not a core path. Declare core paths anyway: the Stop guard blocks on
-the diff.
+it after every other free plan. The agent builds it, a human merges it: its
+manager puts the core edit in a `human/<stem>` pull request
+(`.agents/docs/manage-reference.md` § Human remainder). `scope:` of core
+paths ONLY is red in `ci`. Protocol text is not a core path. Declare core
+paths anyway: the Stop guard blocks on the diff.
 
 ### A human remainder
 
-A core-path edit a session cannot build lives in a pull request on branch
-`human/<stem>`, labelled `human-review`, opened by the manager before the
+A core-path edit never lands on a session's branch: it lives in a pull
+request on branch `human/<stem>`, labelled `human-review`, opened by the manager before the
 retire commit: the core-path edit alone, `ci` run on it. Only a human merges
 it. Procedure: `.claude/commands/manage.md` §2; bounds:
 `.agents/docs/orchestrated.md`.

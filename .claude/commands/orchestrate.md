@@ -175,8 +175,9 @@ or command that says nothing to do spawns nothing.
   this pass's spawns (dispatch already took their slots): ref § Resume.
 - Edge work whose session is gone first. An item already in your ledger
   spawns only when this pass's health pass said so.
-- Skip `HOLD`, `WAIT`, `NOT YOURS`. `that branch is BLOCKED on a human:
-  spawn` is free; add the reconcile line.
+- Skip `HOLD`, `WAIT`. `that branch is BLOCKED on a human:
+  spawn` is free; add the reconcile line. `CORE ONLY — build it` is free,
+  the usual prompt: its manager routes the core edit (manage.md §2).
 - `UNPLANNED` or `PARTLY PLANNED` requirement = ONE planning manager, fable,
   effort xhigh.
 - `release DUE: <branches>`: a `needs:` branch at once; a stale or done
@@ -224,7 +225,7 @@ Ledger every spawn the moment it returns as `<stem>@new`.
 ```
 /orchestrate pass
 harness=<first 12 chars of git hash-object of origin/main:.claude/commands/orchestrate.md> pass=<this pass's number plus one> [retire=yes]
-ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] [held=<updated_at>] [unratified=<head>] [notified=<stem>] [released=<stem>[,<stem>]] [held-human=<pr>] respawns=<n> [rescoped=<key>] [corewait=<stem>[,<stem>]] [clerked=<stamp>[+human]] [scouted=<stamp>[+human]] [conducted=<stamp>[+human]] [retroed=<stamp>[+human]]; ...
+ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] [held=<updated_at>] [unratified=<head>] [notified=<stem>] [released=<stem>[,<stem>]] [held-human=<pr>] respawns=<n> [rescoped=<key>] [corewait=<stem>#<N>[,<stem>#<N>]] [clerked=<stamp>[+human]] [scouted=<stamp>[+human]] [conducted=<stamp>[+human]] [retroed=<stamp>[+human]]; ...
 lead <stem>: <40 chars, to the end of this line>
 ```
 
@@ -242,7 +243,6 @@ output names — in flight, under spawn, or held; else drop
 the lead and say so in the report. Keep at most five, newest first, one per
 `<stem>`. Drop a lead when its stem merges — AFTER this pass's report,
 so a lead arriving in the same pass its subject merges is still printed once.
-Drop it at once, unprinted, when dispatch marks that stem `CORE ONLY`.
 
 Recompute `harness=` at every arm from fresh `origin/main`; never copy it from
 the wake you received.
@@ -284,8 +284,8 @@ registered`, `heartbeat replaced`, `heartbeat not registered`,
 `list_triggers`, said once instead — then, on the first pass of a run a human message
 started (not a wake), the line of ref § Fresh session line.
 
-The `dispatch` wait line (`<n> plan(s) wait on a human core edit ...`), or a
-`corewait=` stem → ref § Core wait.
+The `dispatch` wait line (`<n> pull request(s) wait on a human merge ...`),
+or a `corewait=` pair → ref § Core wait.
 
 Then the lines of ref § Report: `context:`, the served model, the `plans
 on a branch` block. Then one line per manager (item, session, state,
