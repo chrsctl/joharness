@@ -26,7 +26,7 @@ ONE spelling: [`.agents/docs/glossary.md`](../../.agents/docs/glossary.md); `ci`
    only in orchestrate GUARD, release), never `checkout -B` over it. Write
    `docs/handover/<workstream>.md`. Push NOW — no push, no claim. Overlap? `/who`; only `RUNNING` = taken.
 4. **Build.** Research first: every plan or issue claim is a hypothesis until
-   checked against code. `docs/MAP.md` present? Read it before grepping the tree. `./joharness.sh feedback <path>` on files you will touch.
+   checked against code. `INDEX.md` in a folder you work in: read it before grepping; a folder your branch creates = `/map <folders>` (`finish` asks). `./joharness.sh feedback <path>` on files you will touch.
    Design question open? Settle it, record it, THEN code. Does a branch own a
    file? Diff against merge base, never read the tree. Consumer product work
    opens no non-`.md` file under `joharness.sh`, `.agents/harness/`,

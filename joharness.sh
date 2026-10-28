@@ -6494,6 +6494,7 @@ cmd_finish() {
   fi
 
   run_check "workstream files" finish_adds "$ref"
+  run_check map finish_map "$ref"
   [ "$CHECK_VERBOSE" != 1 ] || fin_promote "$ref"
 
   checks_local && is_local=1
@@ -7396,21 +7397,37 @@ curate_marked_new() {
     END { exit !f }' "${ROOT}/$1"
 }
 
-# Folder map (docs/MAP.md): one purpose line per product folder, the only thing
-# that cannot be derived. This derives the rest. Read-only, git only.
-# The one list of folders the harness owns; the map never describes them.
+# Folder index: an INDEX.md in each product folder holds what cannot be
+# derived (purpose, interface, invariants, side effects, verify, children).
+# This derives the rest from git. Read-only, git only.
+# The one list of folders the harness owns; none gets an INDEX.md.
 MAP_PROTOCOL_DIRS=(.agents .claude .github docs)
 MAP_DEPTH=3
-MAP_FILE="docs/MAP.md"
+MAP_INDEX="INDEX.md"
 
-# Fills MAP_ROWS ("<path>\t<line>"), MAP_SET, the MAP_N* counts and MAP_HAS
-# (1 when the map exists). $1 = nostale skips the diff.
+# Is <dir> a folder the index may cover, by name alone.
+map_dir_ok() {
+  local d="$1" seg p
+  local -a segs=()
+  IFS=/ read -ra segs <<<"$d"
+  [ "${#segs[@]}" -le "$MAP_DEPTH" ] || return 1
+  for seg in "${segs[@]}"; do
+    case "$seg" in .*) return 1 ;; esac
+  done
+  for p in "${MAP_PROTOCOL_DIRS[@]}"; do
+    [ "${segs[0]}" != "$p" ] || return 1
+  done
+  return 0
+}
+
+# Fills MAP_ROWS ("<dir>\t<line>\t<path>\t<symbol>"), MAP_SET, MAP_NIDX and
+# the MAP_N* counts. $1 = nostale skips the per-folder history reads.
 map_scan() {
-  local nostale="${1:-}" f d p seg skip line txt c
-  local -A set=() mapped=() gen=() tot=() chg=() cnt=()
-  local -a files=() segs=()
-  MAP_ROWS=() MAP_SET=() MAP_NMISS=0 MAP_NGONE=0 MAP_NSTALE=0 MAP_HAS=0
-  [ -f "${ROOT}/${MAP_FILE}" ] && MAP_HAS=1
+  local nostale="${1:-}" f d p line c n tgt sym file rest
+  local -A set=() idx=() gen=() tot=() chg=() old=() now=()
+  local -a files=()
+  MAP_ROWS=() MAP_SET=() MAP_NIDX=0
+  MAP_NMISS=0 MAP_NORPH=0 MAP_NSTALE=0 MAP_NBROKEN=0
 
   while IFS= read -r f; do
     [ -n "$f" ] && files+=("$f")
@@ -7429,95 +7446,176 @@ map_scan() {
   for f in "${files[@]}"; do
     d="${f%/*}"
     [ "$d" != "$f" ] || continue
+    if [ "${f##*/}" = "$MAP_INDEX" ]; then idx["$d"]=1; continue; fi
     tot["$d"]=$(( ${tot["$d"]:-0} + 1 ))
     [ -z "${gen["$f"]:-}" ] || chg["$d"]=$(( ${chg["$d"]:-0} + 1 ))
   done
+  # A folder with its own files, and every ancestor that holds it.
   for d in "${!tot[@]}"; do
-    IFS=/ read -ra segs <<<"$d"
-    [ "${#segs[@]}" -le "$MAP_DEPTH" ] || continue
-    skip=0
-    for seg in "${segs[@]}"; do
-      case "$seg" in .*) skip=1 ;; esac
+    [ "${chg["$d"]:-0}" -lt "${tot["$d"]}" ] || continue
+    while :; do
+      map_dir_ok "$d" && set["$d"]=1
+      [ "$d" != "${d%/*}" ] || break
+      d="${d%/*}"
     done
-    for p in "${MAP_PROTOCOL_DIRS[@]}"; do
-      [ "${segs[0]}" != "$p" ] || skip=1
-    done
-    [ "${chg["$d"]:-0}" -lt "${tot["$d"]}" ] || skip=1
-    [ "$skip" -eq 1 ] || set["$d"]=1
   done
-
-  if [ "$MAP_HAS" -eq 1 ]; then
-    while IFS= read -r line; do
-      if [[ "$line" =~ ^-\ \`([^\`]+)/\`\ —\ .+$ ]]; then
-        mapped["${BASH_REMATCH[1]}"]=1
-      fi
-    done <"${ROOT}/${MAP_FILE}"
-  fi
+  MAP_NIDX="${#idx[@]}"
 
   for d in "${!set[@]}"; do
-    [ -n "${mapped["$d"]:-}" ] && continue
-    MAP_ROWS+=("${d}"$'\t'"missing : ${d}/")
+    [ -n "${idx["$d"]:-}" ] && continue
+    MAP_ROWS+=("${d}"$'\t'"missing : ${d}/"$'\t\t')
     MAP_NMISS=$((MAP_NMISS + 1))
   done
-  for d in "${!mapped[@]}"; do
-    seg="${d%%/*}"; txt=""
-    for p in "${MAP_PROTOCOL_DIRS[@]}"; do
-      [ "$seg" != "$p" ] || txt=" (protocol folder)"
-    done
-    if [ -n "$txt" ] || [ -z "${set["$d"]:-}" ]; then
-      MAP_ROWS+=("${d}"$'\t'"gone    : ${d}/${txt}")
-      MAP_NGONE=$((MAP_NGONE + 1))
-    fi
+  for d in "${!idx[@]}"; do
+    [ -z "${set["$d"]:-}" ] || continue
+    MAP_ROWS+=("${d}"$'\t'"orphan  : ${d}/${MAP_INDEX}"$'\t'"${d}/${MAP_INDEX}"$'\t')
+    MAP_NORPH=$((MAP_NORPH + 1))
   done
 
-  if [ "$MAP_HAS" -eq 1 ] && [ -z "$nostale" ]; then
-    c="$(git -C "$ROOT" log -1 --format=%H -- "$MAP_FILE" 2>/dev/null)"
-    if [ -n "$c" ]; then
+  # Links and file:symbol references inside each index.
+  for d in "${!idx[@]}"; do
+    [ -n "${set["$d"]:-}" ] || continue
+    while IFS= read -r line; do
+      rest="$line"
+      while [[ "$rest" =~ \]\(([^\)\ ]+)\) ]]; do
+        tgt="${BASH_REMATCH[1]}"; rest="${rest#*"${BASH_REMATCH[0]}"}"
+        case "$tgt" in *://* | '#'* | mailto:*) continue ;; esac
+        tgt="${tgt%%#*}"
+        [ -n "$tgt" ] || continue
+        [ -e "${ROOT}/${d}/${tgt}" ] && continue
+        MAP_ROWS+=("${d}"$'\t'"broken  : ${d}/${MAP_INDEX} -> ${tgt}"$'\t'"${d}/${tgt}"$'\t')
+        MAP_NBROKEN=$((MAP_NBROKEN + 1))
+      done
+      rest="$line"
+      while [[ "$rest" =~ \`([A-Za-z0-9_./-]+\.[A-Za-z0-9]+):([^\`]+)\` ]]; do
+        file="${BASH_REMATCH[1]}"; sym="${BASH_REMATCH[2]}"
+        rest="${rest#*"${BASH_REMATCH[0]}"}"
+        if [ -f "${ROOT}/${d}/${file}" ] &&
+           grep -qF -- "$sym" "${ROOT}/${d}/${file}" 2>/dev/null; then
+          continue
+        fi
+        MAP_ROWS+=("${d}"$'\t'"broken  : ${d}/${MAP_INDEX} -> ${file}:${sym}"$'\t'"${d}/${file}"$'\t'"${sym}")
+        MAP_NBROKEN=$((MAP_NBROKEN + 1))
+      done
+    done <"${ROOT}/${d}/${MAP_INDEX}"
+  done
+
+  # Stale: since the index was written, a direct file changed or a child
+  # folder in the set came or went. Two git reads per indexed folder.
+  if [ -z "$nostale" ]; then
+    for d in "${!idx[@]}"; do
+      [ -n "${set["$d"]:-}" ] || continue
+      c="$(git -C "$ROOT" log -1 --format=%H -- "${d}/${MAP_INDEX}" 2>/dev/null)"
+      [ -n "$c" ] || continue
+      n=0
       while IFS= read -r f; do
         [ -n "$f" ] || continue
-        d="$f"
-        while [ "$d" != "${d%/*}" ]; do
-          d="${d%/*}"
-          [ -z "${mapped["$d"]:-}" ] || [ -z "${set["$d"]:-}" ] ||
-            cnt["$d"]=$(( ${cnt["$d"]:-0} + 1 ))
-        done
-      done < <(git -C "$ROOT" diff --name-only "${c}..HEAD" 2>/dev/null)
-      for d in "${!cnt[@]}"; do
-        MAP_ROWS+=("${d}"$'\t'"stale   : ${d}/ (${cnt["$d"]} files changed)")
-        MAP_NSTALE=$((MAP_NSTALE + 1))
+        p="${f#"${d}/"}"
+        case "$p" in */*) ;; "$MAP_INDEX") ;; *) n=$((n + 1)) ;; esac
+      done < <(git -C "$ROOT" -c core.quotepath=false diff --name-only "$c" HEAD -- "$d" 2>/dev/null)
+      old=() now=()
+      while IFS= read -r p; do [ -n "$p" ] && old["$p"]=1; done < <(
+        git -C "$ROOT" -c core.quotepath=false ls-tree -d --name-only "$c" "${d}/" 2>/dev/null)
+      for p in "${!set[@]}"; do
+        [ "${p%/*}" = "$d" ] && [ "$p" != "$d" ] && now["$p"]=1
       done
-    fi
+      for p in "${!now[@]}"; do [ -n "${old["$p"]:-}" ] || n=$((n + 1)); done
+      for p in "${!old[@]}"; do
+        [ -n "${now["$p"]:-}" ] || ! map_dir_ok "$p" || n=$((n + 1))
+      done
+      [ "$n" -gt 0 ] || continue
+      MAP_ROWS+=("${d}"$'\t'"stale   : ${d}/ (${n} changed)"$'\t\t')
+      MAP_NSTALE=$((MAP_NSTALE + 1))
+    done
   fi
   MAP_SET=("${!set[@]}")
 }
 
 cmd_map() {
-  local row
   map_scan
-  if [ "$MAP_HAS" -eq 0 ]; then
-    printf 'map       : none — /map creates it\n'
-    [ "${#MAP_SET[@]}" -eq 0 ] ||
-      printf '  %s/\n' "${MAP_SET[@]}" | LC_ALL=C sort
+  if [ "${#MAP_SET[@]}" -eq 0 ] && [ "$MAP_NIDX" -eq 0 ]; then
+    printf 'map       : no product folders\n'
     return 0
   fi
   [ "${#MAP_ROWS[@]}" -eq 0 ] ||
-    printf '%s\n' "${MAP_ROWS[@]}" | LC_ALL=C sort -t$'\t' -k1,1 | cut -f2-
-  if [ $((MAP_NMISS + MAP_NGONE + MAP_NSTALE)) -eq 0 ]; then
+    printf '%s\n' "${MAP_ROWS[@]}" | LC_ALL=C sort -t$'\t' -k1,1 | cut -f2
+  if [ $((MAP_NMISS + MAP_NORPH + MAP_NSTALE + MAP_NBROKEN)) -eq 0 ]; then
     printf 'map       : current\n'
   else
-    printf 'map       : %d missing, %d gone, %d stale\n' \
-      "$MAP_NMISS" "$MAP_NGONE" "$MAP_NSTALE"
+    printf 'map       : %d missing, %d orphan, %d stale, %d broken\n' \
+      "$MAP_NMISS" "$MAP_NORPH" "$MAP_NSTALE" "$MAP_NBROKEN"
   fi
 }
 
-# Drift in the map warns; stale is the refresh work list, never a defect.
+# Orphan and broken warn. Missing and stale never do: a project that adopts
+# the harness late indexes folders as branches create them.
 lint_map() {
-  local row
+  local row txt
   map_scan nostale
-  [ "$MAP_HAS" -eq 1 ] || return 0
   for row in "${MAP_ROWS[@]}"; do
-    lint_warn "${MAP_FILE}: ${row#*$'\t'} — /map refreshes it"
+    txt="$(cut -f2 <<<"$row")"
+    case "$txt" in
+      orphan* | broken*) lint_warn "${txt} — /map fixes it" ;;
+    esac
   done
+}
+
+# Step 7: only what this branch caused fails. A folder it created without an
+# INDEX.md, a link or reference whose target it removed (or an index it wrote
+# that points nowhere), an orphan index it added or emptied a folder around.
+finish_map() {
+  local ref="$1" base f d row txt path sym hit="" other=0 ok
+  local -A touched=() changed=()
+  base="$(git -C "$ROOT" merge-base "$ref" HEAD 2>/dev/null)" || base="$ref"
+  map_scan nostale
+  if [ "${#MAP_SET[@]}" -eq 0 ] && [ "$MAP_NIDX" -eq 0 ]; then
+    printf 'map: no product folders\n'
+    return 0
+  fi
+  # A move is a delete plus an add here: renames would hide the new folder.
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    changed["$f"]=1
+    d="$f"
+    while [ "$d" != "${d%/*}" ]; do
+      d="${d%/*}"
+      touched["$d"]=1
+    done
+  done < <(git -C "$ROOT" -c core.quotepath=false diff --name-only --no-renames \
+    "${base}" HEAD 2>/dev/null)
+  for row in "${MAP_ROWS[@]}"; do
+    IFS=$'\t' read -r d txt path sym <<<"$row"
+    ok=1
+    case "$txt" in
+      missing*)
+        git -C "$ROOT" cat-file -e "${base}:${d}" 2>/dev/null || ok=0 ;;
+      broken*)
+        if [ -n "${changed["${d}/${MAP_INDEX}"]:-}" ]; then
+          ok=0
+        elif [ -z "$sym" ]; then
+          git -C "$ROOT" cat-file -e "${base}:${path}" 2>/dev/null && ok=0
+        elif git -C "$ROOT" show "${base}:${path}" 2>/dev/null | grep -qF -- "$sym"; then
+          ok=0
+        fi ;;
+      orphan*)
+        if [ -n "${changed["${d}/${MAP_INDEX}"]:-}" ] || [ -n "${touched["$d"]:-}" ]; then
+          ok=0
+        fi ;;
+    esac
+    if [ "$ok" -eq 0 ]; then
+      hit="${hit}  ${txt}"$'\n'
+    else
+      other=$((other + 1))
+    fi
+  done
+  if [ -n "$hit" ]; then
+    printf '%s' "$hit" | LC_ALL=C sort
+    printf 'run /map <these folders> on this branch: it writes, fixes or removes their %s\n' "$MAP_INDEX"
+    return 1
+  fi
+  printf 'map: reflects this branch'
+  [ "$other" -eq 0 ] || printf ' (%d rows this branch did not cause)' "$other"
+  printf '\n'
 }
 
 cmd_curate() {

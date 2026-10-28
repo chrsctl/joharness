@@ -1,15 +1,16 @@
-# joharness.sh map and its ci lint — one selftest topic, sourced by ../selftest.sh
+# joharness.sh map (per-folder INDEX.md), its ci lint and its finish check — one selftest topic, sourced by ../selftest.sh
 # in the order that file lists.
 #
 # Not runnable alone: the runner defines the helpers and the counters.
-# shellcheck shell=bash
+# shellcheck shell=bash disable=SC2016  # backticks are the INDEX.md text under test
 
 step "joharness.sh map"
 
 mwork="${TMP}/mapwork"
 mkdir -p "${mwork}/.agents/harness" "${mwork}/.agents/env/none" \
   "${mwork}/docs/plans" "${mwork}/docs/handover" "${mwork}/docs/product" \
-  "${mwork}/app" "${mwork}/lib" "${mwork}/gen" "${mwork}/.hidden"
+  "${mwork}/app" "${mwork}/lib" "${mwork}/gen" "${mwork}/.hidden" \
+  "${mwork}/a/b/c/d"
 cp "${ROOT}/joharness.sh" "${mwork}/joharness.sh"
 for _t in plans research product handover; do
   mkdir -p "${mwork}/.agents/docs/${_t}"
@@ -18,7 +19,7 @@ done
 printf '#!/usr/bin/env bash\nprintf "1 passed, 0 failed\\n"\nexit 0\n' >"${mwork}/.agents/harness/selftest.sh"
 chmod +x "${mwork}/.agents/harness/selftest.sh" "${mwork}/joharness.sh"
 printf 'gen/** linguist-generated\n' >"${mwork}/.gitattributes"
-for _d in app lib gen .hidden; do printf 'x\n' >"${mwork}/${_d}/f.txt"; done
+for _d in app lib gen .hidden a a/b/c/d; do printf 'x\n' >"${mwork}/${_d}/f.txt"; done
 # A tracked file in EACH protocol folder, read from the one constant.
 mapfile -t _pd < <(bash -c 'source <(sed -n "/^MAP_PROTOCOL_DIRS=/p" "$1"); printf "%s\n" "${MAP_PROTOCOL_DIRS[@]}"' _ "${ROOT}/joharness.sh")
 for _d in "${_pd[@]}"; do
@@ -32,57 +33,116 @@ commit_all "$mwork" "scratch repo"
 
 map_run() { CLAUDE_PROJECT_DIR="$mwork" JOHARNESS_CONF="${mwork}/joharness.conf" \
   "${mwork}/joharness.sh" map 2>&1; }
-mapline() { printf -- '- %s%s/%s — %s\n' '`' "$1" '`' "$2"; }
+map_ci() { CLAUDE_PROJECT_DIR="$mwork" JOHARNESS_CONF="${mwork}/joharness.conf" \
+  GITHUB_ACTIONS='' "${mwork}/joharness.sh" ci -v 2>&1 |
+  sed -n '/== graph lint/,/^$/p'; }
+# idx <folder> <purpose> [body lines...]
+idx() { local d="$1" p="$2"; shift 2
+  { printf '# %s/\n%s\n' "$d" "$p"; [ "$#" -eq 0 ] || printf '\n%s\n' "$@"; } >"${mwork}/${d}/INDEX.md"; }
 map_rc=0
 out="$(map_run)" || map_rc=$?
-expect "no map reads none" "none — /map creates it" "$out"
-expect "no map exits 0" "0" "$map_rc"
-
-{
-  printf '# Map\n\n'
-  mapline app 'the application'
-  mapline ghost 'a folder that is gone'
-  mapline docs 'harness docs'
-  mapline docs/adr 'decisions'
-} >"${mwork}/docs/MAP.md"
-commit_all "$mwork" "add map"
-out="$(map_run)"
-expect "unlisted product folder is missing" "missing : lib/" "$out"
-expect "absent folder is gone" "gone    : ghost/" "$out"
-expect "protocol folder in the map is gone" "gone    : docs/ (protocol folder)" "$out"
-expect "protocol subfolder in the map is gone" "gone    : docs/adr/ (protocol folder)" "$out"
-expect "counts line" "map       : 1 missing, 3 gone, 0 stale" "$out"
+expect "no index: every product folder is missing" "missing : app/" "$out"
+expect "a parent holding only folders is missing too" "missing : a/" "$out"
+expect "depth 3 is indexed" "missing : a/b/c/" "$out"
+refute "depth 4 is not" "missing : a/b/c/d/" "$out"
 refute "generated folder is not named" "gen/" "$out"
 refute "dot folder is not named" ".hidden" "$out"
 for _d in "${_pd[@]}"; do
   refute "protocol folder ${_d} is not missing" "missing : ${_d}" "$out"
 done
+expect "counts line" "map       : 5 missing, 0 orphan, 0 stale, 0 broken" "$out"
+expect "map exits 0" "0" "$map_rc"
 
-mout="$(CLAUDE_PROJECT_DIR="$mwork" JOHARNESS_CONF="${mwork}/joharness.conf" \
-  GITHUB_ACTIONS='' "${mwork}/joharness.sh" ci 2>&1)"
-mlint="$(sed -n '/== graph lint/,/^$/p' <<<"$mout")"
-expect "ci warns on a missing folder" "warn docs/MAP.md: missing : lib/" "$mlint"
-expect "ci warns on a gone folder" "warn docs/MAP.md: gone    : ghost/" "$mlint"
-
-# Settle the map, then change a mapped folder.
-{
-  mapline app 'the application'
-  mapline lib 'shared code'
-} >"${mwork}/docs/MAP.md"
-commit_all "$mwork" "settle map"
+idx app 'the application' '## Interface' '- `f.txt:x` — the thing' '- `f.txt:nosuch` — gone'
+idx lib 'shared code' '## Folders' '- [`sub/`](sub/INDEX.md) — nothing'
+idx a 'top' '## Folders' '- [`b/`](b/INDEX.md) — middle'
+idx a/b 'middle' '## Folders' '- [`c/`](c/INDEX.md) — bottom'
+idx a/b/c 'bottom'
+idx a/b/c/d 'too deep'
+idx docs 'harness docs'
+commit_all "$mwork" "indexes"
 out="$(map_run)"
-expect "settled map is current" "map       : current" "$out"
-printf 'y\n' >"${mwork}/app/f.txt"
+expect "a symbol not in its file is broken" "broken  : app/INDEX.md -> f.txt:nosuch" "$out"
+refute "a symbol in its file is fine" "f.txt:x" "$out"
+expect "a dead link is broken" "broken  : lib/INDEX.md -> sub/INDEX.md" "$out"
+expect "an index in a protocol folder is an orphan" "orphan  : docs/INDEX.md" "$out"
+expect "an index too deep is an orphan" "orphan  : a/b/c/d/INDEX.md" "$out"
+refute "indexed folders are not missing" "missing : a/" "$out"
+mkdir -p "${mwork}/web"; printf 'x\n' >"${mwork}/web/f.txt"
+commit_all "$mwork" "unindexed web"
+mlint="$(map_ci)"
+expect "ci warns on a broken reference" "warn broken  : app/INDEX.md -> f.txt:nosuch" "$mlint"
+expect "ci warns on an orphan" "warn orphan  : docs/INDEX.md" "$mlint"
+refute "ci never warns on a missing index: adoption is incremental" "missing" "$mlint"
+
+idx app 'the application' '## Interface' '- `f.txt:x` — the thing'
+idx lib 'shared code'
+idx web 'the web client'
+git -C "$mwork" rm -q docs/INDEX.md a/b/c/d/INDEX.md
+commit_all "$mwork" "settle"
+out="$(map_run)"
+expect "settled indexes are current" "map       : current" "$out"
+printf 'x\ny\n' >"${mwork}/app/f.txt"
 commit_all "$mwork" "change app"
 out="$(map_run)"
-expect "changed folder is stale" "stale   : app/ (1 files changed)" "$out"
-mout="$(CLAUDE_PROJECT_DIR="$mwork" JOHARNESS_CONF="${mwork}/joharness.conf" \
-  GITHUB_ACTIONS='' "${mwork}/joharness.sh" ci 2>&1)"
-refute "ci does not warn on stale" "stale" "$(sed -n '/== graph lint/,/^$/p' <<<"$mout")"
-
-# A non-ASCII folder name must read as itself, not as git's quoted escape.
-mkdir -p "${mwork}/café"
-printf 'x\n' >"${mwork}/café/f.txt"
-commit_all "$mwork" "non-ascii folder"
+expect "a changed direct file makes its folder stale" "stale   : app/ (1 changed)" "$out"
+mkdir -p "${mwork}/lib/sub"; printf 'x\n' >"${mwork}/lib/sub/f.txt"
+commit_all "$mwork" "new child of lib"
 out="$(map_run)"
-expect "non-ascii folder is named as itself" "missing : café/" "$out"
+expect "a new child folder makes its parent stale" "stale   : lib/ (1 changed)" "$out"
+expect "and the child is missing" "missing : lib/sub/" "$out"
+refute "ci does not warn on stale" "stale" "$(map_ci)"
+mkdir -p "${mwork}/café"; printf 'x\n' >"${mwork}/café/f.txt"
+commit_all "$mwork" "non-ascii folder"
+expect "non-ascii folder is named as itself" "missing : café/" "$(map_run)"
+
+# --- finish: only what this branch caused fails.
+map_finish() { CLAUDE_PROJECT_DIR="$mwork" JOHARNESS_CONF="${mwork}/joharness.conf" \
+  GITHUB_ACTIONS='' JOHARNESS_CHECKS='' JOHARNESS_VERBOSE='' "${mwork}/joharness.sh" finish 2>&1; }
+mfin_sec() { sed -n '/^== map$/,/^$/p' <<<"$1"; }
+git -C "$mwork" checkout -q -b fadd main
+mkdir -p "${mwork}/newmod"; printf 'x\n' >"${mwork}/newmod/f.txt"
+commit_all "$mwork" "add newmod"
+out="$(mfin_sec "$(map_finish)")"
+expect "finish names the folder this branch created" "missing : newmod/" "$out"
+expect "finish says how to fix it" "run /map <these folders> on this branch" "$out"
+refute "finish skips what this branch did not cause" "café" "$out"
+idx newmod 'a new module'
+commit_all "$mwork" "index newmod"
+refute "finish passes once the folder has its index" "run /map" "$(map_finish)"
+git -C "$mwork" checkout -q -b fedit main
+printf 'x\nz\n' >"${mwork}/app/f.txt"
+commit_all "$mwork" "edit app"
+refute "an edit never fails finish" "run /map" "$(map_finish)"
+git -C "$mwork" checkout -q -b fold main
+printf 'x\n' >"${mwork}/café/g.txt"
+commit_all "$mwork" "file in an old unindexed folder"
+refute "a new file in an old unindexed folder never fails finish" "run /map" "$(map_finish)"
+mkdir -p "${mwork}/café/sub"; printf 'x\n' >"${mwork}/café/sub/f.txt"
+commit_all "$mwork" "subfolder under an old unindexed folder"
+out="$(mfin_sec "$(map_finish)")"
+expect "finish names the new subfolder" "missing : café/sub/" "$out"
+refute "finish never names the old parent" "missing : café/" "$(grep -v 'café/sub/' <<<"$out")"
+git -C "$mwork" checkout -q -b fdel main
+git -C "$mwork" rm -rq a/b
+commit_all "$mwork" "delete a/b"
+out="$(mfin_sec "$(map_finish)")"
+expect "deleting a linked child fails as broken" "broken  : a/INDEX.md -> b/INDEX.md" "$out"
+git -C "$mwork" checkout -q -b fsym main
+printf 'y\n' >"${mwork}/app/f.txt"
+commit_all "$mwork" "drop the symbol app's index names"
+out="$(mfin_sec "$(map_finish)")"
+expect "removing a referenced symbol fails as broken" "broken  : app/INDEX.md -> f.txt:x" "$out"
+git -C "$mwork" checkout -q -b fmove main
+mkdir -p "${mwork}/moved"
+git -C "$mwork" mv web/f.txt moved/f.txt
+commit_all "$mwork" "move web into a new folder"
+out="$(mfin_sec "$(map_finish)")"
+expect "a move names the new folder" "missing : moved/" "$out"
+expect "a move names the index it left behind" "orphan  : web/INDEX.md" "$out"
+git -C "$mwork" checkout -q -b forph main
+idx docs 'harness docs'
+commit_all "$mwork" "orphan index"
+out="$(mfin_sec "$(map_finish)")"
+expect "a branch adding an orphan index fails" "orphan  : docs/INDEX.md" "$out"
+git -C "$mwork" checkout -q main
