@@ -54,7 +54,30 @@ On this repository (19 unmerged of 455 refs): 528 git and ~640 other execs,
 
 ## Decisions
 
-- Claimed; profile above.
+- A1: confirmed — the profile above: per-branch execs (55 git, 68 other per
+  claim branch) and subshell forks, no single slow command; the largest one,
+  the queue hook's overlap test, is forks, not git.
+- A2: confirmed low — the real checkout's `dispatch` output is diffed old
+  against new besides the selftest (see Measurements).
+- "Call" = one `cmd_dispatch` run. Every cache is a shell variable, primed at
+  the top of `cmd_dispatch` (`mb_prime`, again after a hook fetch) or lazily
+  inside it (`base_issues_prime`); `release_write` and `release_report` run
+  `cmd_dispatch` inside `$(...)`, so nothing it primes reaches the release
+  code that pushes after it. No cache on disk.
+- Ref names: the row loop and the handover hook now ask git with the full
+  `refs/remotes/<name>` where they spelled `origin/<name>`; the two differ
+  only when a local branch or tag is named `origin/<name>`, where the short
+  spelling read the local one: a latent bug, not a contract.
+- The queue hook's overlap helpers set `HIT` instead of printing into
+  `$(...)`, and `scope_split` replaces `scope_lines` plus two pipelines
+  with builtins: same splitting, trimming and `shared:` rule.
+- The handover hook lists only unmerged refs (`--no-merged`), push time and
+  age ride on that listing, one merge base per ref is kept for its three
+  readers, churn is one `log --name-only` (root commits shown as nothing,
+  as `diff-tree` showed them) and its sort runs only once the paths can
+  reach the threshold.
+- `REF_MEMO` holds the unmerged refs only: over all 455 refs here, bash's
+  `${var#*pattern}` made each lookup a scan and the call took 18 s.
 
 ## Rejected
 
@@ -62,7 +85,17 @@ On this repository (19 unmerged of 455 refs): 528 git and ~640 other execs,
 
 ## Review
 
-- None yet.
+- r1: (plan-checker) "sorted PASS/FAIL/SKIP lines identical" contradicts the new cache case, and names no command (fixed: plan says identical but for the new case's lines, measured-time lines and the shipped-file count, and names the grep)
+- r2: (plan-checker) "call" reads as process or as `cmd_dispatch` run; `release_write` runs `cmd_dispatch` in-process (fixed: plan and Decisions say one `cmd_dispatch` run; the nested runs are in `$(...)`)
+- r3: (plan-checker) a two-process case passes for any in-memory cache (fixed: plan says the case catches a cache kept on disk; the in-process reading rests on the `$(...)` nesting, Decisions)
+- r4: (plan-checker) the run-5 wrapper exists only as prose, `ST_ONLY` is no runner knob (fixed: plan points at the wrapper this workstream file records)
+- r5: (plan-checker) only the `dfx` slope is gated, `dsp` is the larger share (no change: the plan gates `dfx`; `dsp` is measured and recorded beside it)
+- r6: (plan-checker) no item compares `release` output (fixed: plan adds `release` on the real checkout, old against new, masked)
+- r7: (plan-checker) "first commit" and "per claim branch" undefined (no change: the first commit after the claim, counted as a difference between fixtures of 8 and 32 claim branches, Profile)
+- r8: (plan-checker) masking sed and old build unspecified (fixed: plan says the old build is a worktree at the merge base; the sed is in this file)
+- r9: (plan-checker) consumer clone and sync command unnamed (fixed: plan names them)
+- r10: (plan-checker) "8 s late calls" unverified (wontfix: a pointer in Where to look, no acceptance rests on it)
+- r11: (plan-checker) an existing per-branch cache (`evcache`) is not named (no change: the build extends `mb_prime`'s memo, no parallel mechanism)
 
 ## Blockers
 

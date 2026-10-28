@@ -75,6 +75,7 @@ merged_refs="$(
 )"
 
 NL=$'\n'
+TAB=$'\t'
 # Exact-line match, never substring: `origin/claude/foo` is a substring of
 # `origin/claude/foo-2`, and a substring test would skip a live branch as
 # merged.
@@ -88,24 +89,27 @@ ref_merged() {
 
 # Claims: every unmerged remote branch's workstream files, each `plan:` field a
 # claim edge onto a plan here.
+# Blob ids ride on the tree listings, the base's read once: one `ls-tree`
+# per branch, never a `rev-parse` per file and side.
 claims="$(
+  base_blobs="$(git ls-tree -r "origin/${BASE_BRANCH}" -- docs/handover 2>/dev/null)"
   git for-each-ref --format='%(refname:short)' refs/remotes 2>/dev/null |
     while IFS= read -r short; do
       case "$short" in "origin/HEAD" | "origin/${BASE_BRANCH}") continue ;; esac
       ref_merged "$short" && continue
-      git ls-tree -r --name-only "$short" -- docs/handover 2>/dev/null |
-        grep -E '\.md$' | grep -vE '/(TEMPLATE|README|RETIRED)\.md$' |
-        while IFS= read -r wf; do
+      git ls-tree -r "$short" -- docs/handover 2>/dev/null |
+        while IFS=$'\t' read -r meta wf; do
+          case "$wf" in */TEMPLATE.md | */README.md | */RETIRED.md) continue ;; *.md) ;; *) continue ;; esac
           # Inherited unchanged from a rotted copy on the base branch = not
           # this branch's claim; counting it would let one rot event mark a
           # plan claimed on every branch cut after it.
-          base_blob="$(git rev-parse --quiet --verify "origin/${BASE_BRANCH}:${wf}" 2>/dev/null)"
-          blob="$(git rev-parse --quiet --verify "${short}:${wf}" 2>/dev/null)"
-          [ -n "$base_blob" ] && [ "$base_blob" = "$blob" ] && continue
+          case "${NL}${base_blobs}${NL}" in
+            *" ${meta##* }${TAB}${wf}${NL}"*) continue ;;
+          esac
           wdoc="$(git show "${short}:${wf}" 2>/dev/null)"
           { read -r p; read -r pstatus; } \
             <<<"$(printf '%s\n' "$wdoc" | fields plan status)"
-          p="$(stem "$p")"
+          p="${p##*/}"; p="${p%.md}"
           { [ -n "$p" ] && [ "$p" != "none" ]; } || continue
           case "$pstatus" in
             in-progress | blocked | review | done | abandoned) ;;
@@ -621,12 +625,32 @@ done <<<"$rows"
 
 qc_print_research
 
-# A plan's declared scope, one path per line: comma to newline, surrounding
-# blanks and trailing slashes gone, `none` dropped.
-scope_lines() {
-  git show "${ref}:$1" 2>/dev/null | field scope |
-    tr ',' '\n' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//; s|/*$||' |
-    grep -v '^$' | grep -vx 'none'
+# A plan's declared scope, split: SC_X its exclusive paths, SC_S its shared
+# ones with the `shared:` prefix (case-blind) and the blanks after it gone,
+# each space-joined. Entries are comma-separated, surrounding blanks and
+# trailing slashes gone, empty and `none` dropped. One read, then builtins:
+# it runs per free plan and again per claim and per withheld item.
+scope_split() {
+  local raw l nx=0 ns=0
+  local -a parts=()
+  SC_X=""; SC_S=""
+  raw="$(git show "${ref}:$1" 2>/dev/null | field scope)"
+  IFS=, read -r -a parts <<<"$raw"
+  for l in ${parts[@]+"${parts[@]}"}; do
+    l="${l#"${l%%[![:space:]]*}"}"
+    l="${l%"${l##*[![:space:]]}"}"
+    while [ "${l%/}" != "$l" ]; do l="${l%/}"; done
+    { [ -n "$l" ] && [ "$l" != none ]; } || continue
+    case "$l" in
+      [Ss][Hh][Aa][Rr][Ee][Dd]:*)
+        l="${l#[Ss][Hh][Aa][Rr][Ee][Dd]:}"; l="${l#"${l%%[![:space:]]*}"}"
+        if [ "$ns" -eq 0 ]; then SC_S="$l"; else SC_S="${SC_S} ${l}"; fi
+        ns=$((ns + 1)) ;;
+      *)
+        if [ "$nx" -eq 0 ]; then SC_X="$l"; else SC_X="${SC_X} ${l}"; fi
+        nx=$((nx + 1)) ;;
+    esac
+  done
 }
 
 free_count=0
@@ -644,36 +668,36 @@ while IFS=$'\t' read -r rank _ f label _; do
   free_names+=("$(stem "$f")")
   free_tiers+=("${tier:-sonnet}")
   # Normalized: comma to space, surrounding blanks and trailing slashes gone.
-  scope_raw="$(scope_lines "$f")"
   # Case-blind on the prefix: `Shared:x` spelled as an exclusive path would
   # match nothing real, so a capitalisation typo would read as MORE parallel
   # safety, not less.
-  free_scopes+=("$(printf '%s\n' "$scope_raw" |
-    grep -v '^[Ss][Hh][Aa][Rr][Ee][Dd]:' | paste -sd' ' -)")
-  free_shared+=("$(printf '%s\n' "$scope_raw" |
-    sed -n 's/^[Ss][Hh][Aa][Rr][Ee][Dd]:[[:space:]]*//p' | paste -sd' ' -)")
+  scope_split "$f"
+  free_scopes+=("$SC_X")
+  free_shared+=("$SC_S")
 done <<<"$rows"
 
 # Two path prefixes overlap when equal or one contains the other at a
-# boundary. Word-splitting of the scope strings is the point here.
+# boundary; the path sets HIT. Word-splitting of the scope strings is the
+# point here. A variable, never a print: these run per (free plan, claim)
+# pair, and a `$(...)` around each was four subshells a pair.
 scopes_overlap() {
   local a b
   for a in $1; do
     for b in $2; do
-      case "$a" in "$b" | "$b"/*) printf '%s' "$b"; return 0 ;; esac
-      case "$b" in "$a"/*) printf '%s' "$a"; return 0 ;; esac
+      case "$a" in "$b" | "$b"/*) HIT="$b"; return 0 ;; esac
+      case "$b" in "$a"/*) HIT="$a"; return 0 ;; esac
     done
   done
   return 1
 }
 
 # Splits a wave unless the only thing two plans share is a path BOTH marked
-# shared.
+# shared. The path in HIT, empty when false.
 wave_split_hit() {
-  local mine_x="$1" mine_s="$2" theirs_x="$3" theirs_s="$4" hit
-  hit="$(scopes_overlap "$mine_x" "$theirs_x")" && { printf '%s' "$hit"; return 0; }
-  hit="$(scopes_overlap "$mine_x" "$theirs_s")" && { printf '%s' "$hit"; return 0; }
-  hit="$(scopes_overlap "$mine_s" "$theirs_x")" && { printf '%s' "$hit"; return 0; }
+  HIT=""
+  scopes_overlap "$1" "$3" && return 0
+  scopes_overlap "$1" "$4" && return 0
+  scopes_overlap "$2" "$3" && return 0
   return 1
 }
 
@@ -723,16 +747,15 @@ if [ "$free_count" -gt 0 ]; then
     [ -n "$cf" ] || continue
     case "$clabel" in *'claimed on '*) ;; *) continue ;; esac
     cbranch="${clabel##*claimed on }"; cbranch="${cbranch%%,*}"; cbranch="${cbranch%%]*}"
-    craw="$(scope_lines "$cf")"
-    cscope="$(printf '%s\n' "$craw" |
-      grep -v '^[Ss][Hh][Aa][Rr][Ee][Dd]:' | paste -sd' ' -)"
-    cshared="$(printf '%s\n' "$craw" |
-      sed -n 's/^[Ss][Hh][Aa][Rr][Ee][Dd]:[[:space:]]*//p' | paste -sd' ' -)"
+    scope_split "$cf"
+    cscope="$SC_X"
+    cshared="$SC_S"
     [ -n "$cscope$cshared" ] || continue
     i=0
     while [ "$i" -lt "${#free_names[@]}" ]; do
-      if hit="$(wave_split_hit "${free_scopes[$i]:-}" "${free_shared[$i]:-}" \
-                               "$cscope" "$cshared")"; then
+      if wave_split_hit "${free_scopes[$i]:-}" "${free_shared[$i]:-}" \
+                        "$cscope" "$cshared"; then
+        hit="$HIT"
         hold_lines="${hold_lines}$(printf '  in flight: %s overlaps %s on %s (claimed on %s)' \
           "${free_names[$i]}" "$(stem "$cf")" "$hit" "$cbranch")"$'\n'
         # A hold behind a BLOCKED claim is released by `dispatch`: that plan
@@ -755,18 +778,17 @@ if [ "$free_count" -gt 0 ]; then
     # No `@` means no branch to name, so it is not one of these entries.
     case "$wentry" in *@*) ;; *) continue ;; esac
     [ -n "$wpath" ] || continue
-    wraw="$(scope_lines "$wpath")"
-    wscope="$(printf '%s\n' "$wraw" |
-      grep -v '^[Ss][Hh][Aa][Rr][Ee][Dd]:' | paste -sd' ' -)"
-    wshared="$(printf '%s\n' "$wraw" |
-      sed -n 's/^[Ss][Hh][Aa][Rr][Ee][Dd]:[[:space:]]*//p' | paste -sd' ' -)"
+    scope_split "$wpath"
+    wscope="$SC_X"
+    wshared="$SC_S"
     [ -n "$wscope$wshared" ] || continue
     i=0
     while [ "$i" -lt "${#free_names[@]}" ]; do
       # Never itself: a plan does not hold its own peers off its own paths.
       if [ "${free_withheld[$i]:-0}" != "1" ] &&
-         hit="$(wave_split_hit "${free_scopes[$i]:-}" "${free_shared[$i]:-}" \
-                               "$wscope" "$wshared")"; then
+         wave_split_hit "${free_scopes[$i]:-}" "${free_shared[$i]:-}" \
+                        "$wscope" "$wshared"; then
+        hit="$HIT"
         hold_lines="${hold_lines}$(printf '  in flight: %s overlaps %s on %s (claimed on %s)' \
           "${free_names[$i]}" "$(stem "$wpath")" "$hit" "$wbranch")"$'\n'
         [ "${free_held[$i]}" = "1" ] || n_held=$((n_held + 1))
@@ -798,9 +820,9 @@ if [ "$free_count" -ge 2 ] && [ "$scoped_any" = "1" ]; then
       while [ "$w" -lt "${#waves[@]}" ]; do
         hit=""
         for m in ${waves[$w]}; do
-          hit="$(wave_split_hit "${free_scopes[$i]}" "${free_shared[$i]}" \
-                  "${free_scopes[$m]}" "${free_shared[$m]}")" &&
-            { hit="${free_names[$m]} on ${hit}"; break; }
+          wave_split_hit "${free_scopes[$i]}" "${free_shared[$i]}" \
+                  "${free_scopes[$m]}" "${free_shared[$m]}" &&
+            { hit="${free_names[$m]} on ${HIT}"; break; }
           hit=""
         done
         if [ -z "$hit" ]; then

@@ -51,15 +51,17 @@ claimed_issues=""
 # tree.
 OWNED_UNVERIFIED=0
 
+# <value> <var>: sets <var>, never prints, so the per-ref walk forks no
+# subshell for it; the same for pr_num and rank_of.
 issue_num() {
   local v="${1#\#}"
   case "$v" in
-    '' | none)  return 0 ;;
-    *[!0-9]* )  return 0 ;;
-    0 )         return 0 ;;
-    0* )        return 0 ;;
+    '' | none)  v="" ;;
+    *[!0-9]* )  v="" ;;
+    0 )         v="" ;;
+    0* )        v="" ;;
   esac
-  printf '%s' "$v"
+  printf -v "$2" '%s' "$v"
 }
 
 fields() {
@@ -81,11 +83,63 @@ fields() {
     END { for (i = 1; i <= n; i++) { if (i in v) print v[i]; else print "" } }'
 }
 
+# `fields`, then one line more: the `- ` items under `## Review`.
+fields_review() {
+  awk -v keys="$*" '
+    BEGIN { n = split(keys, k, " "); fm = 1 }
+    NR == 1 && $0 != "---" { fm = 0 }
+    NR > 1  && fm && $0 == "---" { fm = 0 }
+    fm && NR > 1 {
+      for (i = 1; i <= n; i++) {
+        if (i in v) continue
+        if (match($0, "^" k[i] ":[[:space:]]*")) {
+          s = substr($0, RLENGTH + 1)
+          sub(/[[:space:]]+#.*$/, "", s)
+          sub(/[[:space:]]+$/, "", s)
+          v[i] = s
+        }
+      }
+    }
+    /^## Review[[:space:]]*$/ { in_r = 1; next }
+    /^## /                    { in_r = 0 }
+    in_r && /^- /             { r++ }
+    END { for (i = 1; i <= n; i++) { if (i in v) print v[i]; else print ""
+          } print r + 0 }'
+}
+
 # Workstream files at a ref. The protocol doc (README.md) and the template are
 # not workstreams. Empty if the ref has none.
 files_at() {
-  git ls-tree -r --name-only "$1" -- "$HANDOVER_DIR" 2>/dev/null |
-    grep -E '\.md$' | grep -vE '/(TEMPLATE|README)\.md$'
+  git ls-tree -r --name-only "$1" -- "$HANDOVER_DIR" 2>/dev/null | ws_only
+}
+
+# The workstream files of a path listing on stdin, in builtins: the walk
+# below runs it per ref, where two greps were two execs each time.
+ws_only() {
+  local l
+  while IFS= read -r l; do
+    case "$l" in */TEMPLATE.md | */README.md) ;; *.md) printf '%s\n' "$l" ;; esac
+  done
+}
+
+NL=$'\n'
+TAB=$'\t'
+# Merge bases with the base branch, kept per ref by the walk below and read
+# again by the entry loop, so a ref costs one `merge-base`, not three:
+# `\n<ref>\t<sha>`, an empty sha = none. Lives as long as this run.
+MB_MEMO=""
+mb_keep() {
+  MB_MEMO="${MB_MEMO}${NL}${1}${TAB}$(git merge-base "$1" "origin/${BASE_BRANCH}" 2>/dev/null)"
+}
+# <ref>: its merge base with the base branch; false when there is none.
+mb_of() {
+  local mb
+  case "$MB_MEMO" in
+    *"${NL}${1}${TAB}"*) mb="${MB_MEMO#*"${NL}${1}${TAB}"}"; mb="${mb%%"${NL}"*}" ;;
+    *) mb="$(git merge-base "$1" "origin/${BASE_BRANCH}" 2>/dev/null)" ;;
+  esac
+  [ -n "$mb" ] || return 1
+  printf '%s' "$mb"
 }
 
 # Workstream files a ref OWNS: ones it wrote or edited since it diverged from
@@ -93,21 +147,19 @@ files_at() {
 owned_at() {
   local base
   # NO merge-base: fall back to the tree.
-  base="$(git merge-base "$1" "origin/${BASE_BRANCH}" 2>/dev/null)" || base=""
+  base="$(mb_of "$1")" || base=""
   if [ -z "$base" ]; then
     files_at "$1"
     return 3
   fi
   git diff --name-only --diff-filter=ACMRT "$base" "$1" \
-    -- "$HANDOVER_DIR" 2>/dev/null |
-    grep -E '\.md$' | grep -vE '/(TEMPLATE|README)\.md$'
+    -- "$HANDOVER_DIR" 2>/dev/null | ws_only
 }
 
 # Paths a ref has changed since it diverged from the base branch.
 changed_at() {
   local base
-  base="$(git merge-base "$1" "origin/${BASE_BRANCH}" 2>/dev/null)" || return 0
-  [ -n "$base" ] || return 0
+  base="$(mb_of "$1")" || return 0
   git diff --name-only "$base" "$1" 2>/dev/null | sort -u
 }
 
@@ -179,7 +231,7 @@ if [ -n "$mine" ]; then
     { read -r status; read -r updated; read -r next; read -r agent
       read -r issue; } \
       <<<"$(fields status updated next agent issue <"$f")"
-    issue="$(issue_num "$issue")"
+    issue_num "$issue" issue
     # This branch's own claim goes in the block too.
     [ "$status" = abandoned ] && issue=""
     [ -z "$issue" ] ||
@@ -214,36 +266,28 @@ rows=""
 recent_count=0
 now="$(date +%s)"
 
-# Every ref already merged into the base branch, banked in ONE process.
-merged_refs="$(
-  git for-each-ref --format='%(refname)' \
-    --merged "origin/${BASE_BRANCH}" refs/remotes 2>/dev/null
-)"
-
-NL=$'\n'
-# Exact-line match, never substring: `origin/claude/foo` is a substring of
-# `origin/claude/foo-2`, and a substring test would skip a live branch as
-# merged.
-merged_nl="${NL}${merged_refs}${NL}"
-ref_merged() {
-  case "$merged_nl" in
-    *"${NL}${1}${NL}"* ) return 0 ;;
-  esac
-  return 1
-}
+# A ref already merged into the base branch is finished work, not a live
+# claim: the walk below lists the others only, the filter git's, never a test
+# per ref against the merged list (hundreds of refs on a long-lived repo). No
+# base branch = nothing merged, every ref listed.
+unmerged_only=()
+git rev-parse --verify --quiet "origin/${BASE_BRANCH}^{commit}" >/dev/null 2>&1 &&
+  unmerged_only=("--no-merged=origin/${BASE_BRANCH}")
 
 # How close to merging, low first.
 rank_of() {
+  local r
   case "$1" in
     # RELEASED, and below even a blocked entry: `release` writes this word
     # once the session is proven gone, the queue holds the plan, or a human
     # ordered it, so nothing here is anybody's next move.
-    abandoned ) printf 5 ;;
-    blocked )   printf 4 ;;
-    "done" )    printf 0 ;;
-    review )    printf 1 ;;
-    * )         if [ -n "$2" ]; then printf 2; else printf 3; fi ;;
+    abandoned ) r=5 ;;
+    blocked )   r=4 ;;
+    "done" )    r=0 ;;
+    review )    r=1 ;;
+    * )         if [ -n "$2" ]; then r=2; else r=3; fi ;;
   esac
+  printf -v "$3" '%s' "$r"
 }
 
 # A surveyor's genuine-holds end (manage.md, rescope): `workstream: rescope-*`,
@@ -259,16 +303,17 @@ finished_rescope() {
 # ending in `/pull/N` (one trailing slash allowed).
 pr_num() {
   local v="${1#\#}" u
-  case "$v" in '' | none | NONE ) return 0 ;; esac
+  case "$v" in '' | none | NONE ) printf -v "$2" '%s' ""; return 0 ;; esac
   u="${v%/}"
   case "$u" in
     http://*/pull/[0-9]* | https://*/pull/[0-9]* )
       case "${u##*/}" in *[!0-9]* ) ;; * ) v="${u##*/}" ;; esac ;;
   esac
-  printf '%s' "$v"
+  printf -v "$2" '%s' "$v"
 }
 
-while IFS= read -r ref; do
+# The push time and age ride on the ref listing: a tag's are its commit's.
+while IFS=$'\x1f' read -r ref pushed_at pushed_tag pushed_rel pushed_tagrel; do
   short="${ref#refs/remotes/}"
   # Compare on the branch name with the remote prefix stripped.
   name="${short#*/}"
@@ -282,23 +327,27 @@ while IFS= read -r ref; do
     continue
   fi
 
-  # Already merged into the base branch: finished work, not a live claim.
-  ref_merged "$ref" && continue
 
-  pushed_at="$(git log -1 --format=%ct "$ref" 2>/dev/null)"
-  pushed_rel="$(git log -1 --format=%cr "$ref" 2>/dev/null)"
+  [ -n "$pushed_at" ] || { pushed_at="$pushed_tag"; pushed_rel="$pushed_tagrel"; }
   fresh=0
   if [ -n "$pushed_at" ] && [ $((now - pushed_at)) -lt "$LIVE_SECONDS" ]; then
     fresh=1
   fi
 
   # OWNS, not carries.
+  mb_keep "$ref"
   ws_files="$(owned_at "$ref")" || [ "$?" -ne 3 ] || OWNED_UNVERIFIED=1
   # Inherited but not owned: carried by the branch, authored by nobody on it.
   inherited_n=0
   if [ "$OWNED_UNVERIFIED" -eq 0 ]; then
-    inherited_n="$(comm -13 <(printf '%s\n' "$ws_files" | sort -u) \
-      <(files_at "$ref" | sort -u) 2>/dev/null | grep -c . || :)"
+    # The tree's files the branch does not own, counted in builtins.
+    while IFS= read -r f; do
+      [ -n "$f" ] || continue
+      case "${NL}${ws_files}${NL}" in
+        *"${NL}${f}${NL}"*) ;;
+        *) inherited_n=$((inherited_n + 1)) ;;
+      esac
+    done <<<"$(files_at "$ref")"
   fi
 
   # A branch pushed recently is worth surfacing even with no workstream file: a
@@ -322,13 +371,15 @@ while IFS= read -r ref; do
     [ -n "$f" ] || continue
     doc="$(git show "${ref}:${f}" 2>/dev/null)"
     [ -n "$doc" ] || continue
+    # The fields, then the findings recorded in the file's ## Review
+    # section: one awk for both.
     { read -r status; read -r updated; read -r session; read -r agent
-      read -r issue; read -r pr; read -r wsname; read -r wplan; } \
+      read -r issue; read -r pr; read -r wsname; read -r wplan; read -r review_n; } \
       <<<"$(printf '%s\n' "$doc" |
-        fields status updated session agent issue pr workstream plan)"
-    issue="$(issue_num "$issue")"
-    pr="$(pr_num "$pr")"
-    rank="$(rank_of "$status" "$pr")"
+        fields_review status updated session agent issue pr workstream plan)"
+    issue_num "$issue" issue
+    pr_num "$pr" pr
+    rank_of "$status" "$pr" rank
     # Rank 6, below abandoned, set here and never from a status word: nothing
     # to finish, nobody to nudge (issue #492).
     finished_rescope "$wsname" "$wplan" "$status" "$pr" && rank=6
@@ -336,16 +387,12 @@ while IFS= read -r ref; do
     { [ -z "$issue" ] || [ "$status" = abandoned ]; } ||
       claimed_issues="${claimed_issues}  #${issue} — ${short} (${f})"$'\n'
 
-    # Findings recorded in the file's ## Review section.
-    review_n="$(printf '%s\n' "$doc" | awk '
-      /^## Review[[:space:]]*$/ { in_r = 1; next }
-      /^## /                    { in_r = 0 }
-      in_r && /^- /             { n++ }
-      END { print n + 0 }')"
 
     rows="${rows}${rank}${US}${pushed_at:-9999999999}${US}${short}${US}${f}${US}${status}${US}${pr}${US}${updated}${US}${agent}${US}${issue}${US}${session}${US}${fresh}${US}${entry_stale}${US}${inherited_n}${US}${review_n}${US}${pushed_rel}${US}${wplan}"$'\n'
   done <<<"$ws_files"
-done < <(git for-each-ref --format='%(refname)' refs/remotes 2>/dev/null)
+done < <(git for-each-ref ${unmerged_only[@]+"${unmerged_only[@]}"} \
+  --format='%(refname)%1f%(committerdate:unix)%1f%(*committerdate:unix)%1f%(committerdate:relative)%1f%(*committerdate:relative)' \
+  refs/remotes 2>/dev/null)
 
 others=""
 count=0
@@ -385,7 +432,7 @@ edge_facts() {
      ! git cat-file -e "origin/${BASE_BRANCH}:docs/plans/${plan}.md" 2>/dev/null; then
     del="$(git log -1 --format=%H --full-history -m --diff-filter=D \
       "origin/${BASE_BRANCH}" -- ":(literal)docs/plans/${plan}.md" 2>/dev/null)"
-    mb="$(git merge-base "$ref" "origin/${BASE_BRANCH}" 2>/dev/null)"
+    mb="$(mb_of "refs/remotes/${ref}")"
     if [ -n "$del" ] && [ -n "$mb" ] &&
        ! { git cat-file -e "${ref}:docs/plans/${plan}.md" 2>/dev/null &&
            git merge-base --is-ancestor "$del" "$mb" 2>/dev/null; }; then
@@ -469,7 +516,7 @@ while IFS="$US" read -r rank _ short f status pr updated agent issue \
   fi
 
   if [ -n "$my_paths" ]; then
-    ref_paths="$(changed_at "$short")"
+    ref_paths="$(changed_at "refs/remotes/${short}")"
     if [ -n "$ref_paths" ]; then
       overlap="$(comm -12 <(printf '%s\n' "$my_paths") \
         <(printf '%s\n' "$ref_paths") | head -4 | paste -sd', ' -)"
@@ -478,15 +525,23 @@ while IFS="$US" read -r rank _ short f status pr updated agent issue \
     fi
   fi
 
-  churn_base="$(git merge-base "$short" "origin/${BASE_BRANCH}" 2>/dev/null)"
+  churn_base="$(mb_of "refs/remotes/${short}")"
   if [ -n "$churn_base" ]; then
-    churn="$(git log --no-merges --format='%H' "${churn_base}".."$short" 2>/dev/null |
-      while IFS= read -r c; do
-        git diff-tree --no-commit-id --name-only -r "$c" 2>/dev/null
-      done |
-      { grep -vE '^docs/(handover|plans|product)/' || :; } |
-      sort | uniq -c | { sort -rn || :; } | head -1 |
-      awk '{ c = $1; sub(/^ *[0-9]+ /, ""); printf "%s\t%s\n", c, $0 }')"
+    # Each commit's paths against its parent, a root commit's none: what a
+    # `diff-tree` per commit printed, in one walk.
+    churn_kept=""; churn_k=0
+    while IFS= read -r c; do
+      case "$c" in '' | docs/handover/* | docs/plans/* | docs/product/*) continue ;; esac
+      churn_kept="${churn_kept}${c}${NL}"; churn_k=$((churn_k + 1))
+    done <<<"$(git -c log.showRoot=false log --no-merges --no-renames --format= \
+      --name-only "${churn_base}..refs/remotes/${short}" 2>/dev/null)"
+    churn=""
+    # Fewer paths than the threshold: no file can reach it, nothing to count.
+    if ! [ "$churn_k" -lt "${JOHARNESS_CHURN_THRESHOLD:-5}" ] 2>/dev/null; then
+      churn="$(printf '%s' "$churn_kept" |
+        sort | uniq -c | { sort -rn || :; } | head -1 |
+        awk '{ c = $1; sub(/^ *[0-9]+ /, ""); printf "%s\t%s\n", c, $0 }')"
+    fi
     churn_n="${churn%%$'\t'*}"
     churn_f="${churn#*$'\t'}"
     if [ -n "$churn_n" ] && [ "$churn_n" -ge "${JOHARNESS_CHURN_THRESHOLD:-5}" ]; then

@@ -3139,13 +3139,29 @@ refs_merged() {
 # base, each in its own subshell, so a memo filled later is lost to the rest.
 # `\n<ref>\t<sha>`; an empty sha = no merge base. The unmerged list itself,
 # asked of the base alone by as many readers, is kept beside it.
+# Beside them, from ONE listing, every origin ref's tip: REF_MEMO, `\n<ref>
+# <12-char abbreviation> <committer time>` (a tag's time is its commit's), for
+# the push ages and head lines every row asks. All of it lives as long as the
+# process: a call primes it, a fetch in the call primes it again, and nothing
+# outside cmd_dispatch primes it.
 MB_MEMO=""
 UNMERGED_MEMO=""
 UNMERGED_FOR=""
+REF_MEMO=""
 mb_prime() {
   local over="refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" r memo="" list
+  local -a pats=()
   UNMERGED_FOR=""
   list="$(refs_unmerged "$over")"
+  # The unmerged refs only, as `list` names them: a merged ref is no row, and
+  # a memo of every ref made each lookup scan a string hundreds of lines long.
+  # Patterns match a ref and the refs below it: an extra one reads true.
+  REF_MEMO=$'\n'
+  while IFS= read -r r; do [ -z "$r" ] || pats+=("$r"); done <<<"$list"
+  [ "${#pats[@]}" -eq 0 ] ||
+    REF_MEMO=$'\n'"$(git -C "$ROOT" for-each-ref \
+      --format='%(refname) %(objectname:short=12) %(committerdate:unix)%(*committerdate:unix)' \
+      "${pats[@]}" </dev/null 2>/dev/null)"$'\n'
   while IFS= read -r r; do
     [ -n "$r" ] || continue
     memo="${memo}"$'\n'"${r}"$'\t'"$(git -C "$ROOT" merge-base "$r" "$over" \
@@ -3154,6 +3170,19 @@ mb_prime() {
   MB_MEMO="$memo"
   UNMERGED_MEMO="$list"
   UNMERGED_FOR="$over"
+}
+
+# <ref> <var for the abbreviation> <var for the committer time>: true when
+# mb_prime listed <ref>, and both set; false and neither set otherwise.
+ref_fact() {
+  local rest
+  case "$REF_MEMO" in
+    *$'\n'"${1} "*)
+      rest="${REF_MEMO#*$'\n'"${1} "}"; rest="${rest%%$'\n'*}"
+      printf -v "$2" '%s' "${rest%% *}"
+      printf -v "$3" '%s' "${rest#* }" ;;
+    *) return 1 ;;
+  esac
 }
 
 # <ref>: `git merge-base <ref> <base>`, its output and its failure, from the
@@ -6540,8 +6569,9 @@ cmd_conf() {
 }
 
 dispatch_age_min() {
-  local ts now
-  ts="$(git -C "$ROOT" log -1 --format=%ct "refs/remotes/origin/$1" </dev/null 2>/dev/null)"
+  local ts now ab
+  ref_fact "refs/remotes/origin/$1" ab ts ||
+    ts="$(git -C "$ROOT" log -1 --format=%ct "refs/remotes/origin/$1" </dev/null 2>/dev/null)"
   [ -n "$ts" ] || return 0
   now="$(date +%s)"
   printf '%s' "$(( (now - ts) / 60 ))"
@@ -6660,6 +6690,40 @@ release_edge() {
     fi
   done < <(printf '%s\n' "$dstems" | tr ',' '\n')
 }
+# The issue numbers the base's plan files name, ` <n> ` each, as
+# plan_names_issue reads them: `gr_field issue` (first `issue:` line inside
+# the frontmatter) through issue_verdict. One `git grep` a call, primed by
+# cmd_dispatch outside the `$(...)` its parked rows run in: a parked row
+# asked every base plan once. BASE_ISSUES_READ=0 = not primed, ask git.
+BASE_ISSUES=""
+BASE_ISSUES_READ=0
+base_issues_prime() {
+  local over="refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" iss v
+  BASE_ISSUES=" "
+  # `-a`: a plan git calls binary is still read line by line, as `show` does.
+  while IFS= read -r iss; do
+    v="$(issue_verdict "$iss")"
+    case "$v" in "ok "*) BASE_ISSUES="${BASE_ISSUES}${v#ok } " ;; esac
+  done < <(git -C "$ROOT" grep -a -z -n -e '^---$' -e '^issue:' "$over" \
+      -- docs/plans </dev/null 2>/dev/null | tr '\000' '\001' |
+    awk -F'\001' -v pre="${over}:docs/plans/" '
+      # The files ls-tree lists at docs/plans/ and gr_docs keeps.
+      substr($1, 1, length(pre)) != pre { next }
+      { f = substr($1, length(pre) + 1) }
+      f ~ /\// || f !~ /\.md$/ || f == "TEMPLATE.md" || f == "README.md" ||
+        f == "RETIRED.md" || (f in done) { next }
+      { t = $3; for (i = 4; i <= NF; i++) t = t "\001" $i }
+      # gr_fields: line 1 opens the frontmatter or there is none, the next
+      # `---` closes it, the first `issue:` inside it is the value.
+      $2 == 1 { if (t == "---") open[f] = 1; else done[f] = 1; next }
+      !(f in open) || t == "---" { done[f] = 1; next }
+      { match(t, "^issue:[[:space:]]*"); s = substr(t, RLENGTH + 1)
+        sub(/[[:space:]]+#.*$/, "", s); sub(/[[:space:]]+$/, "", s)
+        # A NUL in the line: `$(...)` drops it from what `show` printed.
+        gsub(/\001/, "", s); print s; done[f] = 1 }')
+  BASE_ISSUES_READ=1
+}
+
 # Does a plan file's frontmatter at <rev>:<path> name issue <n>? Its reader is
 # issue_verdict, the one `ci` lints with.
 plan_names_issue() {
@@ -6777,13 +6841,17 @@ dispatch_defect_state() {
     --format='C %H %ct' "refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" \
     "^${bh}" </dev/null 2>/dev/null)
   # Named now: on the base, or on a `live` branch row.
-  while IFS= read -r p; do
-    [ -n "$p" ] || continue
-    plan_names_issue "refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" "$p" "$n" &&
-      { named=1; break; }
-  done < <(git -c core.quotePath=false -C "$ROOT" ls-tree --name-only \
-    "refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" docs/plans/ </dev/null 2>/dev/null |
-    gr_docs)
+  if [ "$BASE_ISSUES_READ" -eq 1 ]; then
+    case "$BASE_ISSUES" in *" ${n} "*) named=1 ;; esac
+  else
+    while IFS= read -r p; do
+      [ -n "$p" ] || continue
+      plan_names_issue "refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" "$p" "$n" &&
+        { named=1; break; }
+    done < <(git -c core.quotePath=false -C "$ROOT" ls-tree --name-only \
+      "refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" docs/plans/ </dev/null 2>/dev/null |
+      gr_docs)
+  fi
   if [ "$named" -eq 0 ]; then
     while IFS=$'\t' read -r kind b st _; do
       [ "$kind" = live ] || continue
@@ -8062,7 +8130,7 @@ cmd_dispatch() {
   local st wave note hold holdmap hold_live hline hb hs holds_n blocked_claims=""
   local ebranch eitem efirst estem espaces emore epath eage eagetext
   local edge_rows="" edge_items="" edge_unver=""
-  local gh_head gh_base n_inflight=0 n_slots n_free=0 n_stall=0 n_blocked=0 n_hold=0 n_wait=0 n_loop=0
+  local gh_head gh_ts gh_base n_inflight=0 n_slots n_free=0 n_stall=0 n_blocked=0 n_hold=0 n_wait=0 n_loop=0
   local pending pending_used
   local n_edge=0 n_edge_stall=0 n_leftover=0 n_leftover_noitem=0
   local leftover_rows="" estate="" fleet_age stall_young=""
@@ -8387,8 +8455,7 @@ cmd_dispatch() {
     # Progress, from git: commits since the branch left the base, the most
     # rewritten file, findings recorded.
     work=""; churn_n=0
-    base="$(git -C "$ROOT" merge-base "refs/remotes/origin/${branch}" \
-      "origin/${HANDOVER_BASE_BRANCH:-main}" 2>/dev/null)"
+    base="$(base_mb "refs/remotes/origin/${branch}")"
     if [ -n "$base" ]; then
       commits="$(git -C "$ROOT" rev-list --count --no-merges \
         "${base}..refs/remotes/origin/${branch}" 2>/dev/null)"
@@ -8416,9 +8483,10 @@ cmd_dispatch() {
         defect:*)
           # A defect's, not the human's: parked until the fix retires.
           n_parked=$((n_parked + 1))
+          [ "$BASE_ISSUES_READ" -eq 1 ] || base_issues_prime
           IFS=$'\t' read -r dst dn dplan dage \
             <<<"$(dispatch_defect_state "$branch" "$ws" "$base" "$next" "$bprows")"
-          di="$(basename "$path" .md) (${branch})"
+          di="$(lint_stem "$path") (${branch})"
           case "$dst" in
             RESUME | RECHECK)
               # Which RESUME and RECHECK rows get a slot is known only once
@@ -8447,7 +8515,7 @@ cmd_dispatch() {
           # human is told, it is released as a human's block is.
           case "$dst" in
             UNREADABLE | STUCK | UNPLANNED)
-              blocked_claims="${blocked_claims} $(basename "$path" .md)@${branch} " ;;
+              blocked_claims="${blocked_claims} $(lint_stem "$path")@${branch} " ;;
           esac
           ;;
         *)
@@ -8464,11 +8532,11 @@ cmd_dispatch() {
           dn="$(awaited_pr "$(printf '%s\n' "$doc" | gr_field_raw next)")"
           if [ -n "$dn" ] && awaited_pr_merged "$dn" "$bage"; then
             n_parked=$((n_parked + 1)); n_fixed=$((n_fixed + 1)); dresume=1
-            di="$(basename "$path" .md) (${branch})"
+            di="$(lint_stem "$path") (${branch})"
             fx_lines+=("$parked_lines"); parked_lines=""
             fx_n+=("$dn"); fx_plan+=("-"); fx_di+=("$di"); fx_kind+=(MERGED)
           else
-            blocked_claims="${blocked_claims} $(basename "$path" .md)@${branch} "
+            blocked_claims="${blocked_claims} $(lint_stem "$path")@${branch} "
             # A block the queue has since absorbed (#626): the plan is held by
             # a needs: edge added after the park, for a reason the queue can
             # answer, on a stem the block names. Stems come from the queue's
@@ -8489,7 +8557,7 @@ cmd_dispatch() {
               rts="$(date -u -d "@${rts}" +%Y-%m-%d 2>/dev/null ||
                 date -u -r "$rts" +%Y-%m-%d 2>/dev/null)"
               flag="  RELEASE: the queue holds it by needs: ${rstem} since ${rts}, holds no slot"
-              rel_needs="${rel_needs}release   : ${branch}  queue holds it by needs: ${rstem}  plan $(basename "$path" .md)  since ${rts}"$'\n'
+              rel_needs="${rel_needs}release   : ${branch}  queue holds it by needs: ${rstem}  plan $(lint_stem "$path")  since ${rts}"$'\n'
             else
               flag="  BLOCKED: the human's, holds no slot"
               block_reason_ok "$next" ||
@@ -8532,7 +8600,7 @@ cmd_dispatch() {
       # Keyed on the CLAIM, not the branch: one branch can carry two workstream
       # files, and each claim holds what ITS scope holds.
       holds_n="$(printf '%s\n' "$holdmap" |
-        awk -F'\t' -v st="$(basename "$path" .md)" -v b="$branch" '
+        awk -F'\t' -v st="$(lint_stem "$path")" -v b="$branch" '
           { pre = st " on "
             suf = " (claimed on " b ")"
             if (substr($2, 1, length(pre)) == pre &&
@@ -8546,9 +8614,9 @@ cmd_dispatch() {
     # The git half of "did this land": the head read, and whether a merge-base
     # with the base ref exists at all (a shallow clone or an unrelated branch
     # has none, and that is its own value, never "no").
-    gh_head="$(git -C "$ROOT" rev-parse --short=12 "refs/remotes/origin/${branch}" </dev/null 2>/dev/null)"
-    if git -C "$ROOT" merge-base "refs/remotes/origin/${branch}" \
-      "refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" </dev/null >/dev/null 2>&1; then
+    ref_fact "refs/remotes/origin/${branch}" gh_head gh_ts ||
+      gh_head="$(git -C "$ROOT" rev-parse --short=12 "refs/remotes/origin/${branch}" </dev/null 2>/dev/null)"
+    if [ -n "$base" ]; then
       gh_base="ok"
     else
       gh_base="unreadable"

@@ -50,21 +50,33 @@ the build measures it.
 
 - First commit: a profile in the workstream file (git and non-git execs
   per claim branch, command named) before any code.
-- `JOHARNESS_SELFTEST_JOBS=1 bash .agents/harness/selftest.sh`, sorted
-  PASS/FAIL/SKIP lines identical before and after (bar measured-time lines).
-- `DISPATCH_FETCH=0 DRAIN_FETCH=0 ./joharness.sh dispatch` on this checkout,
-  old and new build run back to back on the same refs: identical output
-  after masking clock-relative ages (the masking `sed` named in the
-  workstream file; a line differing in anything but an age is a failure).
+- `JOHARNESS_SELFTEST_JOBS=1 bash .agents/harness/selftest.sh`, its
+  `grep -E '^  (PASS|FAIL|SKIP) ' | sort` lines identical before and after,
+  but for measured-time lines, the shipped-file count and the new cache
+  case's own lines; 0 failed.
+- The old build is a worktree at the branch's merge base
+  (`git worktree add --detach <dir> <merge base>`), run with
+  `CLAUDE_PROJECT_DIR` at this checkout.
+- `DISPATCH_FETCH=0 DRAIN_FETCH=0 ./joharness.sh dispatch` and
+  `./joharness.sh release` on this checkout, old and new build run back to
+  back on the same refs: identical output after masking clock-relative ages
+  (the masking `sed` written in the workstream file; a line differing in
+  anything but an age is a failure).
 - The slope of a linear fit of seconds per `dfx` call against origin refs
-  (the research's run-5 wrapper), old against new: at most 0.5x (old: 0.42
+  (the research's run-5 wrapper, rebuilt and written in the workstream file:
+  `dsp`/`dfx` log refs and seconds per call, the runner patched in a scratch
+  worktree to run the `dispatch` topic alone), old against new: at most 0.5x (old: 0.42
   s per ref); git execs per call beside it. Numbers and command in the workstream file.
 - A case in `.agents/harness/selftest/dispatch.sh` (or the file its fixture
   moved to): a ref moved between two calls in one shell is read fresh by
-  the second; it fails if a cache outlives its call.
-- SHIPS: in a consumer scratch clone, `./joharness.sh dispatch` before and
-  after the sync, back to back on the same refs, ages masked as above:
-  identical; recorded in the workstream file.
+  the second; it fails if a cache outlives its call on disk. "Call" is one
+  `cmd_dispatch` run; one nested in `release` runs inside `$(...)`, so a
+  shell-variable cache cannot reach the release code after it.
+- SHIPS: in a consumer scratch clone (`.agents/scripts/bootstrap-consumer.sh
+  <dir>` from the old build's worktree, then `.agents/scripts/sync-to-consumer.sh
+  <dir>` from this branch), `./joharness.sh dispatch` before and after the
+  sync, back to back on the same refs, ages masked as above: identical;
+  recorded in the workstream file.
 - `./joharness.sh ci` and `./joharness.sh verify` green.
 
 ## Where to look
