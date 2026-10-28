@@ -140,6 +140,7 @@ JOHARNESS_RETRO_HOURS|168|dispatch|Hours since the retro ledger last landed befo
 JOHARNESS_RETRO_SAMPLE|3|dispatch|Sessions that did not come back clean one retro run samples; 0 = off.
 JOHARNESS_RETRO_EVENTS|200|dispatch|Transcript events a retro reviewer reads per sampled session.
 JOHARNESS_DEFECT_PLAN_HOURS|48|dispatch|Hours after the first defect: park on an issue with no plan naming it = PARKED UNPLANNED; 0 lifts it.
+JOHARNESS_DEFECT_CLERK_HOURS|1|dispatch|Hours after the first defect: park on an issue no plan names, with no clerk landed since, before the clerk is due ahead of its cadence; 0 lifts it.
 JOHARNESS_DEFECT_FIX_HOURS|72|dispatch|Hours after the first defect: park on an issue with no RESUME = PARKED STUCK; 0 lifts it.
 JOHARNESS_DEFECT_RECHECK_HOURS|2|dispatch|Hours after a defect: block, the base moved since and no plan naming its issue, before PARKED RECHECK; 0 lifts it.
 JOHARNESS_SCOUT_REVIEWER||base-conf|GitHub login whose approved comment gates a scout proposal; empty = none. Read from the base branch conf.
@@ -4270,8 +4271,85 @@ clerk_due() {
     CLERK_DUE="due ${age}h since ${base_word} (>= ${hours}h)"
   else
     CLERK_DUE="not-due ${age}h since ${base_word} (of ${hours}h)"
+    # Here, not in a print: dispatch and `clerk` read the same due state.
+    clerk_park_early "$ts"
+    [ -z "$CLERK_EARLY" ] ||
+      CLERK_DUE="due ${CLERK_EARLY_WHY}, ahead of the cadence: ${age}h since ${base_word} (of ${hours}h)"
   fi
   CLERK_ROWS="$(clerk_walk)"
+}
+
+# A manager parked on a defect no plan names waits on the clerk, the one
+# path from an issue into the queue: past JOHARNESS_DEFECT_CLERK_HOURS since
+# the first park, with no clerk landed or no-op recorded since it, the clerk
+# is due now. Only a PARKED state counts (dispatch_defect_state): UNPLANNED
+# and STUCK already reach the human, RESUME and RECHECK are dispatch's.
+# Planned = what the clerk itself skips as planned (clerk_issue_nums all).
+# Fails closed: any read that fails makes nothing due early.
+# arg: <last clerk time, unix; 0 = none>. Sets CLERK_EARLY (`#<n>`, the
+# oldest such park) and CLERK_EARLY_WHY, or leaves both empty.
+CLERK_EARLY=""
+CLERK_EARLY_WHY=""
+clerk_park_early() {
+  local last="${1:-0}" knob base_branch="${HANDOVER_BASE_BRANCH:-main}" base_id
+  local refs=() r out rc hit ref ws doc st nx planned="" b now
+  local dst dn dplan dage best="" bage=-1 more=0
+  CLERK_EARLY=""; CLERK_EARLY_WHY=""
+  knob="$(num_knob JOHARNESS_DEFECT_CLERK_HOURS)"
+  [ "$knob" -gt 0 ] || return 0
+  base_id="$(git -C "$ROOT" rev-parse --verify -q \
+    "refs/remotes/origin/${base_branch}^{commit}" </dev/null 2>/dev/null)"
+  [ -n "$base_id" ] || return 0
+  out="$(git -C "$ROOT" for-each-ref --no-merged="$base_id" --format='%(refname)' \
+    refs/remotes/origin </dev/null 2>/dev/null)" || return 0
+  while IFS= read -r r; do
+    case "$r" in
+      '' | refs/remotes/origin/HEAD | "refs/remotes/origin/${base_branch}") continue ;;
+    esac
+    refs+=("$r")
+  done <<<"$out"
+  [ "${#refs[@]}" -gt 0 ] || return 0
+  # Every claim file whose next: opens `defect:`, one `git grep` over them all.
+  out="$(git -C "$ROOT" -c core.quotePath=false -c grep.lineNumber=false \
+    -c grep.column=false -c grep.fullName=false grep --color=never -l -E \
+    -e "^next:[[:space:]]*[\"']?defect:" "${refs[@]}" -- 'docs/handover/*.md' \
+    </dev/null 2>/dev/null)"; rc=$?
+  [ "$rc" -le 1 ] || return 0
+  now="$(date +%s)"
+  while IFS= read -r hit; do
+    [ -n "$hit" ] || continue
+    ref="${hit%%:*}"; ws="${hit#*:}"
+    case "${ws#docs/handover/}" in */* | TEMPLATE.md | README.md) continue ;; esac
+    doc="$(git -C "$ROOT" show "$hit" </dev/null 2>/dev/null)" || continue
+    st="$(printf '%s\n' "$doc" | gr_field status)"
+    [ "$st" = blocked ] || continue
+    nx="$(printf '%s\n' "$doc" | gr_field_raw next)"
+    b="${ref#refs/remotes/origin/}"
+    base_mb_v "$ref"
+    [ -n "$MBV" ] || continue
+    dispatch_defect_state "$b" "$ws" "$MBV" "$nx" "" "$nx"
+    IFS=$'\t' read -r dst dn dplan dage <<<"$DEFECT_STATE"
+    [ "$dst" = PARKED ] || continue
+    case "$dage" in '' | *[!0-9]*) continue ;; esac
+    [ "$dage" -ge $((knob * 60)) ] || continue
+    # A clerk that landed after the first park had its chance: the cadence
+    # and PARKED UNPLANNED take it from there.
+    [ $((now - (dage + 1) * 60)) -gt "$last" ] || continue
+    if [ -z "$planned" ]; then
+      planned=" $(clerk_issue_nums docs/plans all | tr '\n' ' ')"
+    fi
+    case "$planned" in *'?'*) return 0 ;; *" ${dn} "*) continue ;; esac
+    if [ "$dage" -gt "$bage" ]; then
+      [ -z "$best" ] || more=$((more + 1))
+      best="$dn"; bage="$dage"
+    else
+      more=$((more + 1))
+    fi
+  done <<<"$out"
+  [ -n "$best" ] || return 0
+  CLERK_EARLY="#${best}"
+  CLERK_EARLY_WHY="PARKED #${best} unplanned $(dispatch_age_text "$bage") after its first park (>= ${knob}h: JOHARNESS_DEFECT_CLERK_HOURS)"
+  [ "$more" -eq 0 ] || CLERK_EARLY_WHY="${CLERK_EARLY_WHY}, and ${more} more such park(s)"
 }
 
 # Issue numbers an `issue:` field names under one directory, one per line,
@@ -9201,7 +9279,8 @@ EOF_CW
     printf '            clerk due, held — JOHARNESS_MAX_MANAGERS=0 is the human'"'"'s pause: spawn none\n'
   elif [ "$clerk_due" -eq 1 ]; then
     role_spawned=1
-    printf '            clerk DUE: spawn ONE clerk (agent: sonnet) on /clerk — beyond the cap, holds no slot, at most one in flight. It turns open issues into plans and merges that plan-only pull request itself (JOHARNESS_CLERK_HOURS, JOHARNESS_CLERK_BATCH)\n'
+    printf '            clerk DUE%s: spawn ONE clerk (agent: sonnet) on /clerk — beyond the cap, holds no slot, at most one in flight. It turns open issues into plans and merges that plan-only pull request itself (JOHARNESS_CLERK_HOURS, JOHARNESS_CLERK_BATCH)\n' \
+      "${CLERK_EARLY:+ (PARKED ${CLERK_EARLY} unplanned, JOHARNESS_DEFECT_CLERK_HOURS)}"
   fi
   # Not gated on DRAINED: sampling merged work competes with nothing.
   if [ "$conduct_due" -eq 1 ] && [ "$cap" -eq 0 ]; then

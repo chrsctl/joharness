@@ -212,6 +212,7 @@ Removing the line, on the base first, is the human override.
 | `JOHARNESS_RETRO_SAMPLE` | 3 | sessions that did not come back clean one trace run samples; 0 = off | written number: as audit |
 | `JOHARNESS_RETRO_EVENTS` | 200 | transcript events a trace run reads per sampled session, counted before the kinds filter | written number: a session's end; earlier failures read secondhand |
 | `JOHARNESS_DEFECT_PLAN_HOURS` | 48 | hours after the first `defect:` park on an issue with no plan naming it = `PARKED #<n> UNPLANNED`, notified once; 0 lifts it | written number: two clerk cycles |
+| `JOHARNESS_DEFECT_CLERK_HOURS` | 1 | hours after the first `defect:` park on an issue no plan names (base or any unmerged branch), with no clerk landed since, before the clerk is due ahead of `JOHARNESS_CLERK_HOURS`; holds as a cadence due does; 0 lifts it | written number: a parked manager waits on the clerk alone |
 | `JOHARNESS_DEFECT_FIX_HOURS` | 72 | hours after the first `defect:` park on an issue with no RESUME = `PARKED #<n> STUCK`, notified once; 0 lifts it | written number: a plan cycle plus a day |
 | `JOHARNESS_DEFECT_RECHECK_HOURS` | 2 | hours after a `defect:` block, no plan naming its issue and the base moved since, before `PARKED #<n> RECHECK`; 0 lifts it | written number: a few merges on an active base |
 | `JOHARNESS_CONDUCT_SAMPLE` | 3 | branches one run samples, from those retired since the last reviewer drew its sample — the commit its ledger branch was cut from (no ledger: the last `JOHARNESS_CONDUCT_HOURS`), riskiest first: plan `agent:` haiku or sonnet, then opus or fable, then no plan; then harness code touched; then lowest `sha1(<stem>)`. The rest are never offered again once the next ledger lands: a sample of recent work, not a backlog; 0 = off | written number: few enough that one sonnet pass reads each whole |
@@ -313,6 +314,9 @@ the block `JOHARNESS_DEFECT_RECHECK_HOURS` old, the base moved = `RECHECK`
 `UNPLANNED`, `STUCK` (a stale live branch naming #<n> included),
 `UNREADABLE` (the block commit is not in the clone: no RESUME). Mechanics:
 `orchestrate-reference.md`, Resume.
+A `PARKED` row on an issue no plan names, `JOHARNESS_DEFECT_CLERK_HOURS`
+after its first park and no clerk landed since, makes the clerk due now
+(`clerk DUE (PARKED #<n> unplanned, …)`), not at its cadence.
 
 A block names its reason: `next:` = `<reason>: <question>`, one word from
 the closed list `joharness.sh:block_reason_ok`. A free question with no
