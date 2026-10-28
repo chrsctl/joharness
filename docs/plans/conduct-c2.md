@@ -30,7 +30,10 @@ beside C1, at a measured 0 to 87 s per branch (research run, 4 CPUs).
     counts all of them (fast-lane: the last pair alone touches no code).
   - **T_fix** = the last delete's tree.
   - **T_nofix code** = P, the main commit the last branch last saw:
-    `merge-base(<main merge of the last delete>^1, <last delete>)`. Own
+    `merge-base(<main merge of the last delete>^1, <last delete>)`, the
+    main merge being the oldest first-parent merge on `base` holding the
+    delete (`--ancestry-path` misses a branch that merged main after its
+    retire). None = `NO EVIDENCE: no main merge holds <sha>`. Own
     commits of EARLIER pairs that are ancestors of P are reverse-applied on
     top (`git apply -R --3way`, non-test paths only); a conflict = `NO
     EVIDENCE: conflict <sha>`.
@@ -54,7 +57,7 @@ beside C1, at a measured 0 to 87 s per branch (research run, 4 CPUs).
   - Table rows: `<label> <with> <without> <new|old>`, every new label and
     every label whose word differs. Runner line, one of: `FLIP <n>` (n
     labels PASS with, FAIL without), `NO FLIP`, `NO FLIP, <n> unread` (SKIP
-    or MISSING or FAIL-with present).
+    in either run, MISSING, or FAIL-with present). Any flip = `FLIP`.
   - Worktrees under a `mktemp -d`, removed on exit; runs in parallel, each
     under `timeout 1800`.
 - No `joharness.sh` change: the reviewer runs the script per sampled stem.
@@ -62,9 +65,13 @@ beside C1, at a measured 0 to 87 s per branch (research run, 4 CPUs).
   (`.agents/scripts/sync-to-consumer.sh:CANONICAL_ONLY_DIRS`), so the script
   never ships; retro-audit.md does, and says C2 is `-` where
   `.agents/scripts/c2-run.sh` is absent.
-- `.claude/commands/retro-audit.md` — §3 gains C2 (wording below); §4 ledger
+- `.claude/commands/retro-audit.md` — §3 gains C2 (wording below), replacing
+  the paragraph "C2 is not asked yet"; §4 ledger
   gains a `C2` column after `C1`; read list gains the script's output.
-- `docs/conduct-log.md` — header gains `C2`. Earlier rows read as `-`.
+- `docs/conduct-log.md` — header gains `C2`. Earlier rows are not edited:
+  their fourth cell, the note `-` of a FINE row, reads as C2 `-`. The tally
+  (`joharness.sh:conduct_rows`) counts `-` and `N/A` as unparsed until plan
+  `conduct-c2-tally` merges.
 - `.agents/harness/selftest/c2-run.sh` — new topic; fixtures below.
 - `.agents/harness/selftest.sh` — list the topic.
 - `.agents/harness/selftest/reading-budget.sh` — retro-audit.md's bound, if
@@ -92,8 +99,9 @@ beside C1, at a measured 0 to 87 s per branch (research run, 4 CPUs).
   one-name-per-line, one-chain-per-line shape — evidence:
   `.agents/harness/selftest.sh:SELFTEST_TOPICS` — confidence: high.
 - A3: retro-audit-and-trace merged `.claude/commands/retro-audit.md` with
-  conduct.md's text — evidence: `docs/plans/retro-audit-and-trace.md`
-  Commands table — confidence: high.
+  conduct.md's text — evidence: `git show
+  9d76769e^:docs/plans/retro-audit-and-trace.md` Commands table —
+  confidence: high.
 
 ## Out of scope
 
@@ -114,11 +122,13 @@ bash .agents/scripts/c2-run.sh fast-lane | tail -1               # FLIP 28
 ./joharness.sh verify   # 0 failed
 ```
 
-- Consumer-side: `.agents/scripts/sync-to-consumer.sh --dry-run <dir>`
-  lists `.claude/commands/retro-audit.md` and not `c2-run.sh`; a consumer's
-  audit writes `-` in the C2 column (retro-audit.md's own sentence).
+- Consumer-side: `.agents/scripts/sync-to-consumer.sh --dry-run "$(mktemp -d)"`
+  (an empty `git init` dir) prints `.claude/commands/retro-audit.md` and no
+  `c2-run.sh`; `grep -c 'is absent' .claude/commands/retro-audit.md` = 1, the
+  sentence that a consumer's audit writes `-` in the C2 column.
 
-- Selftest cases on fixture stems, each failing on origin/main:
+- Selftest cases on fixture stems (topic `c2-run`), each failing on
+  origin/main (the script is absent there, so no runner line matches):
   - fix with a new case: FLIP;
   - refactor plus a characterization case: NO FLIP;
   - new case reaching `skip`: NO FLIP, 1 unread;
@@ -145,8 +155,9 @@ bash .agents/scripts/c2-run.sh fast-lane | tail -1               # FLIP 28
 - `.agents/harness/selftest.sh:selftest_units` — chain = one unit.
 - `.agents/harness/selftest.sh:selftest_unit` — a unit that dies leaves
   labels printed so far, no counts.
-- `.claude/commands/conduct.md` — C1, the ledger header, and the
-  paragraph "C2 is not asked yet" (the research's answer).
+- `.claude/commands/retro-audit.md` — C1, the ledger header, and the
+  paragraph "C2 is not asked yet" (the research's answer; conduct.md's text
+  moved here).
 
 ## Traps
 

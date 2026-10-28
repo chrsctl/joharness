@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK5wBEqA2zM6S2dy3iq
 agent: opus
 updated: 2026-10-28
-next: Run plan-checker on docs/plans/conduct-c2.md, then build c2-run.sh from the prototype
+next: Write selftest topic c2-run (12 fixture stems), retro-audit.md C2, conduct-log header, follow-up plan conduct-c2-tally
 ---
 
 ## Goal
@@ -19,7 +19,12 @@ touched once with its change and once without, and read each case's word, so
 
 ## Decisions
 
-- None yet.
+- A1: confirmed — `c2-run.sh needs-cycle-lint` run twice on 2026-10-28 gave identical tables (diff empty), FLIP 4 both.
+- A2: confirmed — `.agents/harness/selftest.sh` lines 553 and 636 keep one name / one chain per line.
+- A3: confirmed — `.claude/commands/retro-audit.md` exists on origin/main and carries C1 and "C2 is not asked yet"; `git show 9d76769e^:docs/plans/retro-audit-and-trace.md` names it.
+- Tally of `-`/`N/A` (plan-checker r2): `joharness.sh:conduct_rows` maps both to unparsed. Plan scope says no joharness.sh change, so the fix is follow-up plan `conduct-c2-tally`, filed in this pull request; C1 counts and C2 FINE/CONCERN rate are unaffected meanwhile.
+- Runner line precedence: any flip prints FLIP; unread counts every label not PASS-with, or SKIP/MISSING without.
+- Acceptance measured 2026-10-28, 4 CPUs: needs-cycle-lint FLIP 4 (46 s), guard-one-shot-self-kill FLIP 16 (5 s), fast-lane FLIP 28 (14 s).
 
 ## Rejected
 
@@ -27,7 +32,16 @@ touched once with its change and once without, and read each case's word, so
 
 ## Review
 
-- None yet.
+- r1: (plan-checker) spawn prompt carried repo path and branch beyond the plan path (no change)
+- r2: (plan-checker) conduct_rows tallies N/A and `-` as unparsed (wontfix: plan excludes joharness.sh; follow-up plan conduct-c2-tally)
+- r3: (plan-checker) earlier ledger rows: edit or not ambiguous (fixed: plan says not edited, note `-` reads as C2 `-`)
+- r4: (plan-checker) Where to look names absent conduct.md (fixed: retro-audit.md)
+- r5: (plan-checker) A3 evidence file retired (fixed: git show 9d76769e^:...)
+- r6: (plan-checker) fate of "C2 is not asked yet" paragraph unstated (fixed: replaced)
+- r7: (plan-checker) "main merge of the last delete" undefined, no-merge output missing (fixed: defined, NO EVIDENCE: no main merge holds)
+- r8: (plan-checker) FLIP vs unread precedence and SKIP side unstated (fixed: any flip = FLIP, SKIP either run)
+- r9: (plan-checker) consumer-side acceptance not a command (fixed: dry-run on mktemp dir, grep -c line)
+- r10: (plan-checker) fixture cases' failure on origin/main undefined (fixed: script absent, no runner line matches)
 
 ## Blockers
 
