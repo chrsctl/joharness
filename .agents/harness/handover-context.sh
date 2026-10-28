@@ -107,8 +107,8 @@ fields_review() {
           } print r + 0 }'
 }
 
-# Workstream files at a ref. The protocol doc (README.md) and the template are
-# not workstreams. Empty if the ref has none.
+# Workstream files at a ref. A README.md or the template is not a workstream
+# (the protocol doc itself lives at .agents/docs/handover.md). Empty if the ref has none.
 files_at() {
   git ls-tree -r --name-only "$1" -- "$HANDOVER_DIR" 2>/dev/null | ws_only
 }
