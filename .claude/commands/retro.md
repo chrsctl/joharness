@@ -80,7 +80,7 @@ refused. Read, at `<sha>^` (`<sha>` = the newest retire of `<stem>` on or
 before `<date>`):
 
 ```bash
-sha=$(TZ=UTC git log --full-history --diff-filter=D --date=format-local:%Y-%m-%d --format='%H %cd' origin/main -- 'docs/handover/<stem>.md' | awk '$2 <= "<date>" { print $1; exit }')
+sha=$(TZ=UTC git log --full-history --diff-filter=D --date=format-local:%Y-%m-%d --format='%H %cd' origin/main -- 'docs/handover/<stem>.md' | sort -s -k2,2r | awk '$2 <= "<date>" { print $1; exit }')
 git show "${sha}^:docs/handover/<stem>.md"   # ## Review
 git show "${sha}^:docs/plans/<plan>.md"      # ## Goal, ## Acceptance
 ```

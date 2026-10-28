@@ -5184,14 +5184,16 @@ cmd_retro() {
   # never crowds them out of the sample.
   con="$(retro_concerns)"
   case "$con" in
-    '?') printf 'concern   : UNREADABLE — %s or %s could not be read: take no CONCERN this run\n' \
+    # Lower case on purpose: the failed sessions above still run (a role
+    # STOPs on an UNREADABLE line); the CONCERN waits for the next run.
+    '?') printf 'concern   : none read — %s or %s could not be read: take no CONCERN this run\n' \
            "$CONDUCT_LEDGER" "$RETRO_LEDGER" ;;
     '')  printf 'concern   : none — every audit CONCERN in %s is traced\n' "$CONDUCT_LEDGER" ;;
     *)
       IFS=$'\t' read -r k cs cd <<<"$(printf '%s\n' "$con" | head -1)"
       se="$(retro_concern_session "$cs" "$cd")"
       if [ "$se" = '?' ]; then
-        printf 'concern   : UNREADABLE — the retires of %s could not be read: take no CONCERN this run\n' "$cs"
+        printf 'concern   : none read — the retires of %s could not be read: take no CONCERN this run\n' "$cs"
       else
         [ "$se" != none ] || se='session none'
         printf 'concern   : %s %s %s — trace it from the plan and the workstream file ## Review at the retire'"'"'s parent; log it under %s\n' \
@@ -5387,7 +5389,7 @@ role_start_stop() {
       role_line '^cadence   : DUE' >/dev/null || role_line '^cadence   : '
       ;;
     retro)
-      l="$(role_line '^(sample|concern)   : UNREADABLE')"
+      l="$(role_line '^sample    : UNREADABLE')"
       [ -z "$l" ] || { printf '%s' "$l"; return 0; }
       role_line '^retro DUE:' >/dev/null || role_line '^retro : '
       ;;

@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK5rjqiJNckSSTh2gN7
 agent: opus
 updated: 2026-10-28
-next: ci, verify, verifier at opus; record review; retire; PR; finish
+next: ci, then retire, PR, finish
 ---
 
 ## Goal
@@ -41,6 +41,13 @@ conduct) and trace (today's retro); audit CONCERNs become trace's input.
 - r10: (plan-checker) stale-branch rule for retro-audit-* unmentioned (fixed: covered as conduct-*)
 - r11: (plan-checker) A3 count unreproduced (no change: same 7 missing, consistent)
 - r12: (plan-checker) old 🧐 titles may stop matching (no change: no code matches the title; the glossary is the only reader)
+- r13: (verifier) the open retro-audit-* case passes on origin/main; the changed behaviour is the §0.2 open-PR prose, unpinned (fixed: needles pin retro.md and retro-audit.md §0.2; the behaviour case stays as a guard)
+- r14: (verifier) a human-started stale conduct.md exits at §0.3, dispatch no longer printing conduct DUE (wontfix: plan acceptance forbids that line; the stale file fails closed, its role conduct prelude still runs, and the orchestrator spawns /retro-audit only)
+- r15: (verifier) retired-twice fixture cannot tell newest-on-or-before from oldest (fixed: a third, older retire)
+- r16: (verifier) concern UNREADABLE line STOPs the whole trace pass while dispatch says DUE (fixed: lower-case `none read`, the failed sessions still run; case with a failing git log)
+- r17: (verifier) dead `(sample|concern)   :` regex alternative (fixed: removed)
+- r18: (verifier) reading-budget comment claims 6668 bytes (fixed: measured 5859, bound kept)
+- r19: (verifier) retro.md retire snippet skips the sort the code does (fixed: sort -k2,2r)
 
 ## Blockers
 

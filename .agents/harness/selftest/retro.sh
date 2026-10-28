@@ -360,6 +360,7 @@ rt_retire() {
   mkdir -p "${rt_work}/docs/handover"
   rt_commit "retire $1" "$4"
 }
+rt_retire xray "$(rt_url Xray0)" '2026-01-03T00:00:00Z' '2026-01-03T01:00:00Z'
 rt_retire xray "$(rt_url Xray1)" '2026-01-05T00:00:00Z' '2026-01-05T01:00:00Z'
 rt_retire xray "$(rt_url Xray2)" '2026-01-20T00:00:00Z' '2026-01-20T01:00:00Z'
 rt_retire zebra '' '2026-01-06T00:00:00Z' '2026-01-06T01:00:00Z'
@@ -388,6 +389,20 @@ else fail "retro: at most one CONCERN a run"; printf '%s\n' "$(indent "$out")"; 
 expect "retro: a stem retired twice takes the retire on or before the audit row" \
   "concern   : xray 2026-01-15 $(rt_url Xray1)" "$out"
 refute "retro: not the later retire" "Xray2" "$out"
+refute "retro: nor an older one" "Xray0" "$out"
+# The retires unreadable: that CONCERN waits, the failed sessions still run
+# (an UNREADABLE line would STOP the role's whole pass).
+mkdir -p "${TMP}/retro-logwrap"
+cat >"${TMP}/retro-logwrap/git" <<EOF2
+#!/bin/sh
+for a in "\$@"; do [ "\$a" = '--date=format-local:%Y-%m-%d' ] && exit 1; done
+exec "$(type -P git)" "\$@"
+EOF2
+chmod +x "${TMP}/retro-logwrap/git"
+out2="$(rtt PATH="${TMP}/retro-logwrap:${PATH}")"
+expect "retro: unreadable retires take no CONCERN this run" \
+  "concern   : none read — the retires of xray could not be read" "$out2"
+refute "retro: and never as UNREADABLE, which would stop the pass" "concern   : UNREADABLE" "$out2"
 expect "retro: the line names the key to log it under" "log it under concern:2026-01-15:xray" "$out"
 refute "retro: a FINE row is no CONCERN" "whiskey 2026-01-15" "$(grep '^concern' <<<"$out")"
 printf '| 2026-01-21 | xray | concern:2026-01-15:xray | refs: ci |\n' >>"${rt_work}/docs/retro-log.md"
@@ -432,3 +447,10 @@ expect "retro: a CONCERN with no failed session makes trace due" \
   "retro DUE: spawn ONE retro reviewer — " "$out"
 expect "retro: and says why" "an audit CONCERN is not yet traced" "$out"
 expect "retro: no retire prints session none" "concern   : alpha 2026-01-15 session none" "$out"
+
+# The open-PR check of each mode matches only its own branches (§0.2).
+expect "retro.md: trace's open-PR check never takes an audit branch" \
+  'branch (never `retro-audit-*`)' "$(cat "${ROOT}/.claude/commands/retro.md")"
+expect "retro-audit.md: audit's open-PR check takes both its names" \
+  'pull request from a `retro-audit-*` or `conduct-<digit>…` branch' \
+  "$(tr '\n' ' ' <"${ROOT}/.claude/commands/retro-audit.md" 2>/dev/null | tr -s ' ')"
