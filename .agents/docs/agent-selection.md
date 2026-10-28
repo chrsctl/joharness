@@ -66,8 +66,11 @@ Scales with the plan's tier:
 Every tier also spawns `.claude/agents/verifier.md` at its own tier — one
 reader that did not write the diff, findings tagged `(verifier)`: depth is not
 the property it adds, independence is. Its output is not privileged: record,
-judge and fix as for a self-finding. The spawn prompt names the plan stem so
-its goal lens runs (COVERED, STUB, UNWIRED, MISSING).
+judge and fix as for a self-finding. What the spawn prompt carries:
+`subagents.md`, "What a stranger's spawn prompt carries".
+A `(verifier)` finding recorded `fixed` means one more verifier pass, given
+only the fix commits' range as its base, before the PR; that pass counts toward
+the review-churn bound, and is not a new round of the whole diff.
 
 Findings land in `## Review` (`.agents/docs/handover/README.md`, Reviewing).
 Escalating tier escalates review depth; neither ever downgrades.
