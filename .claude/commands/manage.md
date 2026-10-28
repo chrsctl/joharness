@@ -67,7 +67,7 @@ literal reader:
   above the plan's `agent:`
 
 Plan `agent: opus` or `fable`? Before the first worker, spawn
-`.claude/agents/plan-checker.md` on the plan file. Record its findings in
+`.claude/agents/plan-checker.md` on the plan file (prompt: `.agents/docs/subagents.md`). Record its findings in
 `## Review` as `(plan-checker)`; fix the plan on the branch or `wontfix:
 why`. At most 3 rounds; open count not falling between rounds = stop, take
 the review-churn route (`.agents/docs/agent-selection.md`).
@@ -131,7 +131,7 @@ Your `$ARGUMENTS` carries the `rescope` block. ref § Surveyor.
 ## 4. Finish
 
 Loop step 5 at your tier (`.claude/agents/verifier.md`, findings tagged
-`(verifier)`), Loop step 7, exit. The orchestrator reads your merge from
+`(verifier)`; prompt: `.agents/docs/subagents.md`), Loop step 7, exit. The orchestrator reads your merge from
 git; send nothing for it.
 
 `human-review` at merge (Loop step 7) = do not merge: ref § Label at merge.
