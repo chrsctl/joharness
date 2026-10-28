@@ -17,9 +17,12 @@ Make the conduct tally name C2 `N/A` and `-` instead of `unparsed`.
 
 ## Decisions
 
-- A1: confirmed — old rows read `-` in the C2 slot (checking ledger).
+- A1: confirmed — old rows read `-` in the C2 slot (rows 22-24 end `| FINE | - |`).
 
 ## Review
+
+- r1: (verifier) no blocking defects; pre-C2 row with a non-`-` note reads `?` in C2 (wontfix: plan fixes the mapping; every ledger row has `-`)
+- r2: edge review: awk-only change, `N/A` and `-` keys cannot collide with `?`; scout cases pass in selftest.sh (no change)
 
 ## Blockers
 
