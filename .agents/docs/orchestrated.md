@@ -207,14 +207,14 @@ Removing the line, on the base first, is the human override.
 | `JOHARNESS_SCOUT_READS` | 12 | outside reads one scout pass makes before it stops researching | counted by the scout in its claim's `## Decisions` |
 | `JOHARNESS_SCOUT_REVIEWER` | empty | GitHub login whose approved comment gates a scout proposal issue; read from the base branch's conf; empty = nothing can be approved | a name the human gives |
 | `JOHARNESS_SCOUT_RESEARCH` | off | exactly `on` lets a scout pass read outside the repository; read from the base branch's conf | a switch: money in one conf line |
-| `JOHARNESS_CONDUCT_HOURS` | 168 | hours since the ledger last landed before a conduct reviewer is due; 0 = off. An unmerged branch named `conduct-<digit>...` (any prefix) unpushed for a seventh of it, at least 24h, is read as closed by a human | written number: weekly; no baseline, the tally builds one |
+| `JOHARNESS_CONDUCT_HOURS` | 168 | hours since the ledger last landed before a conduct reviewer is due; with no ledger yet, also how far back the sample reaches; 0 = off. An unmerged branch named `conduct-<digit>...` (any prefix) unpushed for a seventh of it, at least 24h, is read as closed by a human | written number: weekly; no baseline, the tally builds one |
 | `JOHARNESS_RETRO_HOURS` | 168 | hours since `docs/retro-log.md` last landed before a retro reviewer is due; 0 = off. An unmerged `retro-<digit>...` branch is in flight, dropped as conduct's | written number: weekly, as conduct |
 | `JOHARNESS_RETRO_SAMPLE` | 3 | sessions that did not come back clean one retro run samples; 0 = off | written number: as conduct |
 | `JOHARNESS_RETRO_EVENTS` | 200 | transcript events a retro reviewer reads per sampled session, counted before the kinds filter | written number: a session's end; earlier failures read secondhand |
 | `JOHARNESS_DEFECT_PLAN_HOURS` | 48 | hours after the first `defect:` park on an issue with no plan naming it = `PARKED #<n> UNPLANNED`, notified once; 0 lifts it | written number: two clerk cycles |
 | `JOHARNESS_DEFECT_FIX_HOURS` | 72 | hours after the first `defect:` park on an issue with no RESUME = `PARKED #<n> STUCK`, notified once; 0 lifts it | written number: a plan cycle plus a day |
 | `JOHARNESS_DEFECT_RECHECK_HOURS` | 2 | hours after a `defect:` block, no plan naming its issue and the base moved since, before `PARKED #<n> RECHECK`; 0 lifts it | written number: a few merges on an active base |
-| `JOHARNESS_CONDUCT_SAMPLE` | 3 | retired branches one run samples, lowest `sha1(<stem>)` first; 0 = off | written number: few enough that one sonnet pass reads each whole |
+| `JOHARNESS_CONDUCT_SAMPLE` | 3 | branches one run samples, from those retired since the last reviewer drew its sample — the commit its ledger branch was cut from (no ledger: the last `JOHARNESS_CONDUCT_HOURS`), riskiest first: plan `agent:` haiku or sonnet, then opus or fable, then no plan; then harness code touched; then lowest `sha1(<stem>)`. The rest are never offered again once the next ledger lands: a sample of recent work, not a backlog; 0 = off | written number: few enough that one sonnet pass reads each whole |
 
 `./joharness.sh conf` prints every knob the script reads with its live value
 and source; the selftest `knobs-declared` keeps this table complete for the
