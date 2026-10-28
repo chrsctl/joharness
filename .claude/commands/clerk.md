@@ -157,6 +157,10 @@ the pull request body with the evidence, one line each:
      issue left open (`.agents/docs/feedback.md` §4).
 
 A scout proposal that passed the scout gate (§2) is decided like any issue.
+Its `## Measure` command becomes an `## Acceptance` item of the plan
+unchanged; a proposal whose scope is a requirement, not a plan, gets
+`docs/product/<r>.md` with each `## Measure` line as an indented `measure:`
+line under the clause it measures.
 
 A plan from a `defect:` issue carries an `## Escape` section (Entry, Gate,
 Route: `.agents/docs/plans/README.md`, Shape).
