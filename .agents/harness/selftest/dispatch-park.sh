@@ -15,7 +15,7 @@ step "joharness.sh dispatch: parked claims"
 # --- a defect: block is PARKED, and RESUMEd once its fix retires ------------
 # Its own repo: every case reads the whole queue, and the dates are the
 # question (block commit against retire commit, and against the two knobs).
-dfwork="${TMP}/dfxwork"
+dfwork="${TMP:?sourced by selftest.sh}/dfxwork"
 dforigin="${TMP}/dfxorigin.git"
 git init -q --bare "$dforigin"
 git init -q "$dfwork"
@@ -640,3 +640,216 @@ dfneeds rel-k interface 1
 out="$(dfx)"
 expect "a stem equal to the reason word: still the human's" "BLOCKED: the human's" "$(dfrow rel-k)"
 
+
+# --- a park on an unplanned defect makes the clerk due early ---------------
+# Its own repo: the clerk cycle must read live (clerk.md present, a fetch that
+# reaches refs/heads/*), and the clerk's landing date is the question.
+ckwork="${TMP:?sourced by selftest.sh}/ckwork"
+ckorigin="${TMP}/ckorigin.git"
+git init -q --bare "$ckorigin"
+git init -q "$ckwork"
+git -C "$ckwork" symbolic-ref HEAD refs/heads/main
+mkdir -p "${ckwork}/docs/plans" "${ckwork}/docs/handover" "${ckwork}/.claude/commands" \
+  "${ckwork}/.agents/harness" "${ckwork}/.agents/env/none"
+cp "${ROOT}/joharness.sh" "${ckwork}/joharness.sh"
+cp "${ROOT}/.agents/harness/queue-context.sh" \
+   "${ROOT}/.agents/harness/handover-context.sh" "${ckwork}/.agents/harness/"
+printf '# none\n' >"${ckwork}/.agents/env/none/AGENTS.md"
+printf '# clerk\n' >"${ckwork}/.claude/commands/clerk.md"
+ckconf="${ckwork}/joharness.conf"
+printf 'JOHARNESS_ENV=none\n' >"$ckconf"
+cknow="$(date +%s)"
+# <hours ago> <message>
+ckcommit() {
+  git -C "$ckwork" add -A
+  GIT_AUTHOR_DATE="@$((cknow - $1 * 3600)) +0000" \
+    GIT_COMMITTER_DATE="@$((cknow - $1 * 3600)) +0000" \
+    git -C "$ckwork" commit -qm "$2"
+}
+# <stem> <issue|none>
+ckplan() {
+  printf -- '---\nplan: %s\nurgency: normal\nagent: sonnet\neffort: high\nissue: %s\nscope: src/%s\n---\n\n## Goal\nFixture.\n' \
+    "$1" "$2" "$1" >"${ckwork}/docs/plans/${1}.md"
+}
+# <branch> <hours ago> [commit hours ago]: a clerk's pull request merged on
+# the first parent; its one commit dated the merge's time, or earlier.
+ckland() {
+  git -C "$ckwork" checkout -qb "$1" main
+  printf '%s\n' "$1" >"${ckwork}/${1}.txt"
+  ckcommit "${3:-$2}" "clerk pass $1"
+  git -C "$ckwork" checkout -q main
+  GIT_AUTHOR_DATE="@$((cknow - $2 * 3600)) +0000" \
+    GIT_COMMITTER_DATE="@$((cknow - $2 * 3600)) +0000" \
+    git -C "$ckwork" merge -q --no-ff -m "Merge pull request #5 from o/$1" "$1"
+  git -C "$ckwork" push -q origin main
+}
+ckplan own-p none; ckplan own-q none
+ckcommit 200 "base"
+git -C "$ckwork" remote add origin "$ckorigin"
+git -C "$ckwork" push -qu origin main
+ckland clerk-20260101 3
+# <branch> <own plan> <next:> <hours ago>: claim, then park.
+ckpark() {
+  git -C "$ckwork" checkout -qb "$1" origin/main
+  mkdir -p "${ckwork}/docs/handover"
+  printf -- '---\nworkstream: %s\nstatus: in-progress\nbranch: %s\nplan: %s\nsession: https://example.invalid/session_%s\nagent: sonnet\nupdated: 2026-01-02\nnext: Build it\n---\n\n## Goal\nFixture.\n' \
+    "$2" "$1" "$2" "$2" >"${ckwork}/docs/handover/${2}.md"
+  ckcommit "$(($4 + 1))" "claim $2"
+  sed -i "s/^status: in-progress\$/status: blocked/; s/^next: Build it\$/next: $3/" \
+    "${ckwork}/docs/handover/${2}.md"
+  ckcommit "$4" "park $2"
+  git -C "$ckwork" push -qu origin "$1"
+  git -C "$ckwork" checkout -q main
+}
+ckx() { ( cd "$ckwork" && JOHARNESS_CONF="$ckconf" DRAIN_FETCH=0 "$@" ./joharness.sh dispatch 2>&1 ); }
+ckc() { ( cd "$ckwork" && JOHARNESS_CONF="$ckconf" ./joharness.sh clerk 2>&1 ); }
+
+out="$(ckx)"
+expect "no park: the cadence alone, 3h of 24h" "clerk     : not due — 3h since the last clerk landed" "$out"
+ckpark park-p own-p 'defect: #31: the build breaks' 2
+out="$(ckx)"
+expect "a park on an unplanned issue past the knob makes the clerk DUE, naming why" \
+  "clerk     : DUE — PARKED #31 unplanned 2h after its first park (>= 1h: JOHARNESS_DEFECT_CLERK_HOURS), ahead of the cadence: 3h since the last clerk landed" "$out"
+expect "and the tail line spawns it, naming the park" \
+  "clerk DUE (PARKED #31 unplanned, JOHARNESS_DEFECT_CLERK_HOURS): spawn ONE clerk (agent: sonnet) on /clerk" "$out"
+expect "the park itself still reads PARKED" "PARKED #31: a defect's, holds no slot" "$out"
+out="$(ckx env GIT_LITERAL_PATHSPECS=1)"
+expect "a caller's literal pathspecs do not hide the park" \
+  "clerk     : DUE — PARKED #31 unplanned" "$out"
+out="$(ckc)"
+expect "clerk reads the same early due as dispatch: one reader" \
+  "cadence   : DUE — PARKED #31 unplanned 2h after its first park" "$out"
+out="$(ckx env JOHARNESS_DEFECT_CLERK_HOURS=0)"
+expect "JOHARNESS_DEFECT_CLERK_HOURS=0: the cadence only" \
+  "clerk     : not due — 3h since the last clerk landed" "$out"
+refute "and nothing spawns" "spawn ONE clerk" "$out"
+out="$(ckx env JOHARNESS_DEFECT_CLERK_HOURS=3)"
+expect "a park younger than the knob: not due" "clerk     : not due — 3h since" "$out"
+out="$(ckx env JOHARNESS_CLERK_HOURS=0)"
+expect "JOHARNESS_CLERK_HOURS=0: off stays off" "clerk     : off — JOHARNESS_CLERK_HOURS=0" "$out"
+refute "and nothing spawns off" "spawn ONE clerk" "$out"
+out="$(ckx env JOHARNESS_MAX_MANAGERS=0)"
+expect "the human's pause holds an early clerk too" "clerk due, held — JOHARNESS_MAX_MANAGERS=0" "$out"
+out="$(ckx env DISPATCH_FETCH=0)"
+expect "no fresh view holds it too" "clerk due, held — no fresh view of every branch" "$out"
+out="$(ckx env JOHARNESS_DEFECT_PLAN_HOURS=1)"
+expect "UNPLANNED already reaches the human" "PARKED #31 UNPLANNED" "$out"
+expect "and calls no early clerk" "clerk     : not due — 3h since" "$out"
+
+# A clerk in flight: no second one.
+git -C "$ckwork" checkout -qb clerk-20260102 main
+printf 'x\n' >"${ckwork}/inflight.txt"
+git -C "$ckwork" add -A; git -C "$ckwork" commit -qm "clerk in flight"
+git -C "$ckwork" push -qu origin clerk-20260102
+git -C "$ckwork" checkout -q main
+out="$(ckx)"
+expect "a clerk in flight: IN FLIGHT, the early clock beside it" \
+  "clerk     : IN FLIGHT, so none is due. Clock: due PARKED #31" "$out"
+refute "and no second clerk" "spawn ONE clerk" "$out"
+git -C "$ckwork" push -q origin --delete clerk-20260102
+git -C "$ckwork" branch -qD clerk-20260102
+
+# A clerk landed after the first park had its chance: the cadence again. The
+# landing is undone after, on the fixture's own origin.
+cksha="$(git -C "$ckwork" rev-parse main)"
+ckland clerk-20260103 0
+out="$(ckx)"
+expect "a clerk landed since the park: the cadence only" \
+  "clerk     : not due — 0h since the last clerk landed" "$out"
+refute "and no early clerk" "spawn ONE clerk" "$out"
+git -C "$ckwork" reset -q --hard "$cksha"
+git -C "$ckorigin" update-ref refs/heads/main "$cksha"
+git -C "$ckwork" branch -qD clerk-20260103
+out="$(ckx)"
+expect "undone: DUE again" "clerk     : DUE — PARKED #31 unplanned" "$out"
+# A clerk that read the issues before the park, landing after it, never saw
+# the issue: its first commit, less the knob, dates its read, not its merge.
+ckland clerk-20260104 1 3
+out="$(ckx env JOHARNESS_DEFECT_RECHECK_HOURS=0)"
+expect "a clerk cut before the park, merged after: still DUE" \
+  "clerk     : DUE — PARKED #31 unplanned" "$out"
+git -C "$ckwork" reset -q --hard "$cksha"
+git -C "$ckorigin" update-ref refs/heads/main "$cksha"
+git -C "$ckwork" branch -qD clerk-20260104
+# Its first commit 30m after the park, less the knob: read before it.
+git -C "$ckwork" checkout -qb clerk-20260106 main
+printf 'y\n' >"${ckwork}/clerk-20260106.txt"
+git -C "$ckwork" add -A
+GIT_AUTHOR_DATE="@$((cknow - 5400)) +0000" GIT_COMMITTER_DATE="@$((cknow - 5400)) +0000" \
+  git -C "$ckwork" commit -qm "clerk pass clerk-20260106"
+git -C "$ckwork" checkout -q main
+GIT_AUTHOR_DATE="@$((cknow - 3600)) +0000" GIT_COMMITTER_DATE="@$((cknow - 3600)) +0000" \
+  git -C "$ckwork" merge -q --no-ff -m "Merge pull request #7 from o/clerk-20260106" clerk-20260106
+git -C "$ckwork" push -q origin main
+out="$(ckx env JOHARNESS_DEFECT_RECHECK_HOURS=0)"
+expect "a first commit 30m after the park, less the knob: still DUE" \
+  "clerk     : DUE — PARKED #31 unplanned" "$out"
+git -C "$ckwork" reset -q --hard "$cksha"
+git -C "$ckorigin" update-ref refs/heads/main "$cksha"
+git -C "$ckwork" branch -qD clerk-20260106
+# Two parks on #31 are one issue; a park on #32 is named beside it.
+ckplan own-r none; ckplan own-s none
+ckcommit 3 "own-r, own-s"
+git -C "$ckwork" push -q origin main
+ckpark park-r own-r 'defect: #31: the build breaks too' 2
+out="$(ckx)"
+refute "a second park on #31 is no second issue" "too" "$(printf '%s\n' "$out" | grep '^clerk     :')"
+ckpark park-s own-s 'defect: #32: the lint breaks' 2
+out="$(ckx)"
+expect "a park on another issue is named beside it" "and #32 too" "$out"
+for b in park-r park-s; do
+  git -C "$ckwork" push -q origin --delete "$b"
+  git -C "$ckwork" branch -qD "$b"
+done
+
+# A no-op pushed after the park, by a pass that may have read before it:
+# dated the knob back, it never saw #31. One pushed past the knob after it did.
+git -C "$ckwork" push -q origin "main:refs/heads/clerk-noop-$(date -u -d "@$((cknow - 5400))" +%Y%m%dT%H%M%SZ)"
+git -C "$ckwork" fetch -q origin
+out="$(ckx)"
+expect "a no-op 30m after the park, its read unknown: still DUE" \
+  "clerk     : DUE — PARKED #31 unplanned" "$out"
+expect "the cadence dates from it all the same" "the last clerk pass found nothing to plan" "$out"
+git -C "$ckwork" push -q origin "main:refs/heads/clerk-noop-$(date -u -d "@$((cknow - 600))" +%Y%m%dT%H%M%SZ)"
+git -C "$ckwork" fetch -q origin
+out="$(ckx env JOHARNESS_DEFECT_CLERK_HOURS=1)"
+refute "a no-op past the knob after the park: no early clerk" "spawn ONE clerk" "$out"
+for r in $(git -C "$ckorigin" for-each-ref --format='%(refname)' 'refs/heads/clerk-noop-*'); do
+  git -C "$ckorigin" update-ref -d "$r"
+done
+git -C "$ckwork" fetch -q --prune origin
+
+# Fail closed: a plan scan git cannot read is no "unplanned".
+git -C "$ckwork" checkout -qb plan-x main
+ckplan fixx 99
+ckcommit 1 "a plan naming #99"
+git -C "$ckwork" push -qu origin plan-x
+git -C "$ckwork" checkout -q main
+ckblob="$(git -C "$ckwork" rev-parse plan-x:docs/plans/fixx.md)"
+ckobj="${ckwork}/.git/objects/${ckblob:0:2}/${ckblob:2}"
+mv "$ckobj" "${ckobj}.away"
+out="$(ckc)"
+refute "an unreadable plan scan makes nothing due early" "cadence   : DUE — PARKED" "$out"
+expect "and the clerk reads its planned list UNREADABLE" "UNREADABLE" "$out"
+mv "${ckobj}.away" "$ckobj"
+out="$(ckc)"
+expect "readable again: DUE" "cadence   : DUE — PARKED #31" "$out"
+git -C "$ckwork" push -q origin --delete plan-x
+git -C "$ckwork" branch -qD plan-x
+
+# A plan naming #31 on a live branch, then on the base: no early due.
+git -C "$ckwork" checkout -qb plan-31 main
+ckplan fix31 31
+ckcommit 1 "a plan naming #31"
+git -C "$ckwork" push -qu origin plan-31
+git -C "$ckwork" checkout -q main
+out="$(ckx)"
+expect "a branch plan names #31: the cadence only" "clerk     : not due — 3h since" "$out"
+git -C "$ckwork" push -q origin --delete plan-31
+git -C "$ckwork" branch -qD plan-31
+ckplan fix31 31
+ckcommit 1 "fix31 on the base"
+git -C "$ckwork" push -q origin main
+out="$(ckx)"
+expect "a base plan names #31: the cadence only" "clerk     : not due — 3h since" "$out"
+refute "and nothing spawns" "spawn ONE clerk" "$out"
