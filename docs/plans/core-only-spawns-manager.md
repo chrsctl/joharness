@@ -34,11 +34,13 @@ The one missing piece is that dispatch never spawns the manager.
   - A `CORE ONLY` plan becomes spawnable. It is ranked after every free plan, so it never takes a slot ahead of work that needs no human. Its spawn row says the core edit goes in a `human/<stem>` pull request a human merges.
   - Replace the `NOT YOURS — CORE ONLY` block, and the wait line `<n> plan(s) wait on a human core edit`. The new wait line counts open `human/` pull requests holding a claim at `core path: waiting on #<N>`: `<n> pull request(s) wait on a human merge: #<N> …`. This is read from git and the claims (as RESUME is today), never from the GitHub API.
   - `DRAINED` stays the verdict when nothing is left but claims parked on a human merge.
+  - **A `human/*` branch never holds a manager slot.** Today an unmerged `human/<stem>` branch with no claim file reads `retired, no claim file … this branch commits a slot`, so a pull request waiting only on a human merge costs a slot until that merge (chrsctl/gx, 2026-10-28: `human/compose-e2e-ci-check` held 1 of 4 slots while #1041 waited on the human). The edge row stays, so the branch is still reported and its overlap is still held for collision checks, but it is no longer counted in `slots`. The orchestrator's ledger workaround (`held-human=<pr>`, `orchestrate.md` §3) then becomes unnecessary for `human/*` branches. Keep it for a manager's own branch that a session asks a human to merge.
 - `.agents/harness/selftest/dispatch.sh`, `.agents/harness/selftest/dispatch-order.sh`, `.agents/harness/selftest/dispatch-park.sh`, `.agents/harness/selftest/queue-context-core-only.sh`:
   - A `CORE ONLY` plan is spawned when slots are free and no free plan is waiting.
   - It ranks after a free plan.
   - Its claim parked `core path: waiting on #N` holds no slot and appears on the new wait line.
   - A merge of `#N` RESUMEs it, using the existing mechanism, unchanged.
+  - An unmerged `human/<stem>` branch at the edge with no claim file: listed, not counted in `slots`.
 - `.claude/commands/manage.md` / `.agents/docs/manage-reference.md` § Human remainder. A manager on a `CORE ONLY` plan:
   1. builds the non-core part on its own branch;
   2. builds the core edit in the `human/<stem>` worktree, with `ci` green there;
@@ -56,6 +58,7 @@ The one missing piece is that dispatch never spawns the manager.
 - A2: `core path: waiting on #<N>` blocks hold no slot and RESUME on merge — evidence: `.agents/docs/orchestrate-reference.md:Resume` (`PARKED #<n> RESUME — #<n> merged`) — confidence: high
 - A3: The core-path guarantee is CODEOWNERS plus branch protection, not dispatch's ranking, so spawning does not weaken it — evidence: `.agents/docs/orchestrated.md` Bounds ("`.github/CODEOWNERS` … is the guarantee") — confidence: high
 - A4: The Stop guard and the queue hook still refuse a core-path commit on a non-`human/` branch — evidence: `joharness.sh:protocol_paths` readers — confidence: medium. Confirm before changing the ranking.
+- A5: An edge row (`retired, no claim file`) is what counts a `human/*` branch against `slots` — evidence: `joharness.sh:dispatch` (edge_rows, "commits a slot") — confidence: medium
 
 ## Out of scope
 
