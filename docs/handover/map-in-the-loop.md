@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01W18Uk51vWUnKgHZiX9b4KR
 agent: sonnet
 updated: 2026-10-28
-next: Read verify result; prove new map finish cases fail without finish_map; spawn verifier
+next: Run map selftest and ci; prove new cases fail without finish_map; spawn verifier
 ---
 
 ## Goal

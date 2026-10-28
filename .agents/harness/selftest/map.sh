@@ -61,7 +61,7 @@ done
 mout="$(CLAUDE_PROJECT_DIR="$mwork" JOHARNESS_CONF="${mwork}/joharness.conf" \
   GITHUB_ACTIONS='' "${mwork}/joharness.sh" ci 2>&1)"
 mlint="$(sed -n '/== graph lint/,/^$/p' <<<"$mout")"
-expect "ci warns on a missing folder" "warn docs/MAP.md: missing : lib/" "$mlint"
+refute "ci does not warn on an unmapped folder: adoption is incremental" "missing : lib/" "$mlint"
 expect "ci warns on a gone folder" "warn docs/MAP.md: gone    : ghost/" "$mlint"
 
 # Settle the map, then change a mapped folder.
@@ -97,7 +97,7 @@ printf 'x\n' >"${mwork}/newmod/f.txt"
 commit_all "$mwork" "add newmod"
 out="$(mfin_sec "$(map_finish)")"
 expect "finish names the folder this branch added" "missing : newmod/" "$out"
-expect "finish says how to fix it" "run /map on this branch" "$out"
+expect "finish says how to fix it" "run /map <these folders> on this branch" "$out"
 refute "finish skips drift this branch did not cause" "café" "$out"
 mapline newmod 'a new module' >>"${mwork}/docs/MAP.md"
 commit_all "$mwork" "map newmod"
@@ -108,6 +108,23 @@ printf 'z\n' >"${mwork}/app/f.txt"
 commit_all "$mwork" "edit app"
 out="$(map_finish)"
 refute "an edit in a mapped folder never fails finish" "== map" "$out"
+# Incremental adoption: only folders this branch creates or deletes count.
+git -C "$mwork" checkout -q -b mapold main
+printf 'x\n' >"${mwork}/café/g.txt"
+commit_all "$mwork" "add a file to an old unmapped folder"
+out="$(map_finish)"
+refute "a new file in an old unmapped folder never fails finish" "== map" "$out"
+mkdir -p "${mwork}/café/sub"
+printf 'x\n' >"${mwork}/café/sub/f.txt"
+commit_all "$mwork" "new subfolder under an old unmapped folder"
+out="$(mfin_sec "$(map_finish)")"
+expect "finish names the new subfolder" "missing : café/sub/" "$out"
+refute "finish never names the old parent" "missing : café/" "$(grep -v 'café/sub/' <<<"$out")"
+git -C "$mwork" checkout -q -b mapdel main
+git -C "$mwork" rm -rq lib
+commit_all "$mwork" "delete lib"
+out="$(mfin_sec "$(map_finish)")"
+expect "finish names a mapped folder this branch deleted" "gone    : lib/" "$out"
 git -C "$mwork" checkout -q -b mapnone main
 git -C "$mwork" rm -q docs/MAP.md
 mkdir -p "${mwork}/fresh"

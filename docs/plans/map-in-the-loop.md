@@ -19,7 +19,9 @@ it. `finish` refuses a merge that changes the product folder set (a folder
 added or removed) while the map does not reflect it, and that includes a
 consumer with product folders and no map at all. `/map` builds the map from
 nothing and commits on the branch that asked, so the map lands in the same
-pull request as the change. One line in Loop step 4 says both.
+pull request as the change. One line in Loop step 4 says both. Adoption is incremental (user ask): a
+project that takes the harness late maps folders as branches create them,
+never all at once, and an unmapped old folder never warns or blocks.
 
 ## Scope
 
@@ -30,13 +32,20 @@ pull request as the change. One line in Loop step 4 says both.
   - DRIFT = the `missing` and `gone` rows; with no `docs/MAP.md`, every
     product folder counts as missing.
   - TOUCHED = every directory, and each ancestor, of a file the branch adds
-    or deletes (`git diff --name-only --diff-filter=AD <ref>...HEAD`).
-  - A DRIFT folder in TOUCHED: print each row, then `run /map on this
-    branch: it builds or refreshes docs/MAP.md`, and return 1. Otherwise
+    or deletes, measured from the merge base with `<ref>`.
+  - Counts: a `missing` folder in TOUCHED that did not exist at the merge
+    base (this branch created it); a `gone` folder that existed at the merge
+    base and not at `HEAD` (this branch deleted it). Any count: print each
+    row, then `run /map <these folders> on this branch: it brings them into
+    docs/MAP.md`, and return 1. Otherwise
     print `map: reflects this branch` (plus `<n> drift rows this branch did
     not cause` when any) and return 0.
   - `stale` never fails.
-- `.claude/commands/map.md`:
+- `joharness.sh` `lint_map`: warn on `gone` rows only. An unmapped folder
+  is expected in a project that adopted the harness late.
+- `.claude/commands/map.md`: `/map <folder>...` maps only the named
+  folders (what `finish` names); bare `/map` maps every missing and stale
+  folder. Also:
   - Step 1: `none` means the folder list printed under it is the work list,
     and the file starts with `# Map` and a blank line.
   - Step 5: on a branch you already claimed (the `finish` case), commit
@@ -53,7 +62,11 @@ pull request as the change. One line in Loop step 4 says both.
   - a branch only modifying a file in a mapped folder: no map failure,
     stale or not;
   - no `docs/MAP.md` and a branch adding a product folder: fails;
-  - no product folders changed: no map failure.
+  - no product folders changed: no map failure;
+  - a new file in an old unmapped folder: no map failure; a new subfolder
+    under it: fails naming the subfolder only;
+  - a branch deleting a mapped folder: fails naming `gone : <folder>/`;
+  - `ci` does not warn on an unmapped folder.
 
 ## Assumptions
 

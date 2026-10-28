@@ -7511,21 +7511,26 @@ cmd_map() {
   fi
 }
 
-# Drift in the map warns; stale is the refresh work list, never a defect.
+# A map line naming no product folder warns. An unmapped folder does not: a
+# project that adopts the harness late maps folders as branches create them.
 lint_map() {
   local row
   map_scan nostale
   [ "$MAP_HAS" -eq 1 ] || return 0
   for row in "${MAP_ROWS[@]}"; do
-    lint_warn "${MAP_FILE}: ${row#*$'\t'} — /map refreshes it"
+    case "${row#*$'\t'}" in
+      gone*) lint_warn "${MAP_FILE}: ${row#*$'\t'} — /map refreshes it" ;;
+    esac
   done
 }
 
-# Step 7: a branch that adds or removes a product folder carries the map line
-# for it. Only drift this branch caused fails; edits and old drift never do.
+# Step 7: a branch that creates or deletes a product folder carries the map
+# line for it. Only those folders count: adopting the harness on an existing
+# project maps folders as branches create them, never all at once.
 finish_map() {
-  local ref="$1" f d row hit="" other=0
+  local ref="$1" base f d row kind hit="" other=0
   local -A touched=()
+  base="$(git -C "$ROOT" merge-base "$ref" HEAD 2>/dev/null)" || base="$ref"
   map_scan nostale
   if [ "${#MAP_SET[@]}" -eq 0 ]; then
     printf 'map: no product folders\n'
@@ -7543,9 +7548,15 @@ finish_map() {
       touched["$d"]=1
     done
   done < <(git -C "$ROOT" -c core.quotepath=false diff --name-only \
-    --diff-filter=AD "${ref}...HEAD" 2>/dev/null)
+    --diff-filter=AD "${base}" HEAD 2>/dev/null)
   for row in "${MAP_ROWS[@]}"; do
-    if [ -n "${touched["${row%%$'\t'*}"]:-}" ]; then
+    d="${row%%$'\t'*}"; kind="${row#*$'\t'}"; kind="${kind%% *}"
+    # Missing counts when the folder is new here; gone, when it was there.
+    if [ -n "${touched["$d"]:-}" ] && {
+         { [ "$kind" = missing ] && ! git -C "$ROOT" cat-file -e "${base}:${d}" 2>/dev/null; } ||
+         { [ "$kind" = gone ] && git -C "$ROOT" cat-file -e "${base}:${d}" 2>/dev/null &&
+           ! git -C "$ROOT" cat-file -e "HEAD:${d}" 2>/dev/null; }
+       }; then
       hit="${hit}  ${row#*$'\t'}"$'\n'
     else
       other=$((other + 1))
@@ -7553,7 +7564,7 @@ finish_map() {
   done
   if [ -n "$hit" ]; then
     printf '%s' "$hit" | LC_ALL=C sort
-    printf 'run /map on this branch: it builds or refreshes %s\n' "$MAP_FILE"
+    printf 'run /map <these folders> on this branch: it brings them into %s\n' "$MAP_FILE"
     return 1
   fi
   printf 'map: reflects this branch'
