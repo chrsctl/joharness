@@ -79,11 +79,46 @@ merges. Restore the file from before that commit:
     git checkout "$c^" -- docs/handover/<file>
 
 Set `status: blocked`, `next:` = `product: human-review label on PR #<n>:
-remove it so this merges?`, commit, push, exit. Blocked holds no slot and is
+remove it so this merges?`, draft the pull request (§ Block on an open
+pull request), commit, push, exit. Blocked holds no slot and is
 never respawned until the human answers. The answer reaches the branch as
 any block's does (orchestrator-reference.md, Relay); resumed with the
 label gone, delete the file again in one commit, push, merge under Loop
 step 7.
+
+## Block on an open pull request
+
+Any block or park whose head already has an open pull request — a
+`defect:` park at step 7, a `hardware:` block after the retire commit, §
+Label at merge — first marks that pull request a draft
+(`update_pull_request` `draft: true`), reads it back (`pull_request_read`
+`get`: `draft: true`), then commits the workstream file, pushes, exits. The
+resume restores nothing by hand: at step 7, after the delete commit,
+`update_pull_request` `draft: false`, read it back, then merge. The draft
+call fails = say so in `next:` after the question; still push, still exit.
+
+Why: the restore puts `docs/handover/<w>.md` back on the head, and nothing
+on GitHub stops a person merging it. No `human-review` on a `defect:` park
+(§ Defect), and on a repository whose Actions all fail before any step
+(`JOHARNESS_CHECKS=local`) the merge button sees red always, so red warns
+no one. GitHub refuses to merge a draft whatever the checks say. Merged,
+the file lands on `main` as a claim for a branch that is gone: `cleanup`
+lists it stale, the session-start hook names it to every later session cut
+from `main` as "your job", and a consumer whose `local-check` lists merged
+workstream files turns every `finish` red. Readings: here, PR #693 retired
+(`e89c8d12`), blocked `hardware:` (`047dbf06`), was merged by hand
+non-draft at 2026-10-29T11:26Z, and `main` carries
+`docs/handover/c2-run-prune-race.md` (GROUNDED: `git log origin/main --
+docs/handover/c2-run-prune-race.md`, `./joharness.sh cleanup`). In
+chrsctl/gx the same day two parked heads (PRs #1090, #1092) merged by hand
+and seven managers then parked on the red that made (#1101), fixed only by
+an ad-hoc session 4h24m later (WEAK: a consumer's reading, not re-taken
+here). The cadence half of that stall — a clerk in flight holding the early
+clerk a park calls, dispatch spawning onto a known-red base — is code, filed
+as plans beside this answer. `ci` on `origin/main` stays green with the
+stale file there: nothing here gates it. A draft is a speed bump, not a
+lock: anyone holding the button can mark it ready first; it stops the
+merge nobody meant.
 
 ## Challenge
 
@@ -162,7 +197,9 @@ no retry, no second transport. Run no queue command.
      with `human-review` and block on that reason (`product:`, `money:`, …;
      `.claude/commands/manager.md` §3).
    - **Park** = `status: blocked`, `next:` = `defect: #<n>: <one line>`, push,
-     exit. No `human-review` on the pull request or the plan's issue.
+     exit. No `human-review` on the pull request or the plan's issue. An
+     open pull request on the head goes draft first (§ Block on an open
+     pull request).
    - `issue_write` fails: block `github: defect not filed: <error, 40 chars>`,
      issue text under `## Blockers`.
 3. Otherwise ONE issue per session (`issue_write` `create`) on this
