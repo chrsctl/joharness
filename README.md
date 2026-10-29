@@ -132,7 +132,7 @@ nothing is lost but the work since its last push.
 
 The start of your prompt decides the role:
 
-- `/manage <plan>` — a manager for that plan.
+- `/manager <plan>` — a manager for that plan.
 - `/keeper` — the keeper (normally only the hourly heartbeat sends this).
 - anything else — an orchestrator.
 

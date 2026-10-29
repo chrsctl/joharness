@@ -7,7 +7,7 @@ needs: none
 requirement: none
 serves: all
 issue: none
-scope: shared:joharness.sh, .claude/commands/retro.md, .claude/commands/retro-audit.md, .claude/commands/clerk.md, shared:.claude/commands/orchestrate.md, shared:.agents/docs/orchestrate-reference.md, shared:.agents/docs/orchestrated.md, .agents/harness/selftest/role.sh
+scope: shared:joharness.sh, .claude/commands/retro.md, .claude/commands/retro-audit.md, .claude/commands/clerk.md, shared:.claude/commands/orchestrator.md, shared:.agents/docs/orchestrator-reference.md, shared:.agents/docs/orchestrated.md, .agents/harness/selftest/role.sh
 ---
 
 ## Goal
@@ -19,7 +19,7 @@ demand, and clerk's prelude ignores `not due`, but both retro modes refuse:
 not due …` / `STOP: cadence : not due …` before the window elapses, and
 both command files (§0 step 3) forbid a human-started pass unless
 `dispatch` prints `DUE: spawn`. Worse, the orchestrator's "human orders an
-extra role session" path (`orchestrate-reference.md`, Role sessions) spawns
+extra role session" path (`orchestrator-reference.md`, Role sessions) spawns
 a retro session that STOPs at once, while its ledger still records
 `retroed=<stamp>+human`. Make an ordered pass of any helper role run,
 whether ordered through a live orchestrator or typed by the human as
@@ -46,11 +46,11 @@ two of one role.
 - `.claude/commands/clerk.md`, §0 — say a human may start `/clerk` in a
   fresh session at any time; the prelude already ignores `not due`. No
   code change for clerk beyond `--ordered` being accepted and a no-op.
-- `.agents/docs/orchestrate-reference.md`, Role sessions — the
+- `.agents/docs/orchestrator-reference.md`, Role sessions — the
   human-ordered extra spawn's prompt is the row's command plus `--ordered`
   for clerk and retro (either mode); the ledger stays `<key>=<stamp>+human`.
   Still never while dispatch shows that role in flight.
-- `.claude/commands/orchestrate.md` — only if its text restates the
+- `.claude/commands/orchestrator.md` — only if its text restates the
   extra-spawn prompt; make it match the reference, nothing more.
 - `.agents/docs/orchestrated.md` — the Lineup rows for clerk and retro
   (audit, trace) add "or on the human's order (`--ordered`)" to "Started
@@ -130,7 +130,7 @@ two of one role.
 - `.claude/commands/retro-audit.md:Preconditions` — step 3 to replace;
   also its twin paragraph mentioning `not-due`.
 - `.claude/commands/clerk.md:Prelude` — `not due` is no exit.
-- `.agents/docs/orchestrate-reference.md:The human orders an extra role session` — extra-spawn prompt.
+- `.agents/docs/orchestrator-reference.md:The human orders an extra role session` — extra-spawn prompt.
 - `.agents/docs/orchestrated.md:JOHARNESS_RETRO_HOURS` — knob rows.
 - `.agents/harness/selftest/role.sh` — existing prelude fixtures to extend.
 
@@ -140,7 +140,7 @@ two of one role.
   and a new prompt argument. Name it exactly `--ordered`; flag the choice in
   the pull request body for the human.
 - The spawn prompt must never quote the human or assert their authority
-  (`orchestrate-reference.md`, Role sessions): `--ordered` is a mechanical
+  (`orchestrator-reference.md`, Role sessions): `--ordered` is a mechanical
   argument, nothing more.
 - No commit to a core path (`./joharness.sh protocol-paths`): not
   `joharness.conf`, not `.github`, not `.claude/settings.json`.

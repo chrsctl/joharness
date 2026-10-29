@@ -11,8 +11,8 @@ ONE spelling: [`.agents/docs/glossary.md`](../../.agents/docs/glossary.md); `ci`
    That is your job: read it whole, go to 4. Compacted? Re-read THIS file and your
    role command, not only the workstream file. Before saying what is done, read
    the branch's merged pull requests.
-2. **Pick.** Role routing only: prompt names `/manage <item>` = manager of that
-   ONE item (`.claude/commands/manage.md`); prompt is `/keeper` = keeper
+2. **Pick.** Role routing only: prompt names `/manager <item>` = manager of that
+   ONE item (`.claude/commands/manager.md`); prompt is `/keeper` = keeper
    (`.claude/commands/keeper.md`); otherwise `/start`. The role command owns the
    picking. One role per session: work your role command does not own (a
    clerk pass, another item's plan or fix) = `create_session` for that role,
@@ -23,7 +23,7 @@ ONE spelling: [`.agents/docs/glossary.md`](../../.agents/docs/glossary.md); `ci`
    (`.agents/docs/plans.md`, Fast lane). Plan's `agent` tier binds (`.agents/docs/agent-selection.md`).
    Boundary: no commit to a core path (`./joharness.sh protocol-paths`) outside a
    `human/<stem>` branch whose pull request a human merges (manager only,
-   `.claude/commands/manage.md` §2).
+   `.claude/commands/manager.md` §2).
 3. **Claim.** Branch from fresh-fetched `origin/main` (`git fetch origin main && git
    checkout -b <branch> origin/main`), never local `main`. Pushed branch = shared:
    behind or wrong base = merge `origin/main` in; never `push -f`/`--force` (`--force-with-lease`
@@ -81,7 +81,7 @@ ONE spelling: [`.agents/docs/glossary.md`](../../.agents/docs/glossary.md); `ci`
 
 - Implementation yours, interface signatures not. Scope change too big to ratify
   alone? Decide, write down, flag for human; do not stop.
-- Block ONLY for a reason your role command allows (a manager: `.claude/commands/manage.md`
+- Block ONLY for a reason your role command allows (a manager: `.claude/commands/manager.md`
   §3); each is in the one list dispatch accepts, `joharness.sh:block_reason_ok`. Block =
   `status: blocked`, `next:` = `<reason>: <question>`, push, exit; never wait in session.
   Not `defect:`? Also label `human-review` on this branch's open PR and the plan's

@@ -164,12 +164,12 @@ if [ "$(printf '%s\n' "$out99" | grep -c "Quebec20")" = 1 ] &&
   pass "retro: one row a session, naming its newest qualifying file"
 else fail "retro: one row a session, naming its newest qualifying file"; fi
 # The notes are the orchestrator's own words: pinned to the reference.
-rt_ref="$(tr '\n' ' ' <"${ROOT}/.agents/docs/orchestrate-reference.md" | tr -s ' ')"
+rt_ref="$(tr '\n' ' ' <"${ROOT}/.agents/docs/orchestrator-reference.md" | tr -s ' ')"
 for rt_n in "$(sed -n "s/^RETRO_LOOP_NOTE='\(.*\)'$/\1/p" "${ROOT}/joharness.sh")" \
             "$(sed -n "s/^RETRO_KILL_NOTE='\(.*\)'$/\1/p" "${ROOT}/joharness.sh")"; do
   if [ -n "$rt_n" ] && grep -qF -- "\"${rt_n}" <<<"$rt_ref"; then
-    pass "retro: the note '${rt_n}' is the one orchestrate-reference.md writes"
-  else fail "retro: the note '${rt_n}' is the one orchestrate-reference.md writes"; fi
+    pass "retro: the note '${rt_n}' is the one orchestrator-reference.md writes"
+  else fail "retro: the note '${rt_n}' is the one orchestrator-reference.md writes"; fi
 done
 expect "retro: SAMPLE bounds the count" "sample    : 1 session(s)" "$(rtt JOHARNESS_RETRO_SAMPLE=1)"
 

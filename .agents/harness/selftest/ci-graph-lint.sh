@@ -291,7 +291,7 @@ out="$(lint_section "$(lint_ci)")"
 refute "clearing them clears the lint" "not a number" "$out"
 rm -f "${lwork}/docs/handover/claim-ok.md" "${lwork}/docs/handover/claim-none.md"
 
-# A planning manager claims a REQUIREMENT by its stem (`/manage`, item kinds).
+# A planning manager claims a REQUIREMENT by its stem (`/manager`, item kinds).
 # Before, `plan: <requirement>` reded here as a claim on nothing, so the
 # manager obeying its own instructions failed ci.
 printf -- '---\nrequirement: claim-goal\npriority: normal\n---\n\n## Goal\nFixture.\n' \

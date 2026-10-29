@@ -347,7 +347,7 @@ fixture_rm "$qowork" "clear the requirement cases" \
 git -C "$qowork" push -q origin main
 
 # A planning manager CLAIMS the requirement it decomposes: `plan: <stem>` in a
-# pushed workstream file, as `/manage` tells it to. Before, that branch was
+# pushed workstream file, as `/manager` tells it to. Before, that branch was
 # invisible — no row, no slot, the requirement offered again while its
 # planner ran, and a planner parked `blocked` respawned (case B of the
 # retired research node a-requirement-no-plan-can-serve; case E, a plan

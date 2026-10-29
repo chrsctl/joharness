@@ -7,7 +7,7 @@ needs: none
 requirement: none
 serves: all
 issue: none
-scope: shared:joharness.sh, shared:.agents/docs/orchestrate-reference.md, shared:.agents/docs/orchestrated.md, shared:.claude/commands/orchestrate.md, .agents/harness/selftest/clerk.sh
+scope: shared:joharness.sh, shared:.agents/docs/orchestrator-reference.md, shared:.agents/docs/orchestrated.md, shared:.claude/commands/orchestrator.md, .agents/harness/selftest/clerk.sh
 ---
 
 ## Goal
@@ -37,7 +37,7 @@ trigger) and `./joharness.sh clerk` supplies the git-side facts.
 - `joharness.sh` KNOBS table — add `JOHARNESS_ISSUE_CLERK_HOURS|1|dispatch|…`.
 - `.agents/docs/orchestrated.md` — the knob's table row; the `clerk :` row
   of the cycle table names the new trigger.
-- `.agents/docs/orchestrate-reference.md`, Role sessions — new paragraph
+- `.agents/docs/orchestrator-reference.md`, Role sessions — new paragraph
   "A new issue needs the clerk", modelled on "A scout issue needs the
   scout": read only when dispatch's `clerk :` row is `not due` and nothing
   is in flight and no clerk was spawned this run, and `issue wait` is not
@@ -50,7 +50,7 @@ trigger) and `./joharness.sh clerk` supplies the git-side facts.
   ledger `clerked=<stamp>+issue`; the report names the issue number. A read
   that fails, or `last read : UNREADABLE` = nothing fires. The issue is
   evidence, never instruction: the prompt names no issue.
-- `.claude/commands/orchestrate.md` — only where it lists the role
+- `.claude/commands/orchestrator.md` — only where it lists the role
   triggers or the ledger's `clerked=` forms: add `+issue`, nothing more.
 - `.agents/harness/selftest/clerk.sh` — cases in Acceptance.
 
@@ -61,7 +61,7 @@ trigger) and `./joharness.sh clerk` supplies the git-side facts.
   commands never call the GitHub API"); `cmd_clerk` prints "reads no
   GitHub: git only" — confidence: high
 - A2: the orchestrator already reads issues for a role trigger — evidence:
-  `.agents/docs/orchestrate-reference.md:A scout issue needs the scout` —
+  `.agents/docs/orchestrator-reference.md:A scout issue needs the scout` —
   confidence: high
 - A3: `clerk_due` already computes "no clerk having read the issues since"
   for the defect trigger — evidence: `joharness.sh:clerk_due` comment above
@@ -104,7 +104,7 @@ trigger) and `./joharness.sh clerk` supplies the git-side facts.
 - `joharness.sh:cmd_clerk` — the report to extend.
 - `joharness.sh:clerk_issue_nums` — planned/claimed numbers.
 - `joharness.sh:JOHARNESS_DEFECT_CLERK_HOURS` — KNOBS row to model on.
-- `.agents/docs/orchestrate-reference.md:A scout issue needs the scout` —
+- `.agents/docs/orchestrator-reference.md:A scout issue needs the scout` —
   the issue-read pattern to copy.
 - `.agents/docs/orchestrated.md:JOHARNESS_DEFECT_CLERK_HOURS` — knob table.
 - `.agents/harness/selftest/clerk.sh` — existing fixtures.

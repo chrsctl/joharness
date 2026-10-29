@@ -42,13 +42,13 @@ rb_bound() {
 
 rb_bound handover.md 18979
 rb_bound consumer-repos.md 24986
-# manage.md loads whole into every manager session; its rare branches
-# live in manage-reference.md. Counted `wc -c` on the diet commit,
+# manager.md loads whole into every manager session; its rare branches
+# live in manager-reference.md. Counted `wc -c` on the diet commit,
 # 2026-10-23 (16234 before it).
-rb_bound manage.md 9248 "${ROOT}/.claude/commands"
+rb_bound manager.md 9248 "${ROOT}/.claude/commands"
 # The orchestrator's command file, counted 21480 on origin/main after the
-# split into orchestrate-reference.md: it stays a table of pointers.
-rb_bound orchestrate.md 21480 "${ROOT}/.claude/commands"
+# split into orchestrator-reference.md: it stays a table of pointers.
+rb_bound orchestrator.md 21480 "${ROOT}/.claude/commands"
 # Always-loaded files with no bound before 2026-10-23; counted `wc -c` that day.
 # harness AGENTS.md 6571 bytes, 2026-10-23.
 rb_bound .agents/harness/AGENTS.md 6571 "${ROOT}"
@@ -90,7 +90,7 @@ fi
 
 # Unbounded: growth is visible, nothing is gated.
 rb_total=0
-for rb_rel in ../../.claude/commands/manage.md plans.md \
+for rb_rel in ../../.claude/commands/manager.md plans.md \
   handover.md agent-selection.md subagents.md \
   ../../.claude/agents/verifier.md; do
   if [ -r "${rb_docs}/${rb_rel}" ]; then

@@ -3,7 +3,7 @@ description: Orchestrator loop — dispatch the queue to manager sessions under 
 ---
 
 Role comes from the prompt, the session-start banner's rule
-(`./joharness.sh start`): `/manage <item>` = `manage.md`, `/keeper` =
+(`./joharness.sh start`): `/manager <item>` = `manager.md`, `/keeper` =
 `keeper.md`, anything else = this file. One guard, first act once "##
 Tools" has found it: `get_session` (no `session_id`). Titled exactly
 `🔑 keeper: <owner/repo>` (glossary, role title: the bare spelling matches
@@ -22,7 +22,7 @@ dispatch, the control plane, and `.agents/docs/agent-selection.md` Lineup
 manager's workstream file only in KILL and LOOP, to write the record.
 
 `ref § <name>` = `## <name>` of `git show
-origin/main:.agents/docs/orchestrate-reference.md`: read it whole when its
+origin/main:.agents/docs/orchestrator-reference.md`: read it whole when its
 pointer fires.
 
 ## Tools
@@ -71,10 +71,10 @@ nothing.
   "## 0. Start" step 3's matter, never a stop here.
 
 - **Harness.** `harness=` vs the first 12 characters of `git show
-  origin/main:.claude/commands/orchestrate.md | git hash-object --stdin`.
+  origin/main:.claude/commands/orchestrator.md | git hash-object --stdin`.
   Fresh-fetched `origin/main`, not the checkout: the checkout fast-forwards
   only at "## 0. Start", so a resync inside one session never shows there.
-  They differ = re-read `git show origin/main:.claude/commands/orchestrate.md`
+  They differ = re-read `git show origin/main:.claude/commands/orchestrator.md`
   whole before acting, fast-forward the checkout as "## 0. Start" step 1
   does, drop ledger keys the new text no longer defines, report `harness
   moved: <old> to <new>`.
@@ -83,7 +83,7 @@ nothing.
   session's (`persistent_session_id` = your id). Another one
   carrying a higher `pass=` than yours = report `superseded by pass <m>`, do
   nothing, schedule nothing.
-- **Duplicate.** Another session's pending `/orchestrate pass` wake in that
+- **Duplicate.** Another session's pending `/orchestrator pass` wake in that
   answer → ref § Duplicate.
 - **Heartbeat.** `pass=` above 1: ref § 0. Start step 5 on that same
   answer, REPLACE and REGISTER included, its line in the report. A keeper
@@ -178,7 +178,7 @@ or command that says nothing to do spawns nothing.
   spawns only when this pass's health pass said so.
 - Skip `HOLD`, `WAIT`. `that branch is BLOCKED on a human:
   spawn` is free; add the reconcile line. `CORE ONLY — build it` is free,
-  the usual prompt: its manager routes the core edit (manage.md §2).
+  the usual prompt: its manager routes the core edit (manager.md §2).
 - `UNPLANNED` or `PARTLY PLANNED` requirement = ONE planning manager, fable,
   effort xhigh.
 - `release DUE: <branches>`: a `needs:` branch at once; a stale or done
@@ -197,10 +197,10 @@ or command that says nothing to do spawns nothing.
   `agent:` via the Lineup, `title` = `🔨 manager: <stem>`, `prompt`:
 
   ```
-  /manage <path>
+  /manager <path>
 
   Run ./joharness.sh protocol-paths and never commit under those paths
-  outside manage.md §2's human/<stem> worktree. Claim by pushing your
+  outside manager.md §2's human/<stem> worktree. Claim by pushing your
   workstream file before any code. Push at every milestone. One item, then
   exit.
   ```
@@ -224,8 +224,8 @@ Ledger every spawn the moment it returns as `<stem>@new`.
 `send_later`, `delay_minutes` = `JOHARNESS_HEALTH_MINUTES`:
 
 ```
-/orchestrate pass
-harness=<first 12 chars of git hash-object of origin/main:.claude/commands/orchestrate.md> pass=<this pass's number plus one> [retire=yes]
+/orchestrator pass
+harness=<first 12 chars of git hash-object of origin/main:.claude/commands/orchestrator.md> pass=<this pass's number plus one> [retire=yes]
 ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] [held=<updated_at>] [unratified=<head>] [notified=<stem>] [released=<stem>[,<stem>]] [held-human=<pr>] respawns=<n> [rescoped=<key>] [corewait=<stem>#<N>[,<stem>#<N>]] [clerked=<stamp>[+human]] [scouted=<stamp>[+human]] [conducted=<stamp>[+human]] [retroed=<stamp>[+human]]; ...
 lead <stem>: <40 chars, to the end of this line>
 ```

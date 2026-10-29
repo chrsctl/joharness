@@ -194,11 +194,11 @@ if [ "${JOHARNESS_SESSION_SOURCE:-}" = "compact" ]; then
   add "  .agents/harness/AGENTS.md — the Loop, and the boundary step 2"
   add "  keeps: no commit to a core path (./joharness.sh protocol-paths)"
   add "  outside a human/<stem> branch whose pull request a human merges"
-  add "  (manager only, .claude/commands/manage.md §2)."
+  add "  (manager only, .claude/commands/manager.md §2)."
   add ""
   # One mode, so nothing to resolve: the role's command is the rules.
   add "  Mode: orchestrated."
-  add "  Its rules: your role's command — .claude/commands/orchestrate.md or manage.md (or keeper.md)."
+  add "  Its rules: your role's command — .claude/commands/orchestrator.md or manager.md (or keeper.md)."
   add ""
   add "Your own finished work may be missing from what you hold. Before"
   add "reporting anything done or outstanding, read this branch's merged"
@@ -295,7 +295,7 @@ rank_of() {
   printf -v "$3" '%s' "$r"
 }
 
-# A surveyor's genuine-holds end (manage.md, rescope): `workstream: rescope-*`,
+# A surveyor's genuine-holds end (manager.md, rescope): `workstream: rescope-*`,
 # `plan: none`, `status: done`, no `pr:`. All four, compared as words: one
 # short and it is a live surveyor, still ranked as today.
 finished_rescope() {

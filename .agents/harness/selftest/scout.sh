@@ -326,7 +326,7 @@ scommit "queue empty" '2026-03-06T00:00:00Z'
 git -C "$scout_work" push -q origin main
 out="$(sdspr)"
 expect "free, the row names what spawns one" \
-  "scout     : none in flight — on the reviewer's order or a scout issue waiting on the scout (orchestrate.md) spawn ONE (agent: fable) on /scout, beyond the cap" "$out"
+  "scout     : none in flight — on the reviewer's order or a scout issue waiting on the scout (orchestrator.md) spawn ONE (agent: fable) on /scout, beyond the cap" "$out"
 refute "and dispatch prints no scout DUE: spawn" "scout DUE: spawn" "$out"
 out="$(sdspr DISPATCH_FETCH=0)"
 refute "with no fetch at all the row is not free" "$scout_go" "$out"

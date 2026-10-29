@@ -1,6 +1,6 @@
 ---
 name: challenger
-description: One reader that did not write the requirement. Challenges a requirement through one lens before any plan is written, reports findings with evidence, and fixes nothing. Spawn at manage-reference.md § Challenge.
+description: One reader that did not write the requirement. Challenges a requirement through one lens before any plan is written, reports findings with evidence, and fixes nothing. Spawn at manager-reference.md § Challenge.
 tools: Read, Grep, Glob, Bash
 ---
 

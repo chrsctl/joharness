@@ -48,7 +48,7 @@ Fan-out names two mechanisms; plans and managers' prompts mean the second:
 - **Consumer upkeep**, the Subagent row of [Pick route](consumer-repos.md#pick-route).
   Canonical repo: not applicable, `upgrade` refuses to run here.
 - **Research sweeps** — read many files, return the conclusion only.
-- **A manager's sub-tasks** (`.claude/commands/manage.md`): the build of
+- **A manager's sub-tasks** (`.claude/commands/manager.md`): the build of
   one plan split by file set, each worker at or below the plan's tier,
   its return counted by the manager before any commit.
 
