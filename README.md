@@ -93,9 +93,10 @@ and don't use up the manager budget:
    the budget and no running work overlaps it.
 4. **The manager builds, checks and merges.** All checks must pass, a
    reviewer that didn't write the change must look at it, and the branch must
-   be up to date with `main`. Where GitHub Actions don't run, the manager's
-   final check runs the same checks itself before merging. Finished work
-   leaves no files behind.
+   be up to date with `main`. Optionally, with `JOHARNESS_CHECKS=local` set in
+   the session's environment (not in `joharness.conf`), the manager's final
+   check runs those checks itself on the agent's machine instead of waiting
+   for GitHub Actions. Finished work leaves no files behind.
 5. **The slot frees up**, and the orchestrator fills it on its next round.
 
 ## How the roles talk to each other
