@@ -956,3 +956,56 @@ git -C "$ckwork" push -q origin main
 out="$(ckx)"
 expect "a base plan names #31: the cadence only" "clerk     : not due — 3h since" "$out"
 refute "and nothing spawns" "spawn ONE clerk" "$out"
+
+# --- two parks on one issue no plan names hold every spawn row --------------
+# A red base every new manager hits at finish (gx, 2026-10-29): spawn none
+# onto it until a plan names the issue. Its own repo, the df helpers reused.
+dfwork="${TMP}/dhwork"
+dforigin="${TMP}/dhorigin.git"
+git init -q --bare "$dforigin"
+git init -q "$dfwork"
+git -C "$dfwork" symbolic-ref HEAD refs/heads/main
+mkdir -p "${dfwork}/docs/plans" "${dfwork}/docs/handover" \
+  "${dfwork}/.agents/harness" "${dfwork}/.agents/env/none"
+cp "${ROOT}/joharness.sh" "${dfwork}/joharness.sh"
+cp "${ROOT}/.agents/harness/queue-context.sh" \
+   "${ROOT}/.agents/harness/handover-context.sh" "${dfwork}/.agents/harness/"
+printf '# none\n' >"${dfwork}/.agents/env/none/AGENTS.md"
+dfconf="${dfwork}/joharness.conf"
+printf 'JOHARNESS_ENV=none\n' >"$dfconf"
+dfcommit 200 "base"
+git -C "$dfwork" remote add origin "$dforigin"
+git -C "$dfwork" push -qu origin main
+dfplan dh-a none; dfplan dh-b none; dfplan dh-free none
+dfpush 3 "dh-a, dh-b, dh-free"
+dfpark dh-park-a dh-a 'defect: #41: the base is red' 2
+out="$(dfx)"
+expect "one park on an unplanned issue holds nothing" \
+  "verdict   : NOT DRAINED — 2 free item(s) now" "$out"
+refute "and no row reads a red base" "red base" "$out"
+dfpark dh-park-b dh-b 'defect: #41: the base is red too' 2
+out="$(dfx)"
+expect "two parks on one unplanned issue hold the spawn row, naming it" \
+  "docs/plans/dh-free.md (agent: sonnet)  HOLD — red base: #41 (2 parked), no plan names it" "$out"
+expect "the verdict names the issue and spawns no manager" \
+  "verdict   : DEFECT-BOUND — 1 item(s) held: red base, #41 (2 parked), no plan names it: spawn no manager" "$out"
+expect "a hold is never a slot: the item stays queued" \
+  "1 item(s) on HOLD behind a red base (#41 (2 parked)): not counted as free, still queued" "$out"
+refute "and never a surveyor" "OVERLAP-BOUND" "$out"
+# A plan naming #41 on a live branch lifts it; so does one on the base.
+git -C "$dfwork" checkout -qb dh-clerk main
+dfplan fix41 41
+dfcommit 1 "a plan naming #41"
+git -C "$dfwork" push -qu origin dh-clerk
+git -C "$dfwork" checkout -q main
+out="$(dfx)"
+refute "a branch plan naming #41 lifts the hold" "red base" "$out"
+git -C "$dfwork" push -q origin --delete dh-clerk
+git -C "$dfwork" branch -qD dh-clerk
+git -C "$dfwork" update-ref -d refs/remotes/origin/dh-clerk
+dfplan fix41 41
+dfpush 1 "fix41 on the base"
+out="$(dfx)"
+expect "a base plan naming #41: the item spawns" \
+  "verdict   : NOT DRAINED — 2 free item(s) now" "$out"
+refute "and no hold" "red base" "$out"
