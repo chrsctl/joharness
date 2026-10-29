@@ -21,7 +21,8 @@
 #                   merged edges found in one file
 #   finish [-v]     Loop step 7 gate: what merging this branch NOW would leave
 #                   on the base branch. With JOHARNESS_CHECKS=local it also runs
-#                   `ci` (and `verify` when needed) and a declared `local-check`
+#                   `ci` (and `verify` when needed) and `local-check`, red in a
+#                   consumer that declares none
 #   dispatch        the orchestrator's one read: cap, managers in flight, spawn
 #                   order, verdict. Report-only
 #   release [<branch>...]
@@ -117,7 +118,7 @@ KNOBS='JOHARNESS_ENV|none|conf|Directory under .agents/env/ this repo provisions
 JOHARNESS_ENV_SETUP|lazy|conf|lazy = provision on demand; eager = at session start.
 JOHARNESS_ENV_MD|lazy|conf|lazy = inject a pointer to the layer rules; eager = the file whole.
 JOHARNESS_REVIEW|off|conf|off = review reports only; on = ci gates the record at the edge.
-JOHARNESS_CHECKS|github|session|Environment only. github = step 7 waits for GitHub checks; local = finish runs ci, verify and a declared local-check here; a conf line is ignored.
+JOHARNESS_CHECKS|github|session|Environment only. github = step 7 waits for GitHub checks; local = finish runs ci, verify and local-check here, red in a consumer with none; a conf line is ignored.
 JOHARNESS_LOCAL_CHECK_MINUTES|30|session|Bound on a declared local-check under JOHARNESS_CHECKS=local; over it = red, never a skip; 0 = one second.
 JOHARNESS_MAX_MANAGERS|4|dispatch|Managers in flight at once; 0 pauses spawning.
 JOHARNESS_STALL_MINUTES|45|dispatch|No push this long = cross-check, nudge.
@@ -6418,6 +6419,18 @@ checks_gate() {
   fi
 
   checks_local_check "$base" || rc=1
+  # A consumer's own suites must gate something before a merge that waits for
+  # no GitHub check: gx merged ten regressions with none declared (gx #797).
+  if ! is_canonical &&
+     ! git -C "$ROOT" cat-file -e "HEAD:${CHECKS_LOCAL_FILE}" 2>/dev/null; then
+    printf '\n  NO CHECK     no consumer check declared (%s): this repository'"'"'s\n' \
+      "$CHECKS_LOCAL_FILE"
+    printf '               own suites gate nothing, and no GitHub check waits — not\n'
+    printf '               mergeable. Commit a %s at the root that runs them\n' \
+      "$CHECKS_LOCAL_FILE"
+    printf '               (.agents/docs/consumer-repos.md § Local checks).\n'
+    rc=1
+  fi
 
   # What a green above does NOT cover.
   printf '\n  Not covered here: any job in .github/workflows/ that ci does not run\n'
@@ -6425,7 +6438,8 @@ checks_gate() {
   printf '  and whatever the selected layer'"'"'s smoke test does not test — a layer\n'
   printf '  shipping none proves nothing here. ci SKIPS loudly rather than redding\n'
   printf '  for a tool it cannot install, so read its stages, not only its verdict.\n'
-  if ! git -C "$ROOT" cat-file -e "HEAD:${CHECKS_LOCAL_FILE}" 2>/dev/null; then
+  if is_canonical &&
+     ! git -C "$ROOT" cat-file -e "HEAD:${CHECKS_LOCAL_FILE}" 2>/dev/null; then
     printf '  And no consumer check declared (%s): this repository'"'"'s own suites\n' \
       "$CHECKS_LOCAL_FILE"
     printf '  gate nothing here.\n'
@@ -9618,7 +9632,8 @@ cmd_session_start() {
     printf '== Checks: LOCAL (JOHARNESS_CHECKS=local) ==\n\n'
     printf 'Step 7 does NOT wait for GitHub Actions here. ./joharness.sh finish\n'
     printf 'runs this head'"'"'s checks itself — ci, verify when the diff touches\n'
-    printf 'non-*.md harness code, and the repo'"'"'s local-check when it declares one —\n'
+    printf 'non-*.md harness code, and the repo'"'"'s local-check (a consumer with none\n'
+    printf 'is red) —\n'
     printf 'and is red on what they say. It refuses a head\n'
     printf 'that is not what merges: uncommitted or untracked paths, unpushed tip,\n'
     printf 'or behind the base branch. Every other step 7 condition unchanged.\n\n'

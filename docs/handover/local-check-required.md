@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK6gNXbfQ7FMdpjZ81P
 agent: opus
 updated: 2026-10-29
-next: Make checks_gate red in a consumer with no local-check; flip selftest cases
+next: Run ci and verify, then verifier at opus, then retire and open the PR
 ---
 
 ## Goal
@@ -22,6 +22,7 @@ A consumer in `JOHARNESS_CHECKS=local` with no `local-check` must be red at
 - A2: unverifiable here — no gx checkout in this container (`ls -d /home/user/gx`: no such file); not load-bearing for the code.
 - A3: confirmed — `is_canonical` reads `JOHARNESS_CANONICAL` from `$CONF` only (conf, never environment).
 - The red sits after the suites, where the note was: it is not a which-tree refusal, and ci/verify verdicts still print.
+- Flipped cases: "no declared check is named on the green path" asserts the new red (it is about the missing file); "local mode is green when ci is" and "the same conf with the environment value is local mode" keep their meaning via a trivial `local-check` committed on kcdocs (the latter's string now names `local-check too`); "bash joharness.sh finish reaches ci and passes" no change (greps `ci: pass`, printed before the red); "an ignored local-check is not a red" asserts the red is the missing check's, never the ignored copy's exit 1; kcbroken gets `exit 0` so its red stays ci's.
 - No workers: one coupled change (gate + its selftest + one doc paragraph); splitting would serialize on joharness.sh anyway.
 
 ## Rejected
@@ -40,6 +41,7 @@ None.
 - r8: (plan-checker) A2 evidence path absent in this container (no change: recorded unverifiable in Decisions)
 - r9: (plan-checker) revert-fails acceptance has no command (fixed: the run is recorded in Review)
 - r10: (plan-checker) ci and verify acceptance name only pass output (no change: their failure outputs are the commands' own)
+- r12: mutation: `rc=1` in checks_gate's NO CHECK arm replaced by `:`, `bash .agents/harness/selftest.sh` 2026-10-29: 3917 passed, 4 failed — the three new consumer reds plus c2-run's parallel char case; restored: 3921 passed, 0 failed (no change)
 - r11: (plan-checker) stale optional-check text elsewhere in joharness.sh and the doc (fixed: listed in Scope)
 
 ## Blockers

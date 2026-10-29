@@ -89,9 +89,48 @@ expect "a docs-only diff does not ask for verify" \
 expect "the uncovered ground is named on the green path too" \
   "Not covered here" "$out"
 expect "branch protection is named" "Branch protection is untouched" "$out"
-expect "no declared check is named on the green path" \
-  "no consumer check declared (local-check)" "$out"
+# A consumer with no declared check is red: its own suites would gate
+# nothing, and no GitHub check waits (gx #797). The suites above still ran.
+expect "a consumer with no check is red, naming local-check" \
+  "NO CHECK     no consumer check declared (local-check)" "$out"
+expect "and names where to read how to clear it" \
+  "consumer-repos.md § Local checks" "$out"
 refute "and nothing runs in its name" "== bash local-check" "$out"
+if JOHARNESS_CHECKS=local kc_rc; then
+  fail "a consumer with no local-check is a red merge"
+else
+  pass "a consumer with no local-check is a red merge"
+fi
+# The canonical repository has no consumer suites to declare: a note, green.
+# Its conf sits outside the worktree so it cannot make the tree dirty, and
+# is_canonical reads the conf, never the environment.
+kccanon="${TMP}/checks-canonical.conf"
+printf 'JOHARNESS_CANONICAL=1\n' >"$kccanon"
+out="$(CLAUDE_PROJECT_DIR="$kcwork" JOHARNESS_CONF="$kccanon" GITHUB_ACTIONS='' \
+  JOHARNESS_CHECKS=local "${kcwork}/joharness.sh" finish 2>&1)"
+refute "the canonical repository is not red for no local-check" "NO CHECK" "$out"
+expect "the canonical repository keeps the note" \
+  "And no consumer check declared (local-check)" "$out"
+if CLAUDE_PROJECT_DIR="$kcwork" JOHARNESS_CONF="$kccanon" GITHUB_ACTIONS='' \
+     JOHARNESS_CHECKS=local "${kcwork}/joharness.sh" finish >/dev/null 2>&1; then
+  pass "the canonical repository with no local-check is green"
+else
+  fail "the canonical repository with no local-check is green"
+fi
+
+# From here kcdocs declares a check that gates nothing, so the cases below
+# about ci, the conf and the refusals are about those alone.
+printf 'exit 0\n' >"${kcwork}/local-check"
+commit_all "$kcwork" "a trivial consumer check"
+git -C "$kcwork" push -q origin kcdocs 2>/dev/null
+out="$(JOHARNESS_CHECKS=local kc_finish)"
+expect "a consumer with a passing local-check runs it" "local-check: pass" "$out"
+refute "a consumer with a local-check is not NO CHECK" "NO CHECK" "$out"
+if JOHARNESS_CHECKS=local kc_rc; then
+  pass "a consumer with local-check = exit 0 is green"
+else
+  fail "a consumer with local-check = exit 0 is green"
+fi
 
 # --- finish runs ci by absolute path ----------------------------------------
 out="$(cd "$kcwork" && CLAUDE_PROJECT_DIR="$kcwork" JOHARNESS_CONF="${kcwork}/joharness.conf" \
@@ -114,7 +153,7 @@ expect "and the finish is github mode" "checks: github." "$out"
 refute "and nothing ran here" "ci: pass" "$out"
 out="$(JOHARNESS_CHECKS=local kc_finish_conf)"
 expect "the same conf with the environment value is local mode" \
-  "finish: pass (ci and verify ran here: JOHARNESS_CHECKS=local)" "$out"
+  "finish: pass (ci and verify ran here, local-check too: JOHARNESS_CHECKS=local)" "$out"
 refute "and prints no ignored line" "which is ignored" "$out"
 out="$(env -u JOHARNESS_CHECKS CLAUDE_PROJECT_DIR="$kcwork" JOHARNESS_CONF="$kcconf" \
   "${kcwork}/joharness.sh" session-start </dev/null 2>/dev/null)"
@@ -186,6 +225,8 @@ fi
 git -C "$kcwork" checkout -qb kcbroken main
 mkdir -p "${kcwork}/.agents/scripts"
 printf '#!/usr/bin/env bash\nif [ 1 = 1 ; then\n' >"${kcwork}/.agents/scripts/broken.sh"
+# A passing check, so the red below is ci's and not a missing local-check's.
+printf 'exit 0\n' >"${kcwork}/local-check"
 commit_all "$kcwork" "a script that does not parse"
 git -C "$kcwork" push -qu origin kcbroken 2>/dev/null
 out="$(JOHARNESS_CHECKS=local kc_finish)"
@@ -412,10 +453,16 @@ out="$(JOHARNESS_CHECKS=local kc_finish)"
 expect "an ignored local-check is named and not run" \
   "local-check: here but not in HEAD (ignored?)" "$out"
 refute "an ignored local-check gates nothing" "ignored copy" "$out"
+# Not in HEAD is not declared: the red is the missing check's, never the
+# ignored copy's exit 1.
+expect "an ignored local-check is no declared check" \
+  "NO CHECK     no consumer check declared (local-check)" "$out"
+refute "an ignored local-check's own exit is not the red" \
+  "local-check: FAILED" "$out"
 if JOHARNESS_CHECKS=local kc_rc; then
-  pass "an ignored local-check is not a red"
+  fail "an ignored local-check leaves the consumer red"
 else
-  fail "an ignored local-check is not a red"
+  pass "an ignored local-check leaves the consumer red"
 fi
 rm -f "${kcwork}/local-check"
 sed -i.bak '/^local-check$/d' "${kcwork}/.git/info/exclude"
@@ -486,6 +533,11 @@ expect "a branch deleting the check says CHECK CHANGED" \
   "CHECK CHANGED on this branch" "$out"
 expect "and then that none is declared" \
   "no consumer check declared (local-check)" "$out"
+if JOHARNESS_CHECKS=local kc_rc; then
+  fail "a branch deleting the check is a red merge"
+else
+  pass "a branch deleting the check is a red merge"
+fi
 
 # Over the bound is red and says timeout, never a skip. 0 minutes = one
 # second; the check's own child must die with it, or it outlives finish —
