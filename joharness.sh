@@ -41,7 +41,8 @@
 #   curate [--apply]
 #                   is the plan queue still fit; --apply makes the mechanical
 #                   repairs
-#   map             docs/MAP.md drift: folders missing, gone or stale. Report-only
+#   map             INDEX.md drift per product folder: missing, stale, orphan
+#                   or broken. Report-only
 #   scout           whether a scout may run, which is in flight. Report-only
 #   clerk           whether a clerk is due, issues already planned or claimed
 #   retro --audit   whether an audit reviewer is due, its sample, the ledger
