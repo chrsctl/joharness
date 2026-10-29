@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK5LLj6K3wZbTENfC55
 agent: opus
 updated: 2026-10-29
-next: Run ci, verify, selftest and the consumer check, then spawn the verifier
+next: Retire commit, open PR, finish, merge
 ---
 
 ## Goal
@@ -35,6 +35,9 @@ the file's reading budget (docs/plans/verifier-wrong-reason-lenses.md).
 - r8: (plan-checker) round 2: gx claims unverified (wontfix: same as r5)
 - r9: (plan-checker) round 2: Scope maps three shapes to STUB, fourth placement ambiguous (fixed: all four in one sub-list, fourth says UNVERIFIED)
 - r10: (plan-checker) round 2: selftest item lacks its failure form (fixed)
+- r11: (verifier) lead sentence calls every shape STUB while the fourth line says UNVERIFIED; a timed-out suite fits both (fixed: lead says first three are STUB)
+- r12: (verifier) STUB undersells a real fix behind a wrong-reason test, closer to UNVERIFIED (wontfix: plan Scope chose STUB; a test that cannot fail is a test asserting nothing, STUB's own example)
+- r13: (verifier) one selftest run of three red on c2-run "a stem merged twice", file untouched by this diff (no change: not this branch's; reported as a lead)
 
 ## Blockers
 

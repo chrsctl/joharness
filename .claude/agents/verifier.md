@@ -75,8 +75,8 @@ For each `## Goal` clause and each `## Acceptance` item, one line:
 - UNVERIFIED — no command here re-takes it (see below). Never COVERED on
   trust.
 
-A test green for the wrong reason is STUB: an assertion proves a property
-only if it tells it apart from its absence. Shapes:
+A test green for the wrong reason proves nothing: an assertion proves a
+property only if it tells it apart from its absence. First three are STUB:
 
 - It reaches a path the fix did not change.
 - Its "without the fix" baseline, stashed or partly reverted, still holds
