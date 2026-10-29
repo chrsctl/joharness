@@ -22,6 +22,12 @@ The practices gx invented live in consumer-owned files (`AGENTS.md` Part 2,
 queue (`measure-once-per-head`, `verifier-wrong-reason-lenses`) only
 because a session read gx by hand.
 
+The two routes that exist do not cover it: the clerk's UPSTREAM verdict
+(`.claude/commands/clerk.md`) and `feedback.md` § 4's issue route both
+file an issue, and both wait for someone to write one first. Practice
+mode starts from the rule itself and files the research node canonical
+schedules.
+
 Add a second, hand-run report kind: a consumer-local rule proposed for the
 harness. It files the same thing edge mode files: one research node.
 
@@ -30,7 +36,11 @@ harness. It files the same thing edge mode files: one research node.
 - `.claude/commands/upstream-report.md` — a `practice` mode,
   `/upstream-report practice <path>[:<heading>]` (`<heading>` = the
   heading's text as written, without the `#` marks), as `## 3. Practice
-  mode`, between `## 2.` and `## Never`. The reporter:
+  mode`, between `## 2.` and `## Never`. No `:<heading>` = the whole file
+  is one rule; a file holding many rules needs the heading. § 3 stands
+  alone: it skips § 0 and § 1, and borrows only § 2's filing. The
+  opening (frontmatter `description:` and the first paragraph) names both
+  modes in as few words as fit the budget (A3). The reporter:
   1. Runs `./joharness.sh authority` (VERIFIABLE, else stop) and
      `./joharness.sh upstream` with no argument. Practice mode reads only
      its `canonical :` line. `CANONICAL` = stop (this repo is the harness).
@@ -45,8 +55,9 @@ harness. It files the same thing edge mode files: one research node.
      - no measurement stands behind it: a command and its output, or a
        recorded incident whose record carries one (edge mode's `## Never`:
        no report with no measurement);
-     - canonical already carries it (grep canonical, quote the command
-       and its output).
+     - canonical already carries it: grep the rule's key terms over
+       canonical's `AGENTS.md`, `.agents/` and `.claude/`; quote the
+       command and its output, and cite the file and section of a hit.
   4. Files ONE report pull request on canonical exactly as § 2 does
      (attach, branch, `.agents/docs/research/TEMPLATE.md` shape, frontmatter,
      title `Report from <repo>: <the question>`), adding ONE research node
@@ -73,8 +84,8 @@ harness. It files the same thing edge mode files: one research node.
 - A3: `upstream-report.md` stays under its reading budget
   (`.agents/harness/selftest/reading-budget.sh`, `rb_bound
   upstream-report.md 5671`, cap +10%) — evidence: `wc -c` 3594 bytes —
-  confidence: medium. The section fits in about 2600 bytes; over = cut
-  words, never raise the bound.
+  confidence: medium. Room is 6238 - 3594 = 2644 bytes for § 3 and the
+  opening edit together; over = cut words, never raise the bound.
 
 ## Out of scope
 
@@ -93,12 +104,11 @@ harness. It files the same thing edge mode files: one research node.
   or touch anything`, under `## Never`. No match = not done.
 - `grep -c 'practice' .agents/docs/feedback.md` — `1` or more, inside
   `### 5. The manual report`. `0` = not done.
-- `grep -n '\.claude/commands' .agents/scripts/sync-to-consumer.sh` — a
-  match: the command file ships to consumers with the next sync. No
-  match = not done.
 - `bash .agents/harness/selftest.sh` — `0 failed` (covers the reading
   budget). Any failure = not done.
-- `./joharness.sh ci` — `ci: pass`. Anything else = not done.
+- `./joharness.sh ci` — a line starting `ci: pass` (a `shellcheck
+  SKIPPED` note counts: this plan edits no shell). Anything else = not
+  done.
 - `./joharness.sh verify` — `0 failed`. Anything else = not done.
 
 ## Where to look

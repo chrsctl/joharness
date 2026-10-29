@@ -36,6 +36,14 @@ proposed for the harness, filed as one research node on canonical.
 - r8: (plan-checker) section placement and what it inherits from § 2 ambiguous (fixed)
 - r9: (plan-checker) feedback.md paragraph placement ambiguous (fixed)
 - r10: (plan-checker) `<heading>` and "consumer-specific stack" undefined (fixed)
+- r11: (plan-checker) round 2: whether § 3 runs § 0 and § 1, and the edge-only opening, unstated (fixed)
+- r12: (plan-checker) round 2: Goal ignores the clerk UPSTREAM and feedback § 4 issue routes (fixed)
+- r13: (plan-checker) round 2: what "canonical already carries it" greps, and where, unstated (fixed)
+- r14: (plan-checker) round 2: `<path>` with no `:<heading>` undefined (fixed)
+- r15: (plan-checker) round 2: A3's 2600-byte figure leaves no room for the opening edit (fixed)
+- r16: (plan-checker) round 2: `ci: pass (shellcheck SKIPPED …)` reads either way (fixed)
+- r17: (plan-checker) round 2: sync-to-consumer acceptance item already passes before the build (fixed)
+- r18: (plan-checker) round 2: "Report from gx" PRs all on harness files unverified (no change)
 
 ## Blockers
 
