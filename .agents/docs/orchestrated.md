@@ -463,7 +463,7 @@ The spec every orchestrator checks at start and on every pass after the first
 (`orchestrator-reference.md`, "## 0. Start" step 5; a session-made stale one is
 replaced, any other `heartbeat stale` or `heartbeat duplicated` line pushes):
 
-- **Name**: exactly `heartbeat: <owner/repo>` — how the check tells it from
+- **Name**: `💗 heartbeat: <owner/repo>`, a SET writes the heart, a MATCH accepts the bare `heartbeat: <owner/repo>` too — how the check tells it from
   another repo's heartbeat.
 - **Binding**: `persistent_session_id` = a session titled `🔑 keeper:
   <owner/repo>` (glossary, role title), not `ARCHIVED`. An archived keeper disables the Routine
@@ -476,7 +476,7 @@ replaced, any other `heartbeat stale` or `heartbeat duplicated` line pushes):
   session to `keeper.md`, so a rename never costs a replace.
 - **Stop**: `update_trigger` `enabled: false` pauses (the veto),
   `delete_trigger` removes and lets the next `/orchestrator` register a new
-  one. A Routine not named exactly `heartbeat: <owner/repo>` never counts and
+  one. A Routine not named `💗 heartbeat: <owner/repo>` (or bare) never counts and
   is never touched. Read `last_run`, never `next_run_at` (a paused Routine
   keeps a stale one).
 - **The chain can end silently.** A `send_later` link can be delivered and

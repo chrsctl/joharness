@@ -557,7 +557,7 @@ for needle in '`heartbeat duplicated` or `heartbeat stale`; none only without `l
   expect "orchestrator.md heartbeat check spells ${needle}" "$needle" "$orcfold"
 done
 # shellcheck disable=SC2016 # literal backticks in the needles
-for needle in 'Routine named exactly `heartbeat: <owner/repo>` with a non-empty `cron_expression`' \
+for needle in 'Routine named exactly `💗 heartbeat: <owner/repo>` (the bare `heartbeat: <owner/repo>` matches too) with a non-empty `cron_expression`' \
   'Heartbeat, here and on every pass after the first (`orchestrator.md`, Pass entry): `list_triggers` (no filter: a paused one must show)' \
   'None: REGISTER, below.' \
   'Two or more with `enabled` true: `heartbeat duplicated' \
@@ -616,7 +616,7 @@ refute "orchestrated.md no longer says the argument routes the keeper" \
 refute "orchestrator.md no longer forbids every heartbeat write" \
   "Never create, edit or pause one" "$orcfold $reffold"
 # shellcheck disable=SC2016 # literal backticks in the needles
-for needle in '**Name**: exactly `heartbeat: <owner/repo>`' \
+for needle in '**Name**: `💗 heartbeat: <owner/repo>`, a SET writes the heart, a MATCH accepts the bare `heartbeat: <owner/repo>` too' \
   '**Binding**: `persistent_session_id` = a session titled `🔑 keeper: <owner/repo>`' \
   '**Prompt**: exactly `/keeper`' \
   'REGISTER starts the keeper with `/keeper register`: that first turn takes the post and starts nothing' \

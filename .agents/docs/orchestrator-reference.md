@@ -114,7 +114,8 @@ queue cannot see").
 4. Read the Lineup once.
 5. Heartbeat, here and on every pass after the first (`orchestrator.md`,
    Pass entry): `list_triggers` (no filter: a paused one must show). The
-   heartbeat is a Routine named exactly `heartbeat: <owner/repo>` with a
+   heartbeat is a Routine named exactly `💗 heartbeat: <owner/repo>` (the bare
+   `heartbeat: <owner/repo>` matches too) with a
    non-empty `cron_expression`; any other Routine
    never counts. None: REGISTER, below. Two or more with `enabled` true:
    `heartbeat duplicated: <id>, <id>` (each firing pays twice). Otherwise
@@ -178,7 +179,7 @@ queue cannot see").
       first turn takes the post and starts nothing (`keeper.md`,
       Register), since this session has just read dispatch; the first
       hourly wake runs the LIVE check.
-   3. `create_trigger`: `name` = `heartbeat: <owner/repo>`,
+   3. `create_trigger`: `name` = `💗 heartbeat: <owner/repo>`,
       `cron_expression` = `0 * * * *`, `persistent_session_id` = step 2's
       id, `prompt` = `/keeper`, `initiation` =
       `human_schedule`.

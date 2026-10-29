@@ -510,7 +510,7 @@ interview
 heartbeat_note() {
   printf '\nheartbeat: the child runs orchestrated, and it still needs a heartbeat to fire each next orchestrator session.\n'
   printf '  .agents/docs/orchestrated.md carries the Routine'\''s keeper binding, its hourly floor and the pause.\n'
-  printf '  The first /orchestrator registers heartbeat: <owner/repo>; pausing it stops the hourly restarts.\n'
+  printf '  The first /orchestrator registers 💗 heartbeat: <owner/repo>; pausing it stops the hourly restarts.\n'
 }
 
 # Everything above the marker, CR-stripped — same one-definition rule as
