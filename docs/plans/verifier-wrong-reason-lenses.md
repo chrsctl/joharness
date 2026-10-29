@@ -32,7 +32,10 @@ Add only those, within the file's reading budget.
 ## Scope
 
 - `.claude/agents/verifier.md` — add the four shapes above as one short
-  block, under `## Did the branch do what it was for` beside STUB.
+  block, under `## Did the branch do what it was for`: a paragraph and
+  sub-list AFTER the verdict list (COVERED … UNVERIFIED), naming them as
+  kinds of STUB; a suite that hangs or dies maps to UNVERIFIED. Not new
+  verdict labels.
   - One line each, generic, with no consumer's names.
   - Total growth at most 800 bytes: `reading-budget.sh` bounds this file
     at 6211 bytes + 10% = 6832, and the file is 6013 bytes today.
@@ -60,15 +63,19 @@ Add only those, within the file's reading budget.
 
 ## Acceptance
 
-- `wc -c .claude/agents/verifier.md` — at most 6832.
-- `grep -c 'wrong side\|hang' .claude/agents/verifier.md` — at least `2`.
+- `wc -c .claude/agents/verifier.md` — at most 6832; above = budget broken.
+- `grep -c 'fix did not change\|still holds\|wrong side of the fixture\|hangs or dies' .claude/agents/verifier.md`
+  — `4`, one line per shape (each phrase on one line); fewer = a shape
+  missing. Today: `0`.
 - `bash .agents/harness/selftest.sh` — `0 failed` (the reading-budget
   topic included; it reds when the file passes its bound).
-- `./joharness.sh ci` — `ci: pass`.
-- `./joharness.sh verify` — `0 failed`.
-- Consumer-side check (this plan SHIPS): after the sync, a consumer's
-  `.claude/agents/verifier.md` matches canonical's, and its
-  `./joharness.sh ci` passes.
+- `./joharness.sh ci` — `ci: pass`; anything else = red.
+- `./joharness.sh verify` — `0 failed`; a non-zero count = red.
+- Consumer-side check (this plan SHIPS): from this head,
+  `.agents/scripts/sync-to-consumer.sh <consumer-dir>`, then
+  `cmp .claude/agents/verifier.md <consumer-dir>/.claude/agents/verifier.md`
+  exits 0 (non-zero = not synced) and the consumer's `./joharness.sh ci`
+  prints `ci: pass`.
 
 ## Where to look
 
