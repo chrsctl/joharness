@@ -1,6 +1,6 @@
 ---
 workstream: clerk-yields-to-blocking-defect
-status: in-progress
+status: review
 branch: manage/clerk-yields-to-blocking-defect
 pr: none
 plan: clerk-yields-to-blocking-defect
@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK3HUXzoWdaRTTWngzF
 agent: opus
 updated: 2026-10-29
-next: Rerun ci and verify, then retire and finish
+next: Open PR, finish, merge
 ---
 
 ## Goal
