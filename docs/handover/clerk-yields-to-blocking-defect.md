@@ -54,6 +54,7 @@ first park, dispatch prints the clerk DUE row anyway (at most two clerks).
 - r22: (verifier) a live clerk with unpushed plans can be yielded (wontfix: the plan's heuristic; an hour silent past a park is the signal)
 - r23: (verifier) hand-started audit no longer held by a yielded clerk (wontfix: dispatch still suppresses through role_spawned; a yielded clerk holds nothing by design)
 - r24: (verifier) orchestrated.md dated incident story and history wording (fixed: status-quo wording, marked not re-taken)
+- r25: shellcheck SC2015 on clerk_twin_rows skip line (fixed: if-then)
 
 ## Blockers
 
