@@ -79,7 +79,8 @@ merges. Restore the file from before that commit:
     git checkout "$c^" -- docs/handover/<file>
 
 Set `status: blocked`, `next:` = `product: human-review label on PR #<n>:
-remove it so this merges?`, commit, push, exit. Blocked holds no slot and is
+remove it so this merges?`, draft the pull request (§ Block on an open
+pull request), commit, push, exit. Blocked holds no slot and is
 never respawned until the human answers. The answer reaches the branch as
 any block's does (orchestrator-reference.md, Relay); resumed with the
 label gone, delete the file again in one commit, push, merge under Loop
@@ -113,9 +114,11 @@ chrsctl/gx the same day two parked heads (PRs #1090, #1092) merged by hand
 and seven managers then parked on the red that made (#1101), fixed only by
 an ad-hoc session 4h24m later (WEAK: a consumer's reading, not re-taken
 here). The cadence half of that stall — a clerk in flight holding the early
-clerk a park calls, dispatch spawning onto a known-red base — is plan work:
-`clerk-yields-to-blocking-defect`, `dispatch-holds-shared-defect`. `ci` on
-`origin/main` stays green with the stale file there: nothing here gates it.
+clerk a park calls, dispatch spawning onto a known-red base — is code, filed
+as plans beside this answer. `ci` on `origin/main` stays green with the
+stale file there: nothing here gates it. A draft is a speed bump, not a
+lock: anyone holding the button can mark it ready first; it stops the
+merge nobody meant.
 
 ## Challenge
 

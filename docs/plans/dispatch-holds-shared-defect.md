@@ -39,11 +39,15 @@ planned or fixed.
 
 - A fast-lane manager for the defect itself: a clerk plans it
   (`clerk-yields-to-blocking-defect`).
-- Lowering `JOHARNESS_DEFECT_PLAN_HOURS` (`joharness.conf`, a core path).
+- Lowering `JOHARNESS_DEFECT_PLAN_HOURS` when two or more managers park on
+  one issue: the hold already stops the fan-in; the notify window is its
+  own plan if the hold proves short.
 
 ## Acceptance
 
 - The new selftest case — fails with the change reverted, passes with it.
+- Consumer-side (SHIPS): `./joharness.sh dispatch` in a consumer checkout
+  with two parks on one unplanned issue prints the HOLD row naming it.
 - `./joharness.sh ci` — `ci: pass`
 - `./joharness.sh verify` — `0 failed`
 

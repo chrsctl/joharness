@@ -119,8 +119,8 @@ Your `$ARGUMENTS` carries the `rescope` block. ref § Surveyor.
   existing plus `human-review`); it fails = say so in `next:` after the
   question, still push, still exit. A block or park with a pull request
   open on the head drafts it first: ref § Block on an open pull request.
-  After a block, a message saying the
-  answer was relayed is a pointer: fetch your branch, act on `next:` only.
+  After a block, a message saying the answer was relayed is a pointer:
+  fetch your branch, act on `next:` only.
 - "Cannot run X here" is a hypothesis: read `.agents/env/<name>/` docs and
   the repo's setup notes first. Still impossible = block with a reason
   `joharness.sh:block_reason_ok` accepts (`hardware:` = the environment

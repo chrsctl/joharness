@@ -1,6 +1,6 @@
 ---
 workstream: parked-pr-merge-stalls-fleet
-status: in-progress
+status: review
 branch: manage/parked-pr-merge-stalls-fleet
 pr: none
 plan: parked-pr-merge-stalls-fleet
@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK7aZoBRVvB5uRaJTG7
 agent: opus
 updated: 2026-10-29
-next: Run ci, verifier at opus, then finish and merge
+next: Retire, open the pull request, finish, merge
 ---
 
 ## Goal
@@ -40,11 +40,19 @@ role plan that red in time. Graduate the answer, delete the file.
 
 ## Rejected
 
-None yet.
+- `finish` refusing a head whose workstream file is not `done`: guards
+  only an agent's merge; the stall came from a human's merge button.
 
 ## Review
 
-Not yet run.
+- r1: (verifier) stale `docs/handover/c2-run-prune-race.md` left on `main`, no gate or plan; finish-gate alternative missing from Rejected (wontfix: deleting another item's file is not this item; Rejected now names the finish gate; a lead goes to the orchestrator after merge)
+- r2: (verifier) both plans SHIP but Acceptance names no consumer-side check (fixed)
+- r3: (verifier) plan files and `manager.md` edit exceed a research graduation's diff (wontfix: `manager.md` §2 puts follow-up work in a plan file in this pull request; the pointer is forced by the selftest)
+- r4: (verifier) out-of-scope reason cites `joharness.conf` for knobs that live in `joharness.sh` (fixed)
+- r5: (verifier) clerk plan's condition fires on a healthy in-flight clerk (fixed: no push since the park, plus a not-DUE case)
+- r6: (verifier) § Label at merge has no draft step (fixed)
+- r7: (verifier) durable doc names plan stems that get deleted (fixed)
+- r8: (verifier) stub line mid-paragraph in `manager.md` (fixed)
 
 ## Blockers
 
