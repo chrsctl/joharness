@@ -47,7 +47,7 @@ JOHARNESS_REVIEW|off|off = review reports only; on = ci gates the record at the 
 JOHARNESS_CLERK_HOURS|24|Hours between clerk passes over the open issues: an issue nobody turns into a plan is never built. 0 switches the cycle off.
 JOHARNESS_CLERK_BATCH|3|Open issues one clerk pass takes at most.
 JOHARNESS_SCOUT_READS|12|Outside reads one scout pass may make before it stops researching and proposes from what it has; the scout counts them in its claim's Decisions.
-JOHARNESS_SCOUT_REVIEWER||GitHub login whose approved comment is the approval gate on a scout proposal issue. Empty = nothing can be approved, so no scout is ever spawned.
+JOHARNESS_SCOUT_REVIEWER||GitHub login of who applies the approved label, the approval gate on a scout proposal issue. Empty = nothing can be approved, so no scout is ever spawned.
 JOHARNESS_SCOUT_RESEARCH|off|on = a scout pass reads outside the repository (web, competitor docs, market reports); off = inside evidence only.
 JOHARNESS_CONDUCT_HOURS|168|Hours since the audit ledger (./joharness.sh retro --audit) last landed before a sampling audit reviewer is due, beyond the cap; with no ledger yet, also how far back the sample reaches; 0 switches the cycle off.
 JOHARNESS_CONDUCT_SAMPLE|3|Retired branches one audit run samples; 0 switches the cycle off.
