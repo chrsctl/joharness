@@ -51,6 +51,7 @@ issue.
   same session: `1 passed, 5 failed`, same 429. Not the diff (nothing under
   `.agents/env/`). `JOHARNESS_CHECKS=local` = `finish` runs verify itself, so
   step 7 cannot pass here. `ci: pass` on this head (same session).
+  Retried 21:58Z on a human's ask: same 429, same counts.
 - Built and reviewed: no code left. A successor: verify, `finish`, delete
   commit (this file + `docs/plans/dispatch-holds-shared-defect.md`), PR, merge.
 
