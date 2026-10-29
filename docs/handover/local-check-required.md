@@ -43,7 +43,7 @@ None.
 - r10: (plan-checker) ci and verify acceptance name only pass output (no change: their failure outputs are the commands' own)
 - r11: (plan-checker) stale optional-check text elsewhere in joharness.sh and the doc (fixed: listed in Scope)
 - r12: mutation: `rc=1` in checks_gate's NO CHECK arm replaced by `:`, `bash .agents/harness/selftest.sh` 2026-10-29: 3917 passed, 4 failed — the three new consumer reds plus c2-run's parallel char case; restored: 3921 passed, 0 failed (no change)
-- r13: ci red once with an unnamed harness selftest case, then green twice (verifier) (no change: the only flake seen, c2-run's parallel char case, is outside this diff — defect route, see PR body)
+- r13: ci red once with an unnamed harness selftest case, then green twice (verifier) (no change: not reproduced — branch selftest 3921 passed 0 failed twice, origin/main a60ff5c9 selftest 3910 passed 0 failed, 2026-10-29; noted in the PR body)
 - r14: the sync pull request delivering this is itself red in a consumer with no local-check, and the bot-owned sync branch wipes a fix committed there (verifier) (fixed: consumer-repos.md § Local checks and § Before merging one say land local-check first)
 - r15: session-start banner broke `is red) —` onto its own line (verifier) (fixed)
 - r16: github-mode text still called the check "a declared local-check" (verifier) (fixed)
