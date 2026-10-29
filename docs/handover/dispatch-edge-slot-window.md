@@ -26,6 +26,7 @@ items stay withheld, slot is freed.
 - A5: confirmed — `dispatch_age_min` prints `(now - ts) / 60`.
 - A6: confirmed — `.claude/commands/orchestrator.md` §3 Spawn, held-human rule.
 - Aged NOT DRAINED branch sits before the in-flight DRAINED, so it covers every DRAINED form.
+- DRAINED case gets its own mini repo (`dispatchaged`): the shared fixture always has a free item, so a DRAINED assertion there passes both ways (measured: its verdict read `NOT DRAINED — 1 free item(s) now`). Without the fix the mini repo reads `verdict   : DRAINED — nothing free; 1 manager(s) in flight` (origin/main joharness.sh, 2026-10-29).
 - No workers: five small edits, two of them one sharing joharness.sh with the selftest that measures it; a brief would cost more than the edit.
 
 ## Rejected

@@ -82,7 +82,7 @@ stops holding a slot.
 - `./joharness.sh ci` — `ci: pass`.
 - `./joharness.sh verify` — 0 failed, including the dispatch selftest's new aged and `=0` cases and `knobs-declared` (never run `selftest/dispatch.sh` alone: not runnable alone, it writes at `/`).
 - `./joharness.sh ci` — ship-scope names this plan as SHIPS to consumers: the same `verify` is the check a consumer runs after sync.
-- The `mgr-eta` aged case, nothing else free there: `verify` red if its verdict reads `verdict   : DRAINED` or lacks `aged edge: look up its pull request first`.
+- A dispatch fixture of its own holding only an aged edge (the shared one always has an item free or a manager in flight): `verify` red if its verdict reads `verdict   : DRAINED` or lacks `aged edge: look up its pull request first`.
 - The new aged case FAILS on `origin/main`'s `joharness.sh`: `git show origin/main:joharness.sh >joharness.sh && ./joharness.sh ci`, red on `an edge older than the window gives its slot back`, then `git checkout joharness.sh`.
 - `./joharness.sh verify` — 0 failed, count read from the output.
 

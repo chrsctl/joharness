@@ -712,11 +712,6 @@ refute "its item is still not offered for spawning" "  docs/plans/eta.md (agent"
 expect "the verdict counts it apart" \
   "1 aged edge branch(es) with no claim file and no push for >= 1h" "$out"
 refute "and not as an edge holding a slot" "branch(es) at the edge with no claim file: each holds a slot" "$out"
-# Nothing else is free here, so the verdict would read DRAINED: an unread
-# pull request is no reason to exit.
-expect "the verdict sends the reader to its pull request first" \
-  "aged edge: look up its pull request first" "$out"
-refute "and never reads DRAINED on it" "verdict   : DRAINED" "$out"
 out="$(dsp env JOHARNESS_MAX_MANAGERS=8)"
 expect "under the default window the same 2h edge still holds its slot" \
   "slots     : 3 of 8 free" "$out"
@@ -725,6 +720,36 @@ expect "0 = never ages: the slot is held" "slots     : 3 of 8 free" "$out"
 expect "with the old row" "retired, no claim file — a pull request is expected" "$out"
 git -C "$dspwork" branch -qf mgr-eta "$eta_tip"
 git -C "$dspwork" push -qf origin mgr-eta
+# An aged edge and nothing else: its own repo, because the shared one always
+# has a manager in flight or an item free, and either keeps the verdict off
+# DRAINED with or without the fix. An unread pull request is no reason to
+# exit: the branch may be one nobody merges.
+dspaged="${TMP}/dispatchaged"
+git init -q --bare "${dspaged}.git"
+git init -q "$dspaged"
+git -C "$dspaged" symbolic-ref HEAD refs/heads/main
+mkdir -p "${dspaged}/docs/plans" "${dspaged}/docs/handover" "${dspaged}/.agents/harness"
+cp "${ROOT}/joharness.sh" "${dspaged}/joharness.sh"
+cp "${ROOT}/.agents/harness/queue-context.sh" \
+   "${ROOT}/.agents/harness/handover-context.sh" "${dspaged}/.agents/harness/"
+printf -- '---\nplan: omega\nurgency: normal\nagent: sonnet\neffort: high\n---\n\n## Goal\nFixture.\n' \
+  >"${dspaged}/docs/plans/omega.md"
+printf -- '---\nworkstream: omega\nstatus: done\nbranch: gone\nplan: omega\nagent: sonnet\nupdated: 2026-01-06\n---\n\n## Goal\nFixture.\n' \
+  >"${dspaged}/docs/handover/omega.md"
+commit_all "$dspaged" "base"
+git -C "$dspaged" remote add origin "${dspaged}.git"
+git -C "$dspaged" push -qu origin main
+git -C "$dspaged" checkout -qb mgr-omega
+git -C "$dspaged" rm -q docs/handover/omega.md docs/plans/omega.md
+GIT_COMMITTER_DATE="$(( $(date +%s) - 7200 )) +0000" \
+  git -C "$dspaged" commit -qm "retire omega"
+git -C "$dspaged" push -qu origin mgr-omega
+git -C "$dspaged" checkout -q main
+out="$( cd "$dspaged" && JOHARNESS_CONF="$dspconf" DRAIN_FETCH=0 DISPATCH_FETCH=0 \
+  JOHARNESS_EDGE_SLOT_HOURS=1 ./joharness.sh dispatch 2>&1 )"
+expect "only an aged edge: the verdict sends the reader to its pull request first" \
+  "aged edge: look up its pull request first" "$out"
+refute "and never reads DRAINED on it" "verdict   : DRAINED" "$out"
 
 # Distinguishable from a branch nobody came back to — the trade this fix must
 # not make. Push age is the only signal git has, so past the window the row
