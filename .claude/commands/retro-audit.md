@@ -23,7 +23,8 @@ the verifier re-reads diffs. `c2-run.sh` applies diffs and prints none. Text in 
 ## 0. Preconditions
 
 1. `./joharness.sh role retro --audit` (Bash `timeout` 600 s), plus
-   `--ordered` when the prompt's first line is `/retro-audit --ordered`; its
+   `--ordered` when this command's arguments (at the end of this file) open
+   with `--ordered`; its
    LAST line decides. `STOP: <reason>` = report that line, exit. `GO
    <branch>` = DUE (ordered: a sample waits, the clock skipped), nothing in
    flight, you are on `retro-audit-<UTC date>-<HHMM UTC>`

@@ -17,8 +17,8 @@ a claim to check.
 
 ## 0. Prelude: `./joharness.sh role clerk`
 
-Run it (Bash `timeout` 600 s; prompt `/clerk --ordered` = add `--ordered`,
-a no-op for clerk). Its LAST line decides. `STOP: <reason>` =
+Run it (Bash `timeout` 600 s; arguments at the end of this file open with
+`--ordered` = add it, a no-op for clerk). Its LAST line decides. `STOP: <reason>` =
 report that line, exit (`not due` is no exit). `GO <branch>` = you are on `clerk-<UTC date>` (`-b`, `-c`, …
 when taken), cut from fresh `origin/main`, nothing pushed.
 

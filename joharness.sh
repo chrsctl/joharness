@@ -141,8 +141,10 @@ JOHARNESS_CONDUCT_SAMPLE|3|dispatch|Retired branches one conduct run samples; 0 
 JOHARNESS_RETRO_HOURS|168|dispatch|Hours since the retro ledger last landed before a retro reviewer is due; 0 = off.
 JOHARNESS_RETRO_SAMPLE|3|dispatch|Sessions that did not come back clean one retro run samples; 0 = off.
 JOHARNESS_RETRO_EVENTS|200|dispatch|Transcript events a retro reviewer reads per sampled session.
+JOHARNESS_RETRO_FLOOR_HOURS|24|dispatch|Hours since the retro mode ledger last landed before its evidence (a stalled or respawns park, an untraced CONCERN, a full sample) makes it due ahead of its cadence; 0 = clock only.
 JOHARNESS_DEFECT_PLAN_HOURS|48|dispatch|Hours after the first defect: park on an issue with no plan naming it = PARKED UNPLANNED; 0 lifts it.
 JOHARNESS_DEFECT_CLERK_HOURS|1|dispatch|Hours after the first defect: park on an issue no plan names, no clerk having read the issues since, before the clerk is due ahead of its cadence; 0 lifts it.
+JOHARNESS_ISSUE_CLERK_HOURS|1|dispatch|Hours an open issue no clerk has read, not planned or claimed, waits before the orchestrator spawns the clerk ahead of its cadence; never below JOHARNESS_DEFECT_CLERK_HOURS; 0 = off.
 JOHARNESS_DEFECT_FIX_HOURS|72|dispatch|Hours after the first defect: park on an issue with no RESUME = PARKED STUCK; 0 lifts it.
 JOHARNESS_DEFECT_RECHECK_HOURS|2|dispatch|Hours after a defect: block, the base moved since and no plan naming its issue, before PARKED RECHECK; 0 lifts it.
 JOHARNESS_SCOUT_REVIEWER||base-conf|GitHub login whose approved comment gates a scout proposal; empty = none. Read from the base branch conf.
@@ -4294,7 +4296,7 @@ CLERK_EARLY=""
 CLERK_EARLY_WHY=""
 clerk_park_early() {
   local last="${1:-0}" knob base_branch="${HANDOVER_BASE_BRANCH:-main}" base_id
-  local refs=() r out rc hit ref ws doc st nx planned="" b now mh rd
+  local refs=() r out rc hit ref ws doc st nx planned="" b now
   local dst dn dplan dage best="" bage=-1 seen=" "
   case "$last" in '' | *[!0-9]*) last=0 ;; esac
   CLERK_EARLY=""; CLERK_EARLY_WHY=""
@@ -4320,23 +4322,9 @@ clerk_park_early() {
     </dev/null 2>/dev/null)"; rc=$?
   [ "$rc" -le 1 ] || return 0
   [ -n "$out" ] || return 0
-  # Neither record dates the clerk's read of the issues: a no-op is stamped
-  # at the END of its pass, a landed clerk's first commit follows its read.
-  # Each is read as the knob before it. A clerk this made due commits later
-  # than that, so it still ends the early due; one that read just before a
-  # park does not.
-  mh="$(git -C "$ROOT" log -1 --first-parent --merges -E \
-    --grep='^Merge pull request #[0-9]+ from [^/ ]+/clerk-[0-9]' \
-    --format=%H "$base_id" </dev/null 2>/dev/null)"
-  if [ -n "$mh" ]; then
-    rd="$(git -C "$ROOT" log --format=%at "${mh}^1..${mh}^2" </dev/null 2>/dev/null |
-      sort -n | head -1)"
-    # Unreadable = the merge itself: errs toward no early clerk.
-    [ -n "$rd" ] || rd="$(git -C "$ROOT" log -1 --format=%ct "$mh" </dev/null 2>/dev/null)"
-    case "$rd" in '' | *[!0-9]*) return 0 ;; esac
-    [ "$rd" -le "$last" ] || last="$rd"
-  fi
-  [ "$last" -eq 0 ] || last=$((last - knob * 3600))
+  clerk_last_read "$last"
+  case "$CLERK_LAST_READ" in '' | *[!0-9]*) return 0 ;; esac
+  last="$CLERK_LAST_READ"
   now="$(date +%s)"
   while IFS= read -r hit; do
     [ -n "$hit" ] || continue
@@ -4369,6 +4357,40 @@ clerk_park_early() {
   CLERK_EARLY="#${best}"
   CLERK_EARLY_WHY="PARKED #${best} unplanned $(dispatch_age_text "$bage") after its first park (>= ${knob}h: JOHARNESS_DEFECT_CLERK_HOURS)"
   [ -z "$seen" ] || CLERK_EARLY_WHY="${CLERK_EARLY_WHY}, and #${seen// /, #} too"
+}
+
+# When the last clerk read the issues: the one reading the defect trigger
+# (clerk_park_early) and the issue trigger (`clerk`'s `last read`) share.
+# Neither record dates the read: a no-op is stamped at the END of its pass,
+# a landed clerk's first commit follows its read. Each is read as
+# JOHARNESS_DEFECT_CLERK_HOURS before it (0 = as recorded). A clerk the
+# defect trigger made due commits later than that, so it still ends the
+# early due; one that read just before a park does not.
+# arg: <newest no-op record time, unix; empty = none>. Sets CLERK_LAST_READ:
+# unix, 0 = no clerk ever read, `?` = a git read failed (never 0: an
+# unreadable history is no "never read", which would fire on every issue).
+CLERK_LAST_READ=""
+clerk_last_read() {
+  local last="${1:-0}" knob base_branch="${HANDOVER_BASE_BRANCH:-main}" base_id mh rd
+  case "$last" in '' | *[!0-9]*) last=0 ;; esac
+  CLERK_LAST_READ='?'
+  knob="$(num_knob JOHARNESS_DEFECT_CLERK_HOURS)"
+  base_id="$(git -C "$ROOT" rev-parse --verify -q \
+    "refs/remotes/origin/${base_branch}^{commit}" </dev/null 2>/dev/null)"
+  [ -n "$base_id" ] || return 0
+  mh="$(git -C "$ROOT" log -1 --first-parent --merges -E \
+    --grep='^Merge pull request #[0-9]+ from [^/ ]+/clerk-[0-9]' \
+    --format=%H "$base_id" </dev/null 2>/dev/null)" || return 0
+  if [ -n "$mh" ]; then
+    rd="$(git -C "$ROOT" log --format=%at "${mh}^1..${mh}^2" </dev/null 2>/dev/null |
+      sort -n | head -1)"
+    # Unreadable = the merge itself: errs toward no early clerk.
+    [ -n "$rd" ] || rd="$(git -C "$ROOT" log -1 --format=%ct "$mh" </dev/null 2>/dev/null)"
+    case "$rd" in '' | *[!0-9]*) return 0 ;; esac
+    [ "$rd" -le "$last" ] || last="$rd"
+  fi
+  [ "$last" -eq 0 ] || last=$((last - knob * 3600))
+  CLERK_LAST_READ="$last"
 }
 
 # Issue numbers an `issue:` field names under one directory, one per line,
@@ -4428,6 +4450,52 @@ clerk_issue_line() {
   esac
 }
 
+# The issue trigger's wait in hours, 0 = off. Never below
+# JOHARNESS_DEFECT_CLERK_HOURS: the read is dated that far back, so a
+# shorter wait would let an issue the firing clerk read fire again.
+clerk_issue_wait() {
+  local w d
+  w="$(num_knob JOHARNESS_ISSUE_CLERK_HOURS)"
+  d="$(num_knob JOHARNESS_DEFECT_CLERK_HOURS)"
+  [ "$w" -eq 0 ] || [ "$d" -le "$w" ] || w="$d"
+  printf '%s' "$w"
+}
+
+# `last read :` and `issue wait:`, the issue trigger's git-side facts (the
+# orchestrator reads the issues: orchestrate-reference.md, Role sessions).
+# arg: `unreadable` = the cadence could not be read; `off` = the cycle is
+# off, so no issue calls the clerk either (dispatch prints no read line).
+clerk_read_lines() {
+  local lr iso w k noop
+  if [ "${1:-}" = unreadable ]; then
+    lr='?'
+  else
+    noop="$(clerk_noop)"
+    clerk_last_read "${noop%%$'\t'*}"
+    lr="$CLERK_LAST_READ"
+  fi
+  case "$lr" in
+    0) printf 'last read : none — no clerk has read the issues\n' ;;
+    '' | *[!0-9]*) printf 'last read : UNREADABLE — fire no clerk on a new issue this pass\n' ;;
+    *)
+      iso="$(date -u -d "@${lr}" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null ||
+        date -u -r "$lr" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)"
+      printf 'last read : %s %s\n' "$lr" "$iso"
+      ;;
+  esac
+  w="$(clerk_issue_wait)"
+  k="$(num_knob JOHARNESS_ISSUE_CLERK_HOURS)"
+  if [ "${1:-}" = off ]; then
+    printf 'issue wait: off — the clerk cycle is off\n'
+  elif [ "$w" -eq 0 ]; then
+    printf 'issue wait: off (JOHARNESS_ISSUE_CLERK_HOURS=0)\n'
+  elif [ "$w" -ne "$k" ]; then
+    printf 'issue wait: %sh (JOHARNESS_ISSUE_CLERK_HOURS=%s, raised to JOHARNESS_DEFECT_CLERK_HOURS)\n' "$w" "$k"
+  else
+    printf 'issue wait: %sh (JOHARNESS_ISSUE_CLERK_HOURS)\n' "$w"
+  fi
+}
+
 cmd_clerk() {
   local hours batch due rows state why b w st n_inflight=0 n_ended
   [ "$#" -eq 0 ] || die "usage: $0 clerk"
@@ -4441,7 +4509,11 @@ cmd_clerk() {
   due="$CLERK_DUE"; rows="$CLERK_ROWS"
   state="${due%% *}"; why="${due#* }"
   case "$state" in
-    unreadable) printf 'cadence   : UNREADABLE — %s\n' "$why"; return 0 ;;
+    unreadable)
+      printf 'cadence   : UNREADABLE — %s\n' "$why"
+      clerk_read_lines unreadable
+      return 0
+      ;;
     off)        printf 'cadence   : off — %s\n' "$why" ;;
   esac
   while IFS=$'\t' read -r b w st; do
@@ -4467,6 +4539,7 @@ cmd_clerk() {
       printf 'ended     : holds nothing — no net change, and a no-op record landed at or after its tip\n'
     printf '            %s  %s  %s\n' "$b" "$w" "$st"
   done <<<"$rows"
+  if [ "$state" = off ]; then clerk_read_lines off; else clerk_read_lines; fi
   printf '\n'
   printf 'planned   : %s\n' "$(clerk_issue_nums docs/plans all | clerk_issue_line)"
   printf '            (a plan'"'"'s issue: on %s or any unmerged branch)\n' "${HANDOVER_BASE_BRANCH:-main}"
@@ -4841,7 +4914,7 @@ conduct_due() {
     base_word='the repository began, no audit having run'
   fi
   if [ "$age" -lt "$hours" ]; then
-    CONDUCT_DUE="not-due ${age}h since ${base_word} (of ${hours}h)"
+    conduct_due_early "$age" "$hours" "$sample" "$base_word"
     return 0
   fi
   if [ -z "$(printf 'x' | conduct_sha1)" ]; then
@@ -4855,6 +4928,30 @@ conduct_due() {
     '')  CONDUCT_DUE="empty ${age}h since ${base_word} (>= ${hours}h), but no manager workstream file retired since the window opened is left unsampled" ;;
     *)   CONDUCT_DUE="due ${age}h since ${base_word} (>= ${hours}h)" ;;
   esac
+}
+
+# <age> <hours> <sample> <base_word> — off the clock: once
+# JOHARNESS_RETRO_FLOOR_HOURS have passed since the ledger landed (0 = clock
+# only), a full sample of unsampled retired branches makes audit due. Sets
+# CONDUCT_DUE; a read that fails is unreadable, never due.
+conduct_due_early() {
+  local age="$1" hours="$2" sample="$3" base_word="$4" floor s n
+  floor="$(num_knob JOHARNESS_RETRO_FLOOR_HOURS)"
+  CONDUCT_DUE="not-due ${age}h since ${base_word} (of ${hours}h)"
+  { [ "$floor" -gt 0 ] && [ "$age" -ge "$floor" ]; } || return 0
+  if [ -z "$(printf 'x' | conduct_sha1)" ]; then
+    CONDUCT_DUE='unreadable no sha1sum or shasum here: the sample cannot be drawn'
+    CONDUCT_ROWS=""; return 0
+  fi
+  s="$(conduct_sample "$sample")"
+  case "$s" in
+    '?') CONDUCT_DUE='unreadable the retired workstream files or the ledger could not be read'
+         CONDUCT_ROWS=""; return 0 ;;
+    '')  return 0 ;;
+  esac
+  n="$(printf '%s\n' "$s" | awk 'END { print NR + 0 }')"
+  [ "$n" -ge "$sample" ] || return 0
+  CONDUCT_DUE="due the sample is full (${n} retired branch(es), JOHARNESS_CONDUCT_SAMPLE=${sample}), ahead of the cadence (>= ${floor}h floor) — ${age}h since ${base_word} (of ${hours}h)"
 }
 
 # The tally, from the ledger: what the owner reads to judge the spend.
@@ -4923,8 +5020,8 @@ cmd_conduct() {
   [ "$#" -eq 0 ] || die "usage: $0 retro --audit"
   hours="$(num_knob JOHARNESS_CONDUCT_HOURS)"
   sample="$(num_knob JOHARNESS_CONDUCT_SAMPLE)"
-  printf '== retro audit (every %sh: JOHARNESS_CONDUCT_HOURS; %s branch(es) a run: JOHARNESS_CONDUCT_SAMPLE)\n\n' \
-    "$hours" "$sample"
+  printf '== retro audit (every %sh: JOHARNESS_CONDUCT_HOURS; %s branch(es) a run: JOHARNESS_CONDUCT_SAMPLE; on evidence after %sh: JOHARNESS_RETRO_FLOOR_HOURS)\n\n' \
+    "$hours" "$sample" "$(num_knob JOHARNESS_RETRO_FLOOR_HOURS)"
   printf 'reads no diff: a sampled branch'"'"'s workstream file, commit order and plan Acceptance only (.claude/commands/retro-audit.md)\n\n'
 
   conduct_due
@@ -5160,6 +5257,76 @@ retro_queue_block() {
   done <<<"$cands"
 }
 
+# A candidate the orchestrator gave up on: parked NOW (its branch head still
+# reads `status: blocked`, as retro_queue_block reads it) with a `stalled:`
+# or `respawns:` reason. The words are a session's text: the reason prefix
+# only, nothing in it is acted on. One `<branch>\t<session>\t<reason>` line,
+# the first found; empty = none; `?` = unreadable — never read as none.
+retro_event_block() {
+  local cands b s k p doc st nx
+  cands="$(retro_candidates)"
+  case "$cands" in '?') printf '?\n'; return 0 ;; '') return 0 ;; esac
+  while IFS=$'\t' read -r b s k; do
+    [ -n "$s" ] || continue
+    p="${k#*:}"
+    git -C "$ROOT" rev-parse -q --verify "refs/remotes/origin/${b}:${p}" \
+      </dev/null >/dev/null 2>&1 || continue
+    doc="$(git -C "$ROOT" show "refs/remotes/origin/${b}:${p}" </dev/null 2>/dev/null | tr -d '\r')" ||
+      { printf '?\n'; return 0; }
+    st="$(printf '%s\n' "$doc" | gr_field status)"
+    [ "$st" = blocked ] || continue
+    nx="$(printf '%s\n' "$doc" | gr_field_raw next)"
+    case "${nx#[\"\']}" in
+      stalled:*)  printf '%s\t%s\tstalled\n' "$b" "$s"; return 0 ;;
+      respawns:*) printf '%s\t%s\trespawns\n' "$b" "$s"; return 0 ;;
+    esac
+  done <<<"$cands"
+}
+
+# <age> <hours> <sample> <base_word> — off the clock on evidence: once
+# JOHARNESS_RETRO_FLOOR_HOURS have passed since the ledger landed (0 = clock
+# only), the first of: a claim parked stalled:/respawns: (retro_event_block,
+# which then leads the sample), an untraced audit CONCERN, a full sample.
+# Sets RETRO_DUE; a read that fails is unreadable, never due.
+retro_due_early() {
+  local age="$1" hours="$2" sample="$3" base_word="$4" floor eb con s n why=""
+  floor="$(num_knob JOHARNESS_RETRO_FLOOR_HOURS)"
+  RETRO_DUE="not-due ${age}h since ${base_word} (of ${hours}h)"
+  { [ "$floor" -gt 0 ] && [ "$age" -ge "$floor" ]; } || return 0
+  if [ -z "$(printf 'x' | conduct_sha1)" ]; then
+    RETRO_DUE='unreadable no sha1sum or shasum here: the sample cannot be drawn'
+    RETRO_ROWS=""; return 0
+  fi
+  eb="$(retro_event_block)"
+  case "$eb" in
+    '?') RETRO_DUE='unreadable the workstream files could not be read'
+         RETRO_ROWS=""; return 0 ;;
+    '')  ;;
+    *)   why="${eb%%$'\t'*} is parked on a ${eb##*$'\t'}: block" ;;
+  esac
+  if [ -z "$why" ]; then
+    con="$(retro_concerns)"
+    case "$con" in
+      '?') RETRO_DUE="unreadable ${CONDUCT_LEDGER} or ${RETRO_LEDGER} could not be read"
+           RETRO_ROWS=""; return 0 ;;
+      '')  ;;
+      *)   why="an audit CONCERN is not yet traced ($(printf '%s\n' "$con" | head -1 | cut -f1))" ;;
+    esac
+  fi
+  if [ -z "$why" ]; then
+    s="$(retro_sample "$sample")"
+    case "$s" in
+      '?') RETRO_DUE='unreadable the workstream files or the ledger could not be read'
+           RETRO_ROWS=""; return 0 ;;
+    esac
+    n="$(printf '%s' "$s" | awk 'NF { c++ } END { print c + 0 }')"
+    [ "$n" -lt "$sample" ] || why="the sample is full (${n} session(s), JOHARNESS_RETRO_SAMPLE=${sample})"
+  fi
+  [ -n "$why" ] || return 0
+  [ -z "$eb" ] || RETRO_QB="$eb"
+  RETRO_DUE="due ${why}, ahead of the cadence (>= ${floor}h floor) — ${age}h since ${base_word} (of ${hours}h)"
+}
+
 # Is a retro reviewer due. RETRO_DUE = `<state> <why>`, states as
 # CONDUCT_DUE's; RETRO_ROWS = the reviewer branches in flight.
 RETRO_DUE=""
@@ -5212,12 +5379,13 @@ retro_due() {
     base_word='the repository began, no retro having run'
   fi
   if [ "$age" -lt "$hours" ]; then
-    # Off the clock only for a block the queue can hold (retro_queue_block).
+    # Off the clock for a block the queue can hold (retro_queue_block), no
+    # floor; else on evidence past the floor (retro_due_early).
     qb="$(retro_queue_block)"
     case "$qb" in
       '?') RETRO_DUE='unreadable the workstream files or the base branch could not be read'
            RETRO_ROWS=""; return 0 ;;
-      '')  RETRO_DUE="not-due ${age}h since ${base_word} (of ${hours}h)"; return 0 ;;
+      '')  retro_due_early "$age" "$hours" "$sample" "$base_word"; return 0 ;;
     esac
     if [ -z "$(printf 'x' | conduct_sha1)" ]; then
       RETRO_DUE='unreadable no sha1sum or shasum here: the sample cannot be drawn'
@@ -5315,8 +5483,8 @@ cmd_retro() {
   hours="$(num_knob JOHARNESS_RETRO_HOURS)"
   sample="$(num_knob JOHARNESS_RETRO_SAMPLE)"
   events="$(num_knob JOHARNESS_RETRO_EVENTS)"
-  printf '== retro (every %sh: JOHARNESS_RETRO_HOURS; %s session(s) a run: JOHARNESS_RETRO_SAMPLE; %s events each: JOHARNESS_RETRO_EVENTS)\n\n' \
-    "$hours" "$sample" "$events"
+  printf '== retro (every %sh: JOHARNESS_RETRO_HOURS; %s session(s) a run: JOHARNESS_RETRO_SAMPLE; %s events each: JOHARNESS_RETRO_EVENTS; on evidence after %sh: JOHARNESS_RETRO_FLOOR_HOURS)\n\n' \
+    "$hours" "$sample" "$events" "$(num_knob JOHARNESS_RETRO_FLOOR_HOURS)"
   printf 'candidates: a session whose workstream file read status: blocked or abandoned, or whose ## Blockers opens with the orchestrator'"'"'s kill note, not yet in %s; a manager that never blocked, was abandoned or was killed never qualifies, however it ended. The reviewer reads each transcript, never a diff (.claude/commands/retro.md)\n\n' \
     "$RETRO_LEDGER"
 
@@ -5574,21 +5742,17 @@ role_paused() {
 }
 
 # <audit|retro> — dispatch's `suppressed`, which a pass started by hand never
-# reads: a clerk in flight holds audit; a clerk or an audit holds trace. A
-# reading that fails holds too.
+# reads: a clerk in flight holds audit; a clerk or an audit holds trace.
+# Counted as dispatch counts them: a cycle unreadable or off has no rows.
 role_suppressed() {
   local b=""
   clerk_due
   case "${CLERK_DUE%% *}" in
-    unreadable) printf 'suppressed — the clerk cycle is UNREADABLE: %s' "${CLERK_DUE#* }"; return 0 ;;
-    off) ;;
+    unreadable|off) ;;
     *) b="$(printf '%s\n' "$CLERK_ROWS" | scout_branches | cut -f1 | head -1)" ;;
   esac
   if [ -z "$b" ] && [ "$1" = retro ]; then
     conduct_due
-    case "${CONDUCT_DUE%% *}" in
-      unreadable) printf 'suppressed — the audit cycle is UNREADABLE: %s' "${CONDUCT_DUE#* }"; return 0 ;;
-    esac
     b="$(printf '%s\n' "$CONDUCT_ROWS" | cut -f1 | head -1)"
   fi
   [ -n "$b" ] || return 1
@@ -5734,12 +5898,7 @@ cmd_role() {
   # (4) the role's report, and its plain exits.
   printf '\n'
   role_report "$role"
-  # The marker after it proves the check ran to its end: a check that died
-  # (set -u, a failed read) is no clean bill, so it stops.
-  line="$(role_start_stop "$role" "$ordered"; printf '\n#end')"
-  case "$line" in *'#end') line="${line%$'\n#end'}" ;;
-    *) printf 'STOP: the exit check failed before it finished: %s\n' "${line:-no output}"; return 1 ;;
-  esac
+  line="$(role_start_stop "$role" "$ordered")"
   if [ -n "$line" ]; then printf 'STOP: %s\n' "$line"; return 1; fi
 
   # (5) the branch, from fresh origin/<base>, under the role's name.
@@ -8525,7 +8684,7 @@ cmd_dispatch() {
   local leftover_rows="" estate="" fleet_age stall_young=""
   local rel_stale rel_needs="" rel_line
   local scout_inflight="" n_scout=0 sstate sreason sb sw ss spend
-  local clerk_due=0 clerk_inflight="" n_clerk=0 kdue kstate kreason kb kw ks
+  local clerk_due=0 clerk_issue=0 clerk_inflight="" n_clerk=0 kdue kstate kreason kb kw ks
   local conduct_due=0 role_spawned=0 n_conduct=0 odue ostate oreason orate ob oa conduct_inflight=""
   local retro_due=0 n_retro=0 rtstate rtreason rtb rta retro_inflight="" conduct_spawned=0
   local fetch_failed=0
@@ -8623,6 +8782,8 @@ cmd_dispatch() {
       printf 'clerk     : DUE — %s\n' "$kreason"
     else
       printf 'clerk     : not due — %s\n' "$kreason"
+      # A new issue may call it early: the orchestrator reads the issues.
+      [ "$(clerk_issue_wait)" -eq 0 ] || clerk_issue=1
     fi
   fi
   # The third cycle, the same reader (scout_state) `scout` asks. No clock:
@@ -9504,6 +9665,14 @@ cmd_dispatch() {
     role_spawned=1
     printf '            clerk DUE%s: spawn ONE clerk (agent: sonnet) on /clerk — beyond the cap, holds no slot, at most one in flight. It turns open issues into plans and merges that plan-only pull request itself (JOHARNESS_CLERK_HOURS, JOHARNESS_CLERK_BATCH)\n' \
       "${CLERK_EARLY:+ (PARKED ${CLERK_EARLY} unplanned, JOHARNESS_DEFECT_CLERK_HOURS)}"
+  fi
+  # The clerk's own holds: a read the clerk could not act on is none.
+  if [ "$clerk_issue" -eq 1 ] && [ "$fetch_failed" -eq 1 ]; then
+    printf '            clerk issue read, held — no fresh view of every branch this pass (fetch failed, DISPATCH_FETCH=0, or a remote.origin.fetch that does not reach refs/heads/*), so a clerk in flight might not show: read none this pass\n'
+  elif [ "$clerk_issue" -eq 1 ] && [ "$cap" -eq 0 ]; then
+    printf '            clerk issue read, held — JOHARNESS_MAX_MANAGERS=0 is the human'"'"'s pause: read none this pass\n'
+  elif [ "$clerk_issue" -eq 1 ]; then
+    printf '            clerk issue read: the clerk is not due and none is in flight — read the open issues for one no clerk has read (orchestrate-reference.md, Role sessions, "A new issue needs the clerk"); an issue that fires = the clerk DUE row, one clerk (JOHARNESS_ISSUE_CLERK_HOURS)\n'
   fi
   # Not gated on DRAINED: sampling merged work competes with nothing.
   if [ "$conduct_due" -eq 1 ] && [ "$cap" -eq 0 ]; then

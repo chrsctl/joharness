@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK6gHK4nAR5kZPp5VAT
 agent: opus
 updated: 2026-10-29
-next: Run ci and verify on the round-3 fixes, then finish
+next: Run ci and verify on the merged head, then finish
 ---
 
 ## Goal
@@ -67,6 +67,11 @@ unreadable gates, so on-demand never means two of one role.
 - r26: (verifier) the branch narrowed the Goal for a bare `/retro` (no change: r19, flagged in the pull request body)
 - r27: (verifier) any non-reviewer ledger edit defers an ordered twin under a message claiming a reviewer (fixed: the message says rows may have landed; deferring stays the safe side)
 - r28: (verifier) one orchestrated.md sentence does not parse (fixed)
+- r29: (verifier) the fail-closed end marker in cmd_role has no case failing without it (fixed: removed; `b=""` alone fixes r23 and the clerk-off cases pin it)
+- r30: (verifier) orchestrate-reference's spawn guard omits `off` and the empty sample (fixed: both named)
+- r31: (verifier) `role_suppressed` stops on an unreadable audit cycle where dispatch spawns (fixed: unreadable or off counts no rows, as dispatch)
+- r32: (verifier) branch behind origin/main with an orchestrated.md conflict (fixed: merged, knob rows carry both texts)
+- r33: (verifier) the command files key `--ordered` on the prompt's first line, but the runtime expands the arguments at the file's end (fixed: keyed on the command's arguments)
 
 ## Blockers
 
