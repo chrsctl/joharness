@@ -32,13 +32,13 @@ session for that role.
 
 ## Review
 
-- r1: rule is prose only; gx broke a rule that already said spawn (ref § Role sessions) — wontfix: no command can see the session's role; mechanism is a follow-up plan
-- r2: (verifier) spawn prompt named the workstream file beyond tier, branch, base, stem — no change: one parenthetical, prompt discipline noted
+- r1: rule is prose only; gx broke a rule that already said spawn, ref § Role sessions, (wontfix: no command can see the session's role; mechanism is a follow-up plan)
+- r2: (verifier) spawn prompt named the workstream file beyond tier, branch, base, stem (no change: one aside, prompt discipline noted)
 - r3: (verifier) "never a subagent of another role's session" forbade a manager's workers and the verifier (fixed in subagents.md)
 - r4: (verifier) Loop line listed "a fix" as another role's work, forbidding a builder's own review fix (fixed in .agents/harness/AGENTS.md)
 - r5: (verifier) workstream `next:` named finished work (fixed in docs/handover/role-in-new-session.md)
-- r6: (verifier) no acceptance check for the Goal — wontfix: same as r1
-- r7: (verifier) `agent: opus` vs haiku review tier — no change: fast lane reviews at haiku whatever `agent:` says
+- r6: (verifier) no acceptance check for the Goal (wontfix: same as r1)
+- r7: (verifier) `agent: opus` vs haiku review tier (no change: fast lane reviews at haiku whatever `agent:` says)
 
 ## Blockers
 
