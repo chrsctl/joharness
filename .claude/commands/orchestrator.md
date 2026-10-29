@@ -169,7 +169,7 @@ Managers: up to `slots`, dispatch's order, rows under `spawn` only. A ledger `he
 `JOHARNESS_MAX_MANAGERS` caps managers only. Every role session (clerk,
 scout, retro reviewer (audit or trace), surveyor) runs beyond it and holds no
 slot: spawn its line even with every slot full, at most one of each in
-flight. `JOHARNESS_MAX_MANAGERS=0` (`PAUSED`) holds every role too. A line
+flight (a clerk row `yielded` is not in flight: a clerk DUE beside it spawns). `JOHARNESS_MAX_MANAGERS=0` (`PAUSED`) holds every role too. A line
 or command that says nothing to do spawns nothing.
 
 - `PARKED #<n> RESUME` and `PARKED #<n> RECHECK` rows first, each one of

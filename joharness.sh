@@ -4005,7 +4005,7 @@ scout_branches() {
   local b w s
   while IFS=$'\t' read -r b w s; do
     [ -n "$b" ] || continue
-    case "$s" in abandoned | ended) continue ;; esac
+    case "$s" in abandoned | ended | yielded) continue ;; esac
     printf '%s\t%s\t%s\n' "$b" "$w" "$s"
   done
 }
@@ -4176,7 +4176,8 @@ clerk_stale_s() {
 }
 
 # Every unmerged `clerk-<digit>…` branch, one row each in scout_walk's shape:
-# `<branch>\ttip-<N>h\t<in-flight|ended|abandoned>`. A tip older than
+# `<branch>\ttip-<N>h\t<in-flight|ended|abandoned>` (clerk_yield adds
+# `yielded`). A tip older than
 # JOHARNESS_CLERK_STALE_HOURS is abandoned and holds nothing (scout_branches
 # drops it): a `TWIN: deferred` exit or a pull request left open on a red gate
 # leaves its branch, and branches are never deleted. Never tied to
@@ -4238,7 +4239,7 @@ CLERK_DUE=""
 CLERK_ROWS=""
 clerk_due() {
   local hours age why base_word landed noop ts=0 now
-  CLERK_ROWS=""
+  CLERK_ROWS=""; CLERK_EARLY=""; CLERK_EARLY_WHY=""; CLERK_EARLY_AGE=""
   why="$(cycle_unreadable)"
   if [ -n "$why" ]; then
     CLERK_DUE="unreadable ${why}"
@@ -4282,6 +4283,41 @@ clerk_due() {
       CLERK_DUE="due ${CLERK_EARLY_WHY}, ahead of the cadence: ${age}h since ${base_word} (of ${hours}h)"
   fi
   CLERK_ROWS="$(clerk_walk)"
+  # A due cadence skips the early read; a clerk in flight needs it all the
+  # same: one spawned on the cadence that never lands keeps the cadence due.
+  if [ -z "$CLERK_EARLY" ] && [ "${CLERK_DUE%% *}" = due ] &&
+     printf '%s\n' "$CLERK_ROWS" | grep -q $'\tin-flight$'; then
+    clerk_park_early "${noop%%$'\t'*}"
+  fi
+  [ -z "$CLERK_EARLY" ] || clerk_yield
+}
+
+# A park-called clerk never waits on one that cannot merge: with the early
+# due set (clerk_park_early), the ONE clerk in flight whose tip predates the
+# first park pushed nothing in the JOHARNESS_DEFECT_CLERK_HOURS since — its
+# row reads `yielded` and holds nothing, so one more clerk is due. Two in
+# flight yield nothing: at most two clerks. The park-called clerk pushes
+# after the park, so it never yields to a third. Any git error: in-flight.
+clerk_yield() {
+  local b w st ct n=0 yb="" now rows=""
+  while IFS=$'\t' read -r b w st; do
+    [ "$st" = in-flight ] || continue
+    n=$((n + 1)); yb="$b"
+  done <<<"$CLERK_ROWS"
+  [ "$n" -eq 1 ] || return 0
+  case "$CLERK_EARLY_AGE" in '' | *[!0-9]*) return 0 ;; esac
+  ct="$(git -C "$ROOT" log -1 --format=%ct "refs/remotes/origin/${yb}" </dev/null 2>/dev/null)"
+  case "$ct" in '' | *[!0-9]*) return 0 ;; esac
+  now="$(date +%s)"
+  # The age is floored minutes: a minute more, so a tip in the park's own
+  # minute never reads as before it.
+  [ "$ct" -lt $((now - (CLERK_EARLY_AGE + 1) * 60)) ] || return 0
+  while IFS=$'\t' read -r b w st; do
+    [ -n "$b" ] || continue
+    [ "$b" != "$yb" ] || st=yielded
+    rows="${rows}${b}"$'\t'"${w}"$'\t'"${st}"$'\n'
+  done <<<"$CLERK_ROWS"
+  CLERK_ROWS="${rows%$'\n'}"
 }
 
 # A manager parked on a defect no plan names waits on the clerk, the one
@@ -4291,16 +4327,19 @@ clerk_due() {
 # and STUCK already reach the human, RESUME and RECHECK are dispatch's.
 # Planned = what the clerk itself skips as planned (clerk_issue_nums all).
 # Fails closed: any read that fails makes nothing due early.
-# arg: <newest no-op record time, unix; empty = none>. Sets CLERK_EARLY
-# (`#<n>`, the oldest such park) and CLERK_EARLY_WHY, or leaves both empty.
+# args: <newest no-op record time, unix; empty = none> [<branch>: its own
+# plans count as unplanned — the twin check, whose own plan names it]. Sets CLERK_EARLY
+# (`#<n>`, the oldest such park), CLERK_EARLY_WHY and CLERK_EARLY_AGE (its
+# minutes since the first park), or leaves all three empty.
 CLERK_EARLY=""
 CLERK_EARLY_WHY=""
+CLERK_EARLY_AGE=""
 clerk_park_early() {
   local last="${1:-0}" knob base_branch="${HANDOVER_BASE_BRANCH:-main}" base_id
-  local refs=() r out rc hit ref ws doc st nx planned="" b now
+  local refs=() r out rc hit ref ws doc st nx planned="" b now own="${2:-}"
   local dst dn dplan dage best="" bage=-1 seen=" "
   case "$last" in '' | *[!0-9]*) last=0 ;; esac
-  CLERK_EARLY=""; CLERK_EARLY_WHY=""
+  CLERK_EARLY=""; CLERK_EARLY_WHY=""; CLERK_EARLY_AGE=""
   knob="$(num_knob JOHARNESS_DEFECT_CLERK_HOURS)"
   [ "$knob" -gt 0 ] || return 0
   base_id="$(git -C "$ROOT" rev-parse --verify -q \
@@ -4347,7 +4386,7 @@ clerk_park_early() {
     # cadence and PARKED UNPLANNED take it from there.
     [ $((now - (dage + 1) * 60)) -gt "$last" ] || continue
     if [ -z "$planned" ]; then
-      planned=" $(clerk_issue_nums docs/plans all | tr '\n' ' ')"
+      planned=" $(CLERK_ISSUE_SKIP="$own" clerk_issue_nums docs/plans all | tr '\n' ' ')"
     fi
     case "$planned" in *'?'*) return 0 ;; *" ${dn} "*) continue ;; esac
     case "$seen" in *" ${dn} "*) ;; *) seen="${seen}${dn} " ;; esac
@@ -4356,6 +4395,7 @@ clerk_park_early() {
   [ -n "$best" ] || return 0
   seen="${seen// ${best} / }"; seen="${seen# }"; seen="${seen% }"
   CLERK_EARLY="#${best}"
+  CLERK_EARLY_AGE="$bage"
   CLERK_EARLY_WHY="PARKED #${best} unplanned $(dispatch_age_text "$bage") after its first park (>= ${knob}h: JOHARNESS_DEFECT_CLERK_HOURS)"
   [ -z "$seen" ] || CLERK_EARLY_WHY="${CLERK_EARLY_WHY}, and #${seen// /, #} too"
 }
@@ -4395,7 +4435,8 @@ clerk_last_read() {
 }
 
 # Issue numbers an `issue:` field names under one directory, one per line,
-# sorted, valid ones only (issue_verdict).
+# sorted, valid ones only (issue_verdict). CLERK_ISSUE_SKIP=<branch>: `all`
+# reads every unmerged branch but that one.
 clerk_issue_nums() {
   local dir="$1" scope="$2" base_branch="${HANDOVER_BASE_BRANCH:-main}"
   local ids=() id r out rc line v
@@ -4410,6 +4451,7 @@ clerk_issue_nums() {
     while IFS=$'\t' read -r r line; do
       case "$line" in
         '' | refs/remotes/origin/HEAD | "refs/remotes/origin/${base_branch}") continue ;;
+        "refs/remotes/origin/${CLERK_ISSUE_SKIP:-/}") continue ;;
       esac
       case " ${ids[*]} " in *" ${r} "*) ;; *) ids+=("$r") ;; esac
     done < <(git -C "$ROOT" for-each-ref --no-merged="$id" \
@@ -4497,6 +4539,16 @@ clerk_read_lines() {
   fi
 }
 
+# The `yielded` rows (clerk_yield), named, never counted.
+clerk_yield_lines() {
+  local b w st
+  while IFS=$'\t' read -r b w st; do
+    [ "$st" = yielded ] || continue
+    printf 'yielded   : holds nothing — its tip predates the first park on %s, unplanned JOHARNESS_DEFECT_CLERK_HOURS since: a clerk that cannot merge; one more clerk, at most two\n' "$CLERK_EARLY"
+    printf '            %s  %s  %s\n' "$b" "$w" "$st"
+  done <<<"$1"
+}
+
 cmd_clerk() {
   local hours batch due rows state why b w st n_inflight=0 n_ended
   [ "$#" -eq 0 ] || die "usage: $0 clerk"
@@ -4540,6 +4592,7 @@ cmd_clerk() {
       printf 'ended     : holds nothing — no net change, and a no-op record landed at or after its tip\n'
     printf '            %s  %s  %s\n' "$b" "$w" "$st"
   done <<<"$rows"
+  clerk_yield_lines "$rows"
   if [ "$state" = off ]; then clerk_read_lines off; else clerk_read_lines; fi
   printf '\n'
   printf 'planned   : %s\n' "$(clerk_issue_nums docs/plans all | clerk_issue_line)"
@@ -5688,6 +5741,8 @@ role_twin_run() {
       fi
       ;;
     clerk)
+      rows="$(clerk_twin_rows "$cur" "$rows")"
+      other="$(printf '%s\n' "$rows" | grep -vxF -- "$cur" | LC_ALL=C sort | head -1)"
       if [ -z "$line" ] && printf '%s\n' "$rows" | grep -qxF -- "$cur" &&
          [ "$(printf '%s\n' "$rows" | LC_ALL=C sort | head -1)" = "$cur" ]; then
         printf 'GO %s\n' "$cur"; return 0
@@ -5719,6 +5774,32 @@ role_twin_run() {
   esac
   printf 'STOP: TWIN %s\n' "$other"
   return 1
+}
+
+# <cur> <rows> — the clerk rows a twin check weighs. A park-called clerk
+# (clerk_yield) plans the issue, so the early due ends and the clerk it
+# yielded to reads in flight again. The yield's own park read, this branch's
+# plans not counted (clerk_park_early <cur>): the ONE other row whose tip
+# predates that park is no twin. No park, two such rows, or a read that
+# fails: every row counts.
+clerk_twin_rows() {
+  local cur="$1" rows="$2" noop now park r ct n=0 drop=""
+  noop="$(clerk_noop)"
+  clerk_park_early "${noop%%$'\t'*}" "$cur"
+  case "$CLERK_EARLY_AGE" in
+    '' | *[!0-9]*) printf '%s\n' "$rows"; return 0 ;;
+  esac
+  now="$(date +%s)"
+  park=$((now - (CLERK_EARLY_AGE + 1) * 60))
+  while IFS= read -r r; do
+    if [ -z "$r" ] || [ "$r" = "$cur" ]; then continue; fi
+    ct="$(git -C "$ROOT" log -1 --format=%ct "refs/remotes/origin/${r}" </dev/null 2>/dev/null)"
+    case "$ct" in '' | *[!0-9]*) continue ;; esac
+    [ "$ct" -lt "$park" ] || continue
+    n=$((n + 1)); drop="$r"
+  done <<<"$rows"
+  if [ "$n" -ne 1 ]; then printf '%s\n' "$rows"; return 0; fi
+  printf '%s\n' "$rows" | grep -vxF -- "$drop" || true
 }
 
 # <audit|retro> — the ledger a reviewer's pass lands.
@@ -8781,6 +8862,7 @@ cmd_dispatch() {
     elif [ "$kstate" = due ]; then
       clerk_due=1
       printf 'clerk     : DUE — %s\n' "$kreason"
+      clerk_yield_lines "$CLERK_ROWS"
     else
       printf 'clerk     : not due — %s\n' "$kreason"
       # A new issue may call it early: the orchestrator reads the issues.
@@ -9691,8 +9773,8 @@ cmd_dispatch() {
     printf '            clerk due, held — JOHARNESS_MAX_MANAGERS=0 is the human'"'"'s pause: spawn none\n'
   elif [ "$clerk_due" -eq 1 ]; then
     role_spawned=1
-    printf '            clerk DUE%s: spawn ONE clerk (agent: sonnet) on /clerk — beyond the cap, holds no slot, at most one in flight. It turns open issues into plans and merges that plan-only pull request itself (JOHARNESS_CLERK_HOURS, JOHARNESS_CLERK_BATCH)\n' \
-      "${CLERK_EARLY:+ (PARKED ${CLERK_EARLY} unplanned, JOHARNESS_DEFECT_CLERK_HOURS)}"
+    printf '            clerk DUE%s: spawn ONE clerk (agent: sonnet) on /clerk — beyond the cap, holds no slot, at most one in flight (a yielded one aside). It turns open issues into plans and merges that plan-only pull request itself (JOHARNESS_CLERK_HOURS, JOHARNESS_CLERK_BATCH)\n' \
+      "$(case "$kreason" in PARKED*) printf ' (PARKED %s unplanned, JOHARNESS_DEFECT_CLERK_HOURS)' "$CLERK_EARLY" ;; esac)"
   fi
   # The clerk's own holds: a read the clerk could not act on is none.
   if [ "$clerk_issue" -eq 1 ] && [ "$fetch_failed" -eq 1 ]; then

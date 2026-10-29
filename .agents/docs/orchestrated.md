@@ -23,7 +23,7 @@ commit `649b832` — docs only, no text reproduced (`.agents/NOTICE`).
 | `./joharness.sh release <branch>...` | The write: releases each listed branch through the guard and the lease (`status: abandoned`), refuses any other with the reason. Subjects `release: session gone (<date>)`, `release: done, no pull request (<date>)`, `release: the queue holds <plan> by a needs: edge (<date>)`. Deletes nothing; git only, never the GitHub API. Output per file: `release   : <branch>  <path>  <reason>` or `... plan <p>  held by needs: <s>`, then `pushed    : <branch> <sha>`. |
 | `./joharness.sh release --human <branch>...` (alias `halt`) | A human's order, never a session's judgement: any age, any status, `pr:` allowed; on an edge branch it restores the branch's own retired record, released. Subject `release: a human released the claim (<date>)`. The item returns to the queue; the session and any pull request stay the control plane's and the human's. |
 | `RELEASE:` row flag + `release DUE` | A block the queue has since absorbed (#626). Dispatch prints a parked claim `RELEASE: the queue holds it by needs: <stem> since <date>, holds no slot` when its `next:` opens with a reason word the queue can answer (a manager.md §3 reason, not `money:`, `credentials:`, `hardware:`, `core path:`, `github:`, `respawns:`, `defect:`), names `<stem>` as a token, and carries no `pr:`, and its plan on the base is `blocked by:` that `needs: <stem>` edge, added after the park. The tail line `release DUE: <branches>` names every stale, done and needs: branch (a needs: one at once; a stale or done one only once its session reads ARCHIVED or not found); the orchestrator runs `release <branch>...` on it. The session stays alive and may set the word back. Every other block stays the human's. |
-| `./joharness.sh clerk` + `clerk :` line | Open issues become plans only through the clerk (`dispatch` reads `docs/plans/` only). Clock-driven, dated from git, a new open issue (`JOHARNESS_ISSUE_CLERK_HOURS`, dispatch's `clerk issue read:` line, read by the orchestrator) also calls it early, at most one in flight (`joharness.sh:cmd_clerk`, `.claude/commands/clerk.md`). Orthogonal to the verdict. |
+| `./joharness.sh clerk` + `clerk :` line | Open issues become plans only through the clerk (`dispatch` reads `docs/plans/` only). Clock-driven, dated from git, a new open issue (`JOHARNESS_ISSUE_CLERK_HOURS`, dispatch's `clerk issue read:` line, read by the orchestrator) also calls it early, at most one in flight, a `yielded` one aside (`joharness.sh:cmd_clerk`, `.claude/commands/clerk.md`). Orthogonal to the verdict. |
 | `./joharness.sh analysis` | One unmerged branch's condition (BLOCKED / STALL? / LOOP?) beside the base branch's current conf. Read by hand; spawns nothing. |
 | `./joharness.sh scout` + `scout :` line | No clock, no backlog trigger, no DRAINED gate: a pass runs on the reviewer's order or on a `scout` issue waiting on the scout (`orchestrator-reference.md`, "A scout issue needs the scout"). Every misread fails closed — never a second scout (`joharness.sh:cmd_scout`, `.claude/commands/scout.md`). |
 | `./joharness.sh retro --audit` + `retro : audit` line | A sample of retired managers' own artifacts, read for how the item was worked, never the diff. Clock-driven, dated from `docs/conduct-log.md`, due early past `JOHARNESS_RETRO_FLOOR_HOURS` on a full sample; every misread fails closed (`.claude/commands/retro-audit.md`). |
@@ -45,7 +45,8 @@ commit `649b832` — docs only, no text reproduced (`.agents/NOTICE`).
 | retro (trace) | sonnet | a session on `retro DUE`, or on the human's order (`--ordered`), beyond the cap; prelude `./joharness.sh role retro` | nothing (it files plans, fixes nothing) | one pull request: ledger rows in `docs/retro-log.md` and new plans for mechanisms, no workstream file; never a rule-only fix | its pull request merges, or `TWIN: deferred` |
 
 `JOHARNESS_MAX_MANAGERS` caps managers only; every role session runs beyond
-the cap, one of each in flight, a blocked one included (`orchestrator.md` §3).
+the cap, one of each in flight, a blocked one included (`orchestrator.md` §3);
+one exception, a clerk `yielded` to a parked defect (The one stop).
 
 ### The role prelude is a command
 
@@ -221,7 +222,7 @@ Removing the line, on the base first, is the human override.
 | `JOHARNESS_RETRO_EVENTS` | 200 | transcript events a trace run reads per sampled session, counted before the kinds filter | written number: a session's end; earlier failures read secondhand |
 | `JOHARNESS_RETRO_FLOOR_HOURS` | 24 | hours since a mode's ledger last landed before its evidence makes it due ahead of its clock: trace on a claim parked `stalled:` or `respawns:`, an untraced audit CONCERN, or a full sample; audit on a full sample. The queue-block path keeps no floor; 0 = clock only | written number: a day, as the clerk |
 | `JOHARNESS_DEFECT_PLAN_HOURS` | 48 | hours after the first `defect:` park on an issue with no plan naming it = `PARKED #<n> UNPLANNED`, notified once; 0 lifts it | written number: two clerk cycles |
-| `JOHARNESS_DEFECT_CLERK_HOURS` | 1 | hours after the first `defect:` park on an issue no plan names (base or any unmerged branch), no clerk having read the issues since (a landed one: its first commit less this knob; a no-op: its stamp less this knob), before the clerk is due ahead of `JOHARNESS_CLERK_HOURS`; holds as a cadence due does; 0 lifts it | written number: a parked manager waits on the clerk alone |
+| `JOHARNESS_DEFECT_CLERK_HOURS` | 1 | hours after the first `defect:` park on an issue no plan names (base or any unmerged branch), no clerk having read the issues since (a landed one: its first commit less this knob; a no-op: its stamp less this knob), before the clerk is due ahead of `JOHARNESS_CLERK_HOURS`, the one clerk in flight `yielded` when its tip predates that park (at most two); holds as a cadence due does; 0 lifts it | written number: a parked manager waits on the clerk alone |
 | `JOHARNESS_ISSUE_CLERK_HOURS` | 1 | hours an open issue no clerk has read (created after `./joharness.sh clerk`'s `last read`), not planned or claimed, waits before the orchestrator spawns the clerk ahead of `JOHARNESS_CLERK_HOURS` (dispatch's `clerk issue read:` line); never below `JOHARNESS_DEFECT_CLERK_HOURS`; holds as a cadence due does; 0 = off | written number: a new issue waits on the clerk's cadence |
 | `JOHARNESS_DEFECT_FIX_HOURS` | 72 | hours after the first `defect:` park on an issue with no RESUME = `PARKED #<n> STUCK`, notified once; 0 lifts it | written number: a plan cycle plus a day |
 | `JOHARNESS_DEFECT_RECHECK_HOURS` | 2 | hours after a `defect:` block, no plan naming its issue and the base moved since, before `PARKED #<n> RECHECK`; 0 lifts it | written number: a few merges on an active base |
@@ -325,12 +326,19 @@ the block `JOHARNESS_DEFECT_RECHECK_HOURS` old, the base moved = `RECHECK`
 `orchestrator-reference.md`, Resume.
 A `PARKED` row on an issue no plan names, `JOHARNESS_DEFECT_CLERK_HOURS`
 after its first park and no clerk having read the issues since, makes the clerk due now
-(`clerk DUE (PARKED #<n> unplanned, …)`), not at its cadence.
+(`clerk DUE (PARKED #<n> unplanned, …)`), not at its cadence. A clerk in
+flight holds that due only while it can still push: the ONE in flight whose
+tip predates the first park, nothing pushed in the
+`JOHARNESS_DEFECT_CLERK_HOURS` since, reads `yielded` and holds nothing
+(`joharness.sh:clerk_yield`), so one more clerk is due, at most two. The
+park-called clerk pushes after the park, so it never yields to a third; its
+twin check reads the same park, its own plans not counted, and passes over
+that one clerk (`joharness.sh:clerk_twin_rows`). A due cadence yields alike.
 
 A park on an issue no plan names waits on the clerk's cadence: in a run the
 clerk is the only automated path from an issue to a plan (a human or session
 may file a plan with `issue:` by hand), and `joharness.sh:clerk_due` reads the
-clock and the clerk's own records, never a park. A defect filed just after a
+clock and the clerk's own records, a park only through `clerk_park_early`. A defect filed just after a
 clerk lands waits at least until `JOHARNESS_CLERK_HOURS` elapse for a pass to
 take it, longer if `JOHARNESS_CLERK_BATCH` defers it, then the clerk's pull
 request and the fix itself; `UNPLANNED` at `JOHARNESS_DEFECT_PLAN_HOURS` only
@@ -338,9 +346,10 @@ notifies. A cadence gap, not intent: the parked manager waits on exactly that
 plan while its branch drifts, and a RECHECK respawn can re-park on the same
 red check. One consumer reading, not re-taken here (chrsctl/gx, 2026-10-28):
 two managers parked beside `clerk : not due`; a human-ordered extra clerk
-(`orchestrator-reference.md`, Role sessions) cut the wait to the plan. The
-plan `defect-park-calls-clerk` makes the clerk due early on such a park; it
-rewrites this paragraph when it retires.
+(`orchestrator-reference.md`, Role sessions) cut the wait to the plan. `clerk_park_early` makes the clerk due early on such a park, and
+`clerk_yield` keeps a clerk in flight that cannot merge from holding it
+(chrsctl/gx, 2026-10-29, not re-taken here: a clerk pull request stopped on a
+red finish check, a `blocking:` defect filed after it waited on that clerk).
 
 A block names its reason: `next:` = `<reason>: <question>`, one word from
 the closed list `joharness.sh:block_reason_ok`. A free question with no

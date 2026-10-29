@@ -759,6 +759,99 @@ refute "and no second clerk" "spawn ONE clerk" "$out"
 git -C "$ckwork" push -q origin --delete clerk-20260102
 git -C "$ckwork" branch -qD clerk-20260102
 
+# A clerk in flight since before the first park, nothing pushed since: it
+# cannot merge, and the park-called clerk does not wait on it.
+# <branch> <seconds ago>: a clerk's one commit, pushed.
+ckfly() {
+  git -C "$ckwork" checkout -qb "$1" main
+  printf '%s\n' "$1" >"${ckwork}/${1}.txt"
+  git -C "$ckwork" add -A
+  GIT_AUTHOR_DATE="@$((cknow - $2)) +0000" GIT_COMMITTER_DATE="@$((cknow - $2)) +0000" \
+    git -C "$ckwork" commit -qm "clerk pass $1"
+  git -C "$ckwork" push -qu origin "$1"
+  git -C "$ckwork" checkout -q main
+}
+ckgone() {
+  git -C "$ckwork" push -q origin --delete "$1"
+  git -C "$ckwork" branch -qD "$1"
+}
+ckfly clerk-20260107 9000
+out="$(ckx)"
+expect "a clerk whose tip predates the park: DUE all the same" \
+  "clerk     : DUE — PARKED #31 unplanned" "$out"
+expect "naming the clerk it yields to" "yielded   : holds nothing — its tip predates the first park on #31" "$out"
+expect "and the tail line spawns the park-called clerk" "clerk DUE (PARKED #31 unplanned" "$out"
+out="$(ckc)"
+expect "clerk reads it the same: DUE" "cadence   : DUE — PARKED #31 unplanned" "$out"
+refute "and no IN FLIGHT line" "IN FLIGHT" "$out"
+expect "it names the yielded clerk" "clerk-20260107  tip-2h  yielded" "$out"
+out="$(ckx env JOHARNESS_DEFECT_CLERK_HOURS=0)"
+expect "JOHARNESS_DEFECT_CLERK_HOURS=0: in flight, as before" \
+  "clerk     : IN FLIGHT, so none is due" "$out"
+out="$(ckx env JOHARNESS_CLERK_HOURS=2)"
+expect "the cadence due: it yields all the same" \
+  "yielded   : holds nothing — its tip predates the first park on #31" "$out"
+expect "and the clerk is DUE" "clerk     : DUE — 3h since the last clerk landed" "$out"
+ckgone clerk-20260107
+# A tip a second after the park, in its own minute: in flight, never yielded.
+ckfly clerk-20260113 7199
+out="$(ckc)"
+refute "a tip just after the park never yields" "yielded" "$out"
+ckgone clerk-20260113
+ckfly clerk-20260107 9000
+# Two in flight from before the park: neither yields, at most two clerks.
+ckfly clerk-20260110 8000
+out="$(ckx)"
+expect "two stale clerks in flight: IN FLIGHT" "clerk     : IN FLIGHT, so none is due. Clock: due PARKED #31" "$out"
+out="$(ckc)"
+refute "and neither yields" "yielded" "$out"
+ckgone clerk-20260110
+# The park-called clerk pushed after the park: never yields, so never a third.
+ckfly clerk-20260108 60
+out="$(ckx)"
+expect "two clerks in flight: IN FLIGHT" "clerk     : IN FLIGHT, so none is due. Clock: due PARKED #31" "$out"
+refute "and no third clerk" "spawn ONE clerk" "$out"
+ckgone clerk-20260108
+# Its twin check: the yielded clerk pushed nothing since this pass began.
+git -C "$ckwork" checkout -qb clerk-20260109 main
+printf 'p\n' >"${ckwork}/clerk-20260109.txt"
+ckplan fix31b 31
+git -C "$ckwork" add -A; git -C "$ckwork" commit -qm "park-called clerk plans #31"
+git -C "$ckwork" push -qu origin clerk-20260109
+out="$( cd "$ckwork" && JOHARNESS_CONF="$ckconf" ./joharness.sh role clerk --twin 2>&1 )"
+expect "the park-called clerk passes its twin check" "GO clerk-20260109" "$out"
+out="$( cd "$ckwork" && JOHARNESS_CONF="$ckconf" JOHARNESS_DEFECT_CLERK_HOURS=0 ./joharness.sh role clerk --twin 2>&1 )"
+expect "JOHARNESS_DEFECT_CLERK_HOURS=0: the twin rule as before" "STOP: TWIN clerk-20260107" "$out"
+git -C "$ckwork" checkout -q main
+ckgone clerk-20260109
+ckgone clerk-20260107
+# Two parks: #31 planned on a live branch, #32 not. The yield reads #32's
+# park, and so does the park-called clerk's twin check.
+git -C "$ckwork" checkout -qb plan-31b main
+ckplan fix31c 31
+ckcommit 1 "a plan naming #31"
+git -C "$ckwork" push -qu origin plan-31b
+git -C "$ckwork" checkout -q main
+cksha2="$(git -C "$ckwork" rev-parse main)"
+ckplan own-t none
+ckcommit 3 "own-t"
+git -C "$ckwork" push -q origin main
+ckpark park-t own-t 'defect: #32: the lint breaks' 1
+ckfly clerk-20260111 5400
+out="$(ckc)"
+expect "two parks: the clerk yields on the unplanned one" \
+  "yielded   : holds nothing — its tip predates the first park on #32" "$out"
+git -C "$ckwork" checkout -qb clerk-20260112 main
+ckplan fix32 32
+git -C "$ckwork" add -A; git -C "$ckwork" commit -qm "park-called clerk plans #32"
+git -C "$ckwork" push -qu origin clerk-20260112
+out="$( cd "$ckwork" && JOHARNESS_CONF="$ckconf" ./joharness.sh role clerk --twin 2>&1 )"
+expect "its twin check reads the same park: GO" "GO clerk-20260112" "$out"
+git -C "$ckwork" checkout -q main
+for b in clerk-20260112 clerk-20260111 park-t plan-31b; do ckgone "$b"; done
+git -C "$ckwork" reset -q --hard "$cksha2"
+git -C "$ckorigin" update-ref refs/heads/main "$cksha2"
+
 # A clerk landed after the first park had its chance: the cadence again. The
 # landing is undone after, on the fixture's own origin.
 cksha="$(git -C "$ckwork" rev-parse main)"
