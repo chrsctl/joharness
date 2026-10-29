@@ -8,7 +8,10 @@ slot; each run is the owner's money — say so in your report. Spawned by
 a human's `/retro`; never by a session's decision. You fix no code and no
 rule: you file plans, and repair a missing queue edge (§3, `repair`). Due off
 the clock when a blocked session's `next:` names an open plan or
-requirement: that session leads the sample.
+requirement: that session leads the sample. Also due early, past
+`JOHARNESS_RETRO_FLOOR_HOURS` since the ledger landed, on a claim parked
+`stalled:` or `respawns:` (that session leads the sample), an untraced
+audit CONCERN, or a full sample.
 
 What you read, and NOTHING else:
 

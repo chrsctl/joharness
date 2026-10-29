@@ -456,3 +456,177 @@ expect "retro.md: trace's open-PR check never takes an audit branch" \
 expect "retro-audit.md: audit's open-PR check takes both its names" \
   'pull request from a `retro-audit-*` or `conduct-<digit>…` branch' \
   "$(tr '\n' ' ' <"${ROOT}/.claude/commands/retro-audit.md" 2>/dev/null | tr -s ' ')"
+
+# Evidence ahead of the clock (plan retro-event-triggers): past
+# JOHARNESS_RETRO_FLOOR_HOURS since a mode's ledger landed, a claim parked
+# stalled:/respawns:, an untraced CONCERN or a full sample makes it due;
+# under the floor, or with the floor 0, the clock alone decides.
+# <name> <ledger hours ago> [<retro-log row>] — a fresh repository, both
+# ledgers landed then.
+re_repo() {
+  local w="${TMP:?}/retroev-$1" o="${TMP:?}/retroev-$1.git" t
+  git init -q --bare "$o"
+  git init -q "$w"
+  git -C "$w" symbolic-ref HEAD refs/heads/main
+  mkdir -p "${w}/docs/handover" "${w}/.agents/harness" "${w}/.agents/env/none" "${w}/.claude/commands"
+  cp "${ROOT}/joharness.sh" "${w}/joharness.sh"
+  cp "${ROOT}/.agents/harness/queue-context.sh" \
+     "${ROOT}/.agents/harness/handover-context.sh" "${w}/.agents/harness/"
+  printf '# none\n' >"${w}/.agents/env/none/AGENTS.md"
+  printf 'JOHARNESS_ENV=none\n' >"${w}/joharness.conf"
+  printf '# retro\n' >"${w}/.claude/commands/retro.md"
+  printf '# audit\n' >"${w}/.claude/commands/retro-audit.md"
+  git -C "$w" add -A
+  GIT_COMMITTER_DATE='2026-01-01T00:00:00Z' GIT_AUTHOR_DATE='2026-01-01T00:00:00Z' \
+    git -C "$w" commit -qm base
+  printf '# Retro log\n\n| date | branch | session | outcome |\n|------|--------|---------|---------|\n' \
+    >"${w}/docs/retro-log.md"
+  [ -z "${3:-}" ] || printf '%s\n' "$3" >>"${w}/docs/retro-log.md"
+  printf '# Conduct log\n\n| date | stem | C1 | note |\n|------|------|----|------|\n' \
+    >"${w}/docs/conduct-log.md"
+  t="$(( $(date +%s) - $2 * 3600 )) +0000"
+  git -C "$w" add -A
+  GIT_COMMITTER_DATE="$t" GIT_AUTHOR_DATE="$t" git -C "$w" commit -qm ledgers
+  git -C "$w" remote add origin "$o"
+  git -C "$w" push -qu origin main
+}
+# <name> <branch> <stem> <session> <next: value> — a parked claim, pushed.
+re_park() {
+  local w="${TMP:?}/retroev-$1" t
+  git -C "$w" checkout -q -b "$2" main
+  mkdir -p "${w}/docs/handover"
+  printf -- '---\nworkstream: %s\nstatus: blocked\nbranch: %s\nplan: %s\nsession: %s\nagent: sonnet\nnext: %s\n---\n\n## Blockers\n\nNone.\n' \
+    "$3" "$2" "$3" "$4" "$5" >"${w}/docs/handover/${3}.md"
+  t="$(( $(date +%s) - 600 )) +0000"
+  git -C "$w" add -A
+  GIT_COMMITTER_DATE="$t" GIT_AUTHOR_DATE="$t" git -C "$w" commit -qm "park $3"
+  git -C "$w" push -q origin "$2"
+  git -C "$w" checkout -q main
+}
+# <name> <stem> — a manager workstream file claimed and retired on main, now.
+re_retire() {
+  local w="${TMP:?}/retroev-$1"
+  printf -- '---\nworkstream: %s\nstatus: done\nplan: %s\n---\n' "$2" "$2" >"${w}/docs/handover/${2}.md"
+  git -C "$w" add -A && git -C "$w" commit -qm "claim $2"
+  git -C "$w" rm -q "docs/handover/${2}.md"
+  mkdir -p "${w}/docs/handover"
+  git -C "$w" commit -qm "retire $2"
+  git -C "$w" push -q origin main
+}
+# <name> [env...] -- <args> — joharness.sh in that repository.
+re_run() {
+  local w="${TMP:?}/retroev-$1"; shift
+  local -a e=()
+  while [ "$#" -gt 0 ] && [ "$1" != -- ]; do e+=("$1"); shift; done
+  shift
+  ( cd "$w" && env JOHARNESS_CONF="${w}/joharness.conf" "${e[@]}" ./joharness.sh "$@" 2>&1 )
+}
+re_stall='stalled: Stalled; the orchestrator could not stop the session that holds this.'
+
+re_repo stall 30
+re_park stall m/stall stall "$(rt_url Stall9c)" "\"${re_stall}\""
+# A second candidate whose sha1 sorts first (07df… < 7b99…): the lead is the
+# park, not the order.
+re_park stall m/other other "$(rt_url Other1)" 'product: which reading?'
+if [[ "$(rt_url Other1 | rt_sha)" < "$(rt_url Stall9c | rt_sha)" ]]; then
+  pass "retro: the lead fixture's other session sorts first by sha1"
+else fail "retro: the lead fixture's other session sorts first by sha1"; fi
+out="$(re_run stall -- retro)"
+expect "retro: a stalled: park past the floor is due ahead of the clock" \
+  "retro DUE: spawn ONE retro reviewer — m/stall is parked on a stalled: block, ahead of the cadence (>= 24h floor) — 30h since the ledger last landed (of 168h)" "$out"
+if [ "$(rt_rows "$out" | head -1)" = "m/stall $(rt_url Stall9c)" ]; then
+  pass "retro: and the stalled session leads the sample"
+else fail "retro: and the stalled session leads the sample"; printf '%s\n' "$(indent "$out")"; fi
+expect "retro: the header names the floor" "on evidence after 24h: JOHARNESS_RETRO_FLOOR_HOURS" "$out"
+expect "dispatch: a stalled: park spawns the reviewer" \
+  "retro DUE: spawn ONE retro reviewer (agent: sonnet) on /retro" \
+  "$(re_run stall DISPATCH_FETCH=1 JOHARNESS_CONDUCT_HOURS=0 JOHARNESS_CLERK_HOURS=0 -- dispatch)"
+expect "retro: FLOOR_HOURS=0 is clock only" "retro : not due — 30h since the ledger last landed (of 168h)" \
+  "$(re_run stall JOHARNESS_RETRO_FLOOR_HOURS=0 -- retro)"
+expect "retro: the clock still wins past it" "retro DUE: spawn ONE retro reviewer — 30h since the ledger last landed (>= 24h)" \
+  "$(re_run stall JOHARNESS_RETRO_HOURS=24 -- retro)"
+# The ledger logs the session, landed past the floor: its park fires no more.
+re_repo logged 30 "| 2026-01-02 | m/stall | $(rt_url Stall4) | nothing |"
+re_park logged m/stall stall "$(rt_url Stall4)" "\"${re_stall}\""
+expect "retro: a park the ledger logs is no evidence" \
+  "retro : not due — 30h since the ledger last landed (of 168h)" "$(re_run logged -- retro)"
+
+re_repo young 2
+re_park young m/stall stall "$(rt_url Stall2)" "\"${re_stall}\""
+expect "retro: under the floor a stalled: park waits" "retro : not due — 2h since the ledger last landed (of 168h)" \
+  "$(re_run young -- retro)"
+
+re_repo resp 30
+re_park resp m/resp resp "$(rt_url Resp1)" 'respawns: Respawned 2 times and still not done.'
+expect "retro: a respawns: park past the floor is due" \
+  "retro DUE: spawn ONE retro reviewer — m/resp is parked on a respawns: block, ahead of the cadence" \
+  "$(re_run resp -- retro)"
+# A reason only a human answers is no event, nor a park since answered.
+re_repo human 30
+re_park human m/money money "$(rt_url Money1)" 'money: stalled: needs a paid account'
+expect "retro: a money: park is no event" "retro : not due — 30h" "$(re_run human -- retro)"
+
+re_repo concern 30
+printf '| 2026-01-15 | alpha | CONCERN | x |\n' >>"${TMP:?}/retroev-concern/docs/conduct-log.md"
+git -C "${TMP:?}/retroev-concern" add -A && git -C "${TMP:?}/retroev-concern" commit -qm "audit rows"
+git -C "${TMP:?}/retroev-concern" push -q origin main
+# The audit ledger landed now; trace's 30h ago.
+expect "retro: an untraced CONCERN past the floor is due, naming it" \
+  "retro DUE: spawn ONE retro reviewer — an audit CONCERN is not yet traced (concern:2026-01-15:alpha), ahead of the cadence (>= 24h floor)" \
+  "$(re_run concern -- retro)"
+
+re_repo full 30
+re_park full m/a a "$(rt_url FullA)" 'product: which reading?'
+re_park full m/b b "$(rt_url FullB)" 'product: which reading?'
+expect "retro: a sample short of full waits" "retro : not due — 30h" "$(re_run full JOHARNESS_RETRO_SAMPLE=3 -- retro)"
+re_park full m/c c "$(rt_url FullC)" 'product: which reading?'
+expect "retro: a full sample past the floor is due" \
+  "retro DUE: spawn ONE retro reviewer — the sample is full (3 session(s), JOHARNESS_RETRO_SAMPLE=3), ahead of the cadence (>= 24h floor)" \
+  "$(re_run full JOHARNESS_RETRO_SAMPLE=3 -- retro)"
+
+re_repo audit 30
+re_retire audit one
+re_retire audit two
+out="$(re_run audit -- retro --audit)"
+expect "retro --audit: a sample short of full waits" "cadence   : not due — 30h since the ledger last landed (of 168h)" "$out"
+expect "retro --audit: the header names the floor" "on evidence after 24h: JOHARNESS_RETRO_FLOOR_HOURS" "$out"
+re_retire audit three
+expect "retro --audit: a full sample past the floor is DUE" \
+  "cadence   : DUE — the sample is full (3 retired branch(es), JOHARNESS_CONDUCT_SAMPLE=3), ahead of the cadence (>= 24h floor) — 30h since the ledger last landed (of 168h)" \
+  "$(re_run audit -- retro --audit)"
+expect "retro --audit: FLOOR_HOURS=0 is clock only" "cadence   : not due — 30h" \
+  "$(re_run audit JOHARNESS_RETRO_FLOOR_HOURS=0 -- retro --audit)"
+expect "dispatch: a full audit sample spawns the audit reviewer" \
+  "retro audit DUE: spawn ONE retro reviewer (agent: sonnet) on /retro-audit" \
+  "$(re_run audit DISPATCH_FETCH=1 JOHARNESS_CLERK_HOURS=0 -- dispatch)"
+re_repo ayoung 2
+re_retire ayoung one; re_retire ayoung two; re_retire ayoung three
+expect "retro --audit: under the floor a full sample waits" "cadence   : not due — 2h" \
+  "$(re_run ayoung -- retro --audit)"
+# Fail closed: a read the early path needs that fails is UNREADABLE, never
+# due and never a quiet not-due.
+mkdir -p "${TMP:?}/retroev-showwrap" "${TMP:?}/retroev-logwrap"
+cat >"${TMP:?}/retroev-showwrap/git" <<EOF2
+#!/bin/sh
+# git show only: a rev-parse that fails is a claim gone, skipped by design.
+s=0
+for a in "\$@"; do
+  [ "\$a" = show ] && s=1
+  case "\$a" in refs/remotes/origin/m/stall:*) [ "\$s" = 1 ] && exit 1 ;; esac
+done
+exec "$(type -P git)" "\$@"
+EOF2
+cat >"${TMP:?}/retroev-logwrap/git" <<EOF2
+#!/bin/sh
+for a in "\$@"; do [ "\$a" = '--diff-filter=D' ] && exit 1; done
+exec "$(type -P git)" "\$@"
+EOF2
+chmod +x "${TMP:?}/retroev-showwrap/git" "${TMP:?}/retroev-logwrap/git"
+re_repo unread 30
+re_park unread m/stall stall "$(rt_url Stall3)" "\"${re_stall}\""
+out="$(re_run unread PATH="${TMP:?}/retroev-showwrap:${PATH}" -- retro)"
+expect "retro: a parked claim that cannot be read is UNREADABLE" "retro : UNREADABLE — " "$out"
+refute "retro: and never due" "retro DUE" "$out"
+out="$(re_run audit PATH="${TMP:?}/retroev-logwrap:${PATH}" -- retro --audit)"
+expect "retro --audit: retires that cannot be read are UNREADABLE" "cadence   : UNREADABLE — " "$out"
+refute "retro --audit: and never DUE" "cadence   : DUE" "$out"
