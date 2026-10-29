@@ -42,7 +42,6 @@ c2_cleanup() {
     [ ! -d "${work}/${t}" ] || git -C "$repo" worktree remove --force "${work}/${t}" 2>/dev/null
   done
   rm -rf "$work"
-  git -C "$repo" worktree prune 2>/dev/null
 }
 trap c2_cleanup EXIT
 
