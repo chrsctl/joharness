@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK6gNXbfQ7FMdpjZ81P
 agent: opus
 updated: 2026-10-29
-next: Run ci and verify, then verifier at opus, then retire and open the PR
+next: Verifier (opus) running; record its findings, retry verify (docker hub 429 on alpine:3), retire, PR
 ---
 
 ## Goal
