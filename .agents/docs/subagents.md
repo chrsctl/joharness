@@ -55,7 +55,8 @@ Fan-out names two mechanisms; plans and managers' prompts mean the second:
 ## What a stranger's spawn prompt carries
 
 - **Verifier**: its tier, the branch, the merge base sha (or a detached
-  worktree path), the plan stem. Nothing else.
+  worktree path), the plan stem. Nothing else. On a scout pass, which has
+  no diff: its tier and the links to the issues filed and comments posted.
 - **Plan-checker**: the plan file path. Nothing else.
 - **Challenger**: the path of the text under challenge and one lens name.
   Nothing else; `.claude/agents/challenger.md` reports more as a finding.
