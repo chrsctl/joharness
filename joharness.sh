@@ -5827,7 +5827,7 @@ cmd_role() {
     # The old name of retro's audit mode: a consumer's stale conduct.md runs it.
     conduct) role=audit; shift ;;
     curate) printf 'STOP: the curator role was removed; run ./joharness.sh curate\n'; return 0 ;;
-    *) die "usage: $0 role <clerk|scout|retro [--audit]|conduct> [--ordered] [--session <url>] [--agent <tier>] [--twin|--retire]" ;;
+    *) die "usage: $0 role <clerk|scout|retro [--audit]|conduct> [--ordered: clerk, retro] [--session <url>] [--agent <tier>] [--twin|--retire]" ;;
   esac
   while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -5840,7 +5840,7 @@ cmd_role() {
       --ordered) ordered=1 ;;
       --session) session="${2:-}"; shift ;;
       --agent)   agent="${2:-}"; shift ;;
-      *) die "unknown option '$1' (try: $0 role ${role} [--ordered] [--session <url>] [--agent <tier>] [--twin|--retire])" ;;
+      *) die "unknown option '$1' (try: $0 role ${role} [--ordered: clerk, retro] [--session <url>] [--agent <tier>] [--twin|--retire])" ;;
     esac
     shift
   done

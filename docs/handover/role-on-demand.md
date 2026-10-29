@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK6gHK4nAR5kZPp5VAT
 agent: opus
 updated: 2026-10-29
-next: Run ci and verify on the merged head, then finish
+next: Retire, open the pull request, finish, merge
 ---
 
 ## Goal
@@ -72,6 +72,11 @@ unreadable gates, so on-demand never means two of one role.
 - r31: (verifier) `role_suppressed` stops on an unreadable audit cycle where dispatch spawns (fixed: unreadable or off counts no rows, as dispatch)
 - r32: (verifier) branch behind origin/main with an orchestrated.md conflict (fixed: merged, knob rows carry both texts)
 - r33: (verifier) the command files key `--ordered` on the prompt's first line, but the runtime expands the arguments at the file's end (fixed: keyed on the command's arguments)
+- r34: (verifier) CLERK_HOURS row says only `--ordered` runs any time; a bare `/clerk` does too (fixed)
+- r35: (verifier) CONDUCT_HOURS and RETRO_HOURS rows omit `suppressed` (fixed)
+- r36: (verifier) usage advertises `--ordered` for scout, which refuses it (fixed: names clerk, retro)
+- r37: (verifier) "clerk --ordered when not due" never asserts not due (fixed)
+- r38: (verifier) the Goal narrowed to `--ordered` for a bare `/retro` (no change: r19, flagged in the pull request body)
 
 ## Blockers
 

@@ -354,6 +354,7 @@ expect "retro --audit --twin stops when the Clock no longer reads due" "STOP: TW
 git -C "$role_work" checkout -q main
 out="$(role_run ./joharness.sh role clerk --ordered)"
 expect "clerk --ordered when not due: GO, as without it" "GO clerk-${role_today}" "$(role_last "$out")"
+expect "and its report did read not due" "cadence   : not due" "$out"
 git -C "$role_work" checkout -q main
 git -C "$role_work" branch -q -D "clerk-${role_today}"
 out="$(role_run ./joharness.sh role clerk)"
