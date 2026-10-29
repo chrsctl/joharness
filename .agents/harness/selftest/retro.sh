@@ -463,7 +463,7 @@ expect "retro-audit.md: audit's open-PR check takes both its names" \
 # under the floor, or with the floor 0, the clock alone decides.
 # <name> <ledger hours ago> — a fresh repository, both ledgers landed then.
 re_repo() {
-  local w="${TMP}/retroev-$1" o="${TMP}/retroev-$1.git" t
+  local w="${TMP:?}/retroev-$1" o="${TMP:?}/retroev-$1.git" t
   git init -q --bare "$o"
   git init -q "$w"
   git -C "$w" symbolic-ref HEAD refs/heads/main
@@ -490,7 +490,7 @@ re_repo() {
 }
 # <name> <branch> <stem> <session> <next: value> — a parked claim, pushed.
 re_park() {
-  local w="${TMP}/retroev-$1" t
+  local w="${TMP:?}/retroev-$1" t
   git -C "$w" checkout -q -b "$2" main
   mkdir -p "${w}/docs/handover"
   printf -- '---\nworkstream: %s\nstatus: blocked\nbranch: %s\nplan: %s\nsession: %s\nagent: sonnet\nnext: %s\n---\n\n## Blockers\n\nNone.\n' \
@@ -503,7 +503,7 @@ re_park() {
 }
 # <name> <stem> — a manager workstream file claimed and retired on main, now.
 re_retire() {
-  local w="${TMP}/retroev-$1"
+  local w="${TMP:?}/retroev-$1"
   printf -- '---\nworkstream: %s\nstatus: done\nplan: %s\n---\n' "$2" "$2" >"${w}/docs/handover/${2}.md"
   git -C "$w" add -A && git -C "$w" commit -qm "claim $2"
   git -C "$w" rm -q "docs/handover/${2}.md"
@@ -513,7 +513,7 @@ re_retire() {
 }
 # <name> [env...] -- <args> — joharness.sh in that repository.
 re_run() {
-  local w="${TMP}/retroev-$1"; shift
+  local w="${TMP:?}/retroev-$1"; shift
   local -a e=()
   while [ "$#" -gt 0 ] && [ "$1" != -- ]; do e+=("$1"); shift; done
   shift
@@ -538,9 +538,9 @@ expect "retro: FLOOR_HOURS=0 is clock only" "retro : not due — 30h since the l
 expect "retro: the clock still wins past it" "retro DUE: spawn ONE retro reviewer — 30h since the ledger last landed (>= 24h)" \
   "$(re_run stall JOHARNESS_RETRO_HOURS=24 -- retro)"
 # The ledger logs the session: its park fires no more.
-printf '| 2026-01-02 | m/stall | %s | nothing |\n' "$(rt_url Stall1)" >>"${TMP}/retroev-stall/docs/retro-log.md"
-git -C "${TMP}/retroev-stall" add -A && git -C "${TMP}/retroev-stall" commit -qm "retro rows"
-git -C "${TMP}/retroev-stall" push -q origin main
+printf '| 2026-01-02 | m/stall | %s | nothing |\n' "$(rt_url Stall1)" >>"${TMP:?}/retroev-stall/docs/retro-log.md"
+git -C "${TMP:?}/retroev-stall" add -A && git -C "${TMP:?}/retroev-stall" commit -qm "retro rows"
+git -C "${TMP:?}/retroev-stall" push -q origin main
 expect "retro: a logged park is no evidence, and the new landing resets the floor" \
   "retro : not due — 0h since the ledger last landed" "$(re_run stall JOHARNESS_RETRO_FLOOR_HOURS=0 -- retro)"
 
@@ -560,9 +560,9 @@ re_park human m/money money "$(rt_url Money1)" 'money: stalled: needs a paid acc
 expect "retro: a money: park is no event" "retro : not due — 30h" "$(re_run human -- retro)"
 
 re_repo concern 30
-printf '| 2026-01-15 | alpha | CONCERN | x |\n' >>"${TMP}/retroev-concern/docs/conduct-log.md"
-git -C "${TMP}/retroev-concern" add -A && git -C "${TMP}/retroev-concern" commit -qm "audit rows"
-git -C "${TMP}/retroev-concern" push -q origin main
+printf '| 2026-01-15 | alpha | CONCERN | x |\n' >>"${TMP:?}/retroev-concern/docs/conduct-log.md"
+git -C "${TMP:?}/retroev-concern" add -A && git -C "${TMP:?}/retroev-concern" commit -qm "audit rows"
+git -C "${TMP:?}/retroev-concern" push -q origin main
 # The audit ledger landed now; trace's 30h ago.
 expect "retro: an untraced CONCERN past the floor is due, naming it" \
   "retro DUE: spawn ONE retro reviewer — an audit CONCERN is not yet traced (concern:2026-01-15:alpha), ahead of the cadence (>= 24h floor)" \
@@ -596,3 +596,30 @@ re_repo ayoung 2
 re_retire ayoung one; re_retire ayoung two; re_retire ayoung three
 expect "retro --audit: under the floor a full sample waits" "cadence   : not due — 2h" \
   "$(re_run ayoung -- retro --audit)"
+# Fail closed: a read the early path needs that fails is UNREADABLE, never
+# due and never a quiet not-due.
+mkdir -p "${TMP:?}/retroev-showwrap" "${TMP:?}/retroev-logwrap"
+cat >"${TMP:?}/retroev-showwrap/git" <<EOF2
+#!/bin/sh
+# git show only: a rev-parse that fails is a claim gone, skipped by design.
+s=0
+for a in "\$@"; do
+  [ "\$a" = show ] && s=1
+  case "\$a" in refs/remotes/origin/m/stall:*) [ "\$s" = 1 ] && exit 1 ;; esac
+done
+exec "$(type -P git)" "\$@"
+EOF2
+cat >"${TMP:?}/retroev-logwrap/git" <<EOF2
+#!/bin/sh
+for a in "\$@"; do [ "\$a" = '--diff-filter=D' ] && exit 1; done
+exec "$(type -P git)" "\$@"
+EOF2
+chmod +x "${TMP:?}/retroev-showwrap/git" "${TMP:?}/retroev-logwrap/git"
+re_repo unread 30
+re_park unread m/stall stall "$(rt_url Stall3)" "\"${re_stall}\""
+out="$(re_run unread PATH="${TMP:?}/retroev-showwrap:${PATH}" -- retro)"
+expect "retro: a parked claim that cannot be read is UNREADABLE" "retro : UNREADABLE — " "$out"
+refute "retro: and never due" "retro DUE" "$out"
+out="$(re_run audit PATH="${TMP:?}/retroev-logwrap:${PATH}" -- retro --audit)"
+expect "retro --audit: retires that cannot be read are UNREADABLE" "cadence   : UNREADABLE — " "$out"
+refute "retro --audit: and never DUE" "cadence   : DUE" "$out"

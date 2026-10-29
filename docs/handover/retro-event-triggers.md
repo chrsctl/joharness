@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK5Sd1Dd2vzKcKvG8Gj
 agent: opus
 updated: 2026-10-29
-next: Read the selftest count for the retro topic; fix any red, then ci, verify, verifier, finish
+next: Spawn the opus verifier on this head, record its findings, then ci, finish
 ---
 
 ## Goal
@@ -28,6 +28,8 @@ passed since its ledger landed.
 - A6: confirmed — both modes date age from `retro_landed_ts`, which the floor reuses.
 - The event reader walks `retro_candidates` only, so a session the ledger logs never re-fires (no thrash); a stalled/respawns hit sets `RETRO_QB` so it leads the sample.
 - Full sample = count of `retro_sample "$sample"` / `conduct_sample "$sample"` (`N = 0` stops at one).
+- `./joharness.sh verify` 2026-10-29 first run on this branch: 4 passed, 2 failed (docker networking, compose); paired run on origin/main b6a0dae4: 6 passed, 0 failed; branch re-run with the daemon warm: 6 passed, 0 failed. Read as a cold-daemon first run, not this diff (no `.agents/env/` change).
+- New due cases, extracted and run against origin/main's joharness.sh 2026-10-29: 11 FAIL; on this branch 23 passed, 0 failed. Mutation: the `retro_event_block` `?` arm turned to `continue` = the UNREADABLE case fails.
 - sha1 missing with no evidence = not due (nothing to draw); with evidence = unreadable.
 
 ## Rejected
