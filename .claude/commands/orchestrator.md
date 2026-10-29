@@ -176,7 +176,10 @@ or command that says nothing to do spawns nothing.
   this pass's spawns (dispatch already took their slots): ref § Resume.
 - Edge work whose session is gone first. An item already in your ledger
   spawns only when this pass's health pass said so.
-- Skip `HOLD`, `WAIT`. `that branch is BLOCKED on a human:
+- Skip `HOLD`, `WAIT`. `HOLD — red base: #<n> (<k> parked)` = two or more
+  managers parked on #<n>, no plan names it: report it, spawn no manager
+  (verdict `DEFECT-BOUND`); a plan naming #<n> lifts it, the clerk's
+  path. `that branch is BLOCKED on a human:
   spawn` is free; add the reconcile line. `CORE ONLY — build it` is free,
   the usual prompt: its manager routes the core edit (manager.md §2).
 - `UNPLANNED` or `PARTLY PLANNED` requirement = ONE planning manager, fable,
@@ -253,9 +256,10 @@ line (`JOHARNESS_ORCHESTRATOR_PASSES`; `lifted` = never) = arm as above
 with `retire=yes` on the `harness=` line, every pass from then on. The
 first pass that arms `retire=yes` → ref § RETIRE.
 
-RUN END. A pass that ends at DRAINED or PAUSED arms nothing. Ends = the
-verdict `DRAINED — nothing free, nothing in flight: exit` or `PAUSED — …
-spawn nothing, exit`; any other DRAINED or PAUSED verdict is no end. Its last act,
+RUN END. A pass that ends at DRAINED, PAUSED or DEFECT-BOUND arms nothing. Ends = the
+verdict `DRAINED — nothing free, nothing in flight: exit`, `PAUSED — …
+spawn nothing, exit` or `DEFECT-BOUND — … spawn no manager, exit`; any
+other DRAINED, PAUSED or DEFECT-BOUND verdict is no end. Its last act,
 after the final report: `set_session_title` yours to `💤 orchestrator
 (retired): <owner/repo>`, so the session list reads it as done and a wake
 that still fires does nothing (Pass entry, Retired). The same last act

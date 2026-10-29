@@ -316,7 +316,7 @@ question in the report, and is never respawned.
 
 One block is not a human's: `defect: #<n>: …`, a manager parked on a defect
 outside its item. `dispatch` prints it `PARKED #<n>`: no slot, not counted
-as waiting, the verdict line unchanged. From git alone: a plan naming #<n>
+as waiting, the verdict line unchanged (two on one unplanned issue aside, below). From git alone: a plan naming #<n>
 leaves the base's first parent after the block commit (a rename is no
 retire) and no plan on the base or a live branch names #<n> = `RESUME`, a slot, never DRAINED; no plan,
 the block `JOHARNESS_DEFECT_RECHECK_HOURS` old, the base moved = `RECHECK`
@@ -334,6 +334,17 @@ tip predates the first park, nothing pushed in the
 park-called clerk pushes after the park, so it never yields to a third; its
 twin check reads the same park, its own plans not counted, and passes over
 that one clerk (`joharness.sh:clerk_twin_rows`). A due cadence yields alike.
+
+Two or more parks on one issue no plan names (`PARKED`, `UNPLANNED`,
+`STUCK` or `RECHECK`; no plan on the base or a live branch names it) hold
+every spawn row: `HOLD — red base: #<n> (<k> parked)`, verdict
+`DEFECT-BOUND`. One park may be the manager's own reading; two is a base
+every new manager finishes on red. With five parked on one unplanned
+`blocking:` defect, the gx orchestrator spawned two more onto it and both
+parked within 15 minutes (chrsctl/gx, 2026-10-29, #1101; not re-taken
+here). A held row stays queued and takes no slot; a plan naming #<n>, on
+the base or a live branch, lifts it. RESUME and RECHECK rows still take
+their slots: a resume rechecks the base, a spawn would only add a park.
 
 A park on an issue no plan names waits on the clerk's cadence: in a run the
 clerk is the only automated path from an issue to a plan (a human or session
