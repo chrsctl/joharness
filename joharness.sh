@@ -147,7 +147,7 @@ JOHARNESS_DEFECT_CLERK_HOURS|1|dispatch|Hours after the first defect: park on an
 JOHARNESS_ISSUE_CLERK_HOURS|1|dispatch|Hours an open issue no clerk has read, not planned or claimed, waits before the orchestrator spawns the clerk ahead of its cadence; never below JOHARNESS_DEFECT_CLERK_HOURS; 0 = off.
 JOHARNESS_DEFECT_FIX_HOURS|72|dispatch|Hours after the first defect: park on an issue with no RESUME = PARKED STUCK; 0 lifts it.
 JOHARNESS_DEFECT_RECHECK_HOURS|2|dispatch|Hours after a defect: block, the base moved since and no plan naming its issue, before PARKED RECHECK; 0 lifts it.
-JOHARNESS_SCOUT_REVIEWER||base-conf|GitHub login whose approved comment gates a scout proposal; empty = none. Read from the base branch conf.
+JOHARNESS_SCOUT_REVIEWER||base-conf|GitHub login naming who applies the approved label that gates a scout proposal; empty = none. Read from the base branch conf.
 JOHARNESS_SCOUT_RESEARCH|off|base-conf|Exactly on = a scout pass may read outside the repository. Read from the base branch conf.
 JOHARNESS_CANONICAL||session|Conf line JOHARNESS_CANONICAL=1 marks the canonical checkout; never in a consumer.
 JOHARNESS_CONF|computed|session|Path of the conf file; default joharness.conf under the checkout.
@@ -4092,7 +4092,7 @@ cmd_scout() {
   # The clerk's scout gate reads this line: printed when off too.
   printf 'reviewer  : %s (JOHARNESS_SCOUT_REVIEWER) — ' "$(scout_reviewer)"
   if [ "$(scout_reviewer)" = none ]; then printf 'nothing can be approved\n'
-  else printf 'their approved comment is the gate\n'; fi
+  else printf 'the label approved is the gate\n'; fi
   printf 'research  : %s (JOHARNESS_SCOUT_RESEARCH); budget %s outside reads a pass (JOHARNESS_SCOUT_READS)\n\n' \
     "$(scout_research)" "$(num_knob JOHARNESS_SCOUT_READS)"
 }

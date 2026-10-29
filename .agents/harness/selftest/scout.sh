@@ -994,5 +994,5 @@ expect "research on the branch's conf alone reads off" "research  : off" "$out"
 scommit "the human names a reviewer"
 git -C "$scout_work" push -q origin main
 out="$(sct)"
-expect "the reviewer in main's conf reads through" "reviewer  : mallory (JOHARNESS_SCOUT_REVIEWER) — their approved comment is the gate" "$out"
+expect "the reviewer in main's conf reads through" "reviewer  : mallory (JOHARNESS_SCOUT_REVIEWER) — the label approved is the gate" "$out"
 expect "research on in main's conf reads on" "research  : on (JOHARNESS_SCOUT_RESEARCH)" "$out"

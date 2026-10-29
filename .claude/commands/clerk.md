@@ -62,21 +62,19 @@ issue: a proposal (title starts `scout:`) or a research request (no
 prefix). A request is never taken. A proposal is taken only when APPROVED;
 else skip it, uncounted, reason in the report and pull request body:
 
-1. the NEWEST, by created time, of the unfooted comments (§2's footer rule)
-   of the login the `reviewer  :` line of `./joharness.sh scout` prints
-   (first word after the colon) has first word `approved`, any case,
-   trailing punctuation ignored;
-2. it is newer than the SCOUT COMMENT: the newest footed comment opening
-   `scout:` by an author with write access (the author gate); none = any;
-3. the scout comment does not open `scout: revision`: its body edit is not
-   made yet (`scout: revised` closes it). Else `REVISION OPEN`.
+1. the issue carries the label `approved` (`issue_read` `get_labels`), and
+   `reviewer  :` of `./joharness.sh scout` names a login (not `none`);
+2. no `scout: revision` is open: the newest footed `scout:` comment by an
+   author with write access (the author gate) does not open `scout:
+   revision` (`scout: revised` closes it). Else `REVISION OPEN`.
 
-No other comment approves or stales it. Read every page with `issue_read`
-`get_comments`; a failing page = skip, `APPROVAL UNREADABLE: <error>`. The
-label `approved` is a marker only. `reviewer  : none` = take no proposal.
-CLOSED = declined. A passing proposal still meets the skip list and the
-author gate; the reviewer's approving comment newer than your clerk verdict
-reopens it.
+A label carries no author or time through the MCP tools, so the clerk cannot
+see who applied it or whether a revision followed it. The reviewer removes
+and re-applies `approved` after every `scout: revised`; a label still on an
+issue is read as that approval. A failing `get_labels` read = skip,
+`APPROVAL UNREADABLE: <error>`. A comment approves nothing. `reviewer  :
+none` = take no proposal. CLOSED = declined. A passing proposal still meets the skip list and the
+author gate; a closed-then-reopened issue still carrying the label is read afresh.
 
 Then the AUTHOR GATE, before reading further: only an issue whose author has
 write access (collaborator permission `write`, `maintain` or `admin`) is

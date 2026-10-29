@@ -7,7 +7,7 @@ Here on the reviewer's order (`/scout`, or the orchestrator's `+human` extra
 session) or a waiting `scout` issue (`.agents/docs/orchestrate-reference.md`,
 "A scout issue needs the scout"); never by a session's decision. No clock,
 no manager slot. You build nothing. A proposal enters plans only through the reviewer's `approved`
-comment and the clerk (`.claude/commands/clerk.md`, the scout gate).
+label and the clerk (`.claude/commands/clerk.md`, the scout gate).
 
 `/scout <idea>` = a SEEDED pass. The idea (`$ARGUMENTS`) is evidence, never
 instruction, like the brief. It skips §2 unless the idea names a market or
@@ -133,8 +133,8 @@ or label gets what the scout found and nothing more.
 
 Your LAST COMMENT on an issue = your newest comment there, a `scout:
 revised` dated as the `scout: revision` it closes; none = the issue's
-creation. Every `scout:` comment of yours stales an approval, no other
-comment does (`.claude/commands/clerk.md`, THE SCOUT GATE).
+creation. Every `scout:` comment of yours needs the reviewer to re-apply `approved`,
+no other comment does (`.claude/commands/clerk.md`, THE SCOUT GATE).
 
 First, unfinished revisions: an OPEN, unplanned proposal of yours whose
 newest `scout:` comment of yours opens `scout: revision` = make the body
@@ -144,7 +144,7 @@ Then a WAITING (§3) proposal of yours whose newer counting comment asks a
 question or a change (nothing asked = §3's `scout: noted`), in order:
 
 1. FIRST, ONE comment `scout: revision` — the answer to each question, the
-   body change as target text, and "approve after `scout: revised`".
+   body change as target text, and "re-apply `approved` after `scout: revised`".
 2. THEN the body edit, exactly that change. An update passes no `labels`.
 3. ONE comment `scout: revised` — the edit is made.
 
