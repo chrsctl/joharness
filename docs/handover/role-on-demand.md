@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK6gHK4nAR5kZPp5VAT
 agent: opus
 updated: 2026-10-29
-next: Run ci and verify, then the verifier at opus
+next: Record the opus verifier's findings, fix, then finish
 ---
 
 ## Goal
@@ -48,6 +48,7 @@ unreadable gates, so on-demand never means two of one role.
 - r9: (plan-checker) acceptance not runnable commands (fixed)
 - r10: (plan-checker) acceptance names no failure output (fixed)
 - r11: (plan-checker) no acceptance case for the twin under `--ordered` (fixed)
+- r12: (plan-checker) the tree moved during its read (no change: a plan check reads the plan; the verifier runs on a still tree)
 
 ## Blockers
 
