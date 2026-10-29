@@ -169,7 +169,7 @@ Route: `.agents/docs/plans.md`, Shape).
 One plan per issue, unless the issue names asks separable on its own words.
 A plan's `issue:` is how the issue closes: the manager's pull request says
 `Closes #<N>` when no other queued plan names that issue and the plan has no
-`## Issue remainder` section, `Refs #<N>` otherwise (`manage.md` §4).
+`## Issue remainder` section, `Refs #<N>` otherwise (`manager.md` §4).
 
 Every comment opens `clerk: <VERDICT>` (§2 reads that prefix) and ends with
 the attribution footer this session's system prompt names. One comment per

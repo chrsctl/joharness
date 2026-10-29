@@ -66,7 +66,7 @@ expect "an all-protocol scope is marked CORE ONLY" \
 expect "and the mark says why" "scope is all core paths" "$out"
 # The mark is a rank, not a refusal: a manager builds the core edit in a
 # human/<stem> pull request and a human merges it
-# (.agents/docs/manage-reference.md, Human remainder). Alone in the queue it
+# (.agents/docs/manager-reference.md, Human remainder). Alone in the queue it
 # is free work, so the edge is not reached over it.
 refute "the edge is not reached over it" "Edge reached: no free plan" "$out"
 expect "it is offered as free work" "top free plan above" "$out"

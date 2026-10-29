@@ -18,7 +18,7 @@ startconf="${TMP}/start.conf"
 jstart() { JOHARNESS_CONF="$startconf" "${ROOT}/joharness.sh" start 2>&1; }
 
 expect "start routes to the orchestrator command" \
-  "follow    : .claude/commands/orchestrate.md" "$(jstart)"
+  "follow    : .claude/commands/orchestrator.md" "$(jstart)"
 refute "and prints no mode line" "mode      :" "$(jstart)"
 # Deleted subcommands are unknown, not quietly kept.
 startdel="$(JOHARNESS_CONF="$startconf" "${ROOT}/joharness.sh" drain 2>&1)"; startdel_rc=$?
@@ -39,7 +39,7 @@ fi
 # The role under orchestrated belongs to the prompt. A command that reads a
 # conf cannot see one, and the output says so BEFORE it names a file — a
 # reader takes the first imperative it meets, and for a manager that must
-# not be "read orchestrate.md".
+# not be "read orchestrator.md".
 expect "a manager is told to stop before any file is named" \
   "you are a MANAGER of that item" "$(jstart)"
 # Line numbers, not a fixed shape: the assertion is the ORDER, and a case
@@ -63,7 +63,7 @@ startarg="$(JOHARNESS_CONF="$startconf" "${ROOT}/joharness.sh" start x 2>&1)"
 startarg_rc=$?
 expect "an argument is refused" "start takes no argument" "$startarg"
 expect "and the refusal names the commands that do take one" \
-  "/manage <item>" "$startarg"
+  "/manager <item>" "$startarg"
 if [ "$startarg_rc" -ne 0 ]; then
   pass "and is a non-zero exit"
 else
@@ -83,7 +83,7 @@ expect "a routed file this checkout does not have is named as missing" \
   "MISSING from this checkout" "$startold_out"
 expect "and the fix is named" "A sync brings it" "$startold_out"
 expect "and the missing file is the orchestrator's" \
-  "orchestrate.md" "$startold_out"
+  "orchestrator.md" "$startold_out"
 if [ "$startold_rc" -ne 0 ]; then
   pass "and it is a non-zero exit"
 else
@@ -92,7 +92,7 @@ fi
 
 # Every file this command can route to has to exist in THIS repo, or the
 # command ships a dangling pointer to every consumer.
-for startfile in orchestrate manage; do
+for startfile in orchestrator manager; do
   if [ -f "${ROOT}/.claude/commands/${startfile}.md" ]; then
     pass "the ${startfile} command this routes to is in the tree"
   else

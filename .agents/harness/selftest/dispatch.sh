@@ -704,7 +704,7 @@ expect "past the stall window the row is marked" "STALL? no push for" \
 expect "and sends the reader to the control plane, by the item's own stem" \
   "cross-check the control plane by TITLE (🔨 manager: eta)" "$out"
 expect "and leaves the verdict to the health table" \
-  "the verdict is the health table's (.claude/commands/orchestrate.md, step 2), never this row's" "$out"
+  "the verdict is the health table's (.claude/commands/orchestrator.md, step 2), never this row's" "$out"
 refute "no edge row orders a respawn itself" "respawn on the branch" "$out"
 # The VERDICT's count, not just the row's token. Folding the edge rows into
 # n_stall and asserting only row text left the fold green both ways: four
@@ -730,13 +730,13 @@ out="$(dsp env JOHARNESS_MAX_MANAGERS=8)"
 refute "a branch that never wrote a workstream file holds no slot" "mgr-nofile" "$out"
 expect "so the count does not move for it" "slots     : 3 of 8 free" "$out"
 
-# A `human-review` label found at merge (manage-reference.md, Label at
+# A `human-review` label found at merge (manager-reference.md, Label at
 # merge): the manager restores its retired workstream file as blocked. The
 # retired row above holds a slot; the restored blocked file must not, or a
 # pull request waiting days on a human starves the fleet. Retired again after,
 # so the cases below read the branch as they did.
 # The reference's own commands, so the case runs the procedure as written.
-lbl="$(sed -n '/^## Label at merge/,/^## /p' "${ROOT}/.agents/docs/manage-reference.md")"
+lbl="$(sed -n '/^## Label at merge/,/^## /p' "${ROOT}/.agents/docs/manager-reference.md")"
 # shellcheck disable=SC2016  # literal text the reference prints
 expect "the reference finds the retire commit by the file's deletion" \
   'c="$(git log -1 --format=%H --diff-filter=D -- docs/handover/<file>)"' "$lbl"
@@ -775,7 +775,7 @@ expect "and gives its slot back" "slots     : 4 of 8 free" "$out"
 refute "its item leaves the queue with it" "docs/plans/eta.md" "$out"
 
 # The same edge on a human/<stem> branch: its pull request is a human's to
-# merge (manage.md §2), so no manager is left to hold a slot for. Counting it
+# merge (manager.md §2), so no manager is left to hold a slot for. Counting it
 # showed "0 of 4 free" over three managers on chrsctl/gx (2026-10-28), with
 # a STALL? on a branch whose next step was a human's click.
 dspplan omicron
@@ -923,7 +923,7 @@ expect "two items retired, still one slot" "slots     : 0 of 8 free" "$out"
 # WHICH item the row names is the by-title lookup's input, so it must be the
 # one the manager was spawned on — not whichever git listed first.
 # `nu` sorts before `xi`; the record names `xi`. Named wrong, the lookup
-# misses a live manager, the row reads as gone, and orchestrate.md respawns
+# misses a live manager, the row reads as gone, and orchestrator.md respawns
 # onto its branch.
 dspplan nu
 dspplan xi

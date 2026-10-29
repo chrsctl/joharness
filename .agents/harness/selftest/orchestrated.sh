@@ -48,8 +48,8 @@ orcj() { CLAUDE_PROJECT_DIR="$orcwork" JOHARNESS_CONF="$orcconf" \
 out="$(orcj session-start 2>/dev/null)"
 expect "session-start announces the mode with nothing set" \
   "== Mode: orchestrated ==" "$out"
-expect "the banner names the manager role by its command" "/manage" "$out"
-expect "and the orchestrator role by its command" "/orchestrate" "$out"
+expect "the banner names the manager role by its command" "/manager" "$out"
+expect "and the orchestrator role by its command" "/orchestrator" "$out"
 expect "and the orchestrator's one read" "./joharness.sh dispatch" "$out"
 expect "the default role is the orchestrator" \
   "Neither? You are the" "$out"
@@ -67,7 +67,7 @@ expect "down to the last entry" "  .github" "$out"
 # Released 2026-10-08: the harness layer is protocol text a session may edit.
 refute "and the released harness layer is not listed" "  .agents/harness" "$out"
 expect "and points each role at its command, which is its rules" \
-  ".claude/commands/orchestrate.md, manage.md" "$out"
+  ".claude/commands/orchestrator.md, manager.md" "$out"
 expect "and routes the keeper by its prompt" \
   "Prompt is /keeper? The" "$out"
 expect "start routes the keeper by its prompt too" \
@@ -79,7 +79,7 @@ refute "and not at the design doc the roles never open" \
 # rules have decayed and the task state has not.
 out="$(printf '{"source":"compact"}' | orcj session-start 2>/dev/null)"
 expect "a compacted orchestrated session is pointed at its rules" \
-  "Its rules: your role's command — .claude/commands/orchestrate.md or manage.md (or keeper.md)" "$out"
+  "Its rules: your role's command — .claude/commands/orchestrator.md or manager.md (or keeper.md)" "$out"
 # Each role reads its own documents: the queue and the fleet-wide handover
 # view are not injected here. The orchestrator reads them through dispatch,
 # a manager works one item.
@@ -184,21 +184,21 @@ git -C "$orcwork" push -q origin main
 # about items it does NOT own dies with it — the branch holds its own findings
 # and nothing holds these. The field is prose in two command files, and the
 # manager is the party that CANNOT see a mismatch between them: it sends what
-# manage.md asks for, into a grammar orchestrate.md defines. So the spelling
+# manager.md asks for, into a grammar orchestrator.md defines. So the spelling
 # is pinned in BOTH files here rather than read once and assumed.
 #
 # Every needle below was grep-checked against the file it reads before being
 # committed. Two of them were written from the sentence as typed rather than
 # the wrapped line the file holds, and both failed on the real file; a needle
 # that has never matched anything is indistinguishable from one that never will.
-orcmd="${ROOT}/.claude/commands/orchestrate.md"
-mgrmd="${ROOT}/.claude/commands/manage.md"
+orcmd="${ROOT}/.claude/commands/orchestrator.md"
+mgrmd="${ROOT}/.claude/commands/manager.md"
 orctext="$(cat "$orcmd")"
 keepmd="${ROOT}/.claude/commands/keeper.md"
 mgrtext="$(cat "$mgrmd")"
-# manage.md's rare branches live in its reference, moved verbatim; a pin on
+# manager.md's rare branches live in its reference, moved verbatim; a pin on
 # moved text reads it there.
-mgrrefmd="${ROOT}/.agents/docs/manage-reference.md"
+mgrrefmd="${ROOT}/.agents/docs/manager-reference.md"
 mgrreftext="$(cat "$mgrrefmd" 2>/dev/null)"
 clerktext=""
 [ -f "${ROOT}/.claude/commands/clerk.md" ] && clerktext="$(cat "${ROOT}/.claude/commands/clerk.md")"
@@ -215,16 +215,16 @@ expect "and the manager sends on the transport its prompt names" \
 orcfold="$(tr '\n' ' ' <"$orcmd" | tr -s ' ')"
 # The rare branches live in the reference, moved verbatim; a pin on moved
 # text reads it there, and every section must be reachable from a pointer.
-refmd="${ROOT}/.agents/docs/orchestrate-reference.md"
+refmd="${ROOT}/.agents/docs/orchestrator-reference.md"
 reffold="$(tr '\n' ' ' <"$refmd" 2>/dev/null | tr -s ' ')"
-refute "orchestrate.md no longer says +send_message finds nothing" \
+refute "orchestrator.md no longer says +send_message finds nothing" \
   "Searching \`+send_message\` finds" "$orcfold"
 # A block names its reason (issue #392): the spellings every writer shares.
-for pair in 'manage.md|github: GitHub MCP lost' 'manage.md|<reason>: <question>' \
-  'orchestrate-reference.md|stalled: Stalled' 'orchestrate-reference.md|respawns: Respawned' \
-  'orchestrate.md|INVALID BLOCK?' 'orchestrate.md|notified='; do
+for pair in 'manager.md|github: GitHub MCP lost' 'manager.md|<reason>: <question>' \
+  'orchestrator-reference.md|stalled: Stalled' 'orchestrator-reference.md|respawns: Respawned' \
+  'orchestrator.md|INVALID BLOCK?' 'orchestrator.md|notified='; do
   f="${ROOT}/.claude/commands/${pair%%|*}"
-  [ "${pair%%|*}" = orchestrate-reference.md ] && f="$refmd"
+  [ "${pair%%|*}" = orchestrator-reference.md ] && f="$refmd"
   expect "${pair%%|*} spells ${pair#*|}" "${pair#*|}" "$(cat "$f")"
 done
 # The orchestrator retires after a fixed pass count: the knob is the
@@ -252,19 +252,19 @@ else
   fail "the keeper's swap retitles before it starts the successor (retitle ${retitle_ln:-none}, spawn ${spawn_ln:-none})"
 fi
 # shellcheck disable=SC2016 # literal backticks in the needles
-expect "orchestrate.md spells JOHARNESS_ORCHESTRATOR_PASSES" \
+expect "orchestrator.md spells JOHARNESS_ORCHESTRATOR_PASSES" \
   'JOHARNESS_ORCHESTRATOR_PASSES' "$orcfold"
 # shellcheck disable=SC2016 # literal backticks in the needles
 for needle in 'retire ready <your session id>' \
   'keeper not rung' \
   'set_session_title` yours to `👯 orchestrator (duplicate): <owner/repo>`'; do
-  expect "orchestrate-reference.md spells ${needle}" "$needle" "$reffold"
+  expect "orchestrator-reference.md spells ${needle}" "$needle" "$reffold"
 done
 # Rules moved into the reference with no pin of their own: each needle is
 # grep-checked against the reference, so a silent edit there goes red.
 # shellcheck disable=SC2016 # literal backticks in the needles
 for needle in 'ledger `held-human=<pr>`' \
-  'Orchestrator health pass: you stopped asking for input while status is in-progress. Do the work, or set status blocked with a reason from manage.md §3, push.' \
+  'Orchestrator health pass: you stopped asking for input while status is in-progress. Do the work, or set status blocked with a reason from manager.md §3, push.' \
   'STILLBORN: `archive_session`, plain spawn of the ITEM, counted; at the limit report' \
   'ledger `held=<updated_at>`' \
   'the ledger key `corewait=<stem>#<N>[,<stem>#<N>]` is' \
@@ -276,7 +276,7 @@ for needle in 'ledger `held-human=<pr>`' \
   '(i) its newest counting comment' \
   '(ii) its title does not start `scout:`' \
   '(iii) its scout comment opens `scout: revision`'; do
-  expect "orchestrate-reference.md spells ${needle}" "$needle" "$reffold"
+  expect "orchestrator-reference.md spells ${needle}" "$needle" "$reffold"
 done
 # Each clause that keeps one orchestrator per repo, with no gap: the retire
 # is a flag on the wake, the old one keeps running until swapped and stops
@@ -295,12 +295,12 @@ for needle in 'arm as above with `retire=yes` on the `harness=` line, every pass
   'A retired title is final' \
   'any other DRAINED or PAUSED verdict is no end' \
   '(the keeper retired you at SWAP, or your own run ended, §4 RUN END)'; do
-  expect "orchestrate.md one-spawner rule spells ${needle}" "$needle" "$orcfold"
+  expect "orchestrator.md one-spawner rule spells ${needle}" "$needle" "$orcfold"
 done
 # shellcheck disable=SC2016 # literal backticks in the needles
 for needle in 'You never start an orchestrator, and past the pass count you never retire yourself' \
   'Until it does, keep running passes' \
-  '`session_status` is `RUNNING` or `PENDING`, or that holds a pending `/orchestrate pass` wake' \
+  '`session_status` is `RUNNING` or `PENDING`, or that holds a pending `/orchestrator pass` wake' \
   'One with a later `created_at` = you are the older: run "## 0. Start" step 3'"'"'s `@new` rebuild' \
   'retire waits: heartbeat' \
   '`lineage.depth >= lineage.limit` = the REQUIRED tools refuse. Stop before step 3' \
@@ -311,7 +311,7 @@ for needle in 'You never start an orchestrator, and past the pass count you neve
   'Else `set_session_title` yours to `🎼 orchestrator: <owner/repo>`.' \
   '`👯 orchestrator (duplicate): <owner/repo>` (glossary, role title: the bare spellings match too) = report `retired: <title>`, answer as §4'"'"'s forwarding paragraph does, stop' \
   'RUN END'"'"'s retitle is no retire in this sense'; do
-  expect "orchestrate-reference.md one-spawner rule spells ${needle}" "$needle" "$reffold"
+  expect "orchestrator-reference.md one-spawner rule spells ${needle}" "$needle" "$reffold"
 done
 # A run that ends on its own retitles itself as its last act, after RETIRE
 # defines the keeper's retire and before the report rules.
@@ -332,7 +332,7 @@ for needle in 'HANDED OFF' 'orchestrator (handed off):' 'hand-off skipped' \
   'SWAP — the one place an orchestrator retires.' \
   'No wake is pending (the run already ended at DRAINED or PAUSED)' \
   'Else `set_session_title` yours to that.'; do
-  refute "orchestrate.md no longer spells ${needle}" "$needle" "$orcfold $reffold"
+  refute "orchestrator.md no longer spells ${needle}" "$needle" "$orcfold $reffold"
 done
 orcdocfold="$(tr '\n' ' ' <"${ROOT}/.agents/docs/orchestrated.md" | tr -s ' ')"
 # shellcheck disable=SC2016 # literal backticks in the needles
@@ -341,13 +341,13 @@ for needle in '**One spawner, one turn.** Only the keeper starts an orchestrator
   'retitles itself the same way as its last act' \
   'or a `RUNNING` or `PENDING` orchestrator it started itself or that started it' \
   'and its own `parent_session_id`, while that reads `RUNNING` or `PENDING`' \
-  'So "Run now" never restarts the fleet; a new `/orchestrate` session does, keeper archived or not' \
+  'So "Run now" never restarts the fleet; a new `/orchestrator` session does, keeper archived or not' \
   'its `ok` line carries `session_status` and `updated_at`, which only that read returns' \
   'The spec every orchestrator checks at start and on every pass after the first'; do
   expect "orchestrated.md spells ${needle}" "$needle" "$orcdocfold"
 done
 # The keeper is its own command, so an orchestrator never holds the keeper
-# check: keeper.md carries every keeper rule, orchestrate.md only points.
+# check: keeper.md carries every keeper rule, orchestrator.md only points.
 if [ -r "$keepmd" ]; then
   pass "keeper.md exists"
 else
@@ -355,24 +355,24 @@ else
 fi
 keepfold="$(tr '\n' ' ' <"$keepmd" 2>/dev/null | tr -s ' ')"
 # shellcheck disable=SC2016 # literal backticks in the needles
-expect "orchestrate.md points to keeper.md" \
+expect "orchestrator.md points to keeper.md" \
   'The keeper'"'"'s rules are `.claude/commands/keeper.md`; this file holds none.' "$orcfold"
 refute "and holds no keeper rule itself" \
   'SWAP — the one place the keeper retires an orchestrator' "$orcfold $reffold"
 # shellcheck disable=SC2016 # literal backticks in the needle
 expect "and sends a keeper without the file to origin/main's" \
   'A keeper whose tree lacks that file reads `git show origin/main:.claude/commands/keeper.md`.' "$orcfold"
-# The reference holds orchestrate.md's rare branches. A section no pointer
+# The reference holds orchestrator.md's rare branches. A section no pointer
 # names is a rule no orchestrator reaches; a pointer naming no section sends
 # it nowhere. Both directions, by name.
 if [ -r "$refmd" ]; then
-  pass "orchestrate-reference.md exists"
+  pass "orchestrator-reference.md exists"
 else
-  fail "orchestrate-reference.md exists"
+  fail "orchestrator-reference.md exists"
 fi
 # shellcheck disable=SC2016 # literal backticks in the needle
-expect "orchestrate.md says where a ref § pointer reads" \
-  '`ref § <name>` = `## <name>` of `git show origin/main:.agents/docs/orchestrate-reference.md`: read it whole when its pointer fires.' "$orcfold"
+expect "orchestrator.md says where a ref § pointer reads" \
+  '`ref § <name>` = `## <name>` of `git show origin/main:.agents/docs/orchestrator-reference.md`: read it whole when its pointer fires.' "$orcfold"
 # A pointer names the LONGEST section whose name it starts with, followed by
 # a character no name continues with: "Role" never stands in for "Role
 # sessions", and "0. Start" keeps its inner period.
@@ -405,9 +405,9 @@ while [[ "$rest" == *"ref § "* ]]; do
 done
 for sect in "${refsections[@]}"; do
   if [[ "$pointed" == *"|${sect}|"* ]]; then
-    pass "orchestrate.md points to ref § ${sect}"
+    pass "orchestrator.md points to ref § ${sect}"
   else
-    fail "orchestrate.md points to ref § ${sect}"
+    fail "orchestrator.md points to ref § ${sect}"
   fi
   body="$(awk -v h="## ${sect}" '$0 == h { on = 1; next } on && /^## / { exit } on && NF { n++ } END { print n + 0 }' "$refmd")"
   if [ "$body" -gt 0 ]; then
@@ -416,16 +416,16 @@ for sect in "${refsections[@]}"; do
     fail "ref § ${sect} holds text"
   fi
 done
-# The same both ways for manage.md and its reference.
+# The same both ways for manager.md and its reference.
 if [ -r "$mgrrefmd" ]; then
-  pass "manage-reference.md exists"
+  pass "manager-reference.md exists"
 else
-  fail "manage-reference.md exists"
+  fail "manager-reference.md exists"
 fi
 mgrfold="$(tr '\n' ' ' <"$mgrmd" | tr -s ' ')"
 # shellcheck disable=SC2016 # literal backticks in the needle
-expect "manage.md says where a ref § pointer reads" \
-  '`ref § <name>` = `## <name>` of `git show origin/main:.agents/docs/manage-reference.md`: read it whole when its pointer fires.' "$mgrfold"
+expect "manager.md says where a ref § pointer reads" \
+  '`ref § <name>` = `## <name>` of `git show origin/main:.agents/docs/manager-reference.md`: read it whole when its pointer fires.' "$mgrfold"
 mgrsections=()
 while IFS= read -r sect; do
   [ -n "$sect" ] && mgrsections+=("$sect")
@@ -441,7 +441,7 @@ while [[ "$rest" == *"ref § "* ]]; do
   rest="${rest#*"ref § "}"
   case "$rest" in "<name>"*) continue ;; esac
   hit=""
-  # Every manage.md pointer ends its name with a period: a longer name the
+  # Every manager.md pointer ends its name with a period: a longer name the
   # reference lost ("Carried plan at retire" read as "Carried plan") fails.
   for sect in "${mgrsections[@]}"; do
     case "$rest" in
@@ -449,23 +449,23 @@ while [[ "$rest" == *"ref § "* ]]; do
     esac
   done
   if [ -n "$hit" ]; then
-    pass "manage.md ref § ${hit} names a reference section"
+    pass "manager.md ref § ${hit} names a reference section"
     pointed="${pointed}${hit}|"
   else
-    fail "manage.md ref § ${rest:0:40} names a reference section"
+    fail "manager.md ref § ${rest:0:40} names a reference section"
   fi
 done
 for sect in "${mgrsections[@]}"; do
   if [[ "$pointed" == *"|${sect}|"* ]]; then
-    pass "manage.md points to ref § ${sect}"
+    pass "manager.md points to ref § ${sect}"
   else
-    fail "manage.md points to ref § ${sect}"
+    fail "manager.md points to ref § ${sect}"
   fi
   body="$(awk -v h="## ${sect}" '$0 == h { on = 1; next } on && /^## / { exit } on && NF { n++ } END { print n + 0 }' "$mgrrefmd")"
   if [ "$body" -gt 0 ]; then
-    pass "manage.md ref § ${sect} holds text"
+    pass "manager.md ref § ${sect} holds text"
   else
-    fail "manage.md ref § ${sect} holds text"
+    fail "manager.md ref § ${sect} holds text"
   fi
 done
 # The Loop routes and points; the picking order and the block list live
@@ -478,18 +478,18 @@ refute "and restates no block list of its own" \
   'Block ONLY for money, credentials, hardware' "$agentsfold"
 expect "AGENTS.md step 2 is role routing" '2. **Pick.** Role routing only' "$agentsfold"
 refute "and no hand-run picking order" 'Finishing outranks starting' "$agentsfold"
-refute "orchestrate.md no longer reads the role off the title" \
+refute "orchestrator.md no longer reads the role off the title" \
   'Role is this session'"'"'s TITLE, never its prompt.' "$orcfold"
 # Role titles open with one emoji each; the glossary row is the one spelling
 # and says a MATCH takes the bare spelling too, so sessions live before the
 # emoji keep counting. Each match site points at that row.
 # shellcheck disable=SC2016 # literal backticks in the needles
-for needle in 'emoji 🔑 keeper, 🎼 orchestrator, 💤 orchestrator (retired), 👯 orchestrator (duplicate), 🔨 manager, 📐 surveyor, 📋 clerk, 🩺 retro.' \
+for needle in 'emoji 🔑 keeper, 🎼 orchestrator, 💤 orchestrator (retired), 👯 orchestrator (duplicate), 🔨 manager, 📐 surveyor, 📋 clerk, 🔭 scout, 🩺 retro.' \
   'a MATCH accepts the title with or without it'; do
   expect "glossary spells ${needle}" "$needle" "$(tr '\n' ' ' <"$ROOT/.agents/docs/glossary.md" | tr -s ' ')"
 done
 # shellcheck disable=SC2016 # literal backticks in the needles
-expect "orchestrate.md titles a manager with its emoji" \
+expect "orchestrator.md titles a manager with its emoji" \
   '`title` = `🔨 manager: <stem>`' "$orcfold"
 # shellcheck disable=SC2016 # literal backticks in the needles
 expect "keeper-gone takes the bare keeper title through the glossary row" \
@@ -534,9 +534,9 @@ for needle in 'Titled exactly `🔑 keeper: <owner/repo>` (glossary, role title:
   '`prompt` = that wake'"'"'s `derived_state.prompt` with `pass=1`, `retire=yes` removed and every `lead` line removed' \
   'Its text is never read, never quoted into a prompt.' \
   'SWAP — the one place the keeper retires an orchestrator' \
-  '`derived_state.prompt` starting `/orchestrate pass`' \
+  '`derived_state.prompt` starting `/orchestrator pass`' \
   'titled exactly `🎼 orchestrator: <owner/repo>` (glossary, role title) and not `ARCHIVED` = LIVE' \
-  '`title` = `🎼 orchestrator: <owner/repo>`, `prompt` = `/orchestrate`. Report `started orchestrator <id>`' \
+  '`title` = `🎼 orchestrator: <owner/repo>`, `prompt` = `/orchestrator`. Report `started orchestrator <id>`' \
   'Candidates: `enabled` true, `run_once_at` set, `persistent_session_id` set,' \
   'differs from the one you hold = follow that text instead' \
   'a lineage refusal also `PushNotification`s once `keeper at lineage cap:' \
@@ -554,11 +554,11 @@ for needle in '`heartbeat duplicated` or `heartbeat stale`; none only without `l
   'No `get_session` = report and `PushNotification` once `role unreadable: no get_session`, end the turn.' \
   '**Heartbeat.** `pass=` above 1: ref § 0. Start step 5 on that same answer, REPLACE and REGISTER included' \
   'skip the superseded, duplicate and heartbeat checks'; do
-  expect "orchestrate.md heartbeat check spells ${needle}" "$needle" "$orcfold"
+  expect "orchestrator.md heartbeat check spells ${needle}" "$needle" "$orcfold"
 done
 # shellcheck disable=SC2016 # literal backticks in the needles
-for needle in 'Routine named exactly `heartbeat: <owner/repo>` with a non-empty `cron_expression`' \
-  'Heartbeat, here and on every pass after the first (`orchestrate.md`, Pass entry): `list_triggers` (no filter: a paused one must show)' \
+for needle in 'Routine named exactly `💗 heartbeat: <owner/repo>` (the bare `heartbeat: <owner/repo>` matches too) with a non-empty `cron_expression`' \
+  'Heartbeat, here and on every pass after the first (`orchestrator.md`, Pass entry): `list_triggers` (no filter: a paused one must show)' \
   'None: REGISTER, below.' \
   'Two or more with `enabled` true: `heartbeat duplicated' \
   'duplicated: <id>, <id>' \
@@ -574,7 +574,7 @@ for needle in 'Routine named exactly `heartbeat: <owner/repo>` with a non-empty 
   'no Routine to be stale = `heartbeat not registered: once per session`' \
   'Up to date = report `heartbeat ok: <id>, keeper <persistent_session_id> <session_status> <updated_at>`, both read off that `get_session` (`list_triggers` carries neither); no read, no `ok` line.' \
   '`failing` — `last_run.status` ends in `FAILED`' \
-  '`prompt` — `derived_state.prompt`, trimmed, is not exactly `/keeper` or `/orchestrate keeper`' \
+  '`prompt` — `derived_state.prompt`, trimmed, is not exactly `/keeper` or `/orchestrator keeper`' \
   'Never enable, edit or delete a Routine a human paused or made in the UI' \
   'REGISTER, at most once per session, a REPLACE'"'"'s included (a later break in the same session is its `stale` line only;' \
   '(on a pass: none, REPLACE archived the bound one)' \
@@ -588,13 +588,13 @@ for needle in 'Routine named exactly `heartbeat: <owner/repo>` with a non-empty 
   '`initiation` = `human_schedule`' \
   'Never retry with another cadence or another binding.' \
   'another LIVE one with an earlier `created_at` than yours = run step 5 report-only (no REGISTER, no replace), then exit' \
-  'REPLACE only a Routine REGISTER made — `created_via: meta_mcp` AND `derived_state.prompt` exactly `/keeper` or `/orchestrate keeper`' \
+  'REPLACE only a Routine REGISTER made — `created_via: meta_mcp` AND `derived_state.prompt` exactly `/keeper` or `/orchestrator keeper`' \
   'REGISTER'"'"'s lineage check (step 1) first, failing = report the stale line and end step 5 (a pass carries on); then `delete_trigger` it' \
   '`ended_reason` is anything but `auto_disabled_session_gone`' \
   'not `ARCHIVED` (a heartbeat deleted in the UI leaves its keeper idle): `archive_session`' \
   '`model` = the Lineup'"'"'s `haiku` (the role is mechanical; never the registering session'"'"'s model)' \
   '`update_trigger` this repo'"'"'s heartbeat `enabled: false`'; do
-  expect "orchestrate-reference.md heartbeat check spells ${needle}" "$needle" "$reffold"
+  expect "orchestrator-reference.md heartbeat check spells ${needle}" "$needle" "$reffold"
 done
 # shellcheck disable=SC2016 # literal backticks in the needles
 refute "REGISTER no longer starts its keeper on the hourly prompt" \
@@ -603,20 +603,20 @@ refute "keeper.md no longer says its first turn runs the LIVE check" \
   "your first turn runs inside it" "$keepfold"
 refute "orchestrated.md no longer says the keeper's first turn runs the check" \
   "the keeper's first turn runs at" "$orcdocfold"
-refute "orchestrate.md no longer skips only two checks without list_triggers" \
+refute "orchestrator.md no longer skips only two checks without list_triggers" \
   "skip the superseded and duplicate checks" "$orcfold"
-refute "orchestrate.md Start heading no longer says never per pass" \
+refute "orchestrator.md Start heading no longer says never per pass" \
   "once per orchestrator session, never per pass" "$orcfold"
-refute "orchestrate.md no longer routes the keeper by a prompt argument" \
+refute "orchestrator.md no longer routes the keeper by a prompt argument" \
   "Argument \`keeper\`" "$orcfold $reffold"
-refute "orchestrate.md no longer stops a session on a keeper-looking prompt" \
+refute "orchestrator.md no longer stops a session on a keeper-looking prompt" \
   "keeper prompt in a non-keeper session" "$orcfold $reffold"
 refute "orchestrated.md no longer says the argument routes the keeper" \
   "the argument routes the keeper" "$orcdocfold"
-refute "orchestrate.md no longer forbids every heartbeat write" \
+refute "orchestrator.md no longer forbids every heartbeat write" \
   "Never create, edit or pause one" "$orcfold $reffold"
 # shellcheck disable=SC2016 # literal backticks in the needles
-for needle in '**Name**: exactly `heartbeat: <owner/repo>`' \
+for needle in '**Name**: `💗 heartbeat: <owner/repo>`, a SET writes the heart, a MATCH accepts the bare `heartbeat: <owner/repo>` too' \
   '**Binding**: `persistent_session_id` = a session titled `🔑 keeper: <owner/repo>`' \
   '**Prompt**: exactly `/keeper`' \
   'REGISTER starts the keeper with `/keeper register`: that first turn takes the post and starts nothing' \
@@ -782,7 +782,7 @@ expect "and the session never merges it" "never merge it" "$mgrreftext"
 refute "and no longer files an issue describing the edit" \
   "remainder issue not filed" "$mgrtext $mgrreftext"
 # A clerk HUMAN question takes a number: options, a recommendation, and the
-# hand-typed reply rule. Read as manage.md is read.
+# hand-typed reply rule. Read as manager.md is read.
 clerktext="$(cat "${ROOT}/.claude/commands/clerk.md")"
 expect "a clerk HUMAN comment asks for a hand-typed number" \
   "reply by hand with the number" "$clerktext"
@@ -810,9 +810,9 @@ expect "and an unlabelled remainder pull request blocks the retire" \
   "or unlabelled." "$mgrreftext"
 
 # Hook work is built unregistered: a registered hook runs from the working tree.
-expect "manage.md: never edit a registered hook" \
+expect "manager.md: never edit a registered hook" \
   "never edit a hook \`.claude/settings.json\` registers" "$(tr '\n' ' ' <"$mgrmd" | tr -s ' ')"
-expect "manage.md: build the new hook unregistered, test through fixtures" \
+expect "manager.md: build the new hook unregistered, test through fixtures" \
   "Build a new hook unregistered, test it through fixtures, register it in the" "$(tr '\n' ' ' <"$mgrmd" | tr -s ' ')"
 expect "orchestrated.md: a hook is registered in the human pull request" \
   "built unregistered, tested through fixtures, and registered in that pull request" \

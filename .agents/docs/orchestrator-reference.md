@@ -1,6 +1,6 @@
 # Orchestrator reference
 
-Branches and detail of `.claude/commands/orchestrate.md`; its `ref §`
+Branches and detail of `.claude/commands/orchestrator.md`; its `ref §`
 lines say when to read each; its terms hold here.
 
 ## Optional tools
@@ -45,7 +45,7 @@ running, idle or suspended, at any window),
 A manager's or role session's `create_session`: `source_url` = `git remote
 get-url origin`, `clone_depth: 5000` (a 50-deep clone hides the merge base
 `authority` needs). Never omit `source_url`: without it the session starts
-in an empty `/home/user`, no checkout, no `/manage` (repo skills load only
+in an empty `/home/user`, no checkout, no `/manager` (repo skills load only
 once a repo is attached), and the session cannot be relied on to attach it
 itself, so it may never claim.
 
@@ -62,7 +62,7 @@ ask", no "keep going". The prompt routes; the repository authorises.
 
 Every pass: `context: <used_tokens>`, `context_usage.used_tokens` from one
 `get_session` read of this session (no `session_id`; the same read gives
-`orchestrate.md` §3 your own id); no `get_session` = `context: unread`.
+`orchestrator.md` §3 your own id); no `get_session` = `context: unread`.
 Reported, never decided on: it re-tunes `JOHARNESS_ORCHESTRATOR_PASSES`
 from reports. First pass of a session only, when `external_metadata.last_served_model` differs from the
 configured model (`configured_model`, else `session_context.model`):
@@ -90,7 +90,7 @@ queue cannot see").
    exactly `🎼 orchestrator: <owner/repo>` (glossary, role title: a MATCH
    takes the bare spelling too), not `ARCHIVED`, whose
    `session_status` is `RUNNING` or `PENDING`, or that holds a pending
-   `/orchestrate pass` wake (`list_triggers`: `run_once_at` set,
+   `/orchestrator pass` wake (`list_triggers`: `run_once_at` set,
    `persistent_session_id` = its id) — IDLE between passes is alive.
    The keeper reads this definition on the sessions it can name
    (`keeper.md` step 2). A
@@ -112,9 +112,10 @@ queue cannot see").
    ledger `<stem>@new respawns=<RESPAWN_LIMIT>`; report `rebuilt <stem>@new
    from its title`.
 4. Read the Lineup once.
-5. Heartbeat, here and on every pass after the first (`orchestrate.md`,
+5. Heartbeat, here and on every pass after the first (`orchestrator.md`,
    Pass entry): `list_triggers` (no filter: a paused one must show). The
-   heartbeat is a Routine named exactly `heartbeat: <owner/repo>` with a
+   heartbeat is a Routine named exactly `💗 heartbeat: <owner/repo>` (the bare
+   `heartbeat: <owner/repo>` matches too) with a
    non-empty `cron_expression`; any other Routine
    never counts. None: REGISTER, below. Two or more with `enabled` true:
    `heartbeat duplicated: <id>, <id>` (each firing pays twice). Otherwise
@@ -142,21 +143,21 @@ queue cannot see").
    - `failing` — `last_run.status` ends in `FAILED`
      (`ROUTINE_RUN_STATUS_FAILED`);
    - `prompt` — `derived_state.prompt`, trimmed, is not exactly
-     `/keeper` or `/orchestrate keeper` (the older spec: the title guard
+     `/keeper` or `/orchestrator keeper` (the older spec: the title guard
      routes it, so it is never replaced for its prompt alone).
    Up to date = report `heartbeat ok: <id>, keeper <persistent_session_id>
    <session_status> <updated_at>`, both read off that `get_session`
    (`list_triggers` carries neither); no read, no `ok` line.
    REPLACE only a Routine REGISTER made — `created_via: meta_mcp` AND
-   `derived_state.prompt` exactly `/keeper` or `/orchestrate keeper` — whose reasons hold
+   `derived_state.prompt` exactly `/keeper` or `/orchestrator keeper` — whose reasons hold
    no `paused`: REGISTER's lineage check (step 1) first, failing = report
    the stale line and end step 5 (a pass carries on); then `delete_trigger` it, `archive_session` its
    bound session, not `ARCHIVED` (a `🔑 keeper: <owner/repo>` (glossary, role title) or a `⚡` one), then REGISTER from
    step 2; report `heartbeat replaced: <old id>: <reasons>`. Any other `stale` line, and every
    `duplicated` line: report it and `PushNotification` it once per
    session; the fix is the operator's, the line names it. A Routine made
-   to an older spec (fresh session, prompt `/orchestrate`) reads `unbound,
-   prompt`: the line adds `delete it; the next /orchestrate registers the
+   to an older spec (fresh session, prompt `/orchestrator`) reads `unbound,
+   prompt`: the line adds `delete it; the next /orchestrator registers the
    keeper heartbeat`. Never enable,
    edit or delete a Routine a human paused or made in the UI: the pause is
    the human's veto on the fleet.
@@ -178,7 +179,7 @@ queue cannot see").
       first turn takes the post and starts nothing (`keeper.md`,
       Register), since this session has just read dispatch; the first
       hourly wake runs the LIVE check.
-   3. `create_trigger`: `name` = `heartbeat: <owner/repo>`,
+   3. `create_trigger`: `name` = `💗 heartbeat: <owner/repo>`,
       `cron_expression` = `0 * * * *`, `persistent_session_id` = step 2's
       id, `prompt` = `/keeper`, `initiation` =
       `human_schedule`.
@@ -191,7 +192,7 @@ queue cannot see").
 ## Duplicate
 
 - **Duplicate.** From the superseded check's answer, each other session's
-  pending `/orchestrate pass` wake: `get_session` each distinct
+  pending `/orchestrator pass` wake: `get_session` each distinct
   `persistent_session_id`. One that is a LIVE orchestrator ("## 0. Start"
   step 3) with an earlier `created_at` than yours = `set_session_title`
   yours to `👯 orchestrator (duplicate): <owner/repo>`, report `duplicate of
@@ -206,7 +207,7 @@ HELD BY HUMAN: never nudge, never respawn (a nudge meets the same refusal). `Pus
 
 ## Unratified block
 
-UNRATIFIED BLOCK: NUDGE "Orchestrator health pass: you stopped asking for input while status is in-progress. Do the work, or set status blocked with a reason from manage.md §3, push." Ledger `unratified=<head>`. No transport: report only, ledger nothing, never respawn on it. Any reason in `status_detail` is unratified: only `status: blocked` ratifies
+UNRATIFIED BLOCK: NUDGE "Orchestrator health pass: you stopped asking for input while status is in-progress. Do the work, or set status blocked with a reason from manager.md §3, push." Ledger `unratified=<head>`. No transport: report only, ledger nothing, never respawn on it. Any reason in `status_detail` is unratified: only `status: blocked` ratifies
 
 ## Relay
 
@@ -229,7 +230,7 @@ workstream file, continue", no `kill`. FAILED, ARCHIVED or not found: GUARD
 RESUME: next pass.
 
 A `PARKED #<n> RESUME — #<n> merged` row: a `core path: waiting on #<n>`
-block (manage.md §3), and the base's first parent carries a merge commit
+block (manager.md §3), and the base's first parent carries a merge commit
 subject `Merge pull request #<n> from <owner>/human/...` dated after the
 block. The same mechanics, `next:` = `Resume: awaited PR #<n>
 merged; merge origin/main, continue`, commit "Orchestrator resumes a parked
@@ -343,10 +344,10 @@ no handover, and no handover is no replace. Why:
   | --- | --- | --- | --- | --- |
   | `clerk DUE` (any verdict; `held` = nothing) | sonnet | `📋 clerk: <UTC date>` | `/clerk` | `clerked=<stamp>` |
   | `clerk issue read:` AND an issue that fires (below); `held` = nothing | sonnet | `📋 clerk: <UTC date>` | `/clerk` | `clerked=<stamp>+issue` |
-  | `scout     : none in flight`, AND the human's order (below) or a scout issue that needs the scout (below); any other `scout :` row = nothing | fable | `scout: <UTC date>` | `/scout` | `scouted=<stamp>` |
+  | `scout     : none in flight`, AND the human's order (below) or a scout issue that needs the scout (below); any other `scout :` row = nothing | fable | `🔭 scout: <UTC date>` | `/scout` | `scouted=<stamp>` |
   | `retro audit DUE: spawn` (any verdict; `held`, `suppressed` = nothing; a clerk an issue fired this pass = nothing) | sonnet | `🩺 retro: audit <UTC date>` | `/retro-audit` | `conducted=<stamp>` |
   | `retro DUE: spawn` (any verdict; `held`, `suppressed` = nothing; a clerk an issue fired this pass = nothing) | sonnet | `🩺 retro: <UTC date>` | `/retro` | `retroed=<stamp>` |
-  | `OVERLAP-BOUND`, `rescope :` says `in flight: none` | sonnet | `📐 surveyor: <key>` | `/manage rescope <key>` + the block verbatim | `rescope-<key>@new`, `rescoped=<key>` |
+  | `OVERLAP-BOUND`, `rescope :` says `in flight: none` | sonnet | `📐 surveyor: <key>` | `/manager rescope <key>` + the block verbatim | `rescope-<key>@new`, `rescoped=<key>` |
 
   "the role lines", for clerk and retro (either mode) (they write no
   workstream file, so no claim line):

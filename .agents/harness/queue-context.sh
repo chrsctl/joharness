@@ -687,7 +687,7 @@ free_scopes=()
 free_shared=()
 # Free = ranked free, then every unclaimed, unblocked CORE ONLY plan: a
 # manager builds it too, its core edit in a human/<stem> pull request a human
-# merges (.agents/docs/manage-reference.md, Human remainder). After the rest,
+# merges (.agents/docs/manager-reference.md, Human remainder). After the rest,
 # so it joins a wave or a HOLD like any plan but never leads one.
 free_rows="$(awk -F'\t' '$1 < 2' <<<"$rows"
   awk -F'\t' '$1 >= 2 && index($4, ", CORE ONLY: ") &&

@@ -1,6 +1,6 @@
 # Manager reference
 
-Rare branches of `.claude/commands/manage.md`, verbatim; its `ref §`
+Rare branches of `.claude/commands/manager.md`, verbatim; its `ref §`
 lines say when to read each; its terms hold here.
 
 ## Human remainder
@@ -33,7 +33,7 @@ carries the plan's carve-out, nothing new.
 A `CORE ONLY` plan: build the non-core part on your branch, the core part
 here (steps 1 to 4). Acceptance needs the core edit merged (a CI job that
 must run green, a hook that must be registered)? Block `core path: waiting
-on #<N>: <question>` (manage.md §3); dispatch RESUMEs you once #<N> merges,
+on #<N>: <question>` (manager.md §3); dispatch RESUMEs you once #<N> merges,
 then verify and retire as normal. Otherwise retire now. The retire stays on
 your branch, never in the `human/` pull request: that one carries the core
 edit only. Push, `create_pull_request` or label fails = step 4,
@@ -81,7 +81,7 @@ merges. Restore the file from before that commit:
 Set `status: blocked`, `next:` = `product: human-review label on PR #<n>:
 remove it so this merges?`, commit, push, exit. Blocked holds no slot and is
 never respawned until the human answers. The answer reaches the branch as
-any block's does (orchestrate-reference.md, Relay); resumed with the
+any block's does (orchestrator-reference.md, Relay); resumed with the
 label gone, delete the file again in one commit, push, merge under Loop
 step 7.
 
@@ -160,7 +160,7 @@ no retry, no second transport. Run no queue command.
      first and plans it urgent (`.claude/commands/clerk.md` §2, §3). Its fix
      needs a human's call (step 3)? Then it is not a `defect:` park: file it
      with `human-review` and block on that reason (`product:`, `money:`, …;
-     `.claude/commands/manage.md` §3).
+     `.claude/commands/manager.md` §3).
    - **Park** = `status: blocked`, `next:` = `defect: #<n>: <one line>`, push,
      exit. No `human-review` on the pull request or the plan's issue.
    - `issue_write` fails: block `github: defect not filed: <error, 40 chars>`,

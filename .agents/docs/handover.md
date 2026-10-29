@@ -90,7 +90,7 @@ git -C <gx> log a322a67da --since=2026-10-15T00:00:00+00:00 --no-merges \
   the double-spawn window by the time to that commit: 39 of 181 gx claims
   had their first child 10 minutes or more later.
 - **Handover-only — keep.** Legitimate when no code moved: milestone pushes
-  during long runs (`.claude/commands/manage.md` §3, at least once per
+  during long runs (`.claude/commands/manager.md` §3, at least once per
   `JOHARNESS_STALL_MINUTES`; 59 gx handover commits follow another, 0.4 to
   65 minutes apart, median 31), blocks, nudges, measurements. Of the 25 that
   land within 2 minutes of a code commit (a parent not itself claim,
@@ -136,7 +136,7 @@ The listing is ranked, not chronological. Rank reads `status` and `pr:` only,
 the same two `joharness.sh:review_at_edge` reads. One exception: a FINISHED
 RESCOPE (all four: `workstream: rescope-*`, `plan: none`, `status: done`, no `pr:`) is a
 surveyor that found the holds genuine and merges nothing
-(`.claude/commands/manage.md`, R. Surveyor); it ranks 6, never the edge,
+(`.claude/commands/manager.md`, R. Surveyor); it ranks 6, never the edge,
 and lists saying it holds nothing.
 
 | Rank | State | What is left |

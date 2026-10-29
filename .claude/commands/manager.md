@@ -12,7 +12,7 @@ rules if you touch it. Not the queue, other plans or requirements, other
 branches' files, or the design doc.
 
 `ref § <name>` = `## <name>` of `git show
-origin/main:.agents/docs/manage-reference.md`: read it whole when its
+origin/main:.agents/docs/manager-reference.md`: read it whole when its
 pointer fires.
 
 ## 0. Orient

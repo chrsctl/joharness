@@ -164,7 +164,7 @@ refute "an own file with no findings is not named in the loss" \
   "docs/handover/prquiet.md." "$out"
 
 # --- a worker sub-branch merged --no-ff --------------------------------------
-# The /manage fan-out shape: the record is written on a sub-branch and merged
+# The /manager fan-out shape: the record is written on a sub-branch and merged
 # in. Those commits are this branch's; first-parent with --no-merges dropped
 # them.
 git -C "$prwork" checkout -qb prparent main

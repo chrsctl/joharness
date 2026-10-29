@@ -186,7 +186,7 @@ expect "a file-less branch still counts as recent" \
 
 # --- a FINISHED rescope is not edge work (issue #492) -----------------------
 # A surveyor that finds the holds genuine ends `status: done`, `plan: none`,
-# no `pr:` and merges nothing (manage.md, rescope). Ranked 0, it printed EDGE
+# no `pr:` and merges nothing (manager.md, rescope). Ranked 0, it printed EDGE
 # and led FINISH BEFORE STARTING, which dispatch turns into its edge section,
 # and the orchestrator nudged the idle surveyor every pass. Its own repo, so
 # none of these take the lead from bdone above. The finished one is the

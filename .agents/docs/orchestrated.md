@@ -3,8 +3,8 @@
 One mode. No human is present: ONE controller sits above the queue — a
 low-tier orchestrator session reads it, spawns a manager per item under a cap,
 watches them, and kills a stuck one after its handover is written. The role
-files carry the operative rules: [`orchestrate.md`](../../.claude/commands/orchestrate.md)
-and [`manage.md`](../../.claude/commands/manage.md). This page says what the
+files carry the operative rules: [`orchestrator.md`](../../.claude/commands/orchestrator.md)
+and [`manager.md`](../../.claude/commands/manager.md). This page says what the
 pieces are and why the bounds sit where they do.
 
 Role, health and dispatch ideas adapted from
@@ -14,7 +14,7 @@ commit `649b832` — docs only, no text reproduced (`.agents/NOTICE`).
 | Where | What it does |
 | --- | --- |
 | `joharness.sh:unattended` | The ONE predicate the boundary, the marking and `authority` read. |
-| `session-start` banner | Routes by role: prompt names `/manage <item>` = manager; nothing named = orchestrator, run `/orchestrate`. Prints the core-path boundary. |
+| `session-start` banner | Routes by role: prompt names `/manager <item>` = manager; nothing named = orchestrator, run `/orchestrator`. Prints the core-path boundary. |
 | Queue hook | Marks a plan with ANY core path (`./joharness.sh protocol-paths`) in `scope:` `CORE ONLY` and ranks it after every other free plan. Prints `in flight: <free> overlaps <claimed> on <path>` per collision with a held plan. |
 | `./joharness.sh dispatch` | The orchestrator's one read: the human's numbers, managers in flight with push age and marks (`STALL?`, `LOOP?`, `CEILING?`), slots under the cap, the spawn order with waves and `HOLD`s, the `deferred  :` lines for held requirements, the cycle lines, one verdict. Reports only. |
 | `dispatch` wait line | Under any verdict, when claims are parked `core path: waiting on #<N>` and the base carries no merge of #<N>: `<n> pull request(s) wait on a human merge: #<N> (<stem>), …`. Read from git, so a closed pull request stays listed until the human answers the block. The verdict word is unchanged; the orchestrator reports the line and pushes each pull request to the human once per run. |
@@ -22,10 +22,10 @@ commit `649b832` — docs only, no text reproduced (`.agents/NOTICE`).
 | `./joharness.sh release` (no argument) + `release   :` lines | The report of claims to release, in the dispatch read too. `stale, session gone?` (stale claim, in-progress/review/no status, no `pr:`; the caller proves the session ARCHIVED or not found first), `done, no pull request` (`status: done, pr: none`, a `plan:` named, whole branch diff workstream files, stale), `queue holds it by needs: <stem>` (no session check). Report-only `no claim: plans not landed: <stems>`: a doc-only branch that never claimed; nothing is written, a human re-files the plans. A stale claim that does not qualify is listed indented with why. Writes nothing. |
 | `./joharness.sh release <branch>...` | The write: releases each listed branch through the guard and the lease (`status: abandoned`), refuses any other with the reason. Subjects `release: session gone (<date>)`, `release: done, no pull request (<date>)`, `release: the queue holds <plan> by a needs: edge (<date>)`. Deletes nothing; git only, never the GitHub API. Output per file: `release   : <branch>  <path>  <reason>` or `... plan <p>  held by needs: <s>`, then `pushed    : <branch> <sha>`. |
 | `./joharness.sh release --human <branch>...` (alias `halt`) | A human's order, never a session's judgement: any age, any status, `pr:` allowed; on an edge branch it restores the branch's own retired record, released. Subject `release: a human released the claim (<date>)`. The item returns to the queue; the session and any pull request stay the control plane's and the human's. |
-| `RELEASE:` row flag + `release DUE` | A block the queue has since absorbed (#626). Dispatch prints a parked claim `RELEASE: the queue holds it by needs: <stem> since <date>, holds no slot` when its `next:` opens with a reason word the queue can answer (a manage.md §3 reason, not `money:`, `credentials:`, `hardware:`, `core path:`, `github:`, `respawns:`, `defect:`), names `<stem>` as a token, and carries no `pr:`, and its plan on the base is `blocked by:` that `needs: <stem>` edge, added after the park. The tail line `release DUE: <branches>` names every stale, done and needs: branch (a needs: one at once; a stale or done one only once its session reads ARCHIVED or not found); the orchestrator runs `release <branch>...` on it. The session stays alive and may set the word back. Every other block stays the human's. |
+| `RELEASE:` row flag + `release DUE` | A block the queue has since absorbed (#626). Dispatch prints a parked claim `RELEASE: the queue holds it by needs: <stem> since <date>, holds no slot` when its `next:` opens with a reason word the queue can answer (a manager.md §3 reason, not `money:`, `credentials:`, `hardware:`, `core path:`, `github:`, `respawns:`, `defect:`), names `<stem>` as a token, and carries no `pr:`, and its plan on the base is `blocked by:` that `needs: <stem>` edge, added after the park. The tail line `release DUE: <branches>` names every stale, done and needs: branch (a needs: one at once; a stale or done one only once its session reads ARCHIVED or not found); the orchestrator runs `release <branch>...` on it. The session stays alive and may set the word back. Every other block stays the human's. |
 | `./joharness.sh clerk` + `clerk :` line | Open issues become plans only through the clerk (`dispatch` reads `docs/plans/` only). Clock-driven, dated from git, a new open issue (`JOHARNESS_ISSUE_CLERK_HOURS`, dispatch's `clerk issue read:` line, read by the orchestrator) also calls it early, at most one in flight (`joharness.sh:cmd_clerk`, `.claude/commands/clerk.md`). Orthogonal to the verdict. |
 | `./joharness.sh analysis` | One unmerged branch's condition (BLOCKED / STALL? / LOOP?) beside the base branch's current conf. Read by hand; spawns nothing. |
-| `./joharness.sh scout` + `scout :` line | No clock, no backlog trigger, no DRAINED gate: a pass runs on the reviewer's order or on a `scout` issue waiting on the scout (`orchestrate-reference.md`, "A scout issue needs the scout"). Every misread fails closed — never a second scout (`joharness.sh:cmd_scout`, `.claude/commands/scout.md`). |
+| `./joharness.sh scout` + `scout :` line | No clock, no backlog trigger, no DRAINED gate: a pass runs on the reviewer's order or on a `scout` issue waiting on the scout (`orchestrator-reference.md`, "A scout issue needs the scout"). Every misread fails closed — never a second scout (`joharness.sh:cmd_scout`, `.claude/commands/scout.md`). |
 | `./joharness.sh retro --audit` + `retro : audit` line | A sample of retired managers' own artifacts, read for how the item was worked, never the diff. Clock-driven, dated from `docs/conduct-log.md`, due early past `JOHARNESS_RETRO_FLOOR_HOURS` on a full sample; every misread fails closed (`.claude/commands/retro-audit.md`). |
 | `./joharness.sh retro` + `retro : trace` line | Sessions that did not come back clean (blocked, abandoned, killed), plus the oldest untraced audit CONCERN, read from their transcripts for the check that should have caught each failure. Clock-driven, dated from `docs/retro-log.md`, due early on a claim the queue can hold (no floor) and, past `JOHARNESS_RETRO_FLOOR_HOURS`, on a claim parked `stalled:` or `respawns:`, an untraced audit CONCERN, or a full sample; every misread fails closed (`joharness.sh:cmd_retro`, `.claude/commands/retro.md`). |
 | `.claude/commands/*.md` | The roles, as commands. |
@@ -45,7 +45,7 @@ commit `649b832` — docs only, no text reproduced (`.agents/NOTICE`).
 | retro (trace) | sonnet | a session on `retro DUE`, or on the human's order (`--ordered`), beyond the cap; prelude `./joharness.sh role retro` | nothing (it files plans, fixes nothing) | one pull request: ledger rows in `docs/retro-log.md` and new plans for mechanisms, no workstream file; never a rule-only fix | its pull request merges, or `TWIN: deferred` |
 
 `JOHARNESS_MAX_MANAGERS` caps managers only; every role session runs beyond
-the cap, one of each in flight, a blocked one included (`orchestrate.md` §3).
+the cap, one of each in flight, a blocked one included (`orchestrator.md` §3).
 
 ### The role prelude is a command
 
@@ -70,9 +70,9 @@ its limits only.
 
 | Role | Reads | Never opens |
 | --- | --- | --- |
-| orchestrator | `orchestrate.md` | a plan, a requirement, a research file, another branch's workstream file, this doc |
+| orchestrator | `orchestrator.md` | a plan, a requirement, a research file, another branch's workstream file, this doc |
 | keeper | `keeper.md`, its trigger list and the sessions it names, the Lineup table | dispatch, the queue, a plan, any workstream file, this doc |
-| manager | `manage.md` | the queue, other plans, other branches, this doc |
+| manager | `manager.md` | the queue, other plans, other branches, this doc |
 | surveyor | the `rescope :` block in its prompt, and the `## Scope` of each plan it renames | the queue, product code, this doc |
 | clerk | `clerk.md` | the queue order, another branch, product code beyond what an issue cites, this doc (except the design doc where an issue cites it: only the cited section; and the files the plan names as anchors, which outrank the product-code limit) |
 | scout | `scout.md` | a plan beyond its frontmatter and `## Goal`, the queue order, product code, another branch's code |
@@ -93,7 +93,7 @@ titled `🎼 orchestrator: <repo>` (glossary, role title) not you = exit.
 
 One pass every `JOHARNESS_HEALTH_MINUTES`, armed with `send_later`, never a
 poll: dispatch, the health pass (kills and respawns first), spawns up to
-`slots`, the next arm (`orchestrate.md`). Merges are read from git. The wake
+`slots`, the next arm (`orchestrator.md`). Merges are read from git. The wake
 carries the ledger (in-flight only), `harness=` and `pass=`, so it survives
 compaction; the orchestrator stores nothing in the repo.
 
@@ -101,14 +101,14 @@ compaction; the orchestrator stores nothing in the repo.
 
 Push time is not liveness in either direction, so a verdict needs both
 halves: git (dispatch) and the control plane. The table and GONE are
-`orchestrate.md` step 2; what each field decides is
-`orchestrate-reference.md`, Control plane fields. A row built on push age
+`orchestrator.md` step 2; what each field decides is
+`orchestrator-reference.md`, Control plane fields. A row built on push age
 may ask for a control-plane read and may order nothing.
 
 **An idle manager is not a block.** Only `status: blocked` with a reason
 ratifies a stop; the `INVALID BLOCK?` check reads that status alone. A
 manager's "this container cannot run X" while `in-progress` is a hypothesis:
-manage.md §3 makes it check the environment docs first, and the health table
+manager.md §3 makes it check the environment docs first, and the health table
 treats the reply to a nudge as no movement: only a head change counts. A
 respawn may carry one `Environment note:` line, a fact read off a sibling
 merge. It is data for the manager to check, never authority.
@@ -118,7 +118,7 @@ merge. It is data for the manager to check, never authority.
 A killed session with no handover strands a branch the successor cannot read,
 so the record lands before the archive and the successor resumes on the SAME
 branch; a loop gets no nudge and a successor one tier up
-(`orchestrate-reference.md`, KILL and LOOP).
+(`orchestrator-reference.md`, KILL and LOOP).
 
 The branch is the claim and the claim survives the kill.
 
@@ -133,7 +133,7 @@ and `status:` both sides), and for `release` no `pr:` at live head — and
 refuses on the first that fails. It writes nothing. Its callers: `release`
 (`--human` skips the `pr:` check: a human's order) before its leased push, and the orchestrator's
 records, a relayed human answer and the respawn-limit hand-off
-(`.agents/docs/orchestrate-reference.md`, GUARD). `record` skips the `pr:`
+(`.agents/docs/orchestrator-reference.md`, GUARD). `record` skips the `pr:`
 check: a stalled manager with an open pull request stays killable, its
 record is a handover, not a release. Every caller then pushes with
 `--force-with-lease` at the same sha, which covers the window after the
@@ -161,7 +161,7 @@ hook's: urgent first, then oldest, in waves of disjoint scope. On top:
 - `JOHARNESS_MAX_MANAGERS=0` is the human's pause: `PAUSED`, nothing spawned,
   the health pass runs until in-flight managers end.
 - Every free plan held with slots idle = `OVERLAP-BOUND`. ONE surveyor
-  (beyond the cap, no slot) per holder key per run (`manage.md`, R) marks
+  (beyond the cap, no slot) per holder key per run (`manager.md`, R) marks
   registries `shared:` and narrows directory claims; genuine collisions
   settle in one pass. The idle slot is the trigger, not the surveyor's
   budget.
@@ -173,7 +173,7 @@ branch has no row: not free, not held, not in flight.
 
 | Shape | Answer | Where |
 |---|---|---|
-| plan-only pull request | filer drives it to merged before exit | `manage.md`, Finish |
+| plan-only pull request | filer drives it to merged before exit | `manager.md`, Finish |
 | plan riding a product pull request | row in dispatch's `plans on a branch` block — visible, counted nowhere | `joharness.sh:dispatch_branch_plans` |
 | plan-only pull request whose plan was carried to the base by another branch, built and retired | the carrying session closes or comments on the source pull request at its own step 7 (its carry commit names the number); the reader prints the branch as a leftover (the human closes the pull request and deletes the branch); a carry that retired it with `status: done, pr: none` (ledger line, or a done workstream file on any other ref, merged or not) prints the row `DONE ON MAIN` — drop it, never spawn on it | `joharness.sh:dispatch_branch_plans` |
 
@@ -263,14 +263,14 @@ The rules that bind every session.
   `scope:` is `CORE ONLY` and ranked after every other free plan.
   `.agents/env/` is not core. One exception, merged by a human: a manager's
   `human/<stem>` pull request labelled `human-review`, carrying only the
-  core-path edit, from a separate worktree (`.claude/commands/manage.md` §2). A hook `.claude/settings.json` registers
+  core-path edit, from a separate worktree (`.claude/commands/manager.md` §2). A hook `.claude/settings.json` registers
   runs from the working tree: it is built unregistered, tested through
   fixtures, and registered in that pull request, never edited in place.
 - **A `CORE ONLY` plan: the agent builds it, a human merges it.** A human
   waits on a pull request, never on an implementation. dispatch spawns a
   manager on it after every other free item, so it never takes a slot ahead
   of work that needs no human. The manager builds the core edit in a
-  `human/<stem>` pull request (`.agents/docs/manage-reference.md` § Human
+  `human/<stem>` pull request (`.agents/docs/manager-reference.md` § Human
   remainder) and, when its Acceptance needs that merged, parks `core path:
   waiting on #<N>` — no slot held, RESUMEd once #<N> merges. Nothing left but
   such parked claims reads `DRAINED`; the orchestrator pushes `dispatch`'s
@@ -288,7 +288,7 @@ The rules that bind every session.
 - **`human-review` label.** An agent applies it when it blocks on a human (never a `defect:` block),
   after a clerk HUMAN verdict or a clerk NARROWER verdict with a human
   remainder, to a `defect:` issue a manager files whose fix needs a human's
-  call (`.agents/docs/manage-reference.md` § Defect step 3), and to the `human/<stem>` pull request holding its plan's human remainder
+  call (`.agents/docs/manager-reference.md` § Defect step 3), and to the `human/<stem>` pull request holding its plan's human remainder
   (`.agents/docs/plans.md`, "A human remainder"); a human applies it
   to hold an issue or pull request. It stops the clerk
   planning that issue and any session merging that pull request. Only a human
@@ -321,7 +321,7 @@ the block `JOHARNESS_DEFECT_RECHECK_HOURS` old, the base moved = `RECHECK`
 (a re-park restarts that clock only). Outranking RECHECK, notified once:
 `UNPLANNED`, `STUCK` (a stale live branch naming #<n> included),
 `UNREADABLE` (the block commit is not in the clone: no RESUME). Mechanics:
-`orchestrate-reference.md`, Resume.
+`orchestrator-reference.md`, Resume.
 A `PARKED` row on an issue no plan names, `JOHARNESS_DEFECT_CLERK_HOURS`
 after its first park and no clerk having read the issues since, makes the clerk due now
 (`clerk DUE (PARKED #<n> unplanned, …)`), not at its cadence.
@@ -337,7 +337,7 @@ notifies. A cadence gap, not intent: the parked manager waits on exactly that
 plan while its branch drifts, and a RECHECK respawn can re-park on the same
 red check. One consumer reading, not re-taken here (chrsctl/gx, 2026-10-28):
 two managers parked beside `clerk : not due`; a human-ordered extra clerk
-(`orchestrate-reference.md`, Role sessions) cut the wait to the plan. The
+(`orchestrator-reference.md`, Role sessions) cut the wait to the plan. The
 plan `defect-park-calls-clerk` makes the clerk due early on such a park; it
 rewrites this paragraph when it retires.
 
@@ -364,16 +364,16 @@ human hand.
 
 Start each run in a new session at the Lineup's orchestrator tier; never
 resume the last one ("Can we continue"): a resumed session pays a cache
-re-warm on its whole context (`orchestrate-reference.md`, "Fresh session
+re-warm on its whole context (`orchestrator-reference.md`, "Fresh session
 line"). Within one run the cost compounds too: `send_later` wakes the SAME
 session and pass N re-reads passes 1..N-1. So after
 `JOHARNESS_ORCHESTRATOR_PASSES` passes the wake carries `retire=yes`, and it
 keeps running passes. The keeper, on its next wake or a doorbell, retitles it
 `💤 orchestrator (retired): <owner/repo>` and starts the successor with that
-wake as its prompt, `pass=1`, no leads (`orchestrate-reference.md`, RETIRE;
+wake as its prompt, `pass=1`, no leads (`orchestrator-reference.md`, RETIRE;
 `keeper.md`, SWAP); the retired session's next wake does nothing. A run that
 ends on its own (DRAINED, a PAUSED exit, a human's stop) retitles itself the
-same way as its last act (`orchestrate.md` §4, RUN END). The pass count
+same way as its last act (`orchestrator.md` §4, RUN END). The pass count
 decides, never a control-plane field.
 
 **One spawner, one turn.** Only the keeper starts an orchestrator, and it
@@ -400,7 +400,7 @@ starts sits at the keeper's depth plus one, so retiring never deepens.
 Without an up-to-date heartbeat nothing swaps: the orchestrator keeps arming
 in the same session, and "## 0. Start" stops one at the cap with the reason
 in its push. Managers sit one level below their orchestrator; only
-`orchestrate.md` and `keeper.md` call `create_session` or `send_later`
+`orchestrator.md` and `keeper.md` call `create_session` or `send_later`
 (`grep -ln 'send_later\|create_session' .claude/commands/*.md`). Managers:
 [`agent-selection.md`](agent-selection.md), Cost levers, "Fresh session".
 
@@ -417,16 +417,16 @@ ride `dispatch`, which the orchestrator the keeper starts reads.
 The heartbeat is a Routine bound to one keeper session per repo
 (`.claude/commands/keeper.md`); its prompt `/keeper` names the role and the
 title guards it (Prompt, below). The keeper rules live outside
-`orchestrate.md`, so an orchestrator never holds the keeper check, which
+`orchestrator.md`, so an orchestrator never holds the keeper check, which
 would start another orchestrator. Each hourly wake, the keeper looks for a
-pending `/orchestrate pass` wake bound to an `🎼 orchestrator: <owner/repo>`
+pending `/orchestrator pass` wake bound to an `🎼 orchestrator: <owner/repo>`
 (glossary, role title) session, or a `RUNNING` or `PENDING` orchestrator it started itself or
 that started it; none = it starts a fresh orchestrator with `create_session`. A live one
 whose wake carries `retire=yes` is swapped (above). A replace re-roots the
 keeper at the replacing session's depth plus one, which is why REGISTER
 checks `depth + 2 < limit` before it deletes anything.
 
-**Registered by `/orchestrate`.** The heartbeat registers itself when an
+**Registered by `/orchestrator`.** The heartbeat registers itself when an
 orchestrator starts and none exists ("## 0. Start" step 5, REGISTER). REGISTER
 starts the keeper with `/keeper register`: that first turn takes the post and
 starts nothing, so it never starts a second orchestrator onto the registering
@@ -435,9 +435,9 @@ requester's veto is the pause: a Routine with `enabled` false and an empty
 `ended_reason` is never re-enabled, edited or replaced, and nor is one made in
 the UI. Any `ended_reason` but `auto_disabled_session_gone` counts as a pause,
 and a replace takes only a Routine whose prompt is exactly `/keeper` (or the
-older spec's `/orchestrate keeper`). A pause stops the hourly restarts, not a
+older spec's `/orchestrator keeper`). A pause stops the hourly restarts, not a
 running orchestrator's `send_later` chain; the human's stop does both
-(`orchestrate-reference.md`, "Human stop").
+(`orchestrator-reference.md`, "Human stop").
 
 **Bound, not fresh.** A Routine `create_trigger` makes from a session with
 `create_new_session_on_fire` reads `created_via: meta_mcp`; its fired session
@@ -447,9 +447,9 @@ clone it makes (`create_trigger` + `fire_trigger`). `create_trigger` takes no
 repository. A keeper made with `create_session` and a `source_url` has the
 repository and the tools, so the Routine wakes it instead. "Run now" fires a
 fresh session titled `⚡ <Routine name>` with no repository and no
-`/orchestrate`, live keeper or not; on a Routine whose keeper is `ARCHIVED` it
+`/orchestrator`, live keeper or not; on a Routine whose keeper is `ARCHIVED` it
 also rebinds `persistent_session_id` to it while `last_run` reads
-`SUCCEEDED`. So "Run now" never restarts the fleet; a new `/orchestrate`
+`SUCCEEDED`. So "Run now" never restarts the fleet; a new `/orchestrator`
 session does, keeper archived or not: the check reads `keeper-gone` and
 REPLACE restores the keeper. The check runs every pass and its `get_session`
 on the bound session is never skipped: its `ok` line carries `session_status`
@@ -468,23 +468,23 @@ step 3 lets the older proceed and the newer exit. A DRAINED fleet costs one
 short orchestrator session an hour.
 
 The spec every orchestrator checks at start and on every pass after the first
-(`orchestrate-reference.md`, "## 0. Start" step 5; a session-made stale one is
+(`orchestrator-reference.md`, "## 0. Start" step 5; a session-made stale one is
 replaced, any other `heartbeat stale` or `heartbeat duplicated` line pushes):
 
-- **Name**: exactly `heartbeat: <owner/repo>` — how the check tells it from
+- **Name**: `💗 heartbeat: <owner/repo>`, a SET writes the heart, a MATCH accepts the bare `heartbeat: <owner/repo>` too — how the check tells it from
   another repo's heartbeat.
 - **Binding**: `persistent_session_id` = a session titled `🔑 keeper:
   <owner/repo>` (glossary, role title), not `ARCHIVED`. An archived keeper disables the Routine
-  (`auto_disabled_session_gone`); the next `/orchestrate` replaces both.
+  (`auto_disabled_session_gone`); the next `/orchestrator` replaces both.
 - **Cadence**: hourly floor (`*/5 * * * *` is refused). The Routine backs
   the `send_later` chain; it does not replace it.
 - **Prompt**: exactly `/keeper`. It invokes the keeper command; the
-  keeper's title guards it. A Routine on the older spec's `/orchestrate keeper`
-  still counts as up to date: `orchestrate.md` sends a keeper-titled
+  keeper's title guards it. A Routine on the older spec's `/orchestrator keeper`
+  still counts as up to date: `orchestrator.md` sends a keeper-titled
   session to `keeper.md`, so a rename never costs a replace.
 - **Stop**: `update_trigger` `enabled: false` pauses (the veto),
-  `delete_trigger` removes and lets the next `/orchestrate` register a new
-  one. A Routine not named exactly `heartbeat: <owner/repo>` never counts and
+  `delete_trigger` removes and lets the next `/orchestrator` register a new
+  one. A Routine not named `💗 heartbeat: <owner/repo>` (or bare) never counts and
   is never touched. Read `last_run`, never `next_run_at` (a paused Routine
   keeps a stale one).
 - **The chain can end silently.** A `send_later` link can be delivered and

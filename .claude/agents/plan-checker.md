@@ -1,6 +1,6 @@
 ---
 name: plan-checker
-description: One reader that did not write the plan. Checks a plan file is sound before a manager builds it, reports every defect with its evidence, and fixes nothing. Spawn at manage.md §2 for a plan with agent opus or fable.
+description: One reader that did not write the plan. Checks a plan file is sound before a manager builds it, reports every defect with its evidence, and fixes nothing. Spawn at manager.md §2 for a plan with agent opus or fable.
 tools: Read, Grep, Glob, Bash
 ---
 

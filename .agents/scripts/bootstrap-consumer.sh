@@ -505,12 +505,12 @@ interview
 # Said at the close of every real run that stands a child up, never acted on:
 # the child runs orchestrated, and orchestrated is the switch, not the
 # automation. Without a heartbeat firing each next orchestrator session it runs
-# exactly as often as a human starts one. The first /orchestrate registers it;
+# exactly as often as a human starts one. The first /orchestrator registers it;
 # the pause stays the human's veto.
 heartbeat_note() {
   printf '\nheartbeat: the child runs orchestrated, and it still needs a heartbeat to fire each next orchestrator session.\n'
   printf '  .agents/docs/orchestrated.md carries the Routine'\''s keeper binding, its hourly floor and the pause.\n'
-  printf '  The first /orchestrate registers heartbeat: <owner/repo>; pausing it stops the hourly restarts.\n'
+  printf '  The first /orchestrator registers 💗 heartbeat: <owner/repo>; pausing it stops the hourly restarts.\n'
 }
 
 # Everything above the marker, CR-stripped — same one-definition rule as

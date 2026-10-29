@@ -2936,7 +2936,7 @@ analysis_one() {
     out="${out}condition : BLOCKED — a human's. dispatch relays this row every pass and"$'\n'
     out="${out}            never asks whether its cause still holds"$'\n'
     block_reason_ok "$next" ||
-      out="${out}condition : INVALID BLOCK? — next: opens with no reason word (manage.md §3); asks, orders nothing"$'\n'
+      out="${out}condition : INVALID BLOCK? — next: opens with no reason word (manager.md §3); asks, orders nothing"$'\n'
   fi
   if [ "$status" != "blocked" ] && [ "$status" != "abandoned" ] &&
      [ -n "$age" ] && [ "$age" -ge "$stall" ]; then
@@ -4462,7 +4462,7 @@ clerk_issue_wait() {
 }
 
 # `last read :` and `issue wait:`, the issue trigger's git-side facts (the
-# orchestrator reads the issues: orchestrate-reference.md, Role sessions).
+# orchestrator reads the issues: orchestrator-reference.md, Role sessions).
 # arg: `unreadable` = the cadence could not be read; `off` = the cycle is
 # off, so no issue calls the clerk either (dispatch prints no read line).
 clerk_read_lines() {
@@ -5067,7 +5067,7 @@ cmd_conduct() {
 RETRO_LEDGER="docs/retro-log.md"
 # The lines the orchestrator writes under `## Blockers` when it kills a
 # manager: after a LOOP, and after silence past a nudge
-# (.agents/docs/orchestrate-reference.md, KILL and LOOP).
+# (.agents/docs/orchestrator-reference.md, KILL and LOOP).
 RETRO_LOOP_NOTE='Looped, killed by the orchestrator'
 RETRO_KILL_NOTE='Killed by the orchestrator'
 
@@ -6097,11 +6097,11 @@ authority_drift() {
 
 # The one entrypoint a session runs when it does not know which role to take.
 cmd_start() {
-  local file='.claude/commands/orchestrate.md'
+  local file='.claude/commands/orchestrator.md'
 
   # BEFORE the routing line, not after it.
-  printf 'Prompt names /manage <item>? STOP: you are a MANAGER of that item\n'
-  printf 'and .claude/commands/manage.md is your file. Prompt is /keeper?\n'
+  printf 'Prompt names /manager <item>? STOP: you are a MANAGER of that item\n'
+  printf 'and .claude/commands/manager.md is your file. Prompt is /keeper?\n'
   printf 'STOP: you are the KEEPER and .claude/commands/keeper.md is your file.\n'
   printf 'No shell can see a prompt, so the line below is the default: the\n'
   printf 'ORCHESTRATOR.\n\n'
@@ -6194,7 +6194,7 @@ gr_fields() {
     END { for (i = 1; i <= n; i++) { if (i in v) print v[i]; else print "" } }'
 }
 
-# One field with its ` #…` kept: `next: defect: #<n>: …` (manage.md §3) is
+# One field with its ` #…` kept: `next: defect: #<n>: …` (manager.md §3) is
 # no comment, and gr_fields reads it as `defect:`.
 gr_field_raw() {
   awk -v key="$1" '
@@ -7045,7 +7045,7 @@ needs_has() {
   return 1
 }
 # <next:>: a parked claim's reason is one the queue can answer — a reason
-# word manage.md §3 accepts, and not one only a human or a defect's fix
+# word manager.md §3 accepts, and not one only a human or a defect's fix
 # answers (the set retro_queue_block excludes).
 release_reason_ok() {
   block_reason_ok "$1" || return 1
@@ -7145,7 +7145,7 @@ defect_issue() {
   n="${n#defect:}"; n="${n#"${n%%[! ]*}"}"; n="${n%%:*}"; n="${n%"${n##*[! ]}"}"
   case "$(issue_verdict "$n")" in "ok "*) printf '%s' "${n#\#}" ;; esac
 }
-# A `defect: #<n>: …` block (manage.md §3), read from git alone — never an
+# A `defect: #<n>: …` block (manager.md §3), read from git alone — never an
 # issue's state. One line, tab-separated:
 #   <state> <n> <retired plan stem or -> <minutes since the block commit or ->
 # state, first that holds:
@@ -7230,7 +7230,7 @@ dispatch_defect_state() {
   age=$(( (now - bt) / 60 ))
   [ "$age" -ge 0 ] || age=0
   # Newest first; the orchestrator's RESUME on #<n> closed every park before
-  # it (orchestrate-reference.md, Resume) — its wording only: a KILL
+  # it (orchestrator-reference.md, Resume) — its wording only: a KILL
   # handover's or a manager's own `Resume:` closes nothing.
   ft="$bt"
   while read -r h hct; do
@@ -8623,7 +8623,7 @@ block_reason_ok() {
 }
 
 # The pull request number a `core path: waiting on #<n>: ...` next: names
-# (manage.md §3), or nothing. Branch-written text: digits only, bounded.
+# (manager.md §3), or nothing. Branch-written text: digits only, bounded.
 awaited_pr() {
   local t="${1#[\"\']}"
   [[ "$t" =~ ^core\ path:\ waiting\ on\ \#([0-9]{1,7})(:|$) ]] || return 0
@@ -8812,7 +8812,7 @@ cmd_dispatch() {
   elif [ "$fetch_failed" -eq 1 ]; then
     printf 'scout     : held — no fresh view of every branch this pass (fetch failed, DISPATCH_FETCH=0, or a remote.origin.fetch that does not reach refs/heads/*), so a scout in flight might not show: spawn none this pass\n'
   else
-    printf 'scout     : none in flight — on the reviewer'"'"'s order or a scout issue waiting on the scout (orchestrate.md) spawn ONE (agent: fable) on /scout, beyond the cap\n'
+    printf 'scout     : none in flight — on the reviewer'"'"'s order or a scout issue waiting on the scout (orchestrator.md) spawn ONE (agent: fable) on /scout, beyond the cap\n'
   fi
   # The fourth cycle, retro's audit mode: the reader (conduct_due) `retro
   # --audit` asks.
@@ -8945,7 +8945,7 @@ cmd_dispatch() {
       [ -n "$stall_young" ] && [ "$stall_young" -le "$eage" ] || stall_young="$eage"
       estem="${efirst##*/}"; estem="${estem%.md}"
       if [ -n "$efirst" ]; then
-        edge_rows="${edge_rows}    STALL? no push for ${eagetext} (>= ${stall}m): cross-check the control plane by TITLE (🔨 manager: ${estem}) — this row carries no session line to read; the verdict is the health table's (.claude/commands/orchestrate.md, step 2), never this row's"$'\n'
+        edge_rows="${edge_rows}    STALL? no push for ${eagetext} (>= ${stall}m): cross-check the control plane by TITLE (🔨 manager: ${estem}) — this row carries no session line to read; the verdict is the health table's (.claude/commands/orchestrator.md, step 2), never this row's"$'\n'
       else
         # No item, no title to look up, so no respawn: a successor spawned
         # blind onto a branch nobody can name is two sessions on one branch.
@@ -9097,7 +9097,7 @@ cmd_dispatch() {
           ;;
         *)
           # A `core path:` block naming the human pull request it waits on
-          # (manage.md §3) comes back once the base's first parent carries
+          # (manager.md §3) comes back once the base's first parent carries
           # that PR's merge commit: a RESUME row, as a retired fix's, and
           # its scope stays held.
           # How long it has stood: one history read, the age and the
@@ -9146,7 +9146,7 @@ cmd_dispatch() {
             else
               flag="  BLOCKED: the human's, holds no slot"
               block_reason_ok "$next" ||
-                flag="${flag}  INVALID BLOCK? next: opens with no reason word (manage.md §3): ask, order nothing"
+                flag="${flag}  INVALID BLOCK? next: opens with no reason word (manager.md §3): ask, order nothing"
             fi
             if [ -n "$bage" ]; then
               flag="${flag}, parked $(dispatch_age_text "$bage") ago"
@@ -9175,7 +9175,7 @@ cmd_dispatch() {
           cage_min="$(dispatch_claim_age_min "$branch" "$base")"
           if [ -n "$cage_min" ] && [ "$cage_min" -ge $((hours * 60)) ]; then
             n_ceiling=$((n_ceiling + 1))
-            flag="${flag}  CEILING? $(dispatch_age_text "$cage_min") since the claim, no pr: — REPORT it with the control plane's cost (.claude/commands/orchestrate.md)"
+            flag="${flag}  CEILING? $(dispatch_age_text "$cage_min") since the claim, no pr: — REPORT it with the control plane's cost (.claude/commands/orchestrator.md)"
           fi
           ;;
       esac
@@ -9267,7 +9267,7 @@ cmd_dispatch() {
     dn="${fx_n[$ri]}"; dplan="${fx_plan[$ri]}"; di="${fx_di[$ri]}"
     if [ "${fx_kind[$ri]}" = MERGED ]; then
       if [ "$fx_k" -lt "$n_resume" ]; then
-        rtext="${rtext}${fx_rows[$ri]}  PARKED #${dn} RESUME — #${dn} merged, the human pull request its core path: block waits on: write the resume next:, then nudge or respawn (orchestrate.md), one slot"
+        rtext="${rtext}${fx_rows[$ri]}  PARKED #${dn} RESUME — #${dn} merged, the human pull request its core path: block waits on: write the resume next:, then nudge or respawn (orchestrator.md), one slot"
         dst="${dst}${fx_lines[$ri]}            PARKED #${dn} RESUME ${di}: #${dn} merged, resume it this pass"$'\n'
       else
         rtext="${rtext}${fx_rows[$ri]}  PARKED #${dn}: #${dn} merged, resume waits for a slot"
@@ -9275,14 +9275,14 @@ cmd_dispatch() {
       fi
     elif [ "${fx_kind[$ri]}" = RECHECK ]; then
       if [ "$fx_k" -lt "$n_resume" ]; then
-        rtext="${rtext}${fx_rows[$ri]}  PARKED #${dn} RECHECK — the base moved since the block, no plan names #${dn}: write the recheck next:, then nudge or respawn (orchestrate.md), one slot"
+        rtext="${rtext}${fx_rows[$ri]}  PARKED #${dn} RECHECK — the base moved since the block, no plan names #${dn}: write the recheck next:, then nudge or respawn (orchestrator.md), one slot"
         dst="${dst}${fx_lines[$ri]}            PARKED #${dn} RECHECK ${di}: the base moved since the block, recheck it this pass"$'\n'
       else
         rtext="${rtext}${fx_rows[$ri]}  PARKED #${dn}: the base moved since the block, recheck waits for a slot"
         dst="${dst}${fx_lines[$ri]}            PARKED #${dn} ${di}: the base moved since the block, recheck waits for a slot"$'\n'
       fi
     elif [ "$fx_k" -lt "$n_resume" ]; then
-      rtext="${rtext}${fx_rows[$ri]}  PARKED #${dn} RESUME — the fix retired (${dplan}): write the resume next:, then nudge or respawn (orchestrate.md), one slot"
+      rtext="${rtext}${fx_rows[$ri]}  PARKED #${dn} RESUME — the fix retired (${dplan}): write the resume next:, then nudge or respawn (orchestrator.md), one slot"
       dst="${dst}${fx_lines[$ri]}            PARKED #${dn} RESUME ${di}: the fix retired (${dplan}), resume it this pass"$'\n'
     else
       rtext="${rtext}${fx_rows[$ri]}  PARKED #${dn}: the fix retired (${dplan}), resume waits for a slot"
@@ -9405,7 +9405,7 @@ cmd_dispatch() {
         fi
         case "$label" in
           *'CORE ONLY'*)
-            corefree="${corefree}${row}  CORE ONLY — build it; the core edit goes in a human/<stem> pull request a human merges (manage-reference.md § Human remainder)"$'\n' ;;
+            corefree="${corefree}${row}  CORE ONLY — build it; the core edit goes in a human/<stem> pull request a human merges (manager-reference.md § Human remainder)"$'\n' ;;
           *) free="${free}${row}"$'\n' ;;
         esac ;;
     esac
@@ -9480,7 +9480,7 @@ cmd_dispatch() {
       [ -n "$rb" ] || continue
       rage="$(dispatch_age_text "$(dispatch_age_min "$rb" </dev/null)")"
       # A FINISHED rescope: `done`, no `pr:`, a key (`plan: none` and the
-      # `rescope-` prefix are the reader's own filter) — manage.md's genuine
+      # `rescope-` prefix are the reader's own filter) — manager.md's genuine
       # end, which merges nothing. The hook's finished_rescope, rank 6; the
       # orchestrator drops its ledger entry on this text (issue #492).
       rfin=""
@@ -9521,7 +9521,7 @@ cmd_dispatch() {
       "$n_hold" "$n_rescope_holders"
     printf '            the scope: declarations are not. A surveyor marks the\n'
     printf '            shared registries and narrows the directory claims so these\n'
-    printf '            plans wave in parallel (.claude/commands/manage.md, rescope).\n'
+    printf '            plans wave in parallel (.claude/commands/manager.md, rescope).\n'
     printf '            key: %s\n' "${rescope_key:-none}"
     printf '            held on:\n'
     printf '%s\n' "$rescope_paths"
@@ -9672,7 +9672,7 @@ cmd_dispatch() {
   elif [ "$clerk_issue" -eq 1 ] && [ "$cap" -eq 0 ]; then
     printf '            clerk issue read, held — JOHARNESS_MAX_MANAGERS=0 is the human'"'"'s pause: read none this pass\n'
   elif [ "$clerk_issue" -eq 1 ]; then
-    printf '            clerk issue read: the clerk is not due and none is in flight — read the open issues for one no clerk has read (orchestrate-reference.md, Role sessions, "A new issue needs the clerk"); an issue that fires = the clerk DUE row, one clerk (JOHARNESS_ISSUE_CLERK_HOURS)\n'
+    printf '            clerk issue read: the clerk is not due and none is in flight — read the open issues for one no clerk has read (orchestrator-reference.md, Role sessions, "A new issue needs the clerk"); an issue that fires = the clerk DUE row, one clerk (JOHARNESS_ISSUE_CLERK_HOURS)\n'
   fi
   # Not gated on DRAINED: sampling merged work competes with nothing.
   if [ "$conduct_due" -eq 1 ] && [ "$cap" -eq 0 ]; then
@@ -9806,14 +9806,14 @@ cmd_session_start() {
   # One mode, so one banner, printed first: it governs the whole session,
   # including the parts that run before an environment resolves.
   printf '== Mode: orchestrated ==\n\n'
-  printf 'Three roles, one Loop. Your prompt names /manage <item>? You are a\n'
+  printf 'Three roles, one Loop. Your prompt names /manager <item>? You are a\n'
   printf 'MANAGER: that ONE item, the full Loop on it, merge your own pull\n'
   printf 'request, push at every milestone, exit. Prompt is /keeper? The\n'
   printf 'heartbeat woke the KEEPER: keeper.md, that file only. Neither? You are the\n'
-  printf 'ORCHESTRATOR: run /orchestrate — it reads ./joharness.sh dispatch,\n'
+  printf 'ORCHESTRATOR: run /orchestrator — it reads ./joharness.sh dispatch,\n'
   printf 'spawns one manager per free item under the cap, checks health, and\n'
   printf 'exits at DRAINED with nothing in flight. The command IS\n'
-  printf 'the rules for its role (.claude/commands/orchestrate.md, manage.md,\n'
+  printf 'the rules for its role (.claude/commands/orchestrator.md, manager.md,\n'
   printf 'keeper.md).\n'
   printf 'Each role reads its own documents and no others: the queue is NOT\n'
   printf 'printed here. Orchestrator: dispatch is the whole read — open no\n'
@@ -9832,7 +9832,7 @@ cmd_session_start() {
   done < <(protocol_paths)
   printf 'One exception: a manager'"'"'s human/<stem> pull request, labelled\n'
   printf 'human-review, carrying the core edit only; a human still merges it\n'
-  printf '(.claude/commands/manage.md §2).\n'
+  printf '(.claude/commands/manager.md §2).\n'
   printf '\n'
 
   if name="$(resolve_env)"; then
@@ -9931,7 +9931,7 @@ main() {
     dispatch)       cmd_dispatch ;;
     map)            cmd_map ;;
     start)          [ -z "${1:-}" ] ||
-                      die "start takes no argument; the commands that take one are /manage <item> and /plan"
+                      die "start takes no argument; the commands that take one are /manager <item> and /plan"
                     cmd_start ;;
     # Read by .agents/harness/handover-guard.sh, which cannot source this file.
     protocol-paths) protocol_paths ;;

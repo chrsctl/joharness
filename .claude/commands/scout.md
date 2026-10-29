@@ -4,7 +4,7 @@ description: Scout role — research against the brief and propose on GitHub iss
 
 Scout role. ONE pass, proposals as GitHub issues on this repository, exit.
 Here on the reviewer's order (`/scout`, or the orchestrator's `+human` extra
-session) or a waiting `scout` issue (`.agents/docs/orchestrate-reference.md`,
+session) or a waiting `scout` issue (`.agents/docs/orchestrator-reference.md`,
 "A scout issue needs the scout"); never by a session's decision. No clock,
 no manager slot. You build nothing. A proposal enters plans only through the reviewer's `approved`
 label and the clerk (`.claude/commands/clerk.md`, the scout gate).
@@ -112,7 +112,7 @@ refused>` in the claim and the report; propose from inside evidence only.
 ## 3. Answer
 
 WAITING = every issue the orchestrator's trigger names
-(`.agents/docs/orchestrate-reference.md`, "A scout issue needs the scout").
+(`.agents/docs/orchestrator-reference.md`, "A scout issue needs the scout").
 A reading that fails = not WAITING this pass, named in the report. Each
 WAITING issue gets exactly ONE reply this pass:
 
