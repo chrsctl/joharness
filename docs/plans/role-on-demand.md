@@ -7,7 +7,7 @@ needs: none
 requirement: none
 serves: all
 issue: none
-scope: shared:joharness.sh, .claude/commands/retro.md, .claude/commands/retro-audit.md, .claude/commands/clerk.md, .claude/commands/orchestrate.md, .agents/docs/orchestrate-reference.md, .agents/docs/orchestrated.md, .agents/harness/selftest/role.sh
+scope: joharness.sh, .claude/commands/retro.md, .claude/commands/retro-audit.md, .claude/commands/clerk.md, .claude/commands/orchestrate.md, .agents/docs/orchestrate-reference.md, .agents/docs/orchestrated.md, .agents/harness/selftest/role.sh
 ---
 
 ## Goal
