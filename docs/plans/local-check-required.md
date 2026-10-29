@@ -28,10 +28,17 @@ GitHub check.
 
 - `joharness.sh:checks_gate`
   - Under local mode in a consumer (`! is_canonical`), a HEAD with no
-    `local-check` sets the gate's rc to 1.
-  - The message names the file to create and
+    `local-check` sets the gate's rc to 1. It goes after `ci`, `verify`
+    and `checks_local_check`, where the note is today — not among the
+    tree refusals: it is no question about which tree merges, and the
+    suites' verdicts still print.
+  - The message keeps the substring `no consumer check declared
+    (local-check)`, names the file to create and
     `.agents/docs/consumer-repos.md` § Local checks.
   - The canonical repository keeps today's note and stays green.
+- Stale text saying the check is optional: `joharness.sh` header
+  comment, the `JOHARNESS_CHECKS` knob text, the session-start banner;
+  consumer-repos.md "One command of the consumer's own can stand".
 - `.agents/docs/consumer-repos.md` § Local checks — rewrite the paragraph
   that starts "With no `local-check`" to say the gate is red in a
   consumer, and how to clear it: declare the consumer's suites in
@@ -44,13 +51,22 @@ GitHub check.
     - "an ignored local-check is not a red"
     - "no declared check is named on the green path"
     - "bash joharness.sh finish reaches ci and passes"
+  - Also flipped: "the same conf with the environment value is local
+    mode" expects `finish: pass (ci and verify ran here:
+    JOHARNESS_CHECKS=local)` on kcwork with no check.
+  - Red-path cases whose `kc_rc` would then pass for the wrong reason get
+    a trivial `local-check` on their branch, so the red stays theirs:
+    "a red ci is a red merge" (kcbroken), "a skipped shellcheck is a red
+    merge" (kcdocs).
   - For each one, either give the fixture a trivial `local-check`
     (`exit 0`) so the case keeps its meaning, or assert the new red where
     the case is about the missing file. Record the choice per case in
     `## Decisions`.
   - Add cases:
     - consumer, local mode, no `local-check`: red, naming `local-check`;
-    - the same fixture with `JOHARNESS_CANONICAL=1`: not red;
+    - the same fixture with `JOHARNESS_CANONICAL=1` written in a conf
+      OUTSIDE the worktree (`JOHARNESS_CONF`, as `kcconf` does;
+      `is_canonical` reads the conf, never the environment): not red;
     - consumer with `local-check` = `exit 0`: green.
 
 ## Assumptions
@@ -80,13 +96,14 @@ GitHub check.
 - `bash .agents/harness/selftest.sh` — `0 failed`.
   - The three new `checks.sh` cases pass.
   - The consumer-no-check case fails when the rc change in
-    `checks_gate` is reverted.
+    `checks_gate` is reverted (record the run in `## Review`).
 - `./joharness.sh ci` — `ci: pass`.
 - `./joharness.sh verify` — `0 failed`.
-- Consumer-side check (this plan SHIPS): after the sync, in a consumer
-  with no `local-check`, `JOHARNESS_CHECKS=local ./joharness.sh finish`
-  exits non-zero, and its output names `local-check`. Before the sync it
-  exits 0 on the same head.
+- Consumer-side check (this plan SHIPS; done in the consumer after the
+  sync, not in this repository): in a consumer with no `local-check`,
+  `JOHARNESS_CHECKS=local ./joharness.sh finish` exits non-zero, and its
+  output names `local-check`. Before the sync it exits 0 on the same head.
+  Here the selftest's consumer fixture stands in for it.
 
 ## Where to look
 
