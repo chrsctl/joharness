@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK5uhS1o6RkivUJMsPa
 agent: opus
 updated: 2026-10-29
-next: Plan-checker round 3, then build clerk_last_read and the cmd_clerk lines
+next: Build clerk_last_read and the cmd_clerk lines
 ---
 
 ## Goal
@@ -52,6 +52,18 @@ orchestrator reads issues, `./joharness.sh clerk` supplies `last read` and
 - r22: (plan-checker) clerk_park_early missing from Where to look (fixed)
 - r23: (plan-checker) overlap with role-on-demand understated (fixed: Traps names the shared sections)
 - r24: (plan-checker) "first commit time" author or committer, ISO form unstated (fixed: %at, YYYY-MM-DDTHH:MM:SSZ)
+
+- r25: (plan-checker) an issue-fired clerk beside a retro audit/retro DUE line: which goes first (fixed: the clerk; no retro spawn that pass)
+- r26: (plan-checker) the re-fire bound needs issue wait >= defect knob, unenforced (fixed: cmd_clerk raises the wait to the defect knob)
+- r27: (plan-checker) a git failure in the extracted read prints `none`, failing open (fixed: any failed read = UNREADABLE)
+- r28: (plan-checker) dispatch line text and position unstated (fixed: both in Scope)
+- r29: (plan-checker) Acceptance says no failure form (fixed: one failure line)
+- r30: (plan-checker) SHIPS line not runnable here (fixed: reproduced in a scratch repo holding only joharness.sh and a conf)
+- r31: (plan-checker) row spellings `planned`/`claimed`/`clerk` miss their padding (fixed)
+- r32: (plan-checker) ISO formatting portability (fixed: GNU then BSD date, as dispatch does)
+- r33: (plan-checker) DEFECT row correction serves no Goal clause (no change: the row documents the helper this plan extracts; a false row is a defect)
+- r34: (plan-checker) a read preceding its record by more than the knob misses an issue (wontfix: git holds no read time; such an issue waits on the cadence, today's behaviour; named in Out of scope)
+- r35: plan-checker stopped at round 3 (counts 13, 11, 10 falling); remaining findings fixed or wontfix above (no change)
 
 ## Blockers
 
