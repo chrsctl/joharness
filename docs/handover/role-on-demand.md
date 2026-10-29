@@ -30,6 +30,7 @@ unreadable gates, so on-demand never means two of one role.
 - Trace's empty = `sample    : none` AND `concern   : none…`: an untraced CONCERN is work, as `retro_due` reads it.
 - Prompt form: the FIRST line `/retro --ordered`; a bare command keeps the clock. A session cannot tell a human from dispatch.
 - Clerk ignores the pause as before; out of scope (plan: no clerk code change).
+- The pause stops audit and trace whether ordered or not (r14): step 3's dispatch read used to stop a bare human pass; a due dispatch spawn never meets it, dispatch holds first.
 
 ## Rejected
 
@@ -49,6 +50,11 @@ unreadable gates, so on-demand never means two of one role.
 - r10: (plan-checker) acceptance names no failure output (fixed)
 - r11: (plan-checker) no acceptance case for the twin under `--ordered` (fixed)
 - r12: (plan-checker) the tree moved during its read (no change: a plan check reads the plan; the verifier runs on a still tree)
+- r13: (verifier) orchestrated.md says an ordered clerk stops on off and the pause; clerk has no such case (fixed: the text names retro only; clerk's `--ordered` is a no-op)
+- r14: (verifier) a bare `/retro` or `/retro-audit` under the pause now GOes: step 3's dispatch `held` gate was dropped (fixed: `role_paused` stops audit and trace, ordered or not; a case per mode)
+- r15: (verifier) trace's untraced-CONCERN-is-work branch has no case failing without it (fixed: a case with an empty sample and one CONCERN reads GO)
+- r16: (verifier) the twin gate and the `suppressed` stop changed against the base plan's Goal (no change: A6 refuted, recorded in Decisions; flagged in the pull request body)
+- r17: (verifier) the base-side fail is only the unknown-option die (no change: mutants M1, M3, M4 each fail cases, per the verifier's own run)
 
 ## Blockers
 

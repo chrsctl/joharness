@@ -5566,8 +5566,8 @@ role_ledger_still() {
   git -C "$ROOT" diff --quiet "$mb" "$base" -- "$(role_ledger_path "$1")" </dev/null 2>/dev/null
 }
 
-# The human's pause holds an ordered reviewer as dispatch holds a due one:
-# dispatch's `held` line, which an ordered pass never reads.
+# The human's pause holds a reviewer as dispatch holds a due one: dispatch's
+# `held` line, which a pass started by hand never reads.
 role_paused() {
   [ "$(num_knob JOHARNESS_MAX_MANAGERS)" -eq 0 ] || return 1
   printf 'held — JOHARNESS_MAX_MANAGERS=0 is the human'"'"'s pause: spawn none'
@@ -5575,7 +5575,7 @@ role_paused() {
 
 # Which report lines are a plain exit before the branch is cut, per role's
 # §0 as its command file reads. <ordered> non-empty (`--ordered`): the clock
-# alone is no exit; off, and an empty sample (nothing to review), still are.
+# alone is no exit; off, the pause and an empty sample still are.
 role_start_stop() {
   local role="$1" ordered="${2:-}" l s
   l="$(role_line '^[a-z]+ +: (UNREADABLE|IN FLIGHT)')"
@@ -5585,9 +5585,9 @@ role_start_stop() {
     audit)
       l="$(role_line '^sample    : UNREADABLE')"
       [ -z "$l" ] || { printf '%s' "$l"; return 0; }
+      role_paused && return 0
       if [ -n "$ordered" ]; then
         role_line '^cadence   : off' && return 0
-        role_paused && return 0
         role_line '^sample    : none'
         return 0
       fi
@@ -5596,9 +5596,9 @@ role_start_stop() {
     retro)
       l="$(role_line '^sample    : UNREADABLE')"
       [ -z "$l" ] || { printf '%s' "$l"; return 0; }
+      role_paused && return 0
       if [ -n "$ordered" ]; then
         role_line '^retro : off' && return 0
-        role_paused && return 0
         # Trace's work is the failed sessions OR one untraced CONCERN.
         s="$(role_line '^sample    : none')"
         l="$(role_line '^concern   : none')"

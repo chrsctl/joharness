@@ -98,8 +98,9 @@ refute "and runs no prelude" "authority :" "$out"
 role_hour_ago="$(( $(date +%s) - 3600 ))"
 printf '| date | branch | session | outcome |\n|------|--------|---------|---------|\n' \
   >"${role_work}/docs/retro-log.md"
-printf '| date | stem | C1 | C2 | note |\n|------|------|----|----|------|\n' \
-  >"${role_work}/docs/conduct-log.md"
+# One audit CONCERN, untraced: trace's other work.
+printf '| date | stem | C1 | C2 | note |\n|------|------|----|----|------|\n| %s | role-concern | CONCERN | - | |\n' \
+  "$role_today" >"${role_work}/docs/conduct-log.md"
 git -C "$role_work" add -A
 GIT_COMMITTER_DATE="@${role_hour_ago}" GIT_AUTHOR_DATE="@${role_hour_ago}" \
   git -C "$role_work" commit -qm "both ledgers land"
@@ -109,6 +110,12 @@ commit_all "$role_work" "role-done claimed"
 git -C "$role_work" rm -q docs/handover/role-done.md
 commit_all "$role_work" "role-done retired"
 git -C "$role_work" push -q origin main
+out="$(role_run ./joharness.sh role retro --ordered)"
+expect "retro --ordered, no failed session but an untraced CONCERN: GO" \
+  "GO retro-${role_today}-" "$(role_last "$out")"
+expect "and the sample was empty" "sample    : none" "$out"
+git -C "$role_work" checkout -q main
+git -C "$role_work" branch -q -D "$(printf '%s\n' "$(role_last "$out")" | sed 's/^GO //')"
 git -C "$role_work" checkout -qb m/role-blocked main
 # The retire above emptied docs/handover/, and checkout took it.
 mkdir -p "${role_work}/docs/handover"
@@ -125,6 +132,13 @@ expect "retro --ordered under the human's pause stops held" \
   "STOP: held — JOHARNESS_MAX_MANAGERS=0 is the human's pause" "$(role_last "$out")"
 out="$(role_run env JOHARNESS_MAX_MANAGERS=0 ./joharness.sh role retro --audit --ordered)"
 expect "retro --audit --ordered under the human's pause stops held" \
+  "STOP: held — JOHARNESS_MAX_MANAGERS=0 is the human's pause" "$(role_last "$out")"
+# A bare pass started by hand meets the pause too, once its clock is due.
+out="$(role_run env JOHARNESS_MAX_MANAGERS=0 JOHARNESS_RETRO_HOURS=1 ./joharness.sh role retro)"
+expect "retro, due, under the human's pause stops held" \
+  "STOP: held — JOHARNESS_MAX_MANAGERS=0 is the human's pause" "$(role_last "$out")"
+out="$(role_run env JOHARNESS_MAX_MANAGERS=0 JOHARNESS_CONDUCT_HOURS=1 ./joharness.sh role retro --audit)"
+expect "retro --audit, due, under the human's pause stops held" \
   "STOP: held — JOHARNESS_MAX_MANAGERS=0 is the human's pause" "$(role_last "$out")"
 out="$(role_run ./joharness.sh role retro --ordered)"
 expect "retro --ordered, not due, a sample: GO on its reviewer branch" \

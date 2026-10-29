@@ -54,10 +54,11 @@ The clerk, scout and retro reviewer open with `./joharness.sh role
 `--twin` and `--retire` after), which prints `GO <branch>` or `STOP: <reason>`
 last; the command file keeps only the judgement (selftest `role.sh`).
 `--ordered` (clerk and retro, either mode; scout has no clock and refuses
-it) is an ordered pass: the clock alone is no exit. In flight, unreadable,
-off, the human's pause (`JOHARNESS_MAX_MANAGERS=0`) and nothing to review
-still are, and its `--twin` defers once another reviewer's ledger rows land.
-Its merged ledger dates the clock as a due pass's does.
+it) is an ordered pass. Clerk: a no-op, its clock was never an exit.
+Retro: the clock alone is no exit; in flight, unreadable, off, the human's
+pause (`JOHARNESS_MAX_MANAGERS=0`, ordered or not) and nothing to review
+still are, and its `--twin` defers once another reviewer's ledger rows
+land. Its merged ledger dates the clock as a due pass's does.
 
 ### What each role reads
 
