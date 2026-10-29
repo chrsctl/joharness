@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK5uhS1o6RkivUJMsPa
 agent: opus
 updated: 2026-10-29
-next: Run the verifier at the tier ./joharness.sh review names, record findings, then finish clerk_last_read and the cmd_clerk lines
+next: Merge origin/main in, ci, then finish (retire commit, PR, merge) clerk_last_read and the cmd_clerk lines
 ---
 
 ## Goal
@@ -22,7 +22,7 @@ orchestrator reads issues, `./joharness.sh clerk` supplies `last read` and
 - A1, A2, A4, A5: confirmed (plan-checker read the cited lines). A3: refuted as written — the computation lives in clerk_park_early; plan fixed.
 - clerk_last_read fails closed on a failed clerk-merge lookup (was: read as no landed clerk); the defect trigger's own comment says any failed read makes nothing due early.
 - Dispatch prints the `clerk issue read` tail line rather than the orchestrator inferring the holds: every other role is driven by a dispatch line.
-- Measured 2026-10-29: `bash .agents/harness/selftest.sh` 3938 passed, 0 failed; with origin/main's joharness.sh, 14 failed (the 13 new positive cases plus knobs-declared). `./joharness.sh ci`: ci: pass. `./joharness.sh verify`: first run 5 passed 1 failed (unnamed, output not kept, during provisioning), then 6 passed 0 failed twice on this branch and 6 passed 0 failed on origin/main. SHIPS reproduction (scratch repo, joharness.sh + conf only): `clerk | grep -cE` printed 2.
+- Measured 2026-10-29: `bash .agents/harness/selftest.sh` 3938 passed, 0 failed; with origin/main's joharness.sh, 14 failed (the 13 new positive cases, plus knobs-declared on JOHARNESS_RETRO_FLOOR_HOURS: origin/main had moved past the merge base; against b0424e98 the verifier measured 13). `./joharness.sh ci`: ci: pass. `./joharness.sh verify`: first run 5 passed 1 failed (unnamed, output not kept, during provisioning), then 6 passed 0 failed twice on this branch and 6 passed 0 failed on origin/main. SHIPS reproduction (scratch repo, joharness.sh + conf only): `clerk | grep -cE` printed 2.
 
 ## Rejected
 
@@ -67,6 +67,14 @@ orchestrator reads issues, `./joharness.sh clerk` supplies `last read` and
 - r33: (plan-checker) DEFECT row correction serves no Goal clause (no change: the row documents the helper this plan extracts; a false row is a defect)
 - r34: (plan-checker) a read preceding its record by more than the knob misses an issue (wontfix: git holds no read time; such an issue waits on the cadence, today's behaviour; named in Out of scope)
 - r35: plan-checker stopped at round 3 (counts 13, 11, 10 falling); remaining findings fixed or wontfix above (no change)
+
+- r36: (verifier) DEFECT_CLERK_HOURS=0, or a pass longer than the knob from read to record, misses an issue filed mid-pass (wontfix: plan Out of scope, Missed issues; git holds no read time)
+- r37: (verifier) an issue-fired clerk behind a full batch never reads its issue (wontfix: plan Out of scope, batch order; r5)
+- r38: (verifier) four new refutes pass on origin/main (no change: they guard against over-printing; the 13 expects each fail on b0424e98's joharness.sh, verifier-measured)
+- r39: (verifier) handover baseline 14 failed does not reproduce, 13 (fixed: the 14th was knobs-declared on a newer origin/main's knob; Decisions corrected)
+- r40: (verifier) clerk printed a live issue wait with the cycle off (fixed: `issue wait: off — the clerk cycle is off`; the selftest case reads 1h on the previous commit)
+- r41: (verifier) role-table retro rows lack the issue-fired-clerk exception (fixed: both rows name it)
+- r42: (verifier) SHIPS reproduction reached only the UNREADABLE path (fixed: rerun after fetching the scratch origin: `cadence   : not due`, both lines, count 2)
 
 ## Blockers
 

@@ -96,6 +96,7 @@ out="$(clerk_run JOHARNESS_CLERK_HOURS=0)"
 expect "zero is the human's off switch" \
   "cadence   : off — JOHARNESS_CLERK_HOURS=0: no clerk is ever due" "$out"
 expect "and off still prints the skip lists" "planned   : none" "$out"
+expect "a cycle off is an issue trigger off too (verifier r5)" "issue wait: off — the clerk cycle is off" "$out"
 out="$(clerk_run JOHARNESS_CLERK_HOURS=99999)"
 expect "no history and a long window is not due" "cadence   : not due" "$out"
 out="$(clerk_run)"

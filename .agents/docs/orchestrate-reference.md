@@ -344,8 +344,8 @@ no handover, and no handover is no replace. Why:
   | `clerk DUE` (any verdict; `held` = nothing) | sonnet | `📋 clerk: <UTC date>` | `/clerk` | `clerked=<stamp>` |
   | `clerk issue read:` AND an issue that fires (below); `held` = nothing | sonnet | `📋 clerk: <UTC date>` | `/clerk` | `clerked=<stamp>+issue` |
   | `scout     : none in flight`, AND the human's order (below) or a scout issue that needs the scout (below); any other `scout :` row = nothing | fable | `scout: <UTC date>` | `/scout` | `scouted=<stamp>` |
-  | `retro audit DUE: spawn` (any verdict; `held`, `suppressed` = nothing) | sonnet | `🩺 retro: audit <UTC date>` | `/retro-audit` | `conducted=<stamp>` |
-  | `retro DUE: spawn` (any verdict; `held`, `suppressed` = nothing) | sonnet | `🩺 retro: <UTC date>` | `/retro` | `retroed=<stamp>` |
+  | `retro audit DUE: spawn` (any verdict; `held`, `suppressed` = nothing; a clerk an issue fired this pass = nothing) | sonnet | `🩺 retro: audit <UTC date>` | `/retro-audit` | `conducted=<stamp>` |
+  | `retro DUE: spawn` (any verdict; `held`, `suppressed` = nothing; a clerk an issue fired this pass = nothing) | sonnet | `🩺 retro: <UTC date>` | `/retro` | `retroed=<stamp>` |
   | `OVERLAP-BOUND`, `rescope :` says `in flight: none` | sonnet | `📐 surveyor: <key>` | `/manage rescope <key>` + the block verbatim | `rescope-<key>@new`, `rescoped=<key>` |
 
   "the role lines", for clerk and retro (either mode) (they write no

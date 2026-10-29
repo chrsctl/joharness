@@ -4462,7 +4462,8 @@ clerk_issue_wait() {
 
 # `last read :` and `issue wait:`, the issue trigger's git-side facts (the
 # orchestrator reads the issues: orchestrate-reference.md, Role sessions).
-# arg: `unreadable` = the cadence could not be read.
+# arg: `unreadable` = the cadence could not be read; `off` = the cycle is
+# off, so no issue calls the clerk either (dispatch prints no read line).
 clerk_read_lines() {
   local lr iso w k noop
   if [ "${1:-}" = unreadable ]; then
@@ -4483,7 +4484,9 @@ clerk_read_lines() {
   esac
   w="$(clerk_issue_wait)"
   k="$(num_knob JOHARNESS_ISSUE_CLERK_HOURS)"
-  if [ "$w" -eq 0 ]; then
+  if [ "${1:-}" = off ]; then
+    printf 'issue wait: off — the clerk cycle is off\n'
+  elif [ "$w" -eq 0 ]; then
     printf 'issue wait: off (JOHARNESS_ISSUE_CLERK_HOURS=0)\n'
   elif [ "$w" -ne "$k" ]; then
     printf 'issue wait: %sh (JOHARNESS_ISSUE_CLERK_HOURS=%s, raised to JOHARNESS_DEFECT_CLERK_HOURS)\n' "$w" "$k"
@@ -4535,7 +4538,7 @@ cmd_clerk() {
       printf 'ended     : holds nothing — no net change, and a no-op record landed at or after its tip\n'
     printf '            %s  %s  %s\n' "$b" "$w" "$st"
   done <<<"$rows"
-  clerk_read_lines
+  if [ "$state" = off ]; then clerk_read_lines off; else clerk_read_lines; fi
   printf '\n'
   printf 'planned   : %s\n' "$(clerk_issue_nums docs/plans all | clerk_issue_line)"
   printf '            (a plan'"'"'s issue: on %s or any unmerged branch)\n' "${HANDOVER_BASE_BRANCH:-main}"
