@@ -37,8 +37,9 @@ ONE spelling: [`.agents/docs/glossary.md`](../../.agents/docs/glossary.md); `ci`
    `.agents/scripts/`, `.agents/env/`: read `.md` docs and command output. Anchor
    points there = anchor wrong. Exempt: canonical, sync or upgrade task, verifier.
 5. **Verify.** All green or not done: `./joharness.sh ci` and `./joharness.sh verify`,
-   before the pull request. Trust counted numbers, never written ones. Edge review
-   always, depth by plan tier, plus `.claude/agents/verifier.md` at the branch's tier,
+   before the pull request. Trust counted numbers, never written ones. Red outside the
+   diff = one paired run on `origin/main` (`.agents/docs/product.md`, Measuring a head).
+   Edge review always, depth by plan tier, plus `.claude/agents/verifier.md` at the branch's tier,
    findings tagged `(verifier)`, in the workstream file's `## Review` as
    `- rN: text (fixed|wontfix: why|no change)`, same commit as the fix; clean pass =
    one line. `./joharness.sh review` prints depth and record state.
