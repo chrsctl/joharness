@@ -36,11 +36,19 @@ two of one role.
   gate (`audit`: the `cadence   : ` not-DUE line; `retro`: the `retro : `
   not-DUE line). Still STOP on `UNREADABLE`, `IN FLIGHT`, `sample    :
   UNREADABLE`, and on an EMPTY sample (nothing to review = nothing to do;
-  name the line it prints). `held` and `suppressed` stay stops: they
-  are not the clock.
+  name the line it prints; trace: the empty sample AND no untraced
+  CONCERN, its other work). `off` stays a stop (no sample is printed).
+  `held` (the human's pause, `JOHARNESS_MAX_MANAGERS=0`) stays a stop: the
+  prelude prints it, since an ordered pass never reads dispatch.
+  `suppressed` is dispatch's order within one spawn pass, not a gate: no
+  stop.
+- `joharness.sh:role_twin_run` — under `--ordered`, `GO` needs no `due`
+  Clock; instead the ledger on `origin/<base>` must be unchanged since the
+  branch's merge base, else `STOP: TWIN` (another reviewer's rows landed).
 - `.claude/commands/retro.md` and `.claude/commands/retro-audit.md`, §0 —
-  step 1: prompt `/retro --ordered` / `/retro-audit --ordered` (the
-  argument, nothing else) = run the prelude with `--ordered`. Step 3
+  step 1: prompt whose FIRST line is `/retro --ordered` / `/retro-audit
+  --ordered` = run the prelude (and `--twin`) with `--ordered`; a bare
+  command keeps the clock (a session cannot tell who typed it). Step 3
   ("Started by a human … must print … DUE: spawn") is replaced: a human-
   started pass runs the prelude with `--ordered`.
 - `.claude/commands/clerk.md`, §0 — say a human may start `/clerk` in a
@@ -52,9 +60,8 @@ two of one role.
   Still never while dispatch shows that role in flight.
 - `.claude/commands/orchestrate.md` — only if its text restates the
   extra-spawn prompt; make it match the reference, nothing more.
-- `.agents/docs/orchestrated.md` — the Lineup rows for clerk and retro
-  (audit, trace) add "or on the human's order (`--ordered`)" to "Started
-  by"; the clock rows (lines for `./joharness.sh clerk`, `retro`, `retro
+- `.agents/docs/orchestrated.md` — the `## Roles` rows for clerk and retro
+  (audit, trace) add "or on the human's order (`--ordered`)" to "Runs as"; the clock rows (lines for `./joharness.sh clerk`, `retro`, `retro
   --audit`) say the clock decides only unordered passes.
 - `.agents/harness/selftest/role.sh` — cases below (Acceptance).
 
@@ -112,8 +119,16 @@ two of one role.
   sample.
 - `role scout --ordered` — a `STOP:` line saying scout has no clock.
 - `role clerk --ordered` when not due — `GO clerk-…`, same as without it.
-- Each case lives in `.agents/harness/selftest/role.sh`, and each
-  `--ordered` GO case FAILS on origin/main before the change.
+- `role retro --ordered` / `role retro --audit --ordered` under
+  `JOHARNESS_MAX_MANAGERS=0` — `STOP: held — …`.
+- `role retro --twin --ordered` on the one reviewer branch in flight, its
+  ledger unchanged — `GO <branch>`; after another reviewer's rows land on
+  main — `STOP: TWIN ordered, but docs/retro-log.md changed …`. Without
+  `--ordered` — `STOP: TWIN Clock: not-due` (unchanged).
+- Each case lives in `.agents/harness/selftest/role.sh`, run by
+  `./joharness.sh ci`; a FAIL line naming any of them = not done. Each
+  `--ordered` case FAILS with origin/main's `joharness.sh` (copy the new
+  `role.sh` into an origin/main worktree, run the topic).
 - SHIPS: in a consumer after sync, `./joharness.sh role retro --ordered`
   when not due — last line `GO retro-…` (or a named `STOP:` for in
   flight / empty sample), never `STOP: retro : not due`.
@@ -146,6 +161,4 @@ two of one role.
   `joharness.conf`, not `.github`, not `.claude/settings.json`.
 - A test for the fix must FAIL without it. Never skip, disable or
   quarantine a test to get green.
-- `local-check-required` also edits `joharness.sh` (`checks_gate`,
-  disjoint functions): whichever lands second merges `origin/main` in.
 - Glossary: contested terms have one spelling; `ci` fails on the others.

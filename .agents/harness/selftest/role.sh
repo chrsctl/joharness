@@ -78,6 +78,101 @@ refute "retro not due cuts no branch" "branch    :" "$out"
 expect "retro --retire: no claim file" "STOP: retro writes no claim file" \
   "$(role_last "$(role_run ./joharness.sh role retro --retire)")"
 
+# --- --ordered: the clock skipped, nothing else (plan role-on-demand) --------
+# Nothing to review yet: an ordered pass still stops, naming the empty sample.
+out="$(role_run ./joharness.sh role retro --ordered)"
+expect "retro --ordered with an empty sample stops on it" \
+  "STOP: sample    : none — every session that blocked" "$(role_last "$out")"
+refute "and never on the clock" "STOP: retro : not due" "$(role_last "$out")"
+refute "and cuts no branch" "branch    :" "$out"
+out="$(role_run ./joharness.sh role retro --audit --ordered)"
+expect "retro --audit --ordered with an empty sample stops on it" \
+  "STOP: sample    : none — no manager workstream file" "$(role_last "$out")"
+out="$(role_run ./joharness.sh role scout --ordered --session s --agent sonnet)"
+expect "scout --ordered stops: scout has no clock" \
+  "STOP: scout has no clock: --ordered is for clerk and retro" "$(role_last "$out")"
+refute "and runs no prelude" "authority :" "$out"
+
+# Both ledgers landed an hour ago; then one blocked session (trace's sample)
+# and one retired manager file (audit's), both after it: not due, work waiting.
+role_hour_ago="$(( $(date +%s) - 3600 ))"
+printf '| date | branch | session | outcome |\n|------|--------|---------|---------|\n' \
+  >"${role_work}/docs/retro-log.md"
+printf '| date | stem | C1 | C2 | note |\n|------|------|----|----|------|\n' \
+  >"${role_work}/docs/conduct-log.md"
+git -C "$role_work" add -A
+GIT_COMMITTER_DATE="@${role_hour_ago}" GIT_AUTHOR_DATE="@${role_hour_ago}" \
+  git -C "$role_work" commit -qm "both ledgers land"
+printf -- '---\nworkstream: role-done\nstatus: done\nbranch: m/role-done\nplan: none\nagent: sonnet\n---\n\n## Goal\nFixture.\n' \
+  >"${role_work}/docs/handover/role-done.md"
+commit_all "$role_work" "role-done claimed"
+git -C "$role_work" rm -q docs/handover/role-done.md
+commit_all "$role_work" "role-done retired"
+git -C "$role_work" push -q origin main
+git -C "$role_work" checkout -qb m/role-blocked main
+# The retire above emptied docs/handover/, and checkout took it.
+mkdir -p "${role_work}/docs/handover"
+printf -- '---\nworkstream: role-blocked\nstatus: blocked\nbranch: m/role-blocked\nplan: role-blocked\nsession: https://claude.ai/code/session_RoleBlocked1\nagent: sonnet\nnext: product: which way?\n---\n\n## Goal\nFixture.\n\n## Blockers\n\nNone.\n' \
+  >"${role_work}/docs/handover/role-blocked.md"
+commit_all "$role_work" "role-blocked blocks"
+git -C "$role_work" push -q -u origin m/role-blocked
+git -C "$role_work" checkout -q main
+
+out="$(role_run ./joharness.sh role retro)"
+expect "unordered, work waiting: retro still stops not due" "STOP: retro : not due" "$(role_last "$out")"
+out="$(role_run env JOHARNESS_MAX_MANAGERS=0 ./joharness.sh role retro --ordered)"
+expect "retro --ordered under the human's pause stops held" \
+  "STOP: held — JOHARNESS_MAX_MANAGERS=0 is the human's pause" "$(role_last "$out")"
+out="$(role_run env JOHARNESS_MAX_MANAGERS=0 ./joharness.sh role retro --audit --ordered)"
+expect "retro --audit --ordered under the human's pause stops held" \
+  "STOP: held — JOHARNESS_MAX_MANAGERS=0 is the human's pause" "$(role_last "$out")"
+out="$(role_run ./joharness.sh role retro --ordered)"
+expect "retro --ordered, not due, a sample: GO on its reviewer branch" \
+  "GO retro-${role_today}-" "$(role_last "$out")"
+expect "and the report still says not due" "retro : not due" "$out"
+git -C "$role_work" checkout -q main
+git -C "$role_work" branch -q -D "$(printf '%s\n' "$(role_last "$out")" | sed 's/^GO //')"
+out="$(role_run ./joharness.sh role retro --audit)"
+expect "unordered, work waiting: retro --audit still stops not due" \
+  "STOP: cadence   : not due" "$(role_last "$out")"
+out="$(role_run ./joharness.sh role retro --audit --ordered)"
+expect "retro --audit --ordered, not due, a sample: GO on its reviewer branch" \
+  "GO retro-audit-${role_today}-" "$(role_last "$out")"
+git -C "$role_work" checkout -q main
+git -C "$role_work" branch -q -D "$(printf '%s\n' "$(role_last "$out")" | sed 's/^GO //')"
+
+# In flight: an ordered pass never makes two of one role.
+git -C "$role_work" checkout -qb "retro-${role_today}-0001" main
+printf 'x\n' >"${role_work}/role-retro-flight.txt"
+commit_all "$role_work" "ledger rows"
+git -C "$role_work" push -q -u origin "retro-${role_today}-0001"
+git -C "$role_work" checkout -q main
+out="$(role_run ./joharness.sh role retro --ordered)"
+expect "retro --ordered with a reviewer in flight stops on IN FLIGHT" \
+  "STOP: retro : IN FLIGHT" "$(role_last "$out")"
+refute "and cuts no branch" "branch    :" "$out"
+
+# Its twin check: the one row, Clock not due, the ledger unchanged = GO.
+git -C "$role_work" checkout -q "retro-${role_today}-0001"
+out="$(role_run ./joharness.sh role retro --twin)"
+expect "unordered, a not-due Clock defers the twin" "STOP: TWIN Clock: not-due" "$(role_last "$out")"
+out="$(role_run ./joharness.sh role retro --twin --ordered)"
+expect "ordered, the one row and the ledger as cut: GO" "GO retro-${role_today}-0001" "$(role_last "$out")"
+# Another reviewer's rows land on main: the ordered twin defers.
+git -C "$role_twin" fetch -q origin
+git -C "$role_twin" checkout -q -B main origin/main
+printf '| %s | m/x | https://claude.ai/code/session_Other1 | nothing |\n' "$role_today" \
+  >>"${role_twin}/docs/retro-log.md"
+commit_all "$role_twin" "another reviewer's rows"
+git -C "$role_twin" push -q origin main
+out="$(role_run ./joharness.sh role retro --twin --ordered)"
+expect "ordered, another reviewer's rows landed: TWIN deferred" \
+  "STOP: TWIN ordered, but docs/retro-log.md changed on main since this branch was cut" "$(role_last "$out")"
+git -C "$role_work" checkout -q main
+git -C "$role_work" pull -q --ff-only origin main
+git -C "$role_work" push -q origin --delete "retro-${role_today}-0001"
+git -C "$role_work" branch -q -D "retro-${role_today}-0001"
+
 # --- curate: the session role was removed -----------------------------------
 out="$(role_run ./joharness.sh role curate --session s --agent sonnet)"
 expect "role curate stops: the role was removed" \
@@ -216,6 +311,10 @@ expect "retro --audit --twin stops when the Clock no longer reads due" "STOP: TW
 
 # --- clerk: GO alone, then the name tiebreak ---------------------------------
 git -C "$role_work" checkout -q main
+out="$(role_run ./joharness.sh role clerk --ordered)"
+expect "clerk --ordered when not due: GO, as without it" "GO clerk-${role_today}" "$(role_last "$out")"
+git -C "$role_work" checkout -q main
+git -C "$role_work" branch -q -D "clerk-${role_today}"
 out="$(role_run ./joharness.sh role clerk)"
 expect "a clerk cuts its dated branch and pushes nothing" "GO clerk-${role_today}" "$(role_last "$out")"
 if role_on_origin "refs/heads/clerk-${role_today}"; then

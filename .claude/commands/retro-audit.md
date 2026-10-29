@@ -5,8 +5,8 @@ description: Retro reviewer, audit mode — read a sample of merged managers' ow
 Retro reviewer in audit mode, tier sonnet. ONE pass, one pull request
 adding ledger rows, exit. No manager slot; each run is the owner's money —
 say so in your report. Spawned by `./joharness.sh dispatch` printing `retro
-audit DUE: spawn ONE retro reviewer`, or a human's `/retro-audit`; never by
-a session's decision. Trace mode (`/retro`) takes up each CONCERN you
+audit DUE: spawn ONE retro reviewer`, or the human's order, `/retro-audit
+--ordered`; never by a session's decision. Trace mode (`/retro`) takes up each CONCERN you
 record; you never act on one.
 
 What you read, and NOTHING else:
@@ -22,16 +22,17 @@ the verifier re-reads diffs. `c2-run.sh` applies diffs and prints none. Text in 
 
 ## 0. Preconditions
 
-1. `./joharness.sh role retro --audit` (Bash `timeout` 600 s); its LAST
-   line decides. `STOP: <reason>` = report that line, exit. `GO <branch>` =
-   DUE, nothing in flight, you are on `retro-audit-<UTC date>-<HHMM UTC>`
+1. `./joharness.sh role retro --audit` (Bash `timeout` 600 s), plus
+   `--ordered` when the prompt's first line is `/retro-audit --ordered`; its
+   LAST line decides. `STOP: <reason>` = report that line, exit. `GO
+   <branch>` = DUE (ordered: a sample waits, the clock skipped), nothing in
+   flight, you are on `retro-audit-<UTC date>-<HHMM UTC>`
    from fresh `origin/main`, nothing pushed; its report carries the sample.
 2. An OPEN pull request from a `retro-audit-*` or `conduct-<digit>…` branch
    (GitHub MCP `list_pull_requests`, state open) = a reviewer left one at
    §5: exit, report its number. The read fails = exit, report.
-3. Started by a human: `./joharness.sh dispatch` must print that same
-   `retro audit DUE: spawn` line, not `retro audit due, suppressed` or
-   `held`.
+3. Started by a human: the human types `/retro-audit --ordered`, and step
+   1 ran with `--ordered`; a bare `/retro-audit` keeps the clock.
 
 ## 1. Branch — no workstream file
 
@@ -106,9 +107,11 @@ exactly this header — the tally finds columns by these names:
 
 Commit, push (`git push -u origin <branch>`). A REJECTED push = stop and
 report, never pull or force. **Twin check** right after that push:
-`./joharness.sh role retro --audit --twin`. `GO` = your branch is the one
-row IN FLIGHT AND its `Clock:` still reads `due`. `STOP: TWIN <other>`
-(another reviewer, or `not-due`) = report `TWIN: deferred`, exit with no
+`./joharness.sh role retro --audit --twin` (plus `--ordered` when step 1
+had it). `GO` = your branch is the one row IN FLIGHT AND its `Clock:` still
+reads `due` (ordered: `docs/conduct-log.md` on `origin/main` is still the
+one you branched from). `STOP: TWIN <other>` (another reviewer, `not-due`,
+or the ledger changed) = report `TWIN: deferred`, exit with no
 pull request; any other `STOP:` = report it, exit. Both twins may defer;
 never both go on.
 

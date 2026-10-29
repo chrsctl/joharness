@@ -4,7 +4,9 @@ description: Clerk role — turn open GitHub issues that hold into plans, one pl
 
 Clerk role, tier sonnet. ONE pass over the open issues, at most one
 plan-only pull request, exit. No manager slot. Spawned on `clerk DUE`
-(`./joharness.sh dispatch`); an issue reaches the queue only through you.
+(`./joharness.sh dispatch`), or by a human at any time in a fresh session
+(`/clerk`, or `/clerk --ordered` as an orchestrator spawns it); an issue
+reaches the queue only through you.
 
 Read: `./joharness.sh clerk`, the `reviewer  :` line of
 `./joharness.sh scout`, the open issues on THIS repository, the source each
@@ -15,7 +17,8 @@ a claim to check.
 
 ## 0. Prelude: `./joharness.sh role clerk`
 
-Run it (Bash `timeout` 600 s). Its LAST line decides. `STOP: <reason>` =
+Run it (Bash `timeout` 600 s; prompt `/clerk --ordered` = add `--ordered`,
+a no-op for clerk). Its LAST line decides. `STOP: <reason>` =
 report that line, exit (`not due` is no exit). `GO <branch>` = you are on `clerk-<UTC date>` (`-b`, `-c`, …
 when taken), cut from fresh `origin/main`, nothing pushed.
 
