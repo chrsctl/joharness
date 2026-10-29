@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK5uhS1o6RkivUJMsPa
 agent: opus
 updated: 2026-10-29
-next: Plan-checker round 2, then build clerk_last_read and the cmd_clerk lines
+next: Plan-checker round 3, then build clerk_last_read and the cmd_clerk lines
 ---
 
 ## Goal
@@ -40,6 +40,18 @@ orchestrator reads issues, `./joharness.sh clerk` supplies `last read` and
 - r11: (plan-checker) placement under the unreadable cadence unstated (fixed: both lines print on every path)
 - r12: (plan-checker) A3 cites clerk_due, not clerk_park_early (fixed)
 - r13: (plan-checker) overlap with role-on-demand, retro-event-triggers undeclared (no change: shared: scope, whichever lands later merges origin/main)
+
+- r14: (plan-checker) the issue trigger ignored dispatch's holds (pause, stale view) (fixed: dispatch prints `clerk issue read` / `held` and the paragraph reads only on it)
+- r15: (plan-checker) another issue filed in the knob-hour before a pass's record re-fires a clerk (wontfix: at most one idle pass per issue with issue wait >= defect knob; bound stated in Out of scope)
+- r16: (plan-checker) the selftest is canonical-only, so not the SHIPS check (fixed: a consumer-run grep command)
+- r17: (plan-checker) Acceptance items name no command or expected text (fixed: fixture, commands and expected strings)
+- r18: (plan-checker) UNREADABLE path and the orchestrator side had no acceptance (fixed: UNREADABLE case and dispatch-line cases)
+- r19: (plan-checker) `last read : none` undefined for the trigger (fixed: every issue counts as later)
+- r20: (plan-checker) which failed reads stop the trigger (fixed: list_issues, last read, planned, claimed)
+- r21: (plan-checker) orchestrate.md edit scope ambiguous (fixed: trigger list and ledger form named)
+- r22: (plan-checker) clerk_park_early missing from Where to look (fixed)
+- r23: (plan-checker) overlap with role-on-demand understated (fixed: Traps names the shared sections)
+- r24: (plan-checker) "first commit time" author or committer, ISO form unstated (fixed: %at, YYYY-MM-DDTHH:MM:SSZ)
 
 ## Blockers
 
