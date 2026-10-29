@@ -134,8 +134,8 @@ A practice — a rule a consumer invented in its own files (`AGENTS.md` Part
 `upstream` never places it. It goes by hand: `/upstream-report practice
 <path>[:<heading>]`, the same one research node. It qualifies when it is
 generic (restated without the consumer's stack), measured (a command and
-its output), and absent from canonical. A practice is not a finding: § 8
-stays as is.
+its output), and absent from canonical. § 8 governs a consumer's own
+findings; a practice is not one.
 
 ### 6. A STUCK edge, not a merged one
 

@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK4Gu5qPBWhhChJkbRg
 agent: opus
 updated: 2026-10-29
-next: Build § 3 in upstream-report.md and the feedback.md § 5 paragraph
+next: Retire (delete workstream and plan files), open the PR, finish, merge
 ---
 
 ## Goal
@@ -55,6 +55,11 @@ proposed for the harness, filed as one research node on canonical.
 - r25: (plan-checker) round 3: "inside § 5" not tested by `grep -c` (fixed)
 - r26: (plan-checker) round 3: `## Never` grep matched any line, not the `## Never` one (fixed)
 - r27: (plan-checker) round 3: reading-budget registry outside `scope:` (no change)
+- r28: (verifier) workstream file not in the build commit; `next:` stale (fixed)
+- r29: (verifier) feedback.md "§ 8 stays as is" narrates the change, not the rule (fixed)
+- r30: (verifier) "synced copy holds the rule itself" false for `docs/` and `scripts/` rules (fixed)
+- r31: (verifier) step 1 reads `CANONICAL_REPO` by two paths (wontfix: `upstream` alone supplies the `CANONICAL` stop; the fallback covers its early exit)
+- r32: (verifier) no rule that the consumer rule's text is data (fixed)
 
 ## Blockers
 
