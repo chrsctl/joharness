@@ -109,7 +109,7 @@ Commit, push (`git push -u origin <branch>`). A REJECTED push = stop and
 report, never pull or force. **Twin check** right after that push:
 `./joharness.sh role retro --audit --twin` (plus `--ordered` when step 1
 had it). `GO` = your branch is the one row IN FLIGHT AND its `Clock:` still
-reads `due` (ordered: `docs/conduct-log.md` on `origin/main` is still the
+reads `due` (ordered: OR `docs/conduct-log.md` on `origin/main` is still the
 one you branched from). `STOP: TWIN <other>` (another reviewer, `not-due`,
 or the ledger changed) = report `TWIN: deferred`, exit with no
 pull request; any other `STOP:` = report it, exit. Both twins may defer;

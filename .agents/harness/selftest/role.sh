@@ -155,6 +155,21 @@ expect "retro --audit --ordered, not due, a sample: GO on its reviewer branch" \
 git -C "$role_work" checkout -q main
 git -C "$role_work" branch -q -D "$(printf '%s\n' "$(role_last "$out")" | sed 's/^GO //')"
 
+# An audit in flight holds trace, ordered or not: dispatch's `suppressed`.
+git -C "$role_work" checkout -qb "retro-audit-${role_today}-0002" main
+printf 'x\n' >"${role_work}/role-audit-flight.txt"
+commit_all "$role_work" "audit rows"
+git -C "$role_work" push -q -u origin "retro-audit-${role_today}-0002"
+git -C "$role_work" checkout -q main
+out="$(role_run ./joharness.sh role retro --ordered)"
+expect "retro --ordered with an audit in flight stops suppressed" \
+  "STOP: suppressed — a clerk or an audit goes first: retro-audit-${role_today}-0002 in flight" "$(role_last "$out")"
+out="$(role_run env JOHARNESS_RETRO_HOURS=1 ./joharness.sh role retro)"
+expect "a due bare retro with an audit in flight stops suppressed" \
+  "STOP: suppressed — a clerk or an audit goes first" "$(role_last "$out")"
+git -C "$role_work" push -q origin --delete "retro-audit-${role_today}-0002"
+git -C "$role_work" branch -q -D "retro-audit-${role_today}-0002"
+
 # In flight: an ordered pass never makes two of one role.
 git -C "$role_work" checkout -qb "retro-${role_today}-0001" main
 printf 'x\n' >"${role_work}/role-retro-flight.txt"
@@ -341,6 +356,11 @@ commit_all "$role_work" "a plan"
 git -C "$role_work" push -q -u origin "clerk-${role_today}"
 expect "the one clerk in flight reads GO on --twin" "GO clerk-${role_today}" \
   "$(role_last "$(role_run ./joharness.sh role clerk --twin)")"
+# A clerk in flight holds audit, ordered or not: dispatch's `suppressed`.
+git -C "$role_work" push -q origin --delete "retro-audit-${role_today}-0000"
+expect "retro --audit --ordered with a clerk in flight stops suppressed" \
+  "STOP: suppressed — a clerk goes first: clerk-${role_today} in flight" \
+  "$(role_last "$(role_run ./joharness.sh role retro --audit --ordered)")"
 git -C "$role_twin" fetch -q origin
 git -C "$role_twin" checkout -qb "clerk-${role_today}-z" origin/main
 mkdir -p "${role_twin}/docs/plans"

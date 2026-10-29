@@ -23,7 +23,9 @@ extra role session" path (`orchestrate-reference.md`, Role sessions) spawns
 a retro session that STOPs at once, while its ledger still records
 `retroed=<stamp>+human`. Make an ordered pass of any helper role run,
 whether ordered through a live orchestrator or typed by the human as
-`/clerk`, `/retro` or `/retro-audit` in a fresh session — with the
+`/clerk`, `/retro --ordered` or `/retro-audit --ordered` in a fresh session
+(a session cannot tell who typed a bare command, so a bare `/retro` keeps
+the clock) — with the
 in-flight, twin and unreadable gates untouched, so on-demand never means
 two of one role.
 
@@ -40,8 +42,9 @@ two of one role.
   CONCERN, its other work). `off` stays a stop (no sample is printed).
   `held` (the human's pause, `JOHARNESS_MAX_MANAGERS=0`) stays a stop: the
   prelude prints it, since an ordered pass never reads dispatch.
-  `suppressed` is dispatch's order within one spawn pass, not a gate: no
-  stop.
+  `suppressed` (a clerk in flight holds audit; a clerk or an audit holds
+  trace) stays a stop, ordered or not: the prelude reads it as dispatch
+  does, since a pass started by hand never reads dispatch.
 - `joharness.sh:role_twin_run` — under `--ordered`, `GO` needs no `due`
   Clock; instead the ledger on `origin/<base>` must be unchanged since the
   branch's merge base, else `STOP: TWIN` (another reviewer's rows landed).

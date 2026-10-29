@@ -5485,7 +5485,7 @@ role_retire_run() {
 # The twin check, after the role's first push. Scout: exactly one row in
 # flight and it is yours. Clerk: yours sorts first by name among those in
 # flight. Retro, either mode: the one row is yours and its Clock still
-# reads due.
+# reads due, or (--ordered) its ledger on the base is the one it was cut from.
 role_twin_run() {
   local role="$1" ordered="${2:-}" cur rows other line clock
   cur="$(role_branch)" || { printf 'STOP: TWIN check: not on a branch\n'; return 1; }
@@ -5573,9 +5573,35 @@ role_paused() {
   printf 'held — JOHARNESS_MAX_MANAGERS=0 is the human'"'"'s pause: spawn none'
 }
 
+# <audit|retro> — dispatch's `suppressed`, which a pass started by hand never
+# reads: a clerk in flight holds audit; a clerk or an audit holds trace. A
+# reading that fails holds too.
+role_suppressed() {
+  local b
+  clerk_due
+  case "${CLERK_DUE%% *}" in
+    unreadable) printf 'suppressed — the clerk cycle is UNREADABLE: %s' "${CLERK_DUE#* }"; return 0 ;;
+    off) ;;
+    *) b="$(printf '%s\n' "$CLERK_ROWS" | scout_branches | cut -f1 | head -1)" ;;
+  esac
+  if [ -z "$b" ] && [ "$1" = retro ]; then
+    conduct_due
+    case "${CONDUCT_DUE%% *}" in
+      unreadable) printf 'suppressed — the audit cycle is UNREADABLE: %s' "${CONDUCT_DUE#* }"; return 0 ;;
+    esac
+    b="$(printf '%s\n' "$CONDUCT_ROWS" | cut -f1 | head -1)"
+  fi
+  [ -n "$b" ] || return 1
+  if [ "$1" = retro ]; then
+    printf 'suppressed — a clerk or an audit goes first: %s in flight' "$b"
+  else
+    printf 'suppressed — a clerk goes first: %s in flight' "$b"
+  fi
+}
+
 # Which report lines are a plain exit before the branch is cut, per role's
 # §0 as its command file reads. <ordered> non-empty (`--ordered`): the clock
-# alone is no exit; off, the pause and an empty sample still are.
+# alone is no exit; off, the pause, suppressed and an empty sample still are.
 role_start_stop() {
   local role="$1" ordered="${2:-}" l s
   l="$(role_line '^[a-z]+ +: (UNREADABLE|IN FLIGHT)')"
@@ -5586,6 +5612,7 @@ role_start_stop() {
       l="$(role_line '^sample    : UNREADABLE')"
       [ -z "$l" ] || { printf '%s' "$l"; return 0; }
       role_paused && return 0
+      role_suppressed audit && return 0
       if [ -n "$ordered" ]; then
         role_line '^cadence   : off' && return 0
         role_line '^sample    : none'
@@ -5597,6 +5624,7 @@ role_start_stop() {
       l="$(role_line '^sample    : UNREADABLE')"
       [ -z "$l" ] || { printf '%s' "$l"; return 0; }
       role_paused && return 0
+      role_suppressed retro && return 0
       if [ -n "$ordered" ]; then
         role_line '^retro : off' && return 0
         # Trace's work is the failed sessions OR one untraced CONCERN.

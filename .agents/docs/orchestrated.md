@@ -56,8 +56,9 @@ last; the command file keeps only the judgement (selftest `role.sh`).
 `--ordered` (clerk and retro, either mode; scout has no clock and refuses
 it) is an ordered pass. Clerk: a no-op, its clock was never an exit.
 Retro: the clock alone is no exit; in flight, unreadable, off, the human's
-pause (`JOHARNESS_MAX_MANAGERS=0`, ordered or not) and nothing to review
-still are, and its `--twin` defers once another reviewer's ledger rows
+pause (`JOHARNESS_MAX_MANAGERS=0`) and dispatch's `suppressed` (a clerk
+in flight holds audit, a clerk or an audit holds trace), both ordered or
+not, and nothing to review still are, and its `--twin` defers once another reviewer's ledger rows
 land. Its merged ledger dates the clock as a due pass's does.
 
 ### What each role reads

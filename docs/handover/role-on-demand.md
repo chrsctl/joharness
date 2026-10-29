@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK6gHK4nAR5kZPp5VAT
 agent: opus
 updated: 2026-10-29
-next: Record the opus verifier's findings, fix, then finish
+next: Run ci and verify on the round-2 fixes, then finish
 ---
 
 ## Goal
@@ -26,10 +26,11 @@ unreadable gates, so on-demand never means two of one role.
 - A5: confirmed — clocks date from `retro_landed_ts` of the ledger; an ordered pass's ledger resets it. Wanted: the clock measures time since the last review.
 - A6: refuted — `role_twin_run` GOes only on `Clock: due`, so every ordered pass would defer. Fix: under `--ordered`, GO when the ledger on origin/<base> is unchanged since the merge base (`role_ledger_still`). Plan fixed on the branch.
 - `off` stays a stop under `--ordered`: off prints no sample, and HOURS=0 is the human's switch.
-- `held` (MAX_MANAGERS=0) stays a stop, now in the prelude (`role_paused`), since the ordered pass no longer reads dispatch. Fetch-failed held is already the prelude's own `STOP: fetch failed`. `suppressed` is not a gate.
+- `held` (MAX_MANAGERS=0) stays a stop, now in the prelude (`role_paused`), since the ordered pass no longer reads dispatch. Fetch-failed held is already the prelude's own `STOP: fetch failed`.
 - Trace's empty = `sample    : none` AND `concern   : none…`: an untraced CONCERN is work, as `retro_due` reads it.
 - Prompt form: the FIRST line `/retro --ordered`; a bare command keeps the clock. A session cannot tell a human from dispatch.
 - Clerk ignores the pause as before; out of scope (plan: no clerk code change).
+- `suppressed` stays a stop, ordered or not (r18): it is a persistent cross-role in-flight gate, not spawn order; an earlier Decision said otherwise and was wrong.
 - The pause stops audit and trace whether ordered or not (r14): step 3's dispatch read used to stop a bare human pass; a due dispatch spawn never meets it, dispatch holds first.
 
 ## Rejected
@@ -55,6 +56,11 @@ unreadable gates, so on-demand never means two of one role.
 - r15: (verifier) trace's untraced-CONCERN-is-work branch has no case failing without it (fixed: a case with an empty sample and one CONCERN reads GO)
 - r16: (verifier) the twin gate and the `suppressed` stop changed against the base plan's Goal (no change: A6 refuted, recorded in Decisions; flagged in the pull request body)
 - r17: (verifier) the base-side fail is only the unknown-option die (no change: mutants M1, M3, M4 each fail cases, per the verifier's own run)
+- r18: (verifier) a pass started by hand skips dispatch's `suppressed`, a cross-role in-flight gate the plan keeps (fixed: `role_suppressed`, ordered or not; three cases, each failing without it)
+- r19: (verifier) the Goal names a bare `/retro` on demand; the branch keeps the clock for it (fixed: Goal amended to `--ordered`, flagged in the pull request body)
+- r20: (verifier) retro-audit.md twin text and role_twin_run's header omit the ordered OR (fixed)
+- r21: (verifier) `concern   : none read` counts as no CONCERN (no change: cmd_retro itself takes no CONCERN that run)
+- r22: (verifier) an ordered clerk runs under the pause (no change: unchanged behaviour, recorded in Decisions)
 
 ## Blockers
 
