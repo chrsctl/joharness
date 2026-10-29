@@ -7,7 +7,7 @@ needs: none
 requirement: none
 serves: all
 issue: none
-scope: joharness.sh, .agents/docs/consumer-repos.md, .agents/harness/selftest/checks.sh
+scope: shared:joharness.sh, .agents/docs/consumer-repos.md, .agents/harness/selftest/checks.sh
 ---
 
 ## Goal
