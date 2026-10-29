@@ -70,6 +70,51 @@ ORDER is not gated.
 Waiver: `ci` reds an added skip marker or note in a non-markdown file; a *Review*
 bullet `- rN: window <path> <why> (wontfix: <reason>)` waives every hit in that path.
 
+## Three bookkeeping commits: keep, because
+
+A quarter of a consumer's commits are claim, handover or retire. One consumer
+reading, not re-taken here (chrsctl/gx at a322a67da, non-merge commits since
+2026-10-15T00:00Z, kind = first word of the subject): 592 of 2317 — 181
+claim, 224 handover, 187 retire. None rides on a neighbour; each buys a
+guarantee a reader takes from git. Every number below is GROUNDED in that
+reading, re-taken by an opus verifier from the same clone.
+
+```bash
+git -C <gx> log a322a67da --since=2026-10-15T00:00:00+00:00 --no-merges \
+  --format='@%H %P %ct %s' --name-only   # pairs: commit, first parent, gap
+```
+
+- **Claim — keep.** `queue-context.sh` `claims` reads the workstream file off
+  each pushed branch TIP; only a pushed commit claims. Its one neighbour is the
+  first code commit, which does not exist yet. Folding the claim into it opens
+  the double-spawn window by the time to that commit: 39 of 181 gx claims
+  had their first child 10 minutes or more later.
+- **Handover-only — keep.** Legitimate when no code moved: milestone pushes
+  during long runs (`.claude/commands/manage.md` §3, at least once per
+  `JOHARNESS_STALL_MINUTES`; 59 gx handover commits follow another, 0.4 to
+  65 minutes apart, median 31), blocks, nudges, measurements. Of the 25 that
+  land within 2 minutes of a code commit (a parent not itself claim,
+  handover or retire), 16 follow a parent that left `docs/handover/`
+  untouched: the same-commit rule broken, and folding them is what that rule
+  already says. The other 9 are a second edit after a kept rule. Amending a
+  pushed one is `push -f`, which the Loop forbids.
+- **Retire — keep.** Every reader of a retired file takes it from the
+  deleting commit's PARENT (`lint_ws_content`, `release_human`,
+  `dispatch_retired_edges`, the conduct sample, the retro concern,
+  `upstream`). Folded backward into the last review commit, that commit's
+  `## Review` edit never lands in a tree and is lost. Folded into the
+  reconcile merge (59 of 187 gx retires sit on one), the deletion vanishes
+  from the recovery command above: `git log --diff-filter=D` shows no merge
+  diff without `-m` (scratch repo, git 2.43), and `release_human` reads
+  `--first-parent --no-merges`. Forward there is nothing: commits after the
+  PR opens have no file.
+
+The cost the commits were suspected of is smaller than it looks: CI runs on
+`pull_request` and on `push` to `main` (this repo's and gx's `ci.yml`), so a
+pre-PR push runs nothing, and the retire is in the PR's first run. What
+remains is one commit and one push each. A rule that folds any of them =
+re-open with a reader that no longer needs the separate commit.
+
 ## When NOT to write one
 
 Copy and sync tasks get NO workstream file: the diff is self-describing. Same
