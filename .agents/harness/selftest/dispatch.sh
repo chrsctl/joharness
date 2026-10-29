@@ -693,6 +693,69 @@ refute "and its item is still not offered for spawning" \
 expect "the verdict counts it and names who finishes the count" \
   "1 branch(es) at the edge with no claim file: each holds a slot because its item is STILL on main, so that merge has not landed" "$out"
 
+# Issue #701: a pull request that never opened held the slot 5 hours and
+# starved 5 free items, since nothing here reads pull request state. Past
+# JOHARNESS_EDGE_SLOT_HOURS the slot comes back; the item stays withheld,
+# because the branch may be mid-merge. The retire commit is backdated 2h on
+# its own push, then restored, so every later case reads age 0 again.
+eta_tip="$(git -C "$dspwork" rev-parse mgr-eta)"
+git -C "$dspwork" checkout -q mgr-eta
+GIT_COMMITTER_DATE="$(( $(date +%s) - 7200 )) +0000" \
+  git -C "$dspwork" commit -q --amend --no-edit
+git -C "$dspwork" push -qf origin mgr-eta
+git -C "$dspwork" checkout -q main
+out="$(dsp env JOHARNESS_MAX_MANAGERS=8 JOHARNESS_EDGE_SLOT_HOURS=1)"
+expect "an edge older than the window gives its slot back" "slots     : 4 of 8 free" "$out"
+expect "and its row says so, still a retired row" \
+  "retired, no claim file, no push for 2h (>= 1h JOHARNESS_EDGE_SLOT_HOURS): holds NO slot" "$out"
+refute "its item is still not offered for spawning" "  docs/plans/eta.md (agent" "$out"
+# Its STALL? mark stays: the health table nudges and kills a hung RUNNING
+# session by it, and `RUNNING … retired, no claim file` alone reads merging.
+expect "and keeps its STALL? mark for the health table" "STALL? no push for 2h" \
+  "$(printf '%s\n' "$out" | grep -A1 'mgr-eta')"
+expect "the verdict counts it apart" \
+  "1 aged edge branch(es) with no claim file and no push for >= 1h" "$out"
+refute "and not as an edge holding a slot" "branch(es) at the edge with no claim file: each holds a slot" "$out"
+out="$(dsp env JOHARNESS_MAX_MANAGERS=8)"
+expect "under the default window the same 2h edge still holds its slot" \
+  "slots     : 3 of 8 free" "$out"
+out="$(dsp env JOHARNESS_MAX_MANAGERS=8 JOHARNESS_EDGE_SLOT_HOURS=0)"
+expect "0 = never ages: the slot is held" "slots     : 3 of 8 free" "$out"
+expect "with the old row" "retired, no claim file — a pull request is expected" "$out"
+git -C "$dspwork" branch -qf mgr-eta "$eta_tip"
+git -C "$dspwork" push -qf origin mgr-eta
+# An aged edge and nothing else: its own repo, because the shared one always
+# has a manager in flight or an item free, and either keeps the verdict off
+# DRAINED with or without the fix. An unread pull request is no reason to
+# exit: the branch may be one nobody merges.
+dspaged="${TMP}/dispatchaged"
+git init -q --bare "${dspaged}.git"
+git init -q "$dspaged"
+git -C "$dspaged" symbolic-ref HEAD refs/heads/main
+mkdir -p "${dspaged}/docs/plans" "${dspaged}/docs/handover" "${dspaged}/.agents/harness"
+cp "${ROOT}/joharness.sh" "${dspaged}/joharness.sh"
+cp "${ROOT}/.agents/harness/queue-context.sh" \
+   "${ROOT}/.agents/harness/handover-context.sh" "${dspaged}/.agents/harness/"
+printf -- '---\nplan: omega\nurgency: normal\nagent: sonnet\neffort: high\n---\n\n## Goal\nFixture.\n' \
+  >"${dspaged}/docs/plans/omega.md"
+printf -- '---\nworkstream: omega\nstatus: done\nbranch: gone\nplan: omega\nagent: sonnet\nupdated: 2026-01-06\n---\n\n## Goal\nFixture.\n' \
+  >"${dspaged}/docs/handover/omega.md"
+commit_all "$dspaged" "base"
+git -C "$dspaged" remote add origin "${dspaged}.git"
+git -C "$dspaged" push -qu origin main
+git -C "$dspaged" checkout -qb mgr-omega
+git -C "$dspaged" rm -q docs/handover/omega.md docs/plans/omega.md
+GIT_COMMITTER_DATE="$(( $(date +%s) - 7200 )) +0000" \
+  git -C "$dspaged" commit -qm "retire omega"
+git -C "$dspaged" push -qu origin mgr-omega
+git -C "$dspaged" checkout -q main
+out="$( cd "$dspaged" && JOHARNESS_CONF="$dspconf" DRAIN_FETCH=0 DISPATCH_FETCH=0 \
+  JOHARNESS_EDGE_SLOT_HOURS=1 ./joharness.sh dispatch 2>&1 )"
+expect "only an aged edge: no slot held" "slots     : 4 of 4 free" "$out"
+expect "only an aged edge: the verdict sends the reader to its pull request first" \
+  "aged edge: look up its pull request first" "$out"
+refute "and never reads DRAINED on it" "verdict   : DRAINED" "$out"
+
 # Distinguishable from a branch nobody came back to — the trade this fix must
 # not make. Push age is the only signal git has, so past the window the row
 # says so and sends the verdict to the health table. It used to order the
@@ -1089,6 +1152,22 @@ expect "the row says what makes it litter" \
   "names NO item, so nothing here says a merge is coming" "$out"
 expect "and the verdict counts it as the kind with no item" \
   "naming no item at all" "$out"
+# Past JOHARNESS_EDGE_SLOT_HOURS but under the litter cut-off, a row naming
+# no item keeps its slot: its STALL? line is a REPORT, and only the cut-off
+# frees it. Aged, it read `holds NO slot` with no REPORT at all. Backdated 2h
+# on its own push, then set back.
+sweep_tip="$(git -C "$dspwork" rev-parse mgr-sweep)"
+git -C "$dspwork" checkout -q mgr-sweep
+GIT_COMMITTER_DATE="$(( $(date +%s) - 7200 )) +0000" \
+  git -C "$dspwork" commit -q --amend --no-edit
+git -C "$dspwork" push -qf origin mgr-sweep
+git -C "$dspwork" checkout -q main
+out="$(dsp env JOHARNESS_MAX_MANAGERS=20 JOHARNESS_EDGE_SLOT_HOURS=1)"
+expect "an itemless row past the slot window still holds its slot" \
+  "?  mgr-sweep  retired  pushed 2h  retired, no claim file — a pull request is expected" "$out"
+expect "and keeps its REPORT" "this row names no item, so there is no title to look up" "$out"
+git -C "$dspwork" branch -qf mgr-sweep "$sweep_tip"
+git -C "$dspwork" push -qf origin mgr-sweep
 
 # --- a glob character in a plan path decides nothing --------------------------
 # `for cand in $items` was an unquoted expansion: `docs/plans/x[y].md` globbed
