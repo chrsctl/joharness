@@ -28,28 +28,37 @@ harness. It files the same thing edge mode files: one research node.
 ## Scope
 
 - `.claude/commands/upstream-report.md` — a `practice` mode,
-  `/upstream-report practice <path>[:<heading>]`, as a new numbered
-  section after the edge procedure. The reporter:
+  `/upstream-report practice <path>[:<heading>]` (`<heading>` = the
+  heading's text as written, without the `#` marks), as `## 3. Practice
+  mode`, between `## 2.` and `## Never`. The reporter:
   1. Runs `./joharness.sh authority` (VERIFIABLE, else stop) and
      `./joharness.sh upstream` with no argument. Practice mode reads only
-     its `canonical :` line; `UNKNOWN` = stop.
+     its `canonical :` line. `CANONICAL` = stop (this repo is the harness).
+     No `canonical :` line (no merge on the base branch yet) = read
+     `CANONICAL_REPO` from `.github/workflows/update.yml`, as
+     `upstream_canonical_repo` does. `UNKNOWN` or none found = stop.
   2. Reads the named rule in the consumer's own files.
   3. Stops, saying so, when any of these holds:
-     - the rule names a consumer-specific stack and cannot be restated
-       without it;
-     - no measurement or recorded incident stands behind it;
+     - the rule names a consumer-specific stack (a language, framework,
+       service or file layout only this consumer has) and cannot be
+       restated without it;
+     - no measurement stands behind it: a command and its output, or a
+       recorded incident whose record carries one (edge mode's `## Never`:
+       no report with no measurement);
      - canonical already carries it (grep canonical, quote the command
        and its output).
-  4. Files ONE report pull request on canonical, adding ONE research node
-     (`docs/research/<stem>.md`, all nine sections of
-     `.agents/docs/research.md` § Shape). It cites the consumer path and
-     the measurement, and names the canonical file the rule would
-     graduate to.
+  4. Files ONE report pull request on canonical exactly as § 2 does
+     (attach, branch, `.agents/docs/research/TEMPLATE.md` shape, frontmatter,
+     title `Report from <repo>: <the question>`), adding ONE research node
+     (`docs/research/<stem>.md`). It cites the consumer path and the
+     measurement; `graduates:` names the canonical file the rule would
+     land in.
   - Edge mode's `## Never` list stays in force, including "Write
     `docs/product/` or `docs/plans/` in either repo".
-- `.agents/docs/feedback.md` § When the consumer is the detector — one
-  paragraph: practices are reported by hand in practice mode, as a
-  research node. What qualifies: generic, measured, absent from canonical.
+- `.agents/docs/feedback.md` § When the consumer is the detector, `### 5.
+  The manual report` — one paragraph appended: practices are reported by
+  hand in practice mode, as a research node. What qualifies: generic,
+  measured, absent from canonical.
 
 ## Assumptions
 
@@ -61,6 +70,11 @@ harness. It files the same thing edge mode files: one research node.
   `canonical :` printf) — confidence: medium. Run it in a consumer before
   building. If it does not print the line, read `CANONICAL_REPO` from
   `.github/workflows/update.yml`, as `upstream_canonical_repo` does.
+- A3: `upstream-report.md` stays under its reading budget
+  (`.agents/harness/selftest/reading-budget.sh`, `rb_bound
+  upstream-report.md 5671`, cap +10%) — evidence: `wc -c` 3594 bytes —
+  confidence: medium. The section fits in about 2600 bytes; over = cut
+  words, never raise the bound.
 
 ## Out of scope
 
@@ -72,15 +86,20 @@ harness. It files the same thing edge mode files: one research node.
 
 - `grep -c '^## .*[Pp]ractice' .claude/commands/upstream-report.md` —
   `1` or more, and that section contains the three stop conditions of
-  Scope step 3. Read it: a stop condition missing = not done.
+  Scope step 3 and the `CANONICAL` and no-`canonical :` cases of step 1.
+  Read it: one missing = not done.
 - `grep -n 'docs/plans/' .claude/commands/upstream-report.md` — still
-  matches the `## Never` line (unchanged).
-- `bash .agents/harness/selftest.sh` — `0 failed`.
-- `./joharness.sh ci` — `ci: pass`.
-- `./joharness.sh verify` — `0 failed`.
-- Consumer-side check (this plan SHIPS): after the sync, a consumer's
-  `/upstream-report` command file carries the practice section, and its
-  `./joharness.sh ci` passes.
+  matches `- Write \`docs/product/\` or \`docs/plans/\` in either repo,
+  or touch anything`, under `## Never`. No match = not done.
+- `grep -c 'practice' .agents/docs/feedback.md` — `1` or more, inside
+  `### 5. The manual report`. `0` = not done.
+- `grep -n '\.claude/commands' .agents/scripts/sync-to-consumer.sh` — a
+  match: the command file ships to consumers with the next sync. No
+  match = not done.
+- `bash .agents/harness/selftest.sh` — `0 failed` (covers the reading
+  budget). Any failure = not done.
+- `./joharness.sh ci` — `ci: pass`. Anything else = not done.
+- `./joharness.sh verify` — `0 failed`. Anything else = not done.
 
 ## Where to look
 
