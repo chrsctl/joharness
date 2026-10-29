@@ -35,9 +35,10 @@ stops holding a slot.
   respawn blind`. Unknown
   age keeps holding a slot (cannot prove it old). The verdict section prints
   one line for `n_edge_aged > 0`, next to the `n_edge` line. The STALL? line
-  does NOT run for aged rows (they are neither counted in `n_stall` nor in
+  still prints for aged rows, uncounted (neither in `n_stall` nor in
   `n_inflight`, so the stopped-fleet test `n_stall == n_inflight - n_blocked`
-  stays true to its meaning). The exit verdict (`DRAINED — nothing free,
+  stays true to its meaning): the health table nudges and kills a hung
+  RUNNING session by that mark. The exit verdict (`DRAINED — nothing free,
   nothing in flight: exit`) never fires while an aged edge exists: a `NOT
   DRAINED — … aged edge: look up its pull request first` branch takes its
   place; the in-flight, pending, role-due and release-due verdicts stay.

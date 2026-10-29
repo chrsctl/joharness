@@ -8942,6 +8942,12 @@ cmd_dispatch() {
       [ "$emore" -le 1 ] ||
         edge_rows="${edge_rows} (and $((emore - 1)) more item(s) retired here: ${eitem#* })"
       edge_rows="${edge_rows}"$'\n'
+      # The mark stays, uncounted: the health table nudges and kills a hung
+      # RUNNING session by it, and an aged row is past any window that matters.
+      if [ "$eage" -ge "$stall" ]; then
+        estem="${efirst##*/}"; estem="${estem%.md}"
+        edge_rows="${edge_rows}    STALL? no push for ${eagetext} (>= ${stall}m): cross-check the control plane by TITLE (🔨 manager: ${estem}) — this row carries no session line to read; the verdict is the health table's (.claude/commands/orchestrator.md, step 2), never this row's"$'\n'
+      fi
       continue
     fi
     n_inflight=$((n_inflight + 1))

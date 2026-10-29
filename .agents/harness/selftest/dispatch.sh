@@ -709,6 +709,10 @@ expect "an edge older than the window gives its slot back" "slots     : 4 of 8 f
 expect "and its row says so, still a retired row" \
   "retired, no claim file, no push for 2h (>= 1h JOHARNESS_EDGE_SLOT_HOURS): holds NO slot" "$out"
 refute "its item is still not offered for spawning" "  docs/plans/eta.md (agent" "$out"
+# Its STALL? mark stays: the health table nudges and kills a hung RUNNING
+# session by it, and `RUNNING … retired, no claim file` alone reads merging.
+expect "and keeps its STALL? mark for the health table" "STALL? no push for 2h" \
+  "$(printf '%s\n' "$out" | grep -A1 'mgr-eta')"
 expect "the verdict counts it apart" \
   "1 aged edge branch(es) with no claim file and no push for >= 1h" "$out"
 refute "and not as an edge holding a slot" "branch(es) at the edge with no claim file: each holds a slot" "$out"

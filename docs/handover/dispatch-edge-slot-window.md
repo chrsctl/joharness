@@ -8,7 +8,7 @@ issue: 701
 session: https://claude.ai/code/session_01J1YMK53poa2Ag5SDkEp9AR
 agent: opus
 updated: 2026-10-29
-next: Second verifier pass on the r14-r18 fixes, then step 7
+next: ci, then step 7
 ---
 
 ## Goal
@@ -51,6 +51,10 @@ items stay withheld, slot is freed.
 - r16: (verifier) an edge naming no item aged at 4h lost its STALL? REPORT and read `items stay withheld` (fixed: itemless edges never age; case red without the guard, 2 FAIL, ci 2026-10-29)
 - r17: (verifier) aged NOT DRAINED masked the in-flight, pending, role-due and release-due verdicts (fixed: it replaces only the exit verdict)
 - r18: (verifier) plan red-check command rewrites the tree; branch 1 behind origin/main (fixed: run only with no verifier live; origin/main merged in)
+- r19: (verifier) spawn prompt carried base history beyond the four fields (no change)
+- r20: (verifier) aged rows dropped STALL?, so a hung RUNNING edge matched `retired, no claim file → merging; nothing` and was never nudged or killed (fixed: the mark prints, uncounted; plan Scope amended; case red without it)
+- r21: (verifier) the pull-request lookup sentence sits under Held by human, which only that table row reaches (wontfix: the health table is out of scope; the verdict line carries the lookup to every pass)
+- r22: (verifier) code meets the plan as amended on this branch, not as merged (no change: amendments are r2-r4, r8, r9, r11, r14-r16, r20)
 
 ## Blockers
 
