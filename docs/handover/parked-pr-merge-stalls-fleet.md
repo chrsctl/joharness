@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK7aZoBRVvB5uRaJTG7
 agent: opus
 updated: 2026-10-29
-next: Write the draft-on-park rule and its why into manager-reference.md § Defect, file clerk and dispatch plans, delete the research file
+next: Run ci, verifier at opus, then finish and merge
 ---
 
 ## Goal
