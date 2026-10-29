@@ -788,6 +788,17 @@ expect "it names the yielded clerk" "clerk-20260107  tip-2h  yielded" "$out"
 out="$(ckx env JOHARNESS_DEFECT_CLERK_HOURS=0)"
 expect "JOHARNESS_DEFECT_CLERK_HOURS=0: in flight, as before" \
   "clerk     : IN FLIGHT, so none is due" "$out"
+out="$(ckx env JOHARNESS_CLERK_HOURS=2)"
+expect "the cadence due: it yields all the same" \
+  "yielded   : holds nothing — its tip predates the first park on #31" "$out"
+expect "and the clerk is DUE" "clerk     : DUE — 3h since the last clerk landed" "$out"
+# Two in flight from before the park: neither yields, at most two clerks.
+ckfly clerk-20260110 8000
+out="$(ckx)"
+expect "two stale clerks in flight: IN FLIGHT" "clerk     : IN FLIGHT, so none is due. Clock: due PARKED #31" "$out"
+out="$(ckc)"
+refute "and neither yields" "yielded" "$out"
+ckgone clerk-20260110
 # The park-called clerk pushed after the park: never yields, so never a third.
 ckfly clerk-20260108 60
 out="$(ckx)"

@@ -4283,6 +4283,12 @@ clerk_due() {
       CLERK_DUE="due ${CLERK_EARLY_WHY}, ahead of the cadence: ${age}h since ${base_word} (of ${hours}h)"
   fi
   CLERK_ROWS="$(clerk_walk)"
+  # A due cadence skips the early read; a clerk in flight needs it all the
+  # same: one spawned on the cadence that never lands keeps the cadence due.
+  if [ -z "$CLERK_EARLY" ] && [ "${CLERK_DUE%% *}" = due ] &&
+     printf '%s\n' "$CLERK_ROWS" | grep -q $'\tin-flight$'; then
+    clerk_park_early "${noop%%$'\t'*}"
+  fi
   [ -z "$CLERK_EARLY" ] || clerk_yield
 }
 
@@ -4319,7 +4325,8 @@ clerk_yield() {
 # and STUCK already reach the human, RESUME and RECHECK are dispatch's.
 # Planned = what the clerk itself skips as planned (clerk_issue_nums all).
 # Fails closed: any read that fails makes nothing due early.
-# arg: <newest no-op record time, unix; empty = none>. Sets CLERK_EARLY
+# args: <newest no-op record time, unix; empty = none> [any: a planned issue
+# counts too — the twin check, whose own plan names it]. Sets CLERK_EARLY
 # (`#<n>`, the oldest such park), CLERK_EARLY_WHY and CLERK_EARLY_AGE (its
 # minutes since the first park), or leaves all three empty.
 CLERK_EARLY=""
@@ -4327,7 +4334,7 @@ CLERK_EARLY_WHY=""
 CLERK_EARLY_AGE=""
 clerk_park_early() {
   local last="${1:-0}" knob base_branch="${HANDOVER_BASE_BRANCH:-main}" base_id
-  local refs=() r out rc hit ref ws doc st nx planned="" b now
+  local refs=() r out rc hit ref ws doc st nx planned="" b now any="${2:-}"
   local dst dn dplan dage best="" bage=-1 seen=" "
   case "$last" in '' | *[!0-9]*) last=0 ;; esac
   CLERK_EARLY=""; CLERK_EARLY_WHY=""; CLERK_EARLY_AGE=""
@@ -4376,10 +4383,12 @@ clerk_park_early() {
     # A clerk that read the issues after the first park had its chance: the
     # cadence and PARKED UNPLANNED take it from there.
     [ $((now - (dage + 1) * 60)) -gt "$last" ] || continue
-    if [ -z "$planned" ]; then
-      planned=" $(clerk_issue_nums docs/plans all | tr '\n' ' ')"
+    if [ "$any" != any ]; then
+      if [ -z "$planned" ]; then
+        planned=" $(clerk_issue_nums docs/plans all | tr '\n' ' ')"
+      fi
+      case "$planned" in *'?'*) return 0 ;; *" ${dn} "*) continue ;; esac
     fi
-    case "$planned" in *'?'*) return 0 ;; *" ${dn} "*) continue ;; esac
     case "$seen" in *" ${dn} "*) ;; *) seen="${seen}${dn} " ;; esac
     if [ "$dage" -gt "$bage" ]; then best="$dn"; bage="$dage"; fi
   done <<<"$out"
@@ -5767,27 +5776,27 @@ role_twin_run() {
 
 # <cur> <rows> — the clerk rows a twin check weighs. A park-called clerk
 # (clerk_yield) plans the issue, so the early due ends and the clerk it
-# yielded to reads in flight again: a row whose tip is
-# JOHARNESS_DEFECT_CLERK_HOURS or more older than this branch's first commit
-# pushed nothing since this pass began, and is no twin. 0 lifts it: every row
-# counts. A read that fails keeps the row.
+# yielded to reads in flight again. The same park read, planned or not
+# (clerk_park_early any): the ONE other row whose tip predates that park is
+# no twin. No park, two such rows, or a read that fails: every row counts.
 clerk_twin_rows() {
-  local cur="$1" rows="$2" knob first r ct
-  knob="$(num_knob JOHARNESS_DEFECT_CLERK_HOURS)"
-  first="$(git -C "$ROOT" log --format=%ct \
-    "refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}..HEAD" </dev/null 2>/dev/null | sort -n | head -1)"
-  case "$first" in '' | *[!0-9]*) knob=0 ;; esac
+  local cur="$1" rows="$2" noop now park r ct n=0 drop=""
+  noop="$(clerk_noop)"
+  clerk_park_early "${noop%%$'\t'*}" any
+  case "$CLERK_EARLY_AGE" in
+    '' | *[!0-9]*) printf '%s\n' "$rows"; return 0 ;;
+  esac
+  now="$(date +%s)"
+  park=$((now - CLERK_EARLY_AGE * 60))
   while IFS= read -r r; do
-    [ -n "$r" ] || continue
-    if [ "$knob" -gt 0 ] && [ "$r" != "$cur" ]; then
-      ct="$(git -C "$ROOT" log -1 --format=%ct "refs/remotes/origin/${r}" </dev/null 2>/dev/null)"
-      case "$ct" in
-        '' | *[!0-9]*) ;;
-        *) [ "$ct" -gt $((first - knob * 3600)) ] || continue ;;
-      esac
-    fi
-    printf '%s\n' "$r"
+    [ -n "$r" ] && [ "$r" != "$cur" ] || continue
+    ct="$(git -C "$ROOT" log -1 --format=%ct "refs/remotes/origin/${r}" </dev/null 2>/dev/null)"
+    case "$ct" in '' | *[!0-9]*) continue ;; esac
+    [ "$ct" -lt "$park" ] || continue
+    n=$((n + 1)); drop="$r"
   done <<<"$rows"
+  if [ "$n" -ne 1 ]; then printf '%s\n' "$rows"; return 0; fi
+  printf '%s\n' "$rows" | grep -vxF -- "$drop" || true
 }
 
 # <audit|retro> — the ledger a reviewer's pass lands.

@@ -36,8 +36,8 @@ Push (`git push -u origin <branch>`) once the first plan is committed.
 
 **Twin check** after that push: `./joharness.sh role clerk --twin`. `GO` =
 yours is the one clerk in flight, or sorts FIRST by name among those in
-flight. A clerk whose tip is `JOHARNESS_DEFECT_CLERK_HOURS` older than
-your first commit is no twin: the one a park-called pass yields past. `STOP: TWIN <other>` = report `TWIN: deferred`, exit, no pull
+flight. The ONE other clerk whose tip predates the early
+clerk's park (`yielded`, above) is no twin, though your plan names the issue. `STOP: TWIN <other>` = report `TWIN: deferred`, exit, no pull
 request; any other `STOP:` = report it, exit.
 
 ## 2. Read

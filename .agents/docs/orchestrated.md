@@ -331,8 +331,8 @@ tip predates the first park, nothing pushed in the
 `JOHARNESS_DEFECT_CLERK_HOURS` since, reads `yielded` and holds nothing
 (`joharness.sh:clerk_yield`), so one more clerk is due, at most two. The
 park-called clerk pushes after the park, so it never yields to a third; its
-twin check passes over a clerk whose tip is that knob older than its own
-first commit (`joharness.sh:clerk_twin_rows`).
+twin check reads the same park, planned or not, and passes over that one
+clerk (`joharness.sh:clerk_twin_rows`). A due cadence yields alike.
 
 A park on an issue no plan names waits on the clerk's cadence: in a run the
 clerk is the only automated path from an issue to a plan (a human or session
@@ -345,10 +345,10 @@ notifies. A cadence gap, not intent: the parked manager waits on exactly that
 plan while its branch drifts, and a RECHECK respawn can re-park on the same
 red check. One consumer reading, not re-taken here (chrsctl/gx, 2026-10-28):
 two managers parked beside `clerk : not due`; a human-ordered extra clerk
-(`orchestrator-reference.md`, Role sessions) cut the wait to the plan. `clerk_park_early` now makes the clerk due early on such a park. A second reading (chrsctl/gx,
-2026-10-29): clerk pull request #1100 stopped on a red finish check, defect
-#1101 was filed `blocking:` 43 minutes later, and the in-flight clerk held
-the early due for about five hours; `clerk_yield` lets it through.
+(`orchestrator-reference.md`, Role sessions) cut the wait to the plan. `clerk_park_early` makes the clerk due early on such a park, and
+`clerk_yield` keeps a clerk in flight that cannot merge from holding it
+(chrsctl/gx, 2026-10-29, not re-taken here: a clerk pull request stopped on a
+red finish check, a `blocking:` defect filed after it waited on that clerk).
 
 A block names its reason: `next:` = `<reason>: <question>`, one word from
 the closed list `joharness.sh:block_reason_ok`. A free question with no

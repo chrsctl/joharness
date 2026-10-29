@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK3HUXzoWdaRTTWngzF
 agent: opus
 updated: 2026-10-29
-next: Run ./joharness.sh ci and verify, spawn verifier, then finish
+next: Rerun ci and verify (verify red on Docker Hub 429), then finish
 ---
 
 ## Goal
@@ -23,8 +23,8 @@ first park, dispatch prints the clerk DUE row anyway (at most two clerks).
 - A2: confirmed as written — a consumer record, not re-taken; the plan says so.
 - One state, not a dispatch special case: `clerk_yield` (called from `clerk_due`) rewrites the lone in-flight row to `yielded`, which `scout_branches` drops, so dispatch, `clerk`, the role prelude (`role_start_stop`) and `role_suppressed` all read it alike.
 - Signal: tip committer date (`git log -1 %ct`) before now minus `CLERK_EARLY_AGE` (minutes since the oldest qualifying park). Only when exactly one clerk is in flight: at most two.
-- Twin check: once the park-called clerk's plan names the issue the early due ends and the stuck clerk reads in flight again, so `clerk_twin_rows` drops a row whose tip is `JOHARNESS_DEFECT_CLERK_HOURS` older than this branch's first commit. 0 lifts it.
-- Cadence-due case (clock due and a stuck clerk) is not covered: the plan scopes the yield to `CLERK_EARLY`; `CLERK_EARLY` is now reset per `clerk_due` call so a stale value never yields.
+- Twin check: once the park-called clerk's plan names the issue the early due ends and the stuck clerk reads in flight again, so `clerk_twin_rows` reads the same park with `clerk_park_early any` (planned issues count) and drops the ONE other row whose tip predates it. No park, or two such rows: every row counts.
+- Cadence due: `clerk_due` reads the park too when a clerk is in flight, so a cadence-spawned clerk that never lands yields alike. `CLERK_EARLY*` reset per `clerk_due` call.
 
 ## Rejected
 
@@ -46,6 +46,14 @@ first park, dispatch prints the clerk DUE row anyway (at most two clerks).
 - r14: (plan-checker) second clerk's pull request may hit the same red (wontfix: the plan then sits on a branch, read as planned; the goal is the early clerk coming, not its merge)
 - r15: (plan-checker) gx timeline unverified (no change: plan marks it so)
 - r16: (plan-checker) cadence-gap paragraph stale before the change (fixed: names clerk_park_early, drops the retired plan's pointer)
+- r17: (verifier) verifier prompt carried focus and the workstream pointer beyond subagents.md's fields (no change: the review ran; noted for the next spawn)
+- r18: (verifier) yield never fires while the cadence reads due (fixed: clerk_due reads the park when a clerk is in flight; selftest JOHARNESS_CLERK_HOURS=2 case)
+- r19: (verifier) clerk_twin_rows relaxed the twin rule with no park at all (fixed: drops a row only against the same park read, planned or not)
+- r20: (verifier) commit-clock skew could let three clerks run through the twin rule (fixed: the rule no longer reads this branch's own commit time; tip vs park, exactly one row)
+- r21: (verifier) at-most-two guard untested, mutant n -ge 1 survived (fixed: two stale clerks case, read through `clerk`; mutant now fails 1)
+- r22: (verifier) a live clerk with unpushed plans can be yielded (wontfix: the plan's heuristic; an hour silent past a park is the signal)
+- r23: (verifier) hand-started audit no longer held by a yielded clerk (wontfix: dispatch still suppresses through role_spawned; a yielded clerk holds nothing by design)
+- r24: (verifier) orchestrated.md dated incident story and history wording (fixed: status-quo wording, marked not re-taken)
 
 ## Blockers
 
