@@ -492,6 +492,7 @@ re_repo() {
 re_park() {
   local w="${TMP}/retroev-$1" t
   git -C "$w" checkout -q -b "$2" main
+  mkdir -p "${w}/docs/handover"
   printf -- '---\nworkstream: %s\nstatus: blocked\nbranch: %s\nplan: %s\nsession: %s\nagent: sonnet\nnext: %s\n---\n\n## Blockers\n\nNone.\n' \
     "$3" "$2" "$3" "$4" "$5" >"${w}/docs/handover/${3}.md"
   t="$(( $(date +%s) - 600 )) +0000"
