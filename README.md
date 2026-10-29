@@ -76,7 +76,7 @@ and don't use up the manager budget:
 | --- | --- |
 | Clerk | Turns open GitHub issues into plans, about once a day. Issues reach the queue only this way. |
 | Surveyor | When plans wait on each other because they seem to touch the same files, checks whether they really do and corrects them. |
-| Scout | Researches new ideas and files them as issues, each with the case against it from a reviewer that didn't write it. An idea becomes work only after you approve it. Reading outside the repo is off until you switch it on. |
+| Scout | Researches new ideas and files them as issues, each with the case against it from a reviewer that didn't write it. An idea becomes work only after you approve it. Off until you name the GitHub login that approves its ideas and write its brief (`docs/product/SCOUT.md`); reading outside the repo is off until you switch it on too. |
 | Retro reviewer | Weekly, in two modes. Audit samples finished work and checks its tests prove the right things. Trace reads the sessions that ended badly, plus audit concerns, and files plans for the checks that would have caught each failure. |
 
 ## How work flows
@@ -137,7 +137,8 @@ The start of your prompt decides the role:
 - anything else — an orchestrator.
 
 `/who` shows which sessions are working on the repo right now. `/map`
-refreshes `docs/MAP.md`, the one-line purpose of each product folder.
+writes or refreshes the `INDEX.md` in each product folder: what the folder
+is for, its interface and how to verify it.
 
 ## Commands
 
@@ -172,9 +173,9 @@ joharness/.agents/scripts/bootstrap-consumer.sh --env docker ../my-project
 Then follow the steps it prints. To stay current, merge the weekly update
 pull request (opened every Monday) or run `./joharness.sh upgrade`.
 
-Your repo keeps its own `docs/` (requirements, plans, notes, and
-`docs/MAP.md`, the folder map sessions read before searching the tree) and
-`joharness.conf`; everything else is the harness and gets synced. It
+Your repo keeps its own `docs/` (requirements, plans, notes),
+`joharness.conf` and the `INDEX.md` in each product folder, which sessions
+read before searching that folder; everything else is the harness and gets synced. It
 receives one environment layer — the one its `joharness.conf` names — not
 all of them (`.agents/env/README.md`).
 
