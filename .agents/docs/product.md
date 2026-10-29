@@ -143,6 +143,20 @@ gone holds nothing.
 - **Long-running session** = re-check ahead/behind periodically during Build
   too; a conflict caught mid-build is cheap.
 
+## Measuring a head
+
+- **Red outside the diff** = one paired run. Search open issues first. Then
+  run same suite on `origin/main` in a `git worktree`, at same time as the
+  branch re-run, each on own instance of any shared service. Red on
+  `origin/main` too = not this branch's: file it, cite it, move on. Why: a
+  stashed or partly reverted diff still holds product changes, measures
+  nothing.
+- **Partial run** says `SCOPED`, never the pass. Red that repeats when run
+  alone is real. Why: a subset green proves only the subset.
+- **Measure after the merge**, not before. Merge fetched `origin/main` in
+  first (Conflict at finish), then measure once per head. Why: a number taken
+  before the merge describes a head that no longer exists.
+
 ## Orchestration
 
 One low-tier orchestrator sits over the queue
