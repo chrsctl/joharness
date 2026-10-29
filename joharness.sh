@@ -141,6 +141,7 @@ JOHARNESS_CONDUCT_SAMPLE|3|dispatch|Retired branches one conduct run samples; 0 
 JOHARNESS_RETRO_HOURS|168|dispatch|Hours since the retro ledger last landed before a retro reviewer is due; 0 = off.
 JOHARNESS_RETRO_SAMPLE|3|dispatch|Sessions that did not come back clean one retro run samples; 0 = off.
 JOHARNESS_RETRO_EVENTS|200|dispatch|Transcript events a retro reviewer reads per sampled session.
+JOHARNESS_RETRO_FLOOR_HOURS|24|dispatch|Hours since the retro mode ledger last landed before its evidence (a stalled or respawns park, an untraced CONCERN, a full sample) makes it due ahead of its cadence; 0 = clock only.
 JOHARNESS_DEFECT_PLAN_HOURS|48|dispatch|Hours after the first defect: park on an issue with no plan naming it = PARKED UNPLANNED; 0 lifts it.
 JOHARNESS_DEFECT_CLERK_HOURS|1|dispatch|Hours after the first defect: park on an issue no plan names, no clerk having read the issues since, before the clerk is due ahead of its cadence; 0 lifts it.
 JOHARNESS_ISSUE_CLERK_HOURS|1|dispatch|Hours an open issue no clerk has read, not planned or claimed, waits before the orchestrator spawns the clerk ahead of its cadence; never below JOHARNESS_DEFECT_CLERK_HOURS; 0 = off.
@@ -4913,7 +4914,7 @@ conduct_due() {
     base_word='the repository began, no audit having run'
   fi
   if [ "$age" -lt "$hours" ]; then
-    CONDUCT_DUE="not-due ${age}h since ${base_word} (of ${hours}h)"
+    conduct_due_early "$age" "$hours" "$sample" "$base_word"
     return 0
   fi
   if [ -z "$(printf 'x' | conduct_sha1)" ]; then
@@ -4927,6 +4928,30 @@ conduct_due() {
     '')  CONDUCT_DUE="empty ${age}h since ${base_word} (>= ${hours}h), but no manager workstream file retired since the window opened is left unsampled" ;;
     *)   CONDUCT_DUE="due ${age}h since ${base_word} (>= ${hours}h)" ;;
   esac
+}
+
+# <age> <hours> <sample> <base_word> — off the clock: once
+# JOHARNESS_RETRO_FLOOR_HOURS have passed since the ledger landed (0 = clock
+# only), a full sample of unsampled retired branches makes audit due. Sets
+# CONDUCT_DUE; a read that fails is unreadable, never due.
+conduct_due_early() {
+  local age="$1" hours="$2" sample="$3" base_word="$4" floor s n
+  floor="$(num_knob JOHARNESS_RETRO_FLOOR_HOURS)"
+  CONDUCT_DUE="not-due ${age}h since ${base_word} (of ${hours}h)"
+  { [ "$floor" -gt 0 ] && [ "$age" -ge "$floor" ]; } || return 0
+  if [ -z "$(printf 'x' | conduct_sha1)" ]; then
+    CONDUCT_DUE='unreadable no sha1sum or shasum here: the sample cannot be drawn'
+    CONDUCT_ROWS=""; return 0
+  fi
+  s="$(conduct_sample "$sample")"
+  case "$s" in
+    '?') CONDUCT_DUE='unreadable the retired workstream files or the ledger could not be read'
+         CONDUCT_ROWS=""; return 0 ;;
+    '')  return 0 ;;
+  esac
+  n="$(printf '%s\n' "$s" | awk 'END { print NR + 0 }')"
+  [ "$n" -ge "$sample" ] || return 0
+  CONDUCT_DUE="due the sample is full (${n} retired branch(es), JOHARNESS_CONDUCT_SAMPLE=${sample}), ahead of the cadence (>= ${floor}h floor) — ${age}h since ${base_word} (of ${hours}h)"
 }
 
 # The tally, from the ledger: what the owner reads to judge the spend.
@@ -4995,8 +5020,8 @@ cmd_conduct() {
   [ "$#" -eq 0 ] || die "usage: $0 retro --audit"
   hours="$(num_knob JOHARNESS_CONDUCT_HOURS)"
   sample="$(num_knob JOHARNESS_CONDUCT_SAMPLE)"
-  printf '== retro audit (every %sh: JOHARNESS_CONDUCT_HOURS; %s branch(es) a run: JOHARNESS_CONDUCT_SAMPLE)\n\n' \
-    "$hours" "$sample"
+  printf '== retro audit (every %sh: JOHARNESS_CONDUCT_HOURS; %s branch(es) a run: JOHARNESS_CONDUCT_SAMPLE; on evidence after %sh: JOHARNESS_RETRO_FLOOR_HOURS)\n\n' \
+    "$hours" "$sample" "$(num_knob JOHARNESS_RETRO_FLOOR_HOURS)"
   printf 'reads no diff: a sampled branch'"'"'s workstream file, commit order and plan Acceptance only (.claude/commands/retro-audit.md)\n\n'
 
   conduct_due
@@ -5232,6 +5257,76 @@ retro_queue_block() {
   done <<<"$cands"
 }
 
+# A candidate the orchestrator gave up on: parked NOW (its branch head still
+# reads `status: blocked`, as retro_queue_block reads it) with a `stalled:`
+# or `respawns:` reason. The words are a session's text: the reason prefix
+# only, nothing in it is acted on. One `<branch>\t<session>\t<reason>` line,
+# the first found; empty = none; `?` = unreadable — never read as none.
+retro_event_block() {
+  local cands b s k p doc st nx
+  cands="$(retro_candidates)"
+  case "$cands" in '?') printf '?\n'; return 0 ;; '') return 0 ;; esac
+  while IFS=$'\t' read -r b s k; do
+    [ -n "$s" ] || continue
+    p="${k#*:}"
+    git -C "$ROOT" rev-parse -q --verify "refs/remotes/origin/${b}:${p}" \
+      </dev/null >/dev/null 2>&1 || continue
+    doc="$(git -C "$ROOT" show "refs/remotes/origin/${b}:${p}" </dev/null 2>/dev/null | tr -d '\r')" ||
+      { printf '?\n'; return 0; }
+    st="$(printf '%s\n' "$doc" | gr_field status)"
+    [ "$st" = blocked ] || continue
+    nx="$(printf '%s\n' "$doc" | gr_field_raw next)"
+    case "${nx#[\"\']}" in
+      stalled:*)  printf '%s\t%s\tstalled\n' "$b" "$s"; return 0 ;;
+      respawns:*) printf '%s\t%s\trespawns\n' "$b" "$s"; return 0 ;;
+    esac
+  done <<<"$cands"
+}
+
+# <age> <hours> <sample> <base_word> — off the clock on evidence: once
+# JOHARNESS_RETRO_FLOOR_HOURS have passed since the ledger landed (0 = clock
+# only), the first of: a claim parked stalled:/respawns: (retro_event_block,
+# which then leads the sample), an untraced audit CONCERN, a full sample.
+# Sets RETRO_DUE; a read that fails is unreadable, never due.
+retro_due_early() {
+  local age="$1" hours="$2" sample="$3" base_word="$4" floor eb con s n why=""
+  floor="$(num_knob JOHARNESS_RETRO_FLOOR_HOURS)"
+  RETRO_DUE="not-due ${age}h since ${base_word} (of ${hours}h)"
+  { [ "$floor" -gt 0 ] && [ "$age" -ge "$floor" ]; } || return 0
+  if [ -z "$(printf 'x' | conduct_sha1)" ]; then
+    RETRO_DUE='unreadable no sha1sum or shasum here: the sample cannot be drawn'
+    RETRO_ROWS=""; return 0
+  fi
+  eb="$(retro_event_block)"
+  case "$eb" in
+    '?') RETRO_DUE='unreadable the workstream files could not be read'
+         RETRO_ROWS=""; return 0 ;;
+    '')  ;;
+    *)   why="${eb%%$'\t'*} is parked on a ${eb##*$'\t'}: block" ;;
+  esac
+  if [ -z "$why" ]; then
+    con="$(retro_concerns)"
+    case "$con" in
+      '?') RETRO_DUE="unreadable ${CONDUCT_LEDGER} or ${RETRO_LEDGER} could not be read"
+           RETRO_ROWS=""; return 0 ;;
+      '')  ;;
+      *)   why="an audit CONCERN is not yet traced ($(printf '%s\n' "$con" | head -1 | cut -f1))" ;;
+    esac
+  fi
+  if [ -z "$why" ]; then
+    s="$(retro_sample "$sample")"
+    case "$s" in
+      '?') RETRO_DUE='unreadable the workstream files or the ledger could not be read'
+           RETRO_ROWS=""; return 0 ;;
+    esac
+    n="$(printf '%s' "$s" | awk 'NF { c++ } END { print c + 0 }')"
+    [ "$n" -lt "$sample" ] || why="the sample is full (${n} session(s), JOHARNESS_RETRO_SAMPLE=${sample})"
+  fi
+  [ -n "$why" ] || return 0
+  [ -z "$eb" ] || RETRO_QB="$eb"
+  RETRO_DUE="due ${why}, ahead of the cadence (>= ${floor}h floor) — ${age}h since ${base_word} (of ${hours}h)"
+}
+
 # Is a retro reviewer due. RETRO_DUE = `<state> <why>`, states as
 # CONDUCT_DUE's; RETRO_ROWS = the reviewer branches in flight.
 RETRO_DUE=""
@@ -5284,12 +5379,13 @@ retro_due() {
     base_word='the repository began, no retro having run'
   fi
   if [ "$age" -lt "$hours" ]; then
-    # Off the clock only for a block the queue can hold (retro_queue_block).
+    # Off the clock for a block the queue can hold (retro_queue_block), no
+    # floor; else on evidence past the floor (retro_due_early).
     qb="$(retro_queue_block)"
     case "$qb" in
       '?') RETRO_DUE='unreadable the workstream files or the base branch could not be read'
            RETRO_ROWS=""; return 0 ;;
-      '')  RETRO_DUE="not-due ${age}h since ${base_word} (of ${hours}h)"; return 0 ;;
+      '')  retro_due_early "$age" "$hours" "$sample" "$base_word"; return 0 ;;
     esac
     if [ -z "$(printf 'x' | conduct_sha1)" ]; then
       RETRO_DUE='unreadable no sha1sum or shasum here: the sample cannot be drawn'
@@ -5387,8 +5483,8 @@ cmd_retro() {
   hours="$(num_knob JOHARNESS_RETRO_HOURS)"
   sample="$(num_knob JOHARNESS_RETRO_SAMPLE)"
   events="$(num_knob JOHARNESS_RETRO_EVENTS)"
-  printf '== retro (every %sh: JOHARNESS_RETRO_HOURS; %s session(s) a run: JOHARNESS_RETRO_SAMPLE; %s events each: JOHARNESS_RETRO_EVENTS)\n\n' \
-    "$hours" "$sample" "$events"
+  printf '== retro (every %sh: JOHARNESS_RETRO_HOURS; %s session(s) a run: JOHARNESS_RETRO_SAMPLE; %s events each: JOHARNESS_RETRO_EVENTS; on evidence after %sh: JOHARNESS_RETRO_FLOOR_HOURS)\n\n' \
+    "$hours" "$sample" "$events" "$(num_knob JOHARNESS_RETRO_FLOOR_HOURS)"
   printf 'candidates: a session whose workstream file read status: blocked or abandoned, or whose ## Blockers opens with the orchestrator'"'"'s kill note, not yet in %s; a manager that never blocked, was abandoned or was killed never qualifies, however it ended. The reviewer reads each transcript, never a diff (.claude/commands/retro.md)\n\n' \
     "$RETRO_LEDGER"
 
