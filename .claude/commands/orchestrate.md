@@ -126,6 +126,7 @@ Act on the FIRST row that matches:
 | any | any | a `rescope-<key>` entry whose dispatch row reads `done: finished rescope, holds no slot — never nudge` (genuine holds: it merges nothing, ever) | done: drop the entry, keep `rescoped=<key>`. Nudge nothing, respawn nothing |
 | any | `LOOP?`, or head moved and `next:` unchanged with `same=2` already | any | LOOP, below. No nudge |
 | IDLE | any | `retired, no claim file`, last turn asks a human to merge or grant merge permission (`status_detail` / needs-action) | HELD BY HUMAN → ref § Held by human |
+| any | any | edge row reading `a human/ branch` | a human merges it: confirm its pull request is open, none = report to the human. Never nudge, NEVER respawn |
 | IDLE; bucket not consulted | `STALL?`, head unchanged | workstream `status: in-progress`, last turn ended asking for input (`status_detail`), no `unratified=` | UNRATIFIED BLOCK → ref § Unratified block |
 | IDLE | any | `unratified=` recorded and head still equals it — a reply or new `status_detail` does not count | stopped: `respawns` at limit = report only. Else `archive_session`, RESPAWN, even under a "don't respawn active managers" directive; counted |
 | any | any | a nudge, `seen=`, `held=` or `unratified=` recorded, and head, `status_detail` or `updated_at` moved since (or no longer BLOCKED / FAILED) | working: drop that record |
@@ -164,7 +165,7 @@ GUARD `<verb>`, before every push onto a manager's branch → ref § GUARD.
 
 ## 3. Spawn
 
-Managers: up to `slots`, dispatch's order, rows under `spawn` only. A ledger `held-human=<pr>` entry holds no slot (dropped per ref § Held by human): spawn up to `slots` plus the number of such entries whose branch dispatch still lists as `retired, no claim file` and counts (a `human/` row says `holds NO slot`: dispatch already freed it).
+Managers: up to `slots`, dispatch's order, rows under `spawn` only. A ledger `held-human=<pr>` entry holds no slot (dropped per ref § Held by human): spawn up to `slots` plus the number of such entries whose branch dispatch still lists as `retired, no claim file` unless that row reads `a human/ branch` (dispatch already freed that slot).
 `JOHARNESS_MAX_MANAGERS` caps managers only. Every role session (clerk,
 scout, retro reviewer (audit or trace), surveyor) runs beyond it and holds no
 slot: spawn its line even with every slot full, at most one of each in

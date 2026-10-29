@@ -792,7 +792,7 @@ out="$(dsp env JOHARNESS_MAX_MANAGERS=8 JOHARNESS_STALL_MINUTES=0)"
 expect "a retired human/ branch still has its row" \
   "docs/plans/omicron.md  human/omicron  retired  pushed" "$out"
 expect "which says it waits on a human and holds no slot" \
-  "a human/ branch: its pull request waits on a human merge, so it holds NO slot" "$out"
+  "a human/ branch: a human merges its pull request, so it holds NO slot" "$out"
 expect "so the slot is free" "slots     : 4 of 8 free" "$out"
 refute "its item is still not offered" "  docs/plans/omicron.md (agent" "$out"
 refute "and push age raises no STALL? on it" "STALL? no push" \

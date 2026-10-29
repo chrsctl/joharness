@@ -8660,10 +8660,12 @@ cmd_dispatch() {
     case "$ebranch" in
       human/*)
         n_human_edge=$((n_human_edge + 1))
-        edge_rows="${edge_rows}  ${efirst:-?}  ${ebranch}  retired  pushed ${eagetext}  retired, no claim file — a human/ branch: its pull request waits on a human merge, so it holds NO slot. Never respawn on it"
+        edge_rows="${edge_rows}  ${efirst:-?}  ${ebranch}  retired  pushed ${eagetext}  retired, no claim file — a human/ branch: a human merges its pull request, so it holds NO slot and push age is no stall. This reader does not read pull request state — the health pass confirms one is open. Never respawn on it"
         [ "$emore" -le 1 ] ||
           edge_rows="${edge_rows} (and $((emore - 1)) more item(s) retired here: ${eitem#* })"
         edge_rows="${edge_rows}"$'\n'
+        [ -n "$eage" ] ||
+          edge_rows="${edge_rows}    push age unknown: ref not here — fetch, then cross-check the control plane"$'\n'
         continue ;;
     esac
     n_inflight=$((n_inflight + 1))
