@@ -23,6 +23,8 @@ role-on-demand on `.agents/docs/orchestrate-reference.md`.
 
 ## Review
 
+- r1: edge review of two frontmatter `scope:` lines; bodies untouched, no collision left on shared registries (no change)
+
 ## Blockers
 
 None.
