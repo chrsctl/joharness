@@ -336,8 +336,8 @@ no handover, and no handover is no replace. Why:
   prompt =
   the command + the lines its row names (clerk and retro, either mode: "the role lines";
   surveyor: "the standard lines" — it claims by workstream file; scout:
-  none, `/scout` alone — any text after it is a seed (`scout.md`), and its
-  prelude claims):
+  none, `/scout` alone — text after it would read as a seed (`scout.md`),
+  and its prelude claims):
 
   | line | model (Lineup) | title | prompt | ledger |
   | --- | --- | --- | --- | --- |
