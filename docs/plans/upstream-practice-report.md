@@ -39,12 +39,13 @@ harness. It files the same thing edge mode files: one research node.
   mode`, between `## 2.` and `## Never`. No `:<heading>` = the whole file
   is one rule; a file holding many rules needs the heading. § 3 stands
   alone: it skips § 0 and § 1, and borrows only § 2's filing. The
-  opening (frontmatter `description:` and the first paragraph) names both
-  modes in as few words as fit the budget (A3). The reporter:
+  opening (frontmatter `description:` and the first two paragraphs,
+  through "Not the queue…") names both modes in as few words as fit the
+  budget (A3). The reporter:
   1. Runs `./joharness.sh authority` (VERIFIABLE, else stop) and
      `./joharness.sh upstream` with no argument. Practice mode reads only
      its `canonical :` line. `CANONICAL` = stop (this repo is the harness).
-     No `canonical :` line (no merge on the base branch yet) = read
+     No `canonical :` line (no fetched base branch, or no merge on it) = read
      `CANONICAL_REPO` from `.github/workflows/update.yml`, as
      `upstream_canonical_repo` does. `UNKNOWN` or none found = stop.
   2. Reads the named rule in the consumer's own files.
@@ -55,32 +56,37 @@ harness. It files the same thing edge mode files: one research node.
      - no measurement stands behind it: a command and its output, or a
        recorded incident whose record carries one (edge mode's `## Never`:
        no report with no measurement);
-     - canonical already carries it: grep the rule's key terms over
-       canonical's `AGENTS.md`, `.agents/` and `.claude/`; quote the
-       command and its output, and cite the file and section of a hit.
-  4. Files ONE report pull request on canonical exactly as § 2 does
-     (attach, branch, `.agents/docs/research/TEMPLATE.md` shape, frontmatter,
-     title `Report from <repo>: <the question>`), adding ONE research node
-     (`docs/research/<stem>.md`). It cites the consumer path and the
-     measurement; `graduates:` names the canonical file the rule would
-     land in.
+     - canonical already carries it: attach canonical first (§ 2's
+       attach), grep the rule's key terms over ITS checkout's `AGENTS.md`,
+       `.agents/` and `.claude/` — never this repo's synced copy, whose
+       `AGENTS.md` Part 2 holds the rule itself; quote the command and its
+       output, and cite the file and section of a hit.
+  4. Files ONE report pull request on canonical as § 2 does (branch,
+     `.agents/docs/research/TEMPLATE.md` shape, frontmatter, title
+     `Report from <repo>: <the question>`), adding ONE research node
+     (`docs/research/<stem>.md`). The node's `## Findings` cites the
+     consumer path and the measurement; `graduates:` names the canonical
+     file the rule would land in. The body names the rule's path and
+     heading where § 2's names the edge, and the three stop checks passed
+     where § 2's names the dropped count.
   - Edge mode's `## Never` list stays in force, including "Write
     `docs/product/` or `docs/plans/` in either repo".
 - `.agents/docs/feedback.md` § When the consumer is the detector, `### 5.
   The manual report` — one paragraph appended: practices are reported by
   hand in practice mode, as a research node. What qualifies: generic,
-  measured, absent from canonical.
+  measured, absent from canonical. A practice is not a finding: § 8
+  (a consumer's own findings) stays as is.
 
 ## Assumptions
 
 - A1: edge mode reports only canonical-owned paths and files only a
   research node — evidence: `.claude/commands/upstream-report.md`
   (§ 0, § 2, `## Never`), `joharness.sh:cmd_upstream` — confidence: high.
-- A2: `./joharness.sh upstream` with no argument prints `canonical :` —
-  evidence: `joharness.sh:cmd_upstream` (usage allows zero arguments; the
-  `canonical :` printf) — confidence: medium. Run it in a consumer before
-  building. If it does not print the line, read `CANONICAL_REPO` from
-  `.github/workflows/update.yml`, as `upstream_canonical_repo` does.
+- A2: in a consumer, `./joharness.sh upstream` with no argument prints
+  `canonical :` iff a fetched `origin/<base>` carries a merge —
+  evidence: `joharness.sh:cmd_upstream` (`is_canonical` returns first;
+  `upstream_edge` fails before the `canonical :` printf) — confidence:
+  high. Otherwise step 1's update.yml fallback.
 - A3: `upstream-report.md` stays under its reading budget
   (`.agents/harness/selftest/reading-budget.sh`, `rb_bound
   upstream-report.md 5671`, cap +10%) — evidence: `wc -c` 3594 bytes —
@@ -99,11 +105,12 @@ harness. It files the same thing edge mode files: one research node.
   `1` or more, and that section contains the three stop conditions of
   Scope step 3 and the `CANONICAL` and no-`canonical :` cases of step 1.
   Read it: one missing = not done.
-- `grep -n 'docs/plans/' .claude/commands/upstream-report.md` — still
-  matches `- Write \`docs/product/\` or \`docs/plans/\` in either repo,
-  or touch anything`, under `## Never`. No match = not done.
-- `grep -c 'practice' .agents/docs/feedback.md` — `1` or more, inside
-  `### 5. The manual report`. `0` = not done.
+- `sed -n '/^## Never/,$p' .claude/commands/upstream-report.md | grep -c
+  'docs/plans/'` — `1`: the line `- Write \`docs/product/\` or
+  \`docs/plans/\` in either repo` still stands under `## Never`. `0` = not
+  done.
+- `sed -n '/^### 5\./,/^### 6\./p' .agents/docs/feedback.md | grep -c
+  practice` — `1` or more. `0` = not done.
 - `bash .agents/harness/selftest.sh` — `0 failed` (covers the reading
   budget). Any failure = not done.
 - `./joharness.sh ci` — a line starting `ci: pass` (a `shellcheck
