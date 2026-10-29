@@ -7,7 +7,7 @@ needs: none
 requirement: none
 serves: all
 issue: 701
-scope: joharness.sh, .agents/harness/selftest/dispatch.sh, .agents/docs/orchestrator-reference.md
+scope: joharness.sh, .agents/harness/selftest/dispatch.sh, .agents/docs/orchestrator-reference.md, .agents/docs/orchestrated.md, .claude/commands/orchestrator.md
 ---
 
 ## Goal
@@ -24,7 +24,7 @@ stops holding a slot.
 
 - `joharness.sh` — in `dispatch`, the edge loop (`dispatch_retired_edges`
   consumer, the `n_inflight=$((n_inflight + 1)); n_edge=...` block):
-  read `JOHARNESS_EDGE_SLOT_HOURS` (default `6`; `0` = never time out, today's
+  read `JOHARNESS_EDGE_SLOT_HOURS` (default `4`, under the 5 h of the incident; `0` = never time out, today's
   behaviour; non-numeric = default). An edge branch (not `human/*`, which
   already holds no slot) whose `eage` is known and `>= hours*60` minutes does
   NOT increment `n_inflight` or `n_edge`; it increments a new `n_edge_aged`
@@ -34,12 +34,25 @@ stops holding a slot.
   report to the human). Its items stay withheld, never respawn blind`. Unknown
   age keeps holding a slot (cannot prove it old). The verdict section prints
   one line for `n_edge_aged > 0`, next to the `n_edge` line. The STALL? line
-  logic is unchanged and still runs for aged rows.
+  does NOT run for aged rows (they are neither counted in `n_stall` nor in
+  `n_inflight`, so the stopped-fleet test `n_stall == n_inflight - n_blocked`
+  stays true to its meaning). The DRAINED verdict must not fire while an aged
+  edge exists: treat `n_edge_aged > 0` as not drained, saying `aged edge: look
+  up its pull request first` (find the DRAINED printf near the `n_inflight`
+  zero test).
+- `joharness.sh` — add a `KNOBS` row for `JOHARNESS_EDGE_SLOT_HOURS`.
+- `.agents/docs/orchestrated.md` — add its row to the knob table, beside
+  `JOHARNESS_STALL_MINUTES`.
+- `.claude/commands/orchestrator.md` — the `held-human` rule (spawn `slots` plus
+  one per ledger entry still listed `retired, no claim file`) must also exempt
+  an aged-edge row, as it does a `human/` row: dispatch already freed that slot.
 - `.agents/harness/selftest/dispatch.sh` — extend the `mgr-eta` retire-commit
   block (near the `retired, no claim file — a pull request is expected` check):
   a second case with `JOHARNESS_EDGE_SLOT_HOURS` set below the branch's push age
-  (use the fixture's existing clock or backdate the commit as neighbouring cases
-  do) expects the slot back (`slots     : 4 of 8 free`), the new row text, and the
+  (fixture commits carry the real time, age ~0: backdate the eta retire commit
+  with `GIT_COMMITTER_DATE` more than 1 h, the smallest window; run the aged case
+  in its own fixture branch or restore the date so later default-knob checks, e.g.
+  `slots     : 3 of 8 free`, keep reading 0 age) expects the slot back (`slots     : 4 of 8 free`), the new row text, and the
   item still not offered for spawning; `JOHARNESS_EDGE_SLOT_HOURS=0` expects the
   old row and slot count.
 - `.agents/docs/orchestrator-reference.md` — one sentence near the
@@ -54,6 +67,7 @@ stops holding a slot.
 - A2: items of the edge branch are withheld via `edge_items`, built before the slot is counted, so skipping the count leaves them withheld — evidence: `joharness.sh` `edge_items="${edge_items} ${epath}@${ebranch} "` — confidence: high
 - A3: `human/*` edges already hold no slot, so the window applies only to the other edges — evidence: same loop, `case "$ebranch" in human/*)` — confidence: high
 - A4: harness commands never call the GitHub API, so the pull request state cannot be read inside dispatch — evidence: `.agents/harness/AGENTS.md` Loop step 7 last line — confidence: high
+- A6: `.claude/commands/orchestrator.md` adds one slot per held-human entry still listed `retired, no claim file` (line ~168) — evidence: grep `held-human` there — confidence: medium
 - A5: `dispatch_age_min` returns minutes and `$stall` is minutes — evidence: `joharness.sh` `eage -ge "$stall"` — confidence: medium (read `dispatch_age_min` first)
 
 ## Out of scope
@@ -66,7 +80,9 @@ stops holding a slot.
 ## Acceptance
 
 - `./joharness.sh ci` — `ci: pass`.
-- `bash .agents/harness/selftest/dispatch.sh` (or the selftest entry `./joharness.sh verify` runs for it) — 0 failed, including the new aged and `=0` cases.
+- `./joharness.sh verify` — 0 failed, including the dispatch selftest's new aged and `=0` cases and `knobs-declared` (never run `selftest/dispatch.sh` alone: not runnable alone, it writes at `/`).
+- `./joharness.sh ci` — ship-scope names this plan as SHIPS to consumers: the same `verify` is the check a consumer runs after sync.
+- A dispatch fixture with only an aged edge prints no `DRAINED` — expected text `aged edge`.
 - The new aged case FAILS on `origin/main`'s `joharness.sh` (run the new selftest against it: red on the slots line).
 - `./joharness.sh verify` — 0 failed, count read from the output.
 
