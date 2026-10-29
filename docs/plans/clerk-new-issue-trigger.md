@@ -7,7 +7,7 @@ needs: none
 requirement: none
 serves: all
 issue: none
-scope: shared:joharness.sh, .agents/docs/orchestrate-reference.md, shared:.agents/docs/orchestrated.md, .claude/commands/orchestrate.md, .agents/harness/selftest/clerk.sh
+scope: shared:joharness.sh, shared:.agents/docs/orchestrate-reference.md, shared:.agents/docs/orchestrated.md, shared:.claude/commands/orchestrate.md, .agents/harness/selftest/clerk.sh
 ---
 
 ## Goal
