@@ -792,6 +792,13 @@ out="$(ckx env JOHARNESS_CLERK_HOURS=2)"
 expect "the cadence due: it yields all the same" \
   "yielded   : holds nothing — its tip predates the first park on #31" "$out"
 expect "and the clerk is DUE" "clerk     : DUE — 3h since the last clerk landed" "$out"
+ckgone clerk-20260107
+# A tip a second after the park, in its own minute: in flight, never yielded.
+ckfly clerk-20260113 7199
+out="$(ckc)"
+refute "a tip just after the park never yields" "yielded" "$out"
+ckgone clerk-20260113
+ckfly clerk-20260107 9000
 # Two in flight from before the park: neither yields, at most two clerks.
 ckfly clerk-20260110 8000
 out="$(ckx)"

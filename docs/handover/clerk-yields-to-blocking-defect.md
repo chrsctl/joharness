@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK3HUXzoWdaRTTWngzF
 agent: opus
 updated: 2026-10-29
-next: Rerun ci (verify green 6/0 at 365fb14f), then retire and finish
+next: Rerun ci and verify, then retire and finish
 ---
 
 ## Goal
@@ -23,7 +23,7 @@ first park, dispatch prints the clerk DUE row anyway (at most two clerks).
 - A2: confirmed as written — a consumer record, not re-taken; the plan says so.
 - One state, not a dispatch special case: `clerk_yield` (called from `clerk_due`) rewrites the lone in-flight row to `yielded`, which `scout_branches` drops, so dispatch, `clerk`, the role prelude (`role_start_stop`) and `role_suppressed` all read it alike.
 - Signal: tip committer date (`git log -1 %ct`) before now minus `CLERK_EARLY_AGE` (minutes since the oldest qualifying park). Only when exactly one clerk is in flight: at most two.
-- Twin check: once the park-called clerk's plan names the issue the early due ends and the stuck clerk reads in flight again, so `clerk_twin_rows` reads the same park with `clerk_park_early any` (planned issues count) and drops the ONE other row whose tip predates it. No park, or two such rows: every row counts.
+- Twin check: once the park-called clerk's plan names the issue the early due ends and the stuck clerk reads in flight again, so `clerk_twin_rows` reads the same park with `clerk_park_early <cur>` (only this branch's plans not counted) and drops the ONE other row whose tip predates it. No park, or two such rows: every row counts.
 - Cadence due: `clerk_due` reads the park too when a clerk is in flight, so a cadence-spawned clerk that never lands yields alike. `CLERK_EARLY*` reset per `clerk_due` call.
 
 ## Rejected
@@ -60,6 +60,12 @@ first park, dispatch prints the clerk DUE row anyway (at most two clerks).
 - r28: (verifier) orchestrated.md roles line, orchestrator.md §3, orchestrator-reference.md per-run rule still say one clerk (fixed: each names the yielded exception; orchestrator.md added to scope)
 - r29: (verifier) r8 counts stale (fixed: re-measured, written with command and time)
 - r30: (verifier) tail spawn row names a park when the cadence made the clerk due (fixed: label only when the status reason opens PARKED)
+- r32: (verifier) ci/verify counts taken with /dev/null a regular file (no change: every ci, verify and topic count recorded here ran under `unshare -m` with a real null device bind-mounted over /dev/null; this session's own test driver clobbered it)
+- r33: (verifier) yield and twin repeat the goal stall: park-called clerk's pull request meets the same red (wontfix: r14; the clerk's red gate is its own rule, a plan of its own)
+- r34: (verifier) floored park minutes let a tip up to 59s after the park read as before it (fixed: one minute more in clerk_yield and clerk_twin_rows; tip-1s-after-park case fails without it)
+- r35: (verifier) orchestrated.md said planned or not, the code skips only its own plans (fixed: wording)
+- r36: (verifier) Decisions twin line stale after r27 (fixed)
+- r37: (verifier) orchestrator-reference.md one more had no number before the first push (fixed: ONE, none while it has not pushed)
 - r31: (verifier) cadence-due yield is excess against the plan (no change: the plan's Goal case, a clerk that never lands, keeps the cadence due; r18)
 
 ## Blockers

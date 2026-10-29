@@ -332,8 +332,8 @@ tip predates the first park, nothing pushed in the
 `JOHARNESS_DEFECT_CLERK_HOURS` since, reads `yielded` and holds nothing
 (`joharness.sh:clerk_yield`), so one more clerk is due, at most two. The
 park-called clerk pushes after the park, so it never yields to a third; its
-twin check reads the same park, planned or not, and passes over that one
-clerk (`joharness.sh:clerk_twin_rows`). A due cadence yields alike.
+twin check reads the same park, its own plans not counted, and passes over
+that one clerk (`joharness.sh:clerk_twin_rows`). A due cadence yields alike.
 
 A park on an issue no plan names waits on the clerk's cadence: in a run the
 clerk is the only automated path from an issue to a plan (a human or session

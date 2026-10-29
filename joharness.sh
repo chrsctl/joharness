@@ -4309,7 +4309,9 @@ clerk_yield() {
   ct="$(git -C "$ROOT" log -1 --format=%ct "refs/remotes/origin/${yb}" </dev/null 2>/dev/null)"
   case "$ct" in '' | *[!0-9]*) return 0 ;; esac
   now="$(date +%s)"
-  [ "$ct" -lt $((now - CLERK_EARLY_AGE * 60)) ] || return 0
+  # The age is floored minutes: a minute more, so a tip in the park's own
+  # minute never reads as before it.
+  [ "$ct" -lt $((now - (CLERK_EARLY_AGE + 1) * 60)) ] || return 0
   while IFS=$'\t' read -r b w st; do
     [ -n "$b" ] || continue
     [ "$b" != "$yb" ] || st=yielded
@@ -5788,7 +5790,7 @@ clerk_twin_rows() {
     '' | *[!0-9]*) printf '%s\n' "$rows"; return 0 ;;
   esac
   now="$(date +%s)"
-  park=$((now - CLERK_EARLY_AGE * 60))
+  park=$((now - (CLERK_EARLY_AGE + 1) * 60))
   while IFS= read -r r; do
     if [ -z "$r" ] || [ "$r" = "$cur" ]; then continue; fi
     ct="$(git -C "$ROOT" log -1 --format=%ct "refs/remotes/origin/${r}" </dev/null 2>/dev/null)"
