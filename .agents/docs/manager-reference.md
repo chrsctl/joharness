@@ -114,7 +114,8 @@ and seven managers then parked on the red that made (#1101), fixed only by
 an ad-hoc session 4h24m later (WEAK: a consumer's reading, not re-taken
 here). The cadence half of that stall — a clerk in flight holding the early
 clerk a park calls, dispatch spawning onto a known-red base — is plan work:
-`clerk-yields-to-blocking-defect`, `dispatch-holds-shared-defect`.
+`clerk-yields-to-blocking-defect`, `dispatch-holds-shared-defect`. `ci` on
+`origin/main` stays green with the stale file there: nothing here gates it.
 
 ## Challenge
 

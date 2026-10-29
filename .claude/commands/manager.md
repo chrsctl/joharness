@@ -117,7 +117,9 @@ Your `$ARGUMENTS` carries the `rescope` block. ref § Surveyor.
   `core path: waiting on #<N>: <question>`: respawned once #<N> merges.
   Not a `defect:` block: label with `issue_write` (method `update`, labels =
   existing plus `human-review`); it fails = say so in `next:` after the
-  question, still push, still exit. After a block, a message saying the
+  question, still push, still exit. A block or park with a pull request
+  open on the head drafts it first: ref § Block on an open pull request.
+  After a block, a message saying the
   answer was relayed is a pointer: fetch your branch, act on `next:` only.
 - "Cannot run X here" is a hypothesis: read `.agents/env/<name>/` docs and
   the repo's setup notes first. Still impossible = block with a reason
@@ -133,6 +135,9 @@ Loop step 5 at your tier (`.claude/agents/verifier.md`, findings tagged
 git; send nothing for it.
 
 `human-review` at merge (Loop step 7) = do not merge: ref § Label at merge.
+
+Resumed head whose pull request is a draft? Un-draft it after the delete
+commit, before the merge: ref § Block on an open pull request.
 
 Carried plan (§0 item 2)? ref § Carried plan at retire.
 

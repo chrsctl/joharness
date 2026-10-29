@@ -30,6 +30,11 @@ role plan that red in time. Graduate the answer, delete the file.
   says; an in-flight clerk holds until `JOHARNESS_CLERK_STALE_HOURS`.
 - gx readings (merge times, ledger output, session timelines) WEAK: add_repo
   for chrsctl/gx denied here, not re-taken.
+- `manager.md` pointer lands here, not in a plan: the selftest reds a
+  reference section `manager.md` does not point to (`FAIL manager.md points
+  to ref § Block on an open pull request`).
+- `./joharness.sh ci` on `origin/main` 777457fe: `ci: pass` with the stale
+  file on it — no canonical gate catches the merge.
 - Graduation = draft-on-park rule in `manager-reference.md` § Defect; the
   clerk and dispatch changes are code, filed as plans in this pull request.
 
