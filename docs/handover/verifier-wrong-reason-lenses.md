@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK5LLj6K3wZbTENfC55
 agent: opus
 updated: 2026-10-29
-next: Plan-checker round 2, then add the four wrong-reason shapes to .claude/agents/verifier.md
+next: Run ci, verify, selftest and the consumer check, then spawn the verifier
 ---
 
 ## Goal
@@ -31,6 +31,10 @@ the file's reading budget (docs/plans/verifier-wrong-reason-lenses.md).
 - r4: (plan-checker) placement "beside STUB" reads as new verdicts or as STUB sub-cases (fixed: sub-list after the verdict list, kinds of STUB)
 - r5: (plan-checker) gx counts and source headings unverified, no command (wontfix: gx outside this session's reach; recorded under A3)
 - r6: (plan-checker) `serves: all` beside `requirement: none` is noise (wontfix: plans.md allows it, absent = all; not red)
+- r7: (plan-checker) round 2: `<consumer-dir>` undefined, no consumer checked out (fixed: scratch consumer bootstrapped from the merge base, then synced from head)
+- r8: (plan-checker) round 2: gx claims unverified (wontfix: same as r5)
+- r9: (plan-checker) round 2: Scope maps three shapes to STUB, fourth placement ambiguous (fixed: all four in one sub-list, fourth says UNVERIFIED)
+- r10: (plan-checker) round 2: selftest item lacks its failure form (fixed)
 
 ## Blockers
 
