@@ -5653,9 +5653,9 @@ role_retire_run() {
 # The twin check, after the role's first push. Scout: exactly one row in
 # flight and it is yours. Clerk: yours sorts first by name among those in
 # flight. Retro, either mode: the one row is yours and its Clock still
-# reads due.
+# reads due, or (--ordered) its ledger on the base is the one it was cut from.
 role_twin_run() {
-  local role="$1" cur rows other line clock
+  local role="$1" ordered="${2:-}" cur rows other line clock
   cur="$(role_branch)" || { printf 'STOP: TWIN check: not on a branch\n'; return 1; }
   if ! role_fetch_all; then
     if [ "$role" = scout ] && ! role_retire_run scout; then
@@ -5700,12 +5700,19 @@ role_twin_run() {
       else
         clock="$(role_line '^retro : IN FLIGHT' | sed -n 's/.*Clock: \([^ ]*\).*/\1/p')"
       fi
-      if [ -z "$line" ] && [ "$rows" = "$cur" ] && [ "$clock" = due ]; then
+      # Ordered: the clock never read due, so the ledger is what says
+      # another reviewer's rows landed.
+      if [ -z "$line" ] && [ "$rows" = "$cur" ] &&
+         { [ "$clock" = due ] || { [ -n "$ordered" ] && role_ledger_still "$role"; }; }; then
         printf 'GO %s\n' "$cur"; return 0
       fi
       if [ -n "$line" ]; then other="$line"
       elif [ -z "$other" ] && printf '%s\n' "$rows" | grep -qxF -- "$cur"; then
-        other="Clock: ${clock:-?} — another reviewer's rows landed"
+        if [ -n "$ordered" ]; then
+          other="ordered, but $(role_ledger_path "$role") changed on ${HANDOVER_BASE_BRANCH:-main} since this branch was cut — another reviewer's rows may have landed"
+        else
+          other="Clock: ${clock:-?} — another reviewer's rows landed"
+        fi
       else [ -n "$other" ] || other="no row of yours: ${cur}"; fi
       ;;
   esac
@@ -5713,10 +5720,54 @@ role_twin_run() {
   return 1
 }
 
+# <audit|retro> — the ledger a reviewer's pass lands.
+role_ledger_path() {
+  if [ "$1" = audit ]; then printf '%s' "$CONDUCT_LEDGER"; else printf '%s' "$RETRO_LEDGER"; fi
+}
+
+# <audit|retro> — the ledger on origin/<base> is the one this branch was cut
+# from: no other reviewer's rows landed since. Unreadable = no.
+role_ledger_still() {
+  local base="refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" mb
+  mb="$(git -C "$ROOT" merge-base HEAD "$base" </dev/null 2>/dev/null)" || return 1
+  [ -n "$mb" ] || return 1
+  git -C "$ROOT" diff --quiet "$mb" "$base" -- "$(role_ledger_path "$1")" </dev/null 2>/dev/null
+}
+
+# The human's pause holds a reviewer as dispatch holds a due one: dispatch's
+# `held` line, which a pass started by hand never reads.
+role_paused() {
+  [ "$(num_knob JOHARNESS_MAX_MANAGERS)" -eq 0 ] || return 1
+  printf 'held — JOHARNESS_MAX_MANAGERS=0 is the human'"'"'s pause: spawn none'
+}
+
+# <audit|retro> — dispatch's `suppressed`, which a pass started by hand never
+# reads: a clerk in flight holds audit; a clerk or an audit holds trace.
+# Counted as dispatch counts them: a cycle unreadable or off has no rows.
+role_suppressed() {
+  local b=""
+  clerk_due
+  case "${CLERK_DUE%% *}" in
+    unreadable|off) ;;
+    *) b="$(printf '%s\n' "$CLERK_ROWS" | scout_branches | cut -f1 | head -1)" ;;
+  esac
+  if [ -z "$b" ] && [ "$1" = retro ]; then
+    conduct_due
+    b="$(printf '%s\n' "$CONDUCT_ROWS" | cut -f1 | head -1)"
+  fi
+  [ -n "$b" ] || return 1
+  if [ "$1" = retro ]; then
+    printf 'suppressed — a clerk or an audit goes first: %s in flight' "$b"
+  else
+    printf 'suppressed — a clerk goes first: %s in flight' "$b"
+  fi
+}
+
 # Which report lines are a plain exit before the branch is cut, per role's
-# §0 as its command file reads.
+# §0 as its command file reads. <ordered> non-empty (`--ordered`): the clock
+# alone is no exit; off, the pause, suppressed and an empty sample still are.
 role_start_stop() {
-  local role="$1" l
+  local role="$1" ordered="${2:-}" l s
   l="$(role_line '^[a-z]+ +: (UNREADABLE|IN FLIGHT)')"
   [ -z "$l" ] || { printf '%s' "$l"; return 0; }
   case "$role" in
@@ -5724,11 +5775,28 @@ role_start_stop() {
     audit)
       l="$(role_line '^sample    : UNREADABLE')"
       [ -z "$l" ] || { printf '%s' "$l"; return 0; }
+      role_paused && return 0
+      role_suppressed audit && return 0
+      if [ -n "$ordered" ]; then
+        role_line '^cadence   : off' && return 0
+        role_line '^sample    : none'
+        return 0
+      fi
       role_line '^cadence   : DUE' >/dev/null || role_line '^cadence   : '
       ;;
     retro)
       l="$(role_line '^sample    : UNREADABLE')"
       [ -z "$l" ] || { printf '%s' "$l"; return 0; }
+      role_paused && return 0
+      role_suppressed retro && return 0
+      if [ -n "$ordered" ]; then
+        role_line '^retro : off' && return 0
+        # Trace's work is the failed sessions OR one untraced CONCERN.
+        s="$(role_line '^sample    : none')"
+        l="$(role_line '^concern   : none')"
+        [ -z "$s" ] || [ -z "$l" ] || printf '%s; %s' "$s" "$l"
+        return 0
+      fi
       role_line '^retro DUE:' >/dev/null || role_line '^retro : '
       ;;
   esac
@@ -5752,14 +5820,14 @@ role_claim_write() {
 }
 
 cmd_role() {
-  local role="${1:-}" mode=start session="" agent="" a out verdict line cur name stem today
+  local role="${1:-}" mode=start session="" agent="" a out verdict line cur name stem today ordered=""
   local base_branch="${HANDOVER_BASE_BRANCH:-main}" err title
   case "$role" in
     clerk|scout|retro) shift ;;
     # The old name of retro's audit mode: a consumer's stale conduct.md runs it.
     conduct) role=audit; shift ;;
     curate) printf 'STOP: the curator role was removed; run ./joharness.sh curate\n'; return 0 ;;
-    *) die "usage: $0 role <clerk|scout|retro [--audit]|conduct> [--session <url>] [--agent <tier>] [--twin|--retire]" ;;
+    *) die "usage: $0 role <clerk|scout|retro [--audit]|conduct> [--ordered: clerk, retro] [--session <url>] [--agent <tier>] [--twin|--retire]" ;;
   esac
   while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -5769,17 +5837,23 @@ cmd_role() {
         esac ;;
       --twin)    mode=twin ;;
       --retire)  mode=retire ;;
+      --ordered) ordered=1 ;;
       --session) session="${2:-}"; shift ;;
       --agent)   agent="${2:-}"; shift ;;
-      *) die "unknown option '$1' (try: $0 role ${role} [--session <url>] [--agent <tier>] [--twin|--retire])" ;;
+      *) die "unknown option '$1' (try: $0 role ${role} [--ordered: clerk, retro] [--session <url>] [--agent <tier>] [--twin|--retire])" ;;
     esac
     shift
   done
   title="$role"
   [ "$role" != audit ] || title='retro --audit'
   printf '== role %s (%s; the last line is GO or STOP)\n\n' "$title" "$mode"
+  # A pass ordered off the clock: a role with no clock has nothing to skip.
+  if [ -n "$ordered" ] && [ "$role" = scout ]; then
+    printf 'STOP: scout has no clock: --ordered is for clerk and retro (either mode)\n'
+    return 1
+  fi
   case "$mode" in
-    twin) role_twin_run "$role"; return ;;
+    twin) role_twin_run "$role" "$ordered"; return ;;
     retire)
       case "$role" in clerk|audit|retro)
         printf 'STOP: %s writes no claim file: nothing to retire\n' "$title"; return 1 ;;
@@ -5824,7 +5898,7 @@ cmd_role() {
   # (4) the role's report, and its plain exits.
   printf '\n'
   role_report "$role"
-  line="$(role_start_stop "$role")"
+  line="$(role_start_stop "$role" "$ordered")"
   if [ -n "$line" ]; then printf 'STOP: %s\n' "$line"; return 1; fi
 
   # (5) the branch, from fresh origin/<base>, under the role's name.

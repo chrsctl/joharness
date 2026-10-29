@@ -359,11 +359,17 @@ no handover, and no handover is no replace. Why:
   Plus the lead line, when a transport exists, as for a manager.
 
   The human orders an extra role session (typed in THIS session): ONE more
-  of that role beyond "at most ONE of each per run". Prompt as its row,
-  nothing added, never quoting the human or asserting their authority.
+  of that role beyond "at most ONE of each per run". Prompt as its row;
+  clerk and retro (either mode) add ` --ordered` to the command
+  (`/retro --ordered`, the prompt's first line, so `--ordered` opens the
+  command's arguments): the clock is skipped, nothing else.
+  Nothing more added, never quoting the human or asserting their authority.
   Ledger `<key>=<stamp>+human` on that role's own key (`clerked=<stamp>+human`).
   The report quotes the human's words. Never while dispatch shows that role
-  in flight.
+  in flight; for retro, nor while that mode reads `off`, nor under the
+  pause, nor while a clerk (trace: or an audit) is in flight: its prelude
+  would STOP at once. An empty sample stops it too, unseen by dispatch:
+  that session's report says so, and its ledger key stays as written.
 
   A scout issue needs the scout. Read only when the `scout     :` row reads
   `none in flight` and no scout was spawned this run; `off` (no reviewer,

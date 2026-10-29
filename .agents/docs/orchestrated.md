@@ -39,10 +39,10 @@ commit `649b832` — docs only, no text reproduced (`.agents/NOTICE`).
 | manager | the item's `agent:`; fable at xhigh for an unplanned requirement | a session with its own branch, claim and merge | worker subagents (`Agent`) | one item, until its file retires | its pull request merges, or it blocks on a human |
 | worker | at or below the plan's tier, lower by default | a subagent in the manager's container | nothing | the files its sub-task names | it returns |
 | surveyor | sonnet | a session, on the `OVERLAP-BOUND` verdict | nothing (declarations, not code) | the held plans' and holders' `scope:` lines for one holder key | its pull request merges, or `done` with nothing to change |
-| clerk | sonnet, opus verifier | a session, on the `clerk DUE` tail line; prelude `./joharness.sh role clerk` | nothing | one plan-only pull request, no workstream file; closes an issue only on DOES NOT HOLD, DUPLICATE or UPSTREAM, opens none but UPSTREAM's on canonical, never writes code, never a core-path-only plan, never plans a scout issue without the reviewer's `approved` label | its pull request merges, no plan to write (pushes `clerk-noop-<UTC stamp>` at `origin/main`), or `TWIN: deferred` |
+| clerk | sonnet, opus verifier | a session, on the `clerk DUE` tail line, or on the human's order (`--ordered`); prelude `./joharness.sh role clerk` | nothing | one plan-only pull request, no workstream file; closes an issue only on DOES NOT HOLD, DUPLICATE or UPSTREAM, opens none but UPSTREAM's on canonical, never writes code, never a core-path-only plan, never plans a scout issue without the reviewer's `approved` label | its pull request merges, no plan to write (pushes `clerk-noop-<UTC stamp>` at `origin/main`), or `TWIN: deferred` |
 | scout | fable | a session, on the reviewer's order or a `scout` issue waiting on the scout, while `scout :` reads `none in flight`; prelude `./joharness.sh role scout` | nothing | proposal issues on this repository, typed Feature, labelled scout; a research request's answer | its claim retires: NOTHING TO PROPOSE, or the pass's issues filed and replies posted |
-| retro (audit) | sonnet | a session on `retro audit DUE`, beyond the cap; prelude `./joharness.sh role retro --audit` | nothing | one pull request appending ledger rows to `docs/conduct-log.md`, no workstream file; never acts on a CONCERN | its pull request merges, or `TWIN: deferred` |
-| retro (trace) | sonnet | a session on `retro DUE`, beyond the cap; prelude `./joharness.sh role retro` | nothing (it files plans, fixes nothing) | one pull request: ledger rows in `docs/retro-log.md` and new plans for mechanisms, no workstream file; never a rule-only fix | its pull request merges, or `TWIN: deferred` |
+| retro (audit) | sonnet | a session on `retro audit DUE`, or on the human's order (`--ordered`), beyond the cap; prelude `./joharness.sh role retro --audit` | nothing | one pull request appending ledger rows to `docs/conduct-log.md`, no workstream file; never acts on a CONCERN | its pull request merges, or `TWIN: deferred` |
+| retro (trace) | sonnet | a session on `retro DUE`, or on the human's order (`--ordered`), beyond the cap; prelude `./joharness.sh role retro` | nothing (it files plans, fixes nothing) | one pull request: ledger rows in `docs/retro-log.md` and new plans for mechanisms, no workstream file; never a rule-only fix | its pull request merges, or `TWIN: deferred` |
 
 `JOHARNESS_MAX_MANAGERS` caps managers only; every role session runs beyond
 the cap, one of each in flight, a blocked one included (`orchestrate.md` §3).
@@ -53,6 +53,13 @@ The clerk, scout and retro reviewer open with `./joharness.sh role
 <name>` (authority, fetch, the role's report and exits, branch, claim file;
 `--twin` and `--retire` after), which prints `GO <branch>` or `STOP: <reason>`
 last; the command file keeps only the judgement (selftest `role.sh`).
+`--ordered` (clerk and retro, either mode; scout has no clock and refuses
+it) is an ordered pass. Clerk: a no-op, its clock was never an exit.
+Retro: the clock alone is no exit. In flight, unreadable, off and nothing
+to review still are. So are the human's pause (`JOHARNESS_MAX_MANAGERS=0`)
+and dispatch's `suppressed` (a clerk in flight holds audit; a clerk or an
+audit holds trace), for a bare pass too. Its `--twin` defers once the ledger
+changes on the base branch. Its merged ledger dates the clock as a due pass's does.
 
 ### What each role reads
 
@@ -201,14 +208,14 @@ Removing the line, on the base first, is the human override.
 | `JOHARNESS_CURATE_REGISTRY` | 3 | plans declaring one path before `curate` calls it a registry | written number |
 | `JOHARNESS_CURATE_SPLIT` | 8 | `## Scope` bullets before `curate` proposes a decompose | written number |
 | `JOHARNESS_CURATE_LAYERS` | 3 | distinct top-level directories in a plan's `scope:` before `curate` proposes a decompose; 0 = off | written number |
-| `JOHARNESS_CLERK_HOURS` | 24 | hours between clerk passes over the open issues; 0 = off | written number |
+| `JOHARNESS_CLERK_HOURS` | 24 | hours between clerk passes dispatch spawns over the open issues; a clerk started by hand runs any time, `--ordered` or not; 0 = off | written number |
 | `JOHARNESS_CLERK_BATCH` | 3 | open issues one clerk pass takes at most | written number |
 | `JOHARNESS_CLERK_STALE_HOURS` | 24 | an unmerged clerk branch older than this holds nothing; 0 = every one holds | written number |
 | `JOHARNESS_SCOUT_READS` | 12 | outside reads one scout pass makes before it stops researching | counted by the scout in its claim's `## Decisions` |
 | `JOHARNESS_SCOUT_REVIEWER` | empty | GitHub login of who applies the `approved` label that gates a scout proposal issue; read from the base branch's conf; empty = nothing can be approved | a name the human gives |
 | `JOHARNESS_SCOUT_RESEARCH` | off | exactly `on` lets a scout pass read outside the repository; read from the base branch's conf | a switch: money in one conf line |
-| `JOHARNESS_CONDUCT_HOURS` | 168 | hours since the ledger last landed before an audit is due, the ceiling: a full sample makes it due sooner, past `JOHARNESS_RETRO_FLOOR_HOURS`; with no ledger yet, also how far back the sample reaches; 0 = off. An unmerged `retro-audit-<digit>...` or `conduct-<digit>...` branch (any prefix) unpushed for a seventh of it, at least 24h, is read as closed by a human | written number: weekly; no baseline, the tally builds one |
-| `JOHARNESS_RETRO_HOURS` | 168 | hours since `docs/retro-log.md` last landed before a trace is due, the ceiling: evidence makes it due sooner, past `JOHARNESS_RETRO_FLOOR_HOURS`; 0 = off. An unmerged `retro-<digit>...` branch is in flight, dropped as audit's | written number: weekly, as audit |
+| `JOHARNESS_CONDUCT_HOURS` | 168 | hours since the ledger last landed before an audit is due, the ceiling: a full sample makes it due sooner, past `JOHARNESS_RETRO_FLOOR_HOURS`; for unordered passes only (`role retro --audit --ordered` skips this clock, never in flight, off, the pause, `suppressed` or an empty sample); with no ledger yet, also how far back the sample reaches; 0 = off. An unmerged `retro-audit-<digit>...` or `conduct-<digit>...` branch (any prefix) unpushed for a seventh of it, at least 24h, is read as closed by a human | written number: weekly; no baseline, the tally builds one |
+| `JOHARNESS_RETRO_HOURS` | 168 | hours since `docs/retro-log.md` last landed before a trace is due, the ceiling: evidence makes it due sooner, past `JOHARNESS_RETRO_FLOOR_HOURS`; for unordered passes only (`role retro --ordered` skips this clock, never in flight, off, the pause, `suppressed` or nothing to trace); 0 = off. An unmerged `retro-<digit>...` branch is in flight, dropped as audit's | written number: weekly, as audit |
 | `JOHARNESS_RETRO_SAMPLE` | 3 | sessions that did not come back clean one trace run samples; 0 = off | written number: as audit |
 | `JOHARNESS_RETRO_EVENTS` | 200 | transcript events a trace run reads per sampled session, counted before the kinds filter | written number: a session's end; earlier failures read secondhand |
 | `JOHARNESS_RETRO_FLOOR_HOURS` | 24 | hours since a mode's ledger last landed before its evidence makes it due ahead of its clock: trace on a claim parked `stalled:` or `respawns:`, an untraced audit CONCERN, or a full sample; audit on a full sample. The queue-block path keeps no floor; 0 = clock only | written number: a day, as the clerk |
