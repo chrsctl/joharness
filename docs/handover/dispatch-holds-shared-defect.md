@@ -1,6 +1,6 @@
 ---
 workstream: dispatch-holds-shared-defect
-status: in-progress
+status: blocked
 branch: manage/dispatch-holds-shared-defect
 pr: none
 plan: dispatch-holds-shared-defect
@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK5sbgbhefzA9MHbwCu
 agent: opus
 updated: 2026-10-29
-next: Run ci and verify (paired verify on origin/main if red outside the diff), then finish
+next: hardware: verify red here (Docker Hub 429 pulling alpine:3, origin/main red alike); rerun verify once the pull works, then finish and merge
 ---
 
 ## Goal
@@ -45,7 +45,14 @@ issue.
 
 ## Blockers
 
-None.
+- `./joharness.sh verify` red on this head, 2026-10-29 21:52Z: `2 passed, 4
+  failed`, first `docker could not pull/run alpine:3`; build log `429 Too Many
+  Requests` from registry-1.docker.io. Paired run on `origin/main` 72dda285,
+  same session: `1 passed, 5 failed`, same 429. Not the diff (nothing under
+  `.agents/env/`). `JOHARNESS_CHECKS=local` = `finish` runs verify itself, so
+  step 7 cannot pass here. `ci: pass` on this head (same session).
+- Built and reviewed: no code left. A successor: verify, `finish`, delete
+  commit (this file + `docs/plans/dispatch-holds-shared-defect.md`), PR, merge.
 
 ## Where to look
 
