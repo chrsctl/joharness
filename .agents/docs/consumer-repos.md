@@ -190,7 +190,7 @@ nobody. The repository variable alone is the out-of-credits switch: step 7
 detects the skipped `lint`. The environment variable switches every `finish`
 in that environment.
 
-One command of the consumer's own can stand behind the verdict: a file
+In a consumer, one command of its own must stand behind the verdict: a file
 `local-check` at the repository root (`joharness.sh:checks_local_check`).
 Under local mode `finish` runs the HEAD's copy with `bash`, from the root,
 after `ci` and `verify`, and is red on its non-zero exit or on
@@ -205,8 +205,16 @@ pass; a branch can therefore weaken it. A branch changing `local-check`
 against the merge base prints `CHECK CHANGED on this branch` with the diff
 stat, for edge review. A copy present here but not in HEAD is named and not run.
 
-With no `local-check`, `finish` says `no consumer check declared
-(local-check)`: the consumer's suites gate nothing. `finish` names the rest of
+With no `local-check` in HEAD, a consumer's local-mode `finish` is red:
+`NO CHECK     no consumer check declared (local-check)`. Without it the
+consumer's suites gate nothing, and a merge waiting for no GitHub check
+lands on `ci` alone — gx merged ten regressions that way (gx #797). Clear it
+by committing `local-check` running the consumer's own suites (the ones its
+workflow runs); `exit 0` clears it too and gates nothing, which edge review
+reads as a weakening. The canonical repository (`JOHARNESS_CANONICAL=1`)
+has no suites of a consumer's: there it stays a note and green. The sync
+delivering this red is itself red in such a consumer: land `local-check`
+first (§ "Before merging one"). `finish` names the rest of
 the gap only in general ("Not covered here: any job in .github/workflows/ that
 ci does not run"); no role runs those jobs on a clock or files their failures. A workflow that INVOKES a suite
 proves nothing while the key holds. Local mode is a posture for an outage,
@@ -249,7 +257,10 @@ breaks:
 - The consumer's own suites: a sync can narrow an enum or tighten a guard
   that consumer files then fail.
 - `./joharness.sh finish` — a sync branch carries no workstream file by design
-  (`handover.md`, "When NOT to write one").
+  (`handover.md`, "When NOT to write one"). Under local mode with no
+  `local-check` it is red (§ Local checks), and committing one onto the
+  bot-owned sync branch is wiped by the next run: land `local-check` in its
+  own pull request first, then re-run the sync.
 
 Read the diff against canonical: the report says what was copied, not what it means.
 
