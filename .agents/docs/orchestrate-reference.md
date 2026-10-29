@@ -364,7 +364,8 @@ no handover, and no handover is no replace. Why:
   Nothing more added, never quoting the human or asserting their authority.
   Ledger `<key>=<stamp>+human` on that role's own key (`clerked=<stamp>+human`).
   The report quotes the human's words. Never while dispatch shows that role
-  in flight.
+  in flight; for retro, nor under the pause, nor while a clerk (trace: or
+  an audit) is in flight: its prelude would STOP at once.
 
   A scout issue needs the scout. Read only when the `scout     :` row reads
   `none in flight` and no scout was spawned this run; `off` (no reviewer,

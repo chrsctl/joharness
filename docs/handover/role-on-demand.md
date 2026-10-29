@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK6gHK4nAR5kZPp5VAT
 agent: opus
 updated: 2026-10-29
-next: Run ci and verify on the round-2 fixes, then finish
+next: Run ci and verify on the round-3 fixes, then finish
 ---
 
 ## Goal
@@ -61,6 +61,12 @@ unreadable gates, so on-demand never means two of one role.
 - r20: (verifier) retro-audit.md twin text and role_twin_run's header omit the ordered OR (fixed)
 - r21: (verifier) `concern   : none read` counts as no CONCERN (no change: cmd_retro itself takes no CONCERN that run)
 - r22: (verifier) an ordered clerk runs under the pause (no change: unchanged behaviour, recorded in Decisions)
+- r23: (verifier) `role_suppressed`'s `b` unset when the clerk clock is off: set -u kills the exit check and the prelude prints GO past every gate (fixed: `b=""`, and cmd_role STOPs when the exit check dies before its end marker; two clerk-off cases fail without the fix)
+- r24: (verifier) the ordered `off` stop has no case (fixed: one per mode, each failing without its line)
+- r25: (verifier) orchestrate-reference lets a human-ordered retro spawn where its prelude STOPs at once on the pause or suppressed (fixed: the reference names both)
+- r26: (verifier) the branch narrowed the Goal for a bare `/retro` (no change: r19, flagged in the pull request body)
+- r27: (verifier) any non-reviewer ledger edit defers an ordered twin under a message claiming a reviewer (fixed: the message says rows may have landed; deferring stays the safe side)
+- r28: (verifier) one orchestrated.md sentence does not parse (fixed)
 
 ## Blockers
 

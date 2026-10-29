@@ -5541,7 +5541,7 @@ role_twin_run() {
       if [ -n "$line" ]; then other="$line"
       elif [ -z "$other" ] && printf '%s\n' "$rows" | grep -qxF -- "$cur"; then
         if [ -n "$ordered" ]; then
-          other="ordered, but $(role_ledger_path "$role") changed on ${HANDOVER_BASE_BRANCH:-main} since this branch was cut — another reviewer's rows landed"
+          other="ordered, but $(role_ledger_path "$role") changed on ${HANDOVER_BASE_BRANCH:-main} since this branch was cut — another reviewer's rows may have landed"
         else
           other="Clock: ${clock:-?} — another reviewer's rows landed"
         fi
@@ -5577,7 +5577,7 @@ role_paused() {
 # reads: a clerk in flight holds audit; a clerk or an audit holds trace. A
 # reading that fails holds too.
 role_suppressed() {
-  local b
+  local b=""
   clerk_due
   case "${CLERK_DUE%% *}" in
     unreadable) printf 'suppressed — the clerk cycle is UNREADABLE: %s' "${CLERK_DUE#* }"; return 0 ;;
@@ -5734,7 +5734,12 @@ cmd_role() {
   # (4) the role's report, and its plain exits.
   printf '\n'
   role_report "$role"
-  line="$(role_start_stop "$role" "$ordered")"
+  # The marker after it proves the check ran to its end: a check that died
+  # (set -u, a failed read) is no clean bill, so it stops.
+  line="$(role_start_stop "$role" "$ordered"; printf '\n#end')"
+  case "$line" in *'#end') line="${line%$'\n#end'}" ;;
+    *) printf 'STOP: the exit check failed before it finished: %s\n' "${line:-no output}"; return 1 ;;
+  esac
   if [ -n "$line" ]; then printf 'STOP: %s\n' "$line"; return 1; fi
 
   # (5) the branch, from fresh origin/<base>, under the role's name.

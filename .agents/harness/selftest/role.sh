@@ -88,6 +88,13 @@ refute "and cuts no branch" "branch    :" "$out"
 out="$(role_run ./joharness.sh role retro --audit --ordered)"
 expect "retro --audit --ordered with an empty sample stops on it" \
   "STOP: sample    : none — no manager workstream file" "$(role_last "$out")"
+# The clerk's clock off is no hole in the reviewers' exits.
+out="$(role_run env JOHARNESS_CLERK_HOURS=0 ./joharness.sh role retro --ordered)"
+expect "the clerk off: retro --ordered still stops on the empty sample" \
+  "STOP: sample    : none" "$(role_last "$out")"
+out="$(role_run env JOHARNESS_CLERK_HOURS=0 ./joharness.sh role retro --audit)"
+expect "the clerk off: retro --audit still stops not due" \
+  "STOP: cadence   : not due" "$(role_last "$out")"
 out="$(role_run ./joharness.sh role scout --ordered --session s --agent sonnet)"
 expect "scout --ordered stops: scout has no clock" \
   "STOP: scout has no clock: --ordered is for clerk and retro" "$(role_last "$out")"
@@ -133,6 +140,11 @@ expect "retro --ordered under the human's pause stops held" \
 out="$(role_run env JOHARNESS_MAX_MANAGERS=0 ./joharness.sh role retro --audit --ordered)"
 expect "retro --audit --ordered under the human's pause stops held" \
   "STOP: held — JOHARNESS_MAX_MANAGERS=0 is the human's pause" "$(role_last "$out")"
+# Off is the human's switch: an ordered pass stops on it, work waiting or not.
+expect "retro --ordered with the clock off stops on off" "STOP: retro : off" \
+  "$(role_last "$(role_run env JOHARNESS_RETRO_HOURS=0 ./joharness.sh role retro --ordered)")"
+expect "retro --audit --ordered with the clock off stops on off" "STOP: cadence   : off" \
+  "$(role_last "$(role_run env JOHARNESS_CONDUCT_HOURS=0 ./joharness.sh role retro --audit --ordered)")"
 # A bare pass started by hand meets the pause too, once its clock is due.
 out="$(role_run env JOHARNESS_MAX_MANAGERS=0 JOHARNESS_RETRO_HOURS=1 ./joharness.sh role retro)"
 expect "retro, due, under the human's pause stops held" \
