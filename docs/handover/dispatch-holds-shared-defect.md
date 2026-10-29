@@ -1,6 +1,6 @@
 ---
 workstream: dispatch-holds-shared-defect
-status: blocked
+status: review
 branch: manage/dispatch-holds-shared-defect
 pr: none
 plan: dispatch-holds-shared-defect
@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK5sbgbhefzA9MHbwCu
 agent: opus
 updated: 2026-10-29
-next: hardware: verify red here (Docker Hub 429 pulling alpine:3, origin/main red alike); rerun verify once the pull works, then finish and merge
+next: Run finish, then the retire commit, pull request, merge
 ---
 
 ## Goal
@@ -51,7 +51,8 @@ issue.
   same session: `1 passed, 5 failed`, same 429. Not the diff (nothing under
   `.agents/env/`). `JOHARNESS_CHECKS=local` = `finish` runs verify itself, so
   step 7 cannot pass here. `ci: pass` on this head (same session).
-  Retried 21:58Z on a human's ask: same 429, same counts.
+  Retried 21:58Z on a human's ask: same 429, same counts. Cleared 22:24Z:
+  `./joharness.sh verify` on this head `6 passed, 0 failed`.
 - Built and reviewed: no code left. A successor: verify, `finish`, delete
   commit (this file + `docs/plans/dispatch-holds-shared-defect.md`), PR, merge.
 
