@@ -42,4 +42,4 @@ defects in `.claude/commands/scout.md`. The reviewer said "Fix all".
 - r3: (verifier) scout's verifier prompt cited subagents.md, whose verifier list is diff-shaped (fixed: subagents.md names the scout-pass prompt)
 - r4: (verifier) dangling "(below)" for write access (fixed: names the clerk's author gate)
 - r5: (verifier) workstream not updated with the code commit; agent sonnet vs haiku review (fixed: updated here; no change on agent: the fast lane reviews at haiku whatever agent says, plans.md Fast lane)
-- r6: edge review (haiku recipe, own pass over the diff): clean after r1-r5
+- r6: edge review, haiku recipe, own pass over the diff: clean after r1-r5 (no change)
