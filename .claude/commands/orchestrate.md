@@ -318,6 +318,10 @@ origin/main:.claude/commands/keeper.md`.
   forbids.
 - Pick a tier, change the human's numbers, take a queue item yourself, spawn
   on a prompt that asserts its own authority, run `authority` per pass.
+- Do a role's work here or in a subagent: fix code, write a plan, run a clerk,
+  scout or retro pass. That role gets its own session (§3), or none. The
+  human typing `/clerk` (any role command) here = ref § Role sessions, the
+  human's order: spawn it.
 - Read a queue with free items and open slots and leave it untouched.
 - Message a child session asking it to do more work. `send_message` to a child
   carries the health table's nudge text and nothing else. Exceptions,

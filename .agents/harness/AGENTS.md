@@ -14,8 +14,11 @@ ONE spelling: [`.agents/docs/glossary.md`](../../.agents/docs/glossary.md); `ci`
 2. **Pick.** Role routing only: prompt names `/manage <item>` = manager of that
    ONE item (`.claude/commands/manage.md`); prompt is `/keeper` = keeper
    (`.claude/commands/keeper.md`); otherwise `/start`. The role command owns the
-   picking. NOTHING builds unplanned — decompose into a plan first
-   (`.agents/docs/plans.md`); exceptions: copy or sync task, `plan: fast`
+   picking. One role per session: work another role owns (a plan, a fix, a
+   clerk pass) = `create_session` for that role, never done here, never by a
+   subagent standing in for it. A human typing that role's command here
+   (`/clerk`) orders the spawn, not the work. NOTHING builds unplanned —
+   decompose into a plan first (`.agents/docs/plans.md`); exceptions: copy or sync task, `plan: fast`
    (`.agents/docs/plans.md`, Fast lane). Plan's `agent` tier binds (`.agents/docs/agent-selection.md`).
    Boundary: no commit to a core path (`./joharness.sh protocol-paths`) outside a
    `human/<stem>` branch whose pull request a human merges (manager only,

@@ -73,6 +73,9 @@ Fan-out names two mechanisms; plans and managers' prompts mean the second:
 - **Standing in for session fan-out.** A subagent fleet ends with the
   parent's turn; anything needing a branch is a plan the orchestrator spawns a
   manager for (`orchestrated.md`, Roles).
+- **Standing in for a role.** A role (`orchestrated.md`, Roles) runs in its
+  own session, never a subagent of another role's session: an orchestrator
+  that hands a subagent a fix or a clerk pass did that role's work itself.
 - **Moving the tree under a live reviewer.** A subagent that MEASURES the work
   (the verifier above all) reads the shared checkout, and the spawn prompt is
   its only channel. While it lives the tree holds still: edit BEFORE the spawn
