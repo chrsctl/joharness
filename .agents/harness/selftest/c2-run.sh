@@ -113,11 +113,20 @@ git -C "$ROOT" ls-files -z -- . ':(exclude).agents/harness/selftest/' |
 ) >"${c2r_out}/build.log" 2>&1
 c2r_built=$?
 
+# A git first on PATH logs every `worktree prune` a run issues, then runs the
+# real git: the prune is the call that can delete a sibling's entry mid-add.
+c2r_shim="${TMP}/c2shim"
+mkdir -p "$c2r_shim"
+printf '#!/bin/sh\ncase "$*" in *"worktree prune"*) echo prune >>"%s/prunes" ;; esac\nexec "%s" "$@"\n' \
+  "$c2r_out" "$(command -v git)" >"${c2r_shim}/git"
+chmod +x "${c2r_shim}/git"
+: >"${c2r_out}/prunes"
+
 # Four at a time, each bounded.
 # shellcheck disable=SC2086  # the stem list, one name a word
 printf '%s\n' $c2r_stems absent |
-  xargs -P 4 -I{} sh -c 'cd "$1" && timeout 600 bash "$2" "fx-$3" main >"$4/$3.out" 2>&1' \
-    c2r "$c2r_fx" "$c2r_script" {} "$c2r_out"
+  xargs -P 4 -I{} sh -c 'cd "$1" && PATH="$5:$PATH" timeout 600 bash "$2" "fx-$3" main >"$4/$3.out" 2>&1' \
+    c2r "$c2r_fx" "$c2r_script" {} "$c2r_out" "$c2r_shim"
 
 expect "c2-run: the fixture builds" "built 0" "built ${c2r_built} $(tail -3 "${c2r_out}/build.log")"
 
@@ -148,6 +157,8 @@ c2r_line "c2-run: an old case skipping both ways is no unread" oldskip "NO FLIP"
 expect "c2-run: a retire committed onto main has no main merge" "[NO EVIDENCE: no main merge holds " \
   "[$(tail -1 "${c2r_out}/direct.out" 2>/dev/null)]"
 c2r_line "c2-run: a tree with no topic directory is no evidence" notopics "NO EVIDENCE: lists"
+expect "c2-run: a run's cleanup never prunes the shared repo's worktrees" "prunes 0" \
+  "prunes $(wc -l <"${c2r_out}/prunes" 2>/dev/null | tr -d ' ' || true)"
 expect "c2-run: no worktree outlives a run" "worktrees 1" \
   "worktrees $(git -C "$c2r_fx" worktree list | wc -l | tr -d ' ')"
 refute "c2-run: the runner prints no diff body" "@@ " "$(cat "${c2r_out}"/*.out)"

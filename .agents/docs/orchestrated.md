@@ -39,7 +39,7 @@ commit `649b832` — docs only, no text reproduced (`.agents/NOTICE`).
 | manager | the item's `agent:`; fable at xhigh for an unplanned requirement | a session with its own branch, claim and merge | worker subagents (`Agent`) | one item, until its file retires | its pull request merges, or it blocks on a human |
 | worker | at or below the plan's tier, lower by default | a subagent in the manager's container | nothing | the files its sub-task names | it returns |
 | surveyor | sonnet | a session, on the `OVERLAP-BOUND` verdict | nothing (declarations, not code) | the held plans' and holders' `scope:` lines for one holder key | its pull request merges, or `done` with nothing to change |
-| clerk | sonnet, opus verifier | a session, on the `clerk DUE` tail line, or on the human's order (`--ordered`); prelude `./joharness.sh role clerk` | nothing | one plan-only pull request, no workstream file; closes an issue only on DOES NOT HOLD, DUPLICATE or UPSTREAM, opens none but UPSTREAM's on canonical, never writes code, never a core-path-only plan, never plans a scout issue without the reviewer's `approved` comment newer than the scout's newest footed `scout:` comment | its pull request merges, no plan to write (pushes `clerk-noop-<UTC stamp>` at `origin/main`), or `TWIN: deferred` |
+| clerk | sonnet, opus verifier | a session, on the `clerk DUE` tail line, or on the human's order (`--ordered`); prelude `./joharness.sh role clerk` | nothing | one plan-only pull request, no workstream file; closes an issue only on DOES NOT HOLD, DUPLICATE or UPSTREAM, opens none but UPSTREAM's on canonical, never writes code, never a core-path-only plan, never plans a scout issue without the reviewer's `approved` label | its pull request merges, no plan to write (pushes `clerk-noop-<UTC stamp>` at `origin/main`), or `TWIN: deferred` |
 | scout | fable | a session, on the reviewer's order or a `scout` issue waiting on the scout, while `scout :` reads `none in flight`; prelude `./joharness.sh role scout` | nothing | proposal issues on this repository, typed Feature, labelled scout; a research request's answer | its claim retires: NOTHING TO PROPOSE, or the pass's issues filed and replies posted |
 | retro (audit) | sonnet | a session on `retro audit DUE`, or on the human's order (`--ordered`), beyond the cap; prelude `./joharness.sh role retro --audit` | nothing | one pull request appending ledger rows to `docs/conduct-log.md`, no workstream file; never acts on a CONCERN | its pull request merges, or `TWIN: deferred` |
 | retro (trace) | sonnet | a session on `retro DUE`, or on the human's order (`--ordered`), beyond the cap; prelude `./joharness.sh role retro` | nothing (it files plans, fixes nothing) | one pull request: ledger rows in `docs/retro-log.md` and new plans for mechanisms, no workstream file; never a rule-only fix | its pull request merges, or `TWIN: deferred` |
@@ -212,7 +212,7 @@ Removing the line, on the base first, is the human override.
 | `JOHARNESS_CLERK_BATCH` | 3 | open issues one clerk pass takes at most | written number |
 | `JOHARNESS_CLERK_STALE_HOURS` | 24 | an unmerged clerk branch older than this holds nothing; 0 = every one holds | written number |
 | `JOHARNESS_SCOUT_READS` | 12 | outside reads one scout pass makes before it stops researching | counted by the scout in its claim's `## Decisions` |
-| `JOHARNESS_SCOUT_REVIEWER` | empty | GitHub login whose approved comment gates a scout proposal issue; read from the base branch's conf; empty = nothing can be approved | a name the human gives |
+| `JOHARNESS_SCOUT_REVIEWER` | empty | GitHub login of who applies the `approved` label that gates a scout proposal issue; read from the base branch's conf; empty = nothing can be approved | a name the human gives |
 | `JOHARNESS_SCOUT_RESEARCH` | off | exactly `on` lets a scout pass read outside the repository; read from the base branch's conf | a switch: money in one conf line |
 | `JOHARNESS_CONDUCT_HOURS` | 168 | hours since the ledger last landed before an audit is due, the ceiling: a full sample makes it due sooner, past `JOHARNESS_RETRO_FLOOR_HOURS`; for unordered passes only (`role retro --audit --ordered` skips this clock, never in flight, off, the pause, `suppressed` or an empty sample); with no ledger yet, also how far back the sample reaches; 0 = off. An unmerged `retro-audit-<digit>...` or `conduct-<digit>...` branch (any prefix) unpushed for a seventh of it, at least 24h, is read as closed by a human | written number: weekly; no baseline, the tally builds one |
 | `JOHARNESS_RETRO_HOURS` | 168 | hours since `docs/retro-log.md` last landed before a trace is due, the ceiling: evidence makes it due sooner, past `JOHARNESS_RETRO_FLOOR_HOURS`; for unordered passes only (`role retro --ordered` skips this clock, never in flight, off, the pause, `suppressed` or nothing to trace); 0 = off. An unmerged `retro-<digit>...` branch is in flight, dropped as audit's | written number: weekly, as audit |
@@ -283,8 +283,8 @@ The rules that bind every session.
 - **Nothing is invented at the edge** (The one stop). Work enters only as an
   issue, a requirement or a plan through a pull request. A scout proposal
   enters as an issue and becomes a plan only through the clerk, after the
-  reviewer's `approved` comment, newer than the scout's newest footed
-  `scout:` comment; closing the issue declines it.
+  reviewer's `approved` label, re-applied after the scout's newest
+  `scout: revised`; closing the issue declines it.
 - **`human-review` label.** An agent applies it when it blocks on a human (never a `defect:` block),
   after a clerk HUMAN verdict or a clerk NARROWER verdict with a human
   remainder, to a `defect:` issue a manager files whose fix needs a human's
