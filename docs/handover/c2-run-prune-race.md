@@ -18,10 +18,13 @@ prune each other's worktree admin dirs.
 
 ## Decisions
 
+- Deviation from plan Acceptance: the planted-dir case is replaced by a prune-call counter; git itself removes the planted dir on newer git.
+
 - A1: confirmed — selftest xargs -P 4 runs against one `c2r_fx`.
 - A2: confirmed — `c2_cleanup` ends with `git worktree prune`.
 - A3: confirmed as plan states (medium; not reproduced at topic level).
 - A4: confirmed — ci: pass with the existing worktrees 1 case.
+- r3: GitHub lint failed: planted entry read gone on the runner's git (2.56) though kept on 2.43, so the case could not tell the fix; replaced by a PATH git shim counting `worktree prune` calls, fails with the prune (prunes 16), passes without (fixed)
 
 ## Blockers
 
