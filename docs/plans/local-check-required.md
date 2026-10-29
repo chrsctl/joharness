@@ -7,49 +7,51 @@ needs: none
 requirement: none
 serves: all
 issue: none
-scope: joharness.sh, .agents/docs/consumer-repos.md, .agents/harness/selftest/checks.sh, .agents/harness/selftest/review-defers.sh
+scope: joharness.sh, .agents/docs/consumer-repos.md, .agents/harness/selftest/checks.sh
 ---
 
 ## Goal
 
 In gx, ten regressions merged while GitHub Actions was down (gx #797,
 merge 2dda21f7). Merges ran with `JOHARNESS_CHECKS=local`, which ran only
-the harness `ci`, so gx's own suites gated nothing. Reviews recorded that
-gap as acceptable in 8 lines like "web.py checks unrun locally (no change:
-CI crm job runs them)" and "storyboard-test re-run pending". Repairs such as
-gx #791 and #800 followed. joharness has had the right mechanism (a
-`local-check` file at the repository root) since 7f58f051 (2026-10-23), but
-gx never declared one, and `finish` only prints a note when the file is
-missing. Close both holes: under local mode a consumer with no
-`local-check` fails `finish`, and a `## Review` line that defers a
-measurement to CI or to later turns `ci` red.
+the harness `ci`, so gx's own suites gated nothing. Repairs followed (gx
+#791, #800).
+
+joharness has had the right mechanism since 7f58f051 (2026-10-23): a
+`local-check` file at the repository root, which `finish` runs in local
+mode. gx never declared one, and `finish` only prints a note when it is
+missing. In a consumer, local mode with no `local-check` should be red: a
+consumer's own suites must gate something before a merge that waits for no
+GitHub check.
 
 ## Scope
 
-- `joharness.sh:checks_gate` — under local mode in a consumer
-  (`! is_canonical`), a HEAD with no `local-check` makes the gate red,
-  not a note. The message names the file to create and
-  `.agents/docs/consumer-repos.md` § Local checks. The canonical repository
-  keeps today's note.
-- `joharness.sh` — a new `ci` stage `review defers`, registered with
-  `run_check` beside `churn`. It reads this branch's own workstream files
-  (`fin_own_ws`), takes their `## Review` bullets (`lint_review_bullets`)
-  and turns red on any bullet whose verdict is `no change` or
-  `wontfix: …` and whose text contains, case-insensitively, one of:
-  `CI runs`, `CI job runs`, `runs in CI`, `re-run pending`, `rerun pending`,
-  `unrun locally`, `not run locally`. Each hit is printed with its file and
-  its rN. A bullet whose verdict is `fixed` never counts.
+- `joharness.sh:checks_gate`
+  - Under local mode in a consumer (`! is_canonical`), a HEAD with no
+    `local-check` sets the gate's rc to 1.
+  - The message names the file to create and
+    `.agents/docs/consumer-repos.md` § Local checks.
+  - The canonical repository keeps today's note and stays green.
 - `.agents/docs/consumer-repos.md` § Local checks — rewrite the paragraph
-  that starts "With no `local-check`" to say the gate is red in a consumer.
-  Add one sentence on the `review defers` stage.
-- `.agents/harness/selftest/checks.sh` — add cases: a consumer in local
-  mode with no `local-check` is red; the same case in the canonical
-  repository is not red; a consumer with a `local-check` behaves as before.
-- `.agents/harness/selftest/review-defers.sh` — new topic. Cases:
-  - each phrase under `no change` is red;
-  - the same phrase under `fixed` is green;
-  - a phrase in a workstream file this branch did not change is green;
-  - a workstream with no `## Review` section is green.
+  that starts "With no `local-check`" to say the gate is red in a
+  consumer, and how to clear it: declare the consumer's suites in
+  `local-check`.
+- `.agents/harness/selftest/checks.sh`
+  - Its fixture `kcwork` is a consumer with no `local-check`. These
+    existing cases assert green local mode without a check, and this plan
+    flips them:
+    - "local mode is green when ci is"
+    - "an ignored local-check is not a red"
+    - "no declared check is named on the green path"
+    - "bash joharness.sh finish reaches ci and passes"
+  - For each one, either give the fixture a trivial `local-check`
+    (`exit 0`) so the case keeps its meaning, or assert the new red where
+    the case is about the missing file. Record the choice per case in
+    `## Decisions`.
+  - Add cases:
+    - consumer, local mode, no `local-check`: red, naming `local-check`;
+    - the same fixture with `JOHARNESS_CANONICAL=1`: not red;
+    - consumer with `local-check` = `exit 0`: green.
 
 ## Assumptions
 
@@ -62,48 +64,41 @@ measurement to CI or to later turns `ci` red.
   confidence: high.
 - A3: `is_canonical` tells a consumer from the canonical repository —
   evidence: `joharness.sh:is_canonical` — confidence: high.
-- A4: `fin_own_ws` lists only this branch's own workstream files —
-  evidence: `joharness.sh:fin_own_ws` — confidence: medium (read its
-  comment and confirm before building).
 
 ## Out of scope
 
 - Writing gx's `local-check`. That is gx's own work, done in gx after this
   plan syncs out.
+- Linting `## Review` lines that defer a measurement to CI. An earlier
+  draft did this. Checked against gx history, the phrase list caught 1 of
+  4 cases and matched a false positive, so it was dropped.
 - Running GitHub workflow jobs locally, or parsing `.github/workflows/`.
-- Any change to `JOHARNESS_CHECKS` semantics in github mode.
-- Free-text judgment about whether a deferral was reasonable. The phrase
-  list is the whole rule. A false positive is fixed by measuring, then
-  recording the result.
+- Any change to github mode.
 
 ## Acceptance
 
-- `bash .agents/harness/selftest.sh review-defers` — every case passes.
-- `bash .agents/harness/selftest.sh checks` — every case passes,
-  including the three new ones.
-- `./joharness.sh ci` — `ci: pass`, and `== review defers` is printed.
-- `./joharness.sh verify` — 0 failed.
-- Ship scope: this plan SHIPS. In a consumer with local mode set and no
-  `local-check`, `JOHARNESS_CHECKS=local ./joharness.sh finish` prints red
-  naming `local-check`.
+- `bash .agents/harness/selftest.sh` — `0 failed`.
+  - The three new `checks.sh` cases pass.
+  - The consumer-no-check case fails when the rc change in
+    `checks_gate` is reverted.
+- `./joharness.sh ci` — `ci: pass`.
+- `./joharness.sh verify` — `0 failed`.
+- Consumer-side check (this plan SHIPS): after the sync, in a consumer
+  with no `local-check`, `JOHARNESS_CHECKS=local ./joharness.sh finish`
+  exits non-zero, and its output names `local-check`. Before the sync it
+  exits 0 on the same head.
 
 ## Where to look
 
 - `joharness.sh:checks_gate` — the local-mode gate and the no-check note.
 - `joharness.sh:checks_local_check` — how the declared check runs.
-- `joharness.sh:ci_churn` — the shape of a `ci` stage, and its
-  `run_check` line.
-- `joharness.sh:lint_review_bullets` — the Review-section reader.
-- `joharness.sh:lint_finding_markers` — the closest existing stage over
-  own workstream files; copy its merge-base handling.
+- `joharness.sh:is_canonical`.
+- `.agents/harness/selftest/checks.sh` — the `kcwork` fixture and the
+  cases named in Scope.
 - `.agents/docs/consumer-repos.md` — § Local checks.
 
 ## Traps
 
-- NEVER skip, disable or quarantine a test to get green: a phrase hit is
-  fixed by measuring, never by rewording the line.
-- A test for a fix must FAIL without it. Show each new selftest case red
-  on `origin/main` before the change.
-- `joharness.sh` is shared with every plan touching it: reconcile, never
-  overwrite. `churn-counts-review-rounds` also edits `joharness.sh` near
-  `ci_churn`.
+- NEVER skip, disable or quarantine a test to get green. A flipped
+  existing case is rewritten to keep its meaning, never deleted.
+- A test for a fix must FAIL without it.
