@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK5Sd1Dd2vzKcKvG8Gj
 agent: opus
 updated: 2026-10-29
-next: Confirm assumptions A1-A6 against joharness.sh, run plan-checker, then build retro_due/conduct_due floor triggers
+next: Read the selftest count for the retro topic; fix any red, then ci, verify, verifier, finish
 ---
 
 ## Goal
@@ -20,7 +20,15 @@ passed since its ledger landed.
 
 ## Decisions
 
-- None yet.
+- A1: confirmed — `retro_due`'s `age < hours` branch already returns due on `retro_queue_block`.
+- A2: confirmed — `retro_queue_block` reads the branch head's file via `refs/remotes/origin/<b>:<path>`.
+- A3: confirmed, writer corrected — the orchestrator writes `stalled:`/`respawns:` (orchestrate-reference.md), `block_reason_ok` accepts them; plan fixed.
+- A4: confirmed — `retro` printed not due + 3-row sample, `retro --audit` not due + 3-row sample on origin/main 043dcd6e.
+- A5: confirmed — `role_start_stop` keys on `^retro DUE:` / `^cadence   : DUE`, dispatch on state `due`; no other change needed.
+- A6: confirmed — both modes date age from `retro_landed_ts`, which the floor reuses.
+- The event reader walks `retro_candidates` only, so a session the ledger logs never re-fires (no thrash); a stalled/respawns hit sets `RETRO_QB` so it leads the sample.
+- Full sample = count of `retro_sample "$sample"` / `conduct_sample "$sample"` (`N = 0` stops at one).
+- sha1 missing with no evidence = not due (nothing to draw); with evidence = unreadable.
 
 ## Rejected
 
@@ -28,7 +36,16 @@ passed since its ledger landed.
 
 ## Review
 
-- None yet.
+- r1: (plan-checker) `retro_sample 0` prints at most one line, the full-sample count can never fire as written (fixed: plan counts `retro_sample "$JOHARNESS_RETRO_SAMPLE"`)
+- r2: (plan-checker) a `stalled:` fixture naming an open stem hits the old queue-block path (fixed: fixture names no open stem)
+- r3: (plan-checker) trigger 1's reach and order undefined; every-branch reading thrashes (fixed: candidates only, queue-block first, hit leads the sample)
+- r4: (plan-checker) A3 names the manager as writer; the orchestrator writes them (fixed)
+- r5: (plan-checker) conf-keys Trap wrong for a dispatch-scope knob (fixed: trap reworded)
+- r6: (plan-checker) SHIPS uncheckable when not due (fixed: headers print the floor, in Scope)
+- r7: (plan-checker) Acceptance names no command; dispatch line depends on clerk/audit (fixed: selftest named, rtd conditions stated)
+- r8: (plan-checker) no-ledger case and conduct unreadable unstated (fixed)
+- r9: (plan-checker) human-only list contradicts the code's set (fixed: out of scope reworded to event reasons only)
+- r10: (plan-checker) spawn prompt carried the repo path beyond the plan path (no change: a cwd hint, no content about the plan)
 
 ## Blockers
 

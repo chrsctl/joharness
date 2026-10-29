@@ -28,18 +28,23 @@ there. The clock stays the ceiling.
 
 - `joharness.sh:retro_due` — while not due by the clock and age >= floor,
   due early (in this order, first hit names the reason) when:
-  1. a claim on any branch is parked NOW with a `stalled:` or `respawns:`
-     block (read as `retro_queue_block` reads parked claims: the branch
-     head still reads `status: blocked`);
+  1. a `retro_candidates` claim (so a session the ledger logs never
+     re-fires) is parked NOW with a `stalled:` or `respawns:` block (read
+     as `retro_queue_block` reads parked claims: the branch head still
+     reads `status: blocked`); that session leads the sample (`RETRO_QB`);
   2. `retro_concerns` names an untraced audit CONCERN;
-  3. `retro_sample 0` holds at least `JOHARNESS_RETRO_SAMPLE` sessions.
-  The existing queue-block early path is unchanged and keeps no floor.
+  3. `retro_sample "$JOHARNESS_RETRO_SAMPLE"` prints at least
+     `JOHARNESS_RETRO_SAMPLE` sessions (`retro_sample 0` stops at one).
+  The existing queue-block early path is unchanged, runs first and keeps
+  no floor. No ledger yet = age since the repository began, as the clock.
   Due text: `due <reason>, ahead of the cadence (>= <floor>h floor) — <age>h
   since <base_word> (of <hours>h)`. Any read that fails = `unreadable`, as
   today, never due.
 - `joharness.sh:conduct_due` — while not due by the clock and age >= floor,
-  due early when `conduct_sample` holds at least `JOHARNESS_CONDUCT_SAMPLE`
-  unsampled retired branches. Same text shape.
+  due early when `conduct_sample "$JOHARNESS_CONDUCT_SAMPLE"` prints at
+  least `JOHARNESS_CONDUCT_SAMPLE` unsampled retired branches. Same text
+  shape; a failed read = `unreadable`, never due.
+- `cmd_retro` and `cmd_conduct` headers name the floor knob and value.
 - `joharness.sh` KNOBS table — `JOHARNESS_RETRO_FLOOR_HOURS|24|dispatch|…`.
 - `.agents/docs/orchestrated.md` — the knob's table row; the `retro :
   audit` and `retro : trace` cycle-table rows name the early triggers.
@@ -52,8 +57,10 @@ there. The clock stays the ceiling.
   queue can hold") — confidence: high
 - A2: parked claims and their block reasons are readable from git —
   evidence: `joharness.sh:retro_queue_block` — confidence: high
-- A3: `stalled:` and `respawns:` are block reasons a manager writes —
-  evidence: `joharness.sh:block_reason_ok` — confidence: high
+- A3: `stalled:` and `respawns:` are block reasons the orchestrator writes
+  on a manager's branch — evidence: `orchestrate-reference.md` (`stalled:
+  Stalled; …`, `respawns: Respawned <N> times …`), accepted by
+  `joharness.sh:block_reason_ok` — confidence: high
 - A4: the sample and concerns are computable when not due — evidence:
   `./joharness.sh retro` and `retro --audit` on origin/main 313a4ec3
   printed `not due` and a 3-entry `sample    :` line; `concern   :` line
@@ -69,17 +76,20 @@ there. The clock stays the ceiling.
 
 - Changing `JOHARNESS_RETRO_HOURS`, `JOHARNESS_CONDUCT_HOURS`, the sample
   sizes, or anything in `joharness.conf` (a core path).
-- Blocks only a human answers (`money:`, `credentials:`, `product:`,
-  `interface:`, `core path:`, `hardware:`, `github:`): they are no retro
-  evidence.
+- Every block reason but `stalled:` and `respawns:` as an event trigger
+  (the queue-block path keeps its own set).
 - The clerk trigger (`clerk-new-issue-trigger`) and `--ordered`
   (`role-on-demand`).
 - Any change to what a retro pass does once started.
 
 ## Acceptance
 
+Each fixture is a case in `.agents/harness/selftest/retro.sh`, run by
+`./joharness.sh verify`; dispatch cases run with the clerk and audit
+cycles off and a fresh fetch (the file's `rtd`).
+
 - Fixture: trace ledger landed 30h ago, a branch parked `status: blocked`
-  `next: stalled: …` — `./joharness.sh retro` prints `retro DUE` naming
+  `next: stalled: …` naming no open plan stem — `./joharness.sh retro` prints `retro DUE` naming
   the stalled claim; dispatch prints `retro DUE: spawn`.
 - Same fixture, ledger landed 2h ago — `retro : not due` (floor holds).
 - Same fixture, `JOHARNESS_RETRO_FLOOR_HOURS=0` — `not due` (events off).
@@ -92,7 +102,7 @@ there. The clock stays the ceiling.
 - `./joharness.sh ci` — `ci: pass`.
 - `./joharness.sh verify` — `0 failed`.
 - SHIPS: in a consumer after sync, `./joharness.sh retro` prints the floor
-  in its header or due text.
+  in its header.
 
 ## Where to look
 
@@ -116,5 +126,6 @@ there. The clock stays the ceiling.
 - `role-on-demand` and `clerk-new-issue-trigger` also edit `joharness.sh`
   and `.agents/docs/orchestrated.md`; whichever lands later merges
   `origin/main` in.
-- A new knob needs its KNOBS row, its `orchestrated.md` table row and its
-  conf-keys entry agreeing, or knobs-declared reds.
+- A new knob needs its KNOBS row and its `orchestrated.md` table row
+  agreeing, or knobs-declared reds; a `dispatch`-scope knob has no
+  conf-keys entry (`joharness.sh` KNOBS comment).
