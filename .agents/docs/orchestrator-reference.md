@@ -205,6 +205,8 @@ queue cannot see").
 
 HELD BY HUMAN: never nudge, never respawn (a nudge meets the same refusal). `PushNotification` once carrying stem, branch, PR link, the session's ask verbatim; no ledger `held-human=` yet = send and ledger `held-human=<pr>`, else report only. The row frees its slot. Drop the entry when the branch merges (the `done` row), or when the session is RUNNING again, its last turn no longer asks, or dispatch no longer lists the branch as `retired, no claim file`
 
+An aged edge row (`retired, no claim file, no push for … holds NO slot`, past `JOHARNESS_EDGE_SLOT_HOURS`) already freed its slot, its items still withheld: look its pull request up (GitHub MCP) — open = merging, let it land; none = report it to the human.
+
 ## Unratified block
 
 UNRATIFIED BLOCK: NUDGE "Orchestrator health pass: you stopped asking for input while status is in-progress. Do the work, or set status blocked with a reason from manager.md §3, push." Ledger `unratified=<head>`. No transport: report only, ledger nothing, never respawn on it. Any reason in `status_detail` is unratified: only `status: blocked` ratifies

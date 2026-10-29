@@ -123,6 +123,7 @@ JOHARNESS_CHECKS|github|session|Environment only. github = step 7 waits for GitH
 JOHARNESS_LOCAL_CHECK_MINUTES|30|session|Bound on a declared local-check under JOHARNESS_CHECKS=local; over it = red, never a skip; 0 = one second.
 JOHARNESS_MAX_MANAGERS|4|dispatch|Managers in flight at once; 0 pauses spawning.
 JOHARNESS_STALL_MINUTES|45|dispatch|No push this long = cross-check, nudge.
+JOHARNESS_EDGE_SLOT_HOURS|4|dispatch|A retired edge branch with no claim file and no push this long holds no slot; its items stay withheld; 0 = it holds one until merge.
 JOHARNESS_HEALTH_MINUTES|10|dispatch|One orchestrator pass every this many minutes.
 JOHARNESS_RESPAWN_LIMIT|2|dispatch|Respawns per item per orchestrator run.
 JOHARNESS_ORCHESTRATOR_PASSES|6|dispatch|Orchestrator passes a session makes before it retires and the keeper starts a successor.
@@ -8680,7 +8681,7 @@ cmd_dispatch() {
   # shellcheck disable=SC2034  # gh_ts: ref_fact's push time, not read here
   local gh_head gh_ts gh_tip gh_base n_inflight=0 n_slots n_free=0 n_stall=0 n_blocked=0 n_hold=0 n_wait=0 n_loop=0
   local pending pending_used
-  local n_edge=0 n_edge_stall=0 n_human_edge=0 n_leftover=0 n_leftover_noitem=0
+  local n_edge=0 n_edge_stall=0 n_edge_aged=0 n_human_edge=0 n_leftover=0 n_leftover_noitem=0 edge_hours
   local leftover_rows="" estate="" fleet_age stall_young=""
   local rel_stale rel_needs="" rel_line
   local scout_inflight="" n_scout=0 sstate sreason sb sw ss spend
@@ -8869,7 +8870,10 @@ cmd_dispatch() {
   printf '\n'
 
   # --- edges past the retire commit: a slot committed, no claim to read ----
-  # Counted into n_inflight, so the slot shrinks.
+  # Counted into n_inflight, so the slot shrinks — until the push is older
+  # than JOHARNESS_EDGE_SLOT_HOURS (issue #701: one whose pull request never
+  # opened held a slot 5 hours and starved 5 free items).
+  edge_hours="$(num_knob JOHARNESS_EDGE_SLOT_HOURS)"
   while IFS=$'\t' read -r ebranch eitem estate; do
     [ -n "$ebranch" ] || continue
     # The scan's own caveat, carried as a row because status cannot leave a
@@ -8927,6 +8931,18 @@ cmd_dispatch() {
           edge_rows="${edge_rows}    push age unknown: ref not here — fetch, then cross-check the control plane"$'\n'
         continue ;;
     esac
+    # Aged: no push for the window. The slot comes back; the items stay
+    # withheld above, because the branch may be mid-merge and git cannot say.
+    # Unknown age keeps the slot: nothing proves it old.
+    if [ "$edge_hours" -gt 0 ] && [ -n "$eage" ] &&
+       [ "$eage" -ge $((edge_hours * 60)) ]; then
+      n_edge_aged=$((n_edge_aged + 1))
+      edge_rows="${edge_rows}  ${efirst:-?}  ${ebranch}  retired  pushed ${eagetext}  retired, no claim file, no push for ${eagetext} (>= ${edge_hours}h JOHARNESS_EDGE_SLOT_HOURS): holds NO slot — dispatch cannot see whether a pull request exists; the health pass looks it up (open = merging, none = report to the human). Its items stay withheld, never respawn blind"
+      [ "$emore" -le 1 ] ||
+        edge_rows="${edge_rows} (and $((emore - 1)) more item(s) retired here: ${eitem#* })"
+      edge_rows="${edge_rows}"$'\n'
+      continue
+    fi
     n_inflight=$((n_inflight + 1))
     n_edge=$((n_edge + 1))
     edge_rows="${edge_rows}  ${efirst:-?}  ${ebranch}  retired  pushed ${eagetext}  retired, no claim file — a pull request is expected; this reader does not read pull request state — the health pass does: step 7 retired the workstream file before the pull request opened, so this branch commits a slot and names no owner"
@@ -9603,6 +9619,11 @@ cmd_dispatch() {
       printf 'verdict   : OVERLAP-BOUND — %s slot(s) free, %s plan(s) held behind shared-registry declarations: spawn ONE surveyor (agent: sonnet) on key %s\n' \
         "$n_slots" "$n_hold" "${rescope_key:-none}"
     fi
+  elif [ "$n_edge_aged" -gt 0 ]; then
+    # Its slot is freed but its pull request is unread: an exit here could
+    # leave a branch nobody merges.
+    printf 'verdict   : NOT DRAINED — nothing free; %s aged edge: look up its pull request first (GitHub MCP), then keep the health pass going\n' \
+      "$n_edge_aged"
   elif [ $((n_inflight - n_blocked)) -gt 0 ]; then
     printf 'verdict   : DRAINED — nothing free; %s manager(s) in flight: keep the health pass going\n' \
       "$((n_inflight - n_blocked))"
@@ -9702,6 +9723,9 @@ cmd_dispatch() {
   [ "$n_edge" -eq 0 ] ||
     printf '            %s branch(es) at the edge with no claim file: each holds a slot because its item is STILL on %s, so that merge has not landed. The control plane says what to do about the session, never whether the slot is real\n' \
       "$n_edge" "${HANDOVER_BASE_BRANCH:-main}"
+  [ "$n_edge_aged" -eq 0 ] ||
+    printf '            %s aged edge branch(es) with no claim file and no push for >= %sh (JOHARNESS_EDGE_SLOT_HOURS): NOT counted, items still withheld; the health pass looks up each pull request — open = merging, none = report to the human\n' \
+      "$n_edge_aged" "$edge_hours"
   [ "$n_human_edge" -eq 0 ] ||
     printf '            %s human/ branch(es) at the edge waiting on a human merge: NOT counted, never respawned\n' \
       "$n_human_edge"

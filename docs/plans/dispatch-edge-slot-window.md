@@ -36,10 +36,10 @@ stops holding a slot.
   one line for `n_edge_aged > 0`, next to the `n_edge` line. The STALL? line
   does NOT run for aged rows (they are neither counted in `n_stall` nor in
   `n_inflight`, so the stopped-fleet test `n_stall == n_inflight - n_blocked`
-  stays true to its meaning). The DRAINED verdict must not fire while an aged
-  edge exists: treat `n_edge_aged > 0` as not drained, saying `aged edge: look
-  up its pull request first` (find the DRAINED printf near the `n_inflight`
-  zero test).
+  stays true to its meaning). No `verdict   : DRAINED` line fires while an aged
+  edge exists: a new `NOT DRAINED — … aged edge: look up its pull request
+  first` branch ahead of every DRAINED printf (the `n_inflight - n_blocked`
+  test and the exit lines below it).
 - `joharness.sh` — add a `KNOBS` row for `JOHARNESS_EDGE_SLOT_HOURS`.
 - `.agents/docs/orchestrated.md` — add its row to the knob table, beside
   `JOHARNESS_STALL_MINUTES`.
@@ -50,9 +50,9 @@ stops holding a slot.
   block (near the `retired, no claim file — a pull request is expected` check):
   a second case with `JOHARNESS_EDGE_SLOT_HOURS` set below the branch's push age
   (fixture commits carry the real time, age ~0: backdate the eta retire commit
-  with `GIT_COMMITTER_DATE` more than 1 h, the smallest window; run the aged case
-  in its own fixture branch or restore the date so later default-knob checks, e.g.
-  `slots     : 3 of 8 free`, keep reading 0 age) expects the slot back (`slots     : 4 of 8 free`), the new row text, and the
+  with `GIT_COMMITTER_DATE` more than 1 h and under the 4 h default, the smallest
+  window, by amend and force-push of the fixture ref, then set the ref back to
+  the saved tip so later cases read the commit they read before) expects the slot back (`slots     : 4 of 8 free`), the new row text, and the
   item still not offered for spawning; `JOHARNESS_EDGE_SLOT_HOURS=0` expects the
   old row and slot count.
 - `.agents/docs/orchestrator-reference.md` — one sentence near the
@@ -82,13 +82,13 @@ stops holding a slot.
 - `./joharness.sh ci` — `ci: pass`.
 - `./joharness.sh verify` — 0 failed, including the dispatch selftest's new aged and `=0` cases and `knobs-declared` (never run `selftest/dispatch.sh` alone: not runnable alone, it writes at `/`).
 - `./joharness.sh ci` — ship-scope names this plan as SHIPS to consumers: the same `verify` is the check a consumer runs after sync.
-- A dispatch fixture with only an aged edge prints no `DRAINED` — expected text `aged edge`.
-- The new aged case FAILS on `origin/main`'s `joharness.sh` (run the new selftest against it: red on the slots line).
+- The `mgr-eta` aged case, nothing else free there: `verify` red if its verdict reads `verdict   : DRAINED` or lacks `aged edge: look up its pull request first`.
+- The new aged case FAILS on `origin/main`'s `joharness.sh`: `git show origin/main:joharness.sh >joharness.sh && ./joharness.sh ci`, red on `an edge older than the window gives its slot back`, then `git checkout joharness.sh`.
 - `./joharness.sh verify` — 0 failed, count read from the output.
 
 ## Escape
 
-Entry, Gate and Route answered in the pull request body. Entry: the edge-slot rule landed with the retired-edge scan (`git log -S'a pull request is expected' -- joharness.sh`). Gate: `.agents/harness/selftest/dispatch.sh` asserts the slot is held but no case ages it. Route: this plan adds the aged case.
+Entry, Gate and Route answered in the pull request body. Entry: the edge-slot rule landed with the retired-edge scan (`git log -S'dispatch_retired_edges()' -- joharness.sh`, `a4399846`). Gate: `.agents/harness/selftest/dispatch.sh` asserts the slot is held but no case ages it. Route: this plan adds the aged case.
 
 ## Where to look
 
@@ -102,5 +102,5 @@ Entry, Gate and Route answered in the pull request body. Entry: the edge-slot ru
 
 - Withholding the items must stay: a freed slot with the items offered spawns a second manager on a branch that may be mid-merge.
 - Never read pull request state in a harness command.
-- Do not regress `release-halt.sh`: it asserts `retired, no claim file` rows; keep that text a prefix of the aged row.
+- Do not regress `release-halt.sh`: it asserts `retired, no claim file` rows; keep that text a substring of the aged row.
 - Another plan touching `joharness.sh` dispatch: none queued at writing; re-check `ls docs/plans`.

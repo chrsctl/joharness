@@ -693,6 +693,39 @@ refute "and its item is still not offered for spawning" \
 expect "the verdict counts it and names who finishes the count" \
   "1 branch(es) at the edge with no claim file: each holds a slot because its item is STILL on main, so that merge has not landed" "$out"
 
+# Issue #701: a pull request that never opened held the slot 5 hours and
+# starved 5 free items, since nothing here reads pull request state. Past
+# JOHARNESS_EDGE_SLOT_HOURS the slot comes back; the item stays withheld,
+# because the branch may be mid-merge. The retire commit is backdated 2h on
+# its own push, then restored, so every later case reads age 0 again.
+eta_tip="$(git -C "$dspwork" rev-parse mgr-eta)"
+git -C "$dspwork" checkout -q mgr-eta
+GIT_COMMITTER_DATE="$(( $(date +%s) - 7200 )) +0000" \
+  git -C "$dspwork" commit -q --amend --no-edit
+git -C "$dspwork" push -qf origin mgr-eta
+git -C "$dspwork" checkout -q main
+out="$(dsp env JOHARNESS_MAX_MANAGERS=8 JOHARNESS_EDGE_SLOT_HOURS=1)"
+expect "an edge older than the window gives its slot back" "slots     : 4 of 8 free" "$out"
+expect "and its row says so, still a retired row" \
+  "retired, no claim file, no push for 2h (>= 1h JOHARNESS_EDGE_SLOT_HOURS): holds NO slot" "$out"
+refute "its item is still not offered for spawning" "  docs/plans/eta.md (agent" "$out"
+expect "the verdict counts it apart" \
+  "1 aged edge branch(es) with no claim file and no push for >= 1h" "$out"
+refute "and not as an edge holding a slot" "branch(es) at the edge with no claim file: each holds a slot" "$out"
+# Nothing else is free here, so the verdict would read DRAINED: an unread
+# pull request is no reason to exit.
+expect "the verdict sends the reader to its pull request first" \
+  "aged edge: look up its pull request first" "$out"
+refute "and never reads DRAINED on it" "verdict   : DRAINED" "$out"
+out="$(dsp env JOHARNESS_MAX_MANAGERS=8)"
+expect "under the default window the same 2h edge still holds its slot" \
+  "slots     : 3 of 8 free" "$out"
+out="$(dsp env JOHARNESS_MAX_MANAGERS=8 JOHARNESS_EDGE_SLOT_HOURS=0)"
+expect "0 = never ages: the slot is held" "slots     : 3 of 8 free" "$out"
+expect "with the old row" "retired, no claim file — a pull request is expected" "$out"
+git -C "$dspwork" branch -qf mgr-eta "$eta_tip"
+git -C "$dspwork" push -qf origin mgr-eta
+
 # Distinguishable from a branch nobody came back to — the trade this fix must
 # not make. Push age is the only signal git has, so past the window the row
 # says so and sends the verdict to the health table. It used to order the
