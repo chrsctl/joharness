@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK7Zb1rr3yFQJLNX8RP
 agent: sonnet
 updated: 2026-10-29
-next: Edit .claude/commands/scout.md for the three fixes, then ci, verify, review, finish
+next: Run ci and finish, open the PR, merge
 ---
 
 ## Goal
@@ -27,4 +27,19 @@ defects in `.claude/commands/scout.md`. The reviewer said "Fix all".
 
 ## Decisions
 
+- Ownership of a proposal keys on label `scout`, title `scout:`, an author
+  with write access and the `cost:` line as the body's last line before any
+  footer; the footer is still sent but never tested on a body.
+- A type read-back that fails is its own report token, `TYPE UNREAD`, so it
+  is never mistaken for `TYPE NOT SET`.
+- A scout pass's verifier has no diff, so `.agents/docs/subagents.md` gains
+  its prompt line (tier plus links) rather than scout.md inventing one.
+
 ## Review
+
+- r1: (verifier) scout.md still said every issue body ends with the footer, contradicting the strip note (fixed)
+- r2: (verifier) no rule when issue_read fails after filing (fixed: `TYPE UNREAD`)
+- r3: (verifier) scout's verifier prompt cited subagents.md, whose verifier list is diff-shaped (fixed: subagents.md names the scout-pass prompt)
+- r4: (verifier) dangling "(below)" for write access (fixed: names the clerk's author gate)
+- r5: (verifier) workstream not updated with the code commit; agent sonnet vs haiku review (fixed: updated here; no change on agent: the fast lane reviews at haiku whatever agent says, plans.md Fast lane)
+- r6: edge review (haiku recipe, own pass over the diff): clean after r1-r5

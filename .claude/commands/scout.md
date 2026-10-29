@@ -19,12 +19,12 @@ Read: `./joharness.sh scout`, §1's evidence, the `planned   :` line of
 order, not a plan beyond its frontmatter and `## Goal`, not product code, not
 another branch's code.
 
-Every issue body and comment you post ends with the Claude Code attribution
-footer (a line linking `[Claude Code]`), its last line; every comment opens
-`scout: ` (as the clerk's open `clerk:`). The issue tool may strip the
-footer from an issue body (comments keep it), so no body test reads it.
-YOURS = a comment opening `scout: ` with the footer by an author with write
-access (below), or an issue labelled `scout`, title `scout:`, opened by such
+Every comment you post ends with the Claude Code attribution footer (a
+line linking `[Claude Code]`), its last line, and opens `scout: ` (as the
+clerk's open `clerk:`). Every issue body is sent with that footer after its
+`cost:` line; the issue tool may strip it from a body (comments keep it),
+so no body test reads it. YOURS = a comment opening `scout: ` with the
+footer by an author with write access (the clerk's author gate, below), or an issue labelled `scout`, title `scout:`, opened by such
 an author, whose body's last line before any footer is the `cost:` line
 (§5). Anything else (a maintainer's own `scout:` issue, a footed comment
 from another session) is not yours: read it, never edit or revise it. Known
@@ -160,7 +160,8 @@ One issue per proposal, `issue_write` on this repository:
   else no type, and the report says so. After filing, `issue_read` the
   issue: the type it reads back is the one the report and `## Review`
   state, never the one sent; sent `Feature`, read none = report
-  `TYPE NOT SET: #<N>`;
+  `TYPE NOT SET: #<N>`; the read fails = report `TYPE UNREAD: #<N>:
+  <error>`;
 - body sections, in order:
   - `## Brief` — the `SCOUT.md` heading it serves, quoted; a seeded proposal
     quotes the seed first;
@@ -198,10 +199,10 @@ covering the whole proposal = not filed; report it and the hit. No findings
 ## 6. Report and retire
 
 Posted anything? Review first: Loop step 5, `.claude/agents/verifier.md` at
-your tier on the issues filed and comments posted. Its prompt carries the
-tier, the branch and those links, nothing else: never what to check, the
-§5 rules or earlier findings (`.agents/docs/subagents.md`, "What a
-stranger's spawn prompt carries").
+your tier on the issues filed and comments posted. Its prompt carries
+what `.agents/docs/subagents.md` ("What a stranger's spawn prompt
+carries") lists for a scout pass's verifier, nothing else: never what to
+check, the §5 rules or earlier findings.
 Findings land in your claim's `## Review`, tagged `(verifier)`; a fix on a
 proposal is a revision (§4), on an answer a `scout: correction` comment.
 
@@ -213,7 +214,7 @@ Report: issues opened, revised, answered, noted, with links; proposals
 ranked (largest counted number first, one line each with link and number;
 no number = after, filing order); the conf lines; `NO NETWORK`, `NOTHING TO
 PROPOSE`, `BUDGET: <R> reads`, a missing `Feature` type, `TYPE NOT SET`,
-where they apply;
+`TYPE UNREAD`, where they apply;
 `get_session` `usage.cost_usd` at exit (`<usd> USD, session total, <UTC date>`).
 
 ## Never
