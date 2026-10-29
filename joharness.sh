@@ -5221,6 +5221,10 @@ retro_due_early() {
   floor="$(num_knob JOHARNESS_RETRO_FLOOR_HOURS)"
   RETRO_DUE="not-due ${age}h since ${base_word} (of ${hours}h)"
   { [ "$floor" -gt 0 ] && [ "$age" -ge "$floor" ]; } || return 0
+  if [ -z "$(printf 'x' | conduct_sha1)" ]; then
+    RETRO_DUE='unreadable no sha1sum or shasum here: the sample cannot be drawn'
+    RETRO_ROWS=""; return 0
+  fi
   eb="$(retro_event_block)"
   case "$eb" in
     '?') RETRO_DUE='unreadable the workstream files could not be read'
@@ -5236,12 +5240,6 @@ retro_due_early() {
       '')  ;;
       *)   why="an audit CONCERN is not yet traced ($(printf '%s\n' "$con" | head -1 | cut -f1))" ;;
     esac
-  fi
-  if [ -z "$(printf 'x' | conduct_sha1)" ]; then
-    # A due needs a sample; no due needs nothing.
-    [ -n "$why" ] || return 0
-    RETRO_DUE='unreadable no sha1sum or shasum here: the sample cannot be drawn'
-    RETRO_ROWS=""; return 0
   fi
   if [ -z "$why" ]; then
     s="$(retro_sample "$sample")"

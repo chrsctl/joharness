@@ -85,7 +85,7 @@ there. The clock stays the ceiling.
 ## Acceptance
 
 Each fixture is a case in `.agents/harness/selftest/retro.sh`, run by
-`./joharness.sh verify`; dispatch cases run with the clerk and audit
+`./joharness.sh ci`; dispatch cases run with the clerk and audit
 cycles off and a fresh fetch (the file's `rtd`).
 
 - Fixture: trace ledger landed 30h ago, a branch parked `status: blocked`

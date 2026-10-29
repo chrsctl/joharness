@@ -461,7 +461,8 @@ expect "retro-audit.md: audit's open-PR check takes both its names" \
 # JOHARNESS_RETRO_FLOOR_HOURS since a mode's ledger landed, a claim parked
 # stalled:/respawns:, an untraced CONCERN or a full sample makes it due;
 # under the floor, or with the floor 0, the clock alone decides.
-# <name> <ledger hours ago> — a fresh repository, both ledgers landed then.
+# <name> <ledger hours ago> [<retro-log row>] — a fresh repository, both
+# ledgers landed then.
 re_repo() {
   local w="${TMP:?}/retroev-$1" o="${TMP:?}/retroev-$1.git" t
   git init -q --bare "$o"
@@ -480,6 +481,7 @@ re_repo() {
     git -C "$w" commit -qm base
   printf '# Retro log\n\n| date | branch | session | outcome |\n|------|--------|---------|---------|\n' \
     >"${w}/docs/retro-log.md"
+  [ -z "${3:-}" ] || printf '%s\n' "$3" >>"${w}/docs/retro-log.md"
   printf '# Conduct log\n\n| date | stem | C1 | note |\n|------|------|----|------|\n' \
     >"${w}/docs/conduct-log.md"
   t="$(( $(date +%s) - $2 * 3600 )) +0000"
@@ -522,11 +524,17 @@ re_run() {
 re_stall='stalled: Stalled; the orchestrator could not stop the session that holds this.'
 
 re_repo stall 30
-re_park stall m/stall stall "$(rt_url Stall1)" "\"${re_stall}\""
+re_park stall m/stall stall "$(rt_url Stall9c)" "\"${re_stall}\""
+# A second candidate whose sha1 sorts first (07df… < 7b99…): the lead is the
+# park, not the order.
+re_park stall m/other other "$(rt_url Other1)" 'product: which reading?'
+if [[ "$(rt_url Other1 | rt_sha)" < "$(rt_url Stall9c | rt_sha)" ]]; then
+  pass "retro: the lead fixture's other session sorts first by sha1"
+else fail "retro: the lead fixture's other session sorts first by sha1"; fi
 out="$(re_run stall -- retro)"
 expect "retro: a stalled: park past the floor is due ahead of the clock" \
   "retro DUE: spawn ONE retro reviewer — m/stall is parked on a stalled: block, ahead of the cadence (>= 24h floor) — 30h since the ledger last landed (of 168h)" "$out"
-if [ "$(rt_rows "$out" | head -1)" = "m/stall $(rt_url Stall1)" ]; then
+if [ "$(rt_rows "$out" | head -1)" = "m/stall $(rt_url Stall9c)" ]; then
   pass "retro: and the stalled session leads the sample"
 else fail "retro: and the stalled session leads the sample"; printf '%s\n' "$(indent "$out")"; fi
 expect "retro: the header names the floor" "on evidence after 24h: JOHARNESS_RETRO_FLOOR_HOURS" "$out"
@@ -537,12 +545,11 @@ expect "retro: FLOOR_HOURS=0 is clock only" "retro : not due — 30h since the l
   "$(re_run stall JOHARNESS_RETRO_FLOOR_HOURS=0 -- retro)"
 expect "retro: the clock still wins past it" "retro DUE: spawn ONE retro reviewer — 30h since the ledger last landed (>= 24h)" \
   "$(re_run stall JOHARNESS_RETRO_HOURS=24 -- retro)"
-# The ledger logs the session: its park fires no more.
-printf '| 2026-01-02 | m/stall | %s | nothing |\n' "$(rt_url Stall1)" >>"${TMP:?}/retroev-stall/docs/retro-log.md"
-git -C "${TMP:?}/retroev-stall" add -A && git -C "${TMP:?}/retroev-stall" commit -qm "retro rows"
-git -C "${TMP:?}/retroev-stall" push -q origin main
-expect "retro: a logged park is no evidence, and the new landing resets the floor" \
-  "retro : not due — 0h since the ledger last landed" "$(re_run stall JOHARNESS_RETRO_FLOOR_HOURS=0 -- retro)"
+# The ledger logs the session, landed past the floor: its park fires no more.
+re_repo logged 30 "| 2026-01-02 | m/stall | $(rt_url Stall4) | nothing |"
+re_park logged m/stall stall "$(rt_url Stall4)" "\"${re_stall}\""
+expect "retro: a park the ledger logs is no evidence" \
+  "retro : not due — 30h since the ledger last landed (of 168h)" "$(re_run logged -- retro)"
 
 re_repo young 2
 re_park young m/stall stall "$(rt_url Stall2)" "\"${re_stall}\""

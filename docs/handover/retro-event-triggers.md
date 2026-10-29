@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK5Sd1Dd2vzKcKvG8Gj
 agent: opus
 updated: 2026-10-29
-next: Spawn the opus verifier on this head, record its findings, then ci, finish
+next: ci on this head, then retire commit and PR, finish
 ---
 
 ## Goal
@@ -48,6 +48,13 @@ passed since its ledger landed.
 - r8: (plan-checker) no-ledger case and conduct unreadable unstated (fixed)
 - r9: (plan-checker) human-only list contradicts the code's set (fixed: out of scope reworded to event reasons only)
 - r10: (plan-checker) spawn prompt carried the repo path beyond the plan path (no change: a cwd hint, no content about the plan)
+- r11: (verifier) the logged-park case ran with FLOOR=0 at 0h, so it could not fail (fixed: a ledger logging the session landed 30h ago, default floor; fails when retro_candidates ignores the ledger)
+- r12: (verifier) the leads-the-sample case had one candidate, so it could not fail (fixed: a second candidate whose sha1 sorts first, order asserted; fails without RETRO_QB)
+- r13: (verifier) plan Acceptance said the fixtures run under `verify`; they run under `ci` (fixed)
+- r14: (verifier) trace past the floor without sha1 read quiet not-due while audit read unreadable (fixed: both unreadable, checked once past the floor)
+- r15: (verifier) orchestrated.md HOURS rows still read as the only due point (fixed: rows name the clock as the ceiling and the floor knob)
+- r16: (verifier) past the floor an unreadable audit ledger makes trace UNREADABLE, where the clock path reads it in lower case (wontfix: plan Scope says any failed read is unreadable, never due; under the clock it is still not read)
+- r17: (verifier) `.claude/commands/retro.md` named only the queue-block early due (fixed: one sentence names the floor triggers)
 
 ## Blockers
 
