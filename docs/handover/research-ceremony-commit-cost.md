@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK3JBwa23stSBGPRjmQ
 agent: opus
 updated: 2026-10-29
-next: Read the claim, handover and retire rules and their readers; take the gx count
+next: Spawn the opus verifier on the graduated answer, record its findings, finish
 ---
 
 ## Goal
@@ -20,11 +20,20 @@ answer to `.agents/docs/handover.md`, delete the research file.
 
 ## Decisions
 
-- None yet.
+- Answer: all three keep (no fold). Graduated as `.agents/docs/handover.md`
+  "Three bookkeeping commits: keep, because"; research file deleted.
+- gx counts from `/home/user/gx` (clone, `--shallow-since=2026-10-10`,
+  head a322a67da) with a python pass over `git log origin/main
+  --since=2026-10-15 --no-merges --name-only`: kind by subject first word,
+  parent/child kind and time gaps, parent arity for retires.
+- Echo's "CI run per commit" refuted: gx `ci.yml` and this repo's run on
+  `pull_request` and `push` to `main` only.
+- Merge-retire invisibility measured in a scratch repo: deletion inside a
+  merge commit is absent from `git log --all --full-history --diff-filter=D`,
+  present with `-m`.
 
 ## Review
 
-- None yet.
 
 ## Blockers
 

@@ -70,6 +70,38 @@ ORDER is not gated.
 Waiver: `ci` reds an added skip marker or note in a non-markdown file; a *Review*
 bullet `- rN: window <path> <why> (wontfix: <reason>)` waives every hit in that path.
 
+## Three bookkeeping commits: keep, because
+
+A quarter of a consumer's commits are claim, handover or retire (gx, non-merge
+since 2026-10-15: 565 of 2168 — 171 claim, 218 handover, 176 retire). None
+rides on a neighbour; each buys a guarantee a reader takes from git.
+
+- **Claim — keep.** `queue-context.sh` `claims` reads the workstream file off
+  each pushed branch TIP; only a pushed commit claims. Its one neighbour is the
+  first code commit, which does not exist yet. Folding the claim into it opens
+  the double-spawn window by the time to that commit: in gx 38 of 171 claims
+  were followed by their next commit 10 minutes or more later.
+- **Handover-only — keep.** Legitimate when no code moved: stall-contract
+  pushes during long runs (59 in gx follow another handover commit, 7 to 54
+  minutes apart), blocks, nudges, measurements. One landing seconds after a
+  code commit (23 in gx within 2 minutes) is not a fold the rules forbid: it
+  is the same-commit rule broken, and folding it is what that rule already
+  says. Amending a pushed one is `push -f`, which the Loop forbids.
+- **Retire — keep.** Every reader of a retired file takes it from the
+  deleting commit's PARENT (`lint_ws_content`, `release_human`, the conduct
+  sample, `upstream`). Folded backward into the last review commit, that
+  commit's `## Review` edit never lands in a tree and is lost. Folded into
+  the reconcile merge (54 of gx's 176 retires sit on one), the deletion
+  vanishes from the recovery command above: `git log --diff-filter=D` shows
+  no merge diff without `-m`. Forward there is nothing: commits after the
+  PR opens have no file.
+
+The cost the commits were suspected of is smaller than it looks: CI runs on
+`pull_request` and on `push` to `main`, so a pre-PR push runs nothing, and
+the retire is in the PR's first run. What remains is one commit and one push
+each. A rule that folds any of them = re-open with a reader that no longer
+needs the separate commit.
+
 ## When NOT to write one
 
 Copy and sync tasks get NO workstream file: the diff is self-describing. Same
