@@ -75,6 +75,16 @@ For each `## Goal` clause and each `## Acceptance` item, one line:
 - UNVERIFIED — no command here re-takes it (see below). Never COVERED on
   trust.
 
+A test green for the wrong reason proves nothing: an assertion proves a
+property only if it tells it apart from its absence. First three are STUB:
+
+- It reaches a path the fix did not change.
+- Its "without the fix" baseline, stashed or partly reverted, still holds
+  part of the product diff.
+- Its injected defect sits on the wrong side of the fixture: it breaks the
+  setup, not the code under test.
+- Its suite hangs or dies: neither red nor green, so UNVERIFIED, never a pass.
+
 An Acceptance item that asserts what the Goal says must be refused (passes,
 succeeds, prints OK, is allowed) is a finding, whatever its COVERED status.
 
