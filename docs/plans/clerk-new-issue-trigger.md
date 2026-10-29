@@ -20,23 +20,31 @@ early path is a manager parked on an unplanned `defect:` issue
 waits up to a day while slots sit idle. Make a new open issue start the
 clerk: once an orchestrator pass sees an open issue that no clerk has read
 yet, is not planned or claimed, and has been open at least
-`JOHARNESS_ISSUE_CLERK_HOURS` (new knob, default 1; 0 lifts it), it spawns
+`JOHARNESS_ISSUE_CLERK_HOURS` (new knob, default 1; 0 switches this trigger
+off), it spawns
 the clerk ahead of the cadence. Harness commands never call the GitHub API,
 so the orchestrator reads the issues (as it already does for the scout
 trigger) and `./joharness.sh clerk` supplies the git-side facts.
 
 ## Scope
 
-- `joharness.sh:cmd_clerk` — print one new line, `last read : <unix> <UTC
-  ISO>` = the time the last clerk read the issues (a landed clerk: its
-  first commit; a no-op: its stamp less `JOHARNESS_DEFECT_CLERK_HOURS`
-  exactly as `clerk_due` computes "no clerk having read the issues since";
-  reuse that computation, do not write a second one); `none` when no clerk
-  ever ran; `UNREADABLE` when it cannot be read. And one line `issue wait:
-  <n>h (JOHARNESS_ISSUE_CLERK_HOURS)` or `issue wait: off`.
+- `joharness.sh:clerk_last_read` — new helper, pulled OUT of
+  `clerk_park_early` (where "no clerk having read the issues since" is
+  computed inline today, behind its early returns): the later of the newest
+  no-op stamp and the newest landed clerk's first commit, less
+  `JOHARNESS_DEFECT_CLERK_HOURS` (both records, as the code does now: "Each
+  is read as the knob before it"; knob 0 = no shift). `clerk_park_early`
+  calls it; no second copy.
+- `joharness.sh:cmd_clerk` — print `last read : <unix> <UTC ISO>` from
+  that helper; `none` when no clerk ever ran; `UNREADABLE` when it cannot
+  be read. And `issue wait: <n>h (JOHARNESS_ISSUE_CLERK_HOURS)` or `issue
+  wait: off`. Both print on every path, the unreadable cadence included
+  (there `last read : UNREADABLE`).
 - `joharness.sh` KNOBS table — add `JOHARNESS_ISSUE_CLERK_HOURS|1|dispatch|…`.
 - `.agents/docs/orchestrated.md` — the knob's table row; the `clerk :` row
-  of the cycle table names the new trigger.
+  of the cycle table names the new trigger; the
+  `JOHARNESS_DEFECT_CLERK_HOURS` row's "a landed one: its first commit"
+  corrected to the code (its first commit less the knob).
 - `.agents/docs/orchestrate-reference.md`, Role sessions — new paragraph
   "A new issue needs the clerk", modelled on "A scout issue needs the
   scout": read only when dispatch's `clerk :` row is `not due` and nothing
@@ -45,7 +53,7 @@ trigger) and `./joharness.sh clerk` supplies the git-side facts.
   skipped. An issue fires when ALL hold: `created_at` is later than `last
   read`; `created_at` is at least `issue wait` old; its number is under
   neither `planned` nor `claimed` in `./joharness.sh clerk`; it is not
-  labelled `scout` (the scout gate owns those) and not `human-review`. One
+  labelled `scout` nor titled `scout:…` (the scout gate owns those, `clerk.md`) and not `human-review`. One
   such issue = spawn ONE clerk (the `clerk DUE` row's model, title, prompt),
   ledger `clerked=<stamp>+issue`; the report names the issue number. A read
   that fails, or `last read : UNREADABLE` = nothing fires. The issue is
@@ -63,9 +71,10 @@ trigger) and `./joharness.sh clerk` supplies the git-side facts.
 - A2: the orchestrator already reads issues for a role trigger — evidence:
   `.agents/docs/orchestrate-reference.md:A scout issue needs the scout` —
   confidence: high
-- A3: `clerk_due` already computes "no clerk having read the issues since"
-  for the defect trigger — evidence: `joharness.sh:clerk_due` comment above
-  `CLERK_EARLY` — confidence: medium; find the exact function and reuse it.
+- A3: the defect trigger already computes "no clerk having read the issues
+  since" — evidence: `joharness.sh:clerk_park_early`, inline after its
+  early returns, both records less the knob — confidence: high (corrected
+  from `clerk_due` by the plan-checker).
 - A4: the clerk pass itself needs no change: it reads every open issue,
   oldest first, `JOHARNESS_CLERK_BATCH` at a time — evidence:
   `.claude/commands/clerk.md` §2 — confidence: high
@@ -79,24 +88,35 @@ trigger) and `./joharness.sh clerk` supplies the git-side facts.
   `joharness.conf` (a core path).
 - Issue comments as a trigger (only newly opened issues fire); scout
   issues; issues labelled `human-review`.
+- The clerk's batch order: an early clerk still takes the oldest
+  `JOHARNESS_CLERK_BATCH` issues first (`clerk.md` §2), so a new issue
+  behind a full batch waits on the cadence; the batch is the human's knob.
+- A re-fire bound beyond the one-per-run cap: an issue skipped by the pass
+  it fired can fire once more only when `JOHARNESS_DEFECT_CLERK_HOURS`
+  exceeds `JOHARNESS_ISSUE_CLERK_HOURS` plus that pass's length (defaults
+  1 and 1: never).
 - The `--ordered` flag (`role-on-demand`) and the retro triggers
   (`retro-event-triggers`).
 
 ## Acceptance
 
-- `./joharness.sh clerk` in a fixture with a landed clerk — prints `last
-  read : <unix> <ISO>` equal to that clerk's first commit time, and `issue
-  wait: 1h (JOHARNESS_ISSUE_CLERK_HOURS)`.
-- Fixture with a no-op record only — `last read` equals the value the
-  defect trigger uses (assert both from one fixture).
-- Fixture with no clerk ever — `last read : none`.
-- `JOHARNESS_ISSUE_CLERK_HOURS=0 ./joharness.sh clerk` — `issue wait: off`.
-- Each new assertion in `.agents/harness/selftest/clerk.sh` FAILS on
-  origin/main before the change.
+All in `.agents/harness/selftest/clerk.sh`, run by `bash
+.agents/harness/selftest.sh` (`0 failed`; each new case red on origin/main,
+where neither line exists). The fixture copies `joharness.sh` as a consumer
+holds it after sync, so these are the SHIPS check too.
+
+- A landed clerk, `JOHARNESS_DEFECT_CLERK_HOURS=0` — `last read : <unix>`
+  equal to that clerk's first commit time, with its UTC ISO; default knob —
+  that time less 3600.
+- A no-op record newer than the landing — `last read` = its stamp less
+  3600 under the default knob.
+- No clerk ever — `last read : none`.
+- `issue wait: 1h (JOHARNESS_ISSUE_CLERK_HOURS)` by default;
+  `JOHARNESS_ISSUE_CLERK_HOURS=0` — `issue wait: off`.
+- The defect trigger keeps its behaviour through the shared helper: the
+  existing `dispatch-park.sh` early-clerk cases stay green.
 - `./joharness.sh ci` — `ci: pass` (knobs-declared stage included).
 - `./joharness.sh verify` — `0 failed`.
-- SHIPS: in a consumer after sync, `./joharness.sh clerk` prints the `last
-  read :` and `issue wait:` lines.
 
 ## Where to look
 
@@ -120,5 +140,6 @@ trigger) and `./joharness.sh clerk` supplies the git-side facts.
 - `role-on-demand` and `retro-event-triggers` also edit `joharness.sh` and
   `.agents/docs/orchestrated.md`; whichever lands later merges
   `origin/main` in.
-- A new knob needs its KNOBS row, its `orchestrated.md` table row and its
-  conf-keys entry agreeing, or knobs-declared reds.
+- A new `dispatch` knob needs its KNOBS row and its `orchestrated.md`
+  table row agreeing, or knobs-declared reds; no conf-keys entry (that is
+  for `conf` keys).
