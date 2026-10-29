@@ -186,9 +186,9 @@ or command that says nothing to do spawns nothing.
   Run `./joharness.sh release <branch>...` yourself — no session. It
   refuses a claim with `pr:` set. Skip any branch the health pass
   respawned this pass: it has a live manager now.
-- Role sessions (`clerk DUE`, `scout     :`, `retro audit DUE`, `retro DUE`,
-  `OVERLAP-BOUND`, the human's order) → ref § Role
-  sessions ("A scout issue needs the scout").
+- Role sessions (`clerk DUE`, `clerk issue read:`, `scout     :`, `retro
+  audit DUE`, `retro DUE`, `OVERLAP-BOUND`, the human's order) → ref § Role
+  sessions ("A scout issue needs the scout", "A new issue needs the clerk").
 
   A ledger `rescoped=<K>` covers later keys whose holders are all in K.
   Issues reach the queue only through the clerk. Never nudge or respawn a
@@ -226,7 +226,7 @@ Ledger every spawn the moment it returns as `<stem>@new`.
 ```
 /orchestrator pass
 harness=<first 12 chars of git hash-object of origin/main:.claude/commands/orchestrator.md> pass=<this pass's number plus one> [retire=yes]
-ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] [held=<updated_at>] [unratified=<head>] [notified=<stem>] [released=<stem>[,<stem>]] [held-human=<pr>] respawns=<n> [rescoped=<key>] [corewait=<stem>#<N>[,<stem>#<N>]] [clerked=<stamp>[+human]] [scouted=<stamp>[+human]] [conducted=<stamp>[+human]] [retroed=<stamp>[+human]]; ...
+ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] [held=<updated_at>] [unratified=<head>] [notified=<stem>] [released=<stem>[,<stem>]] [held-human=<pr>] respawns=<n> [rescoped=<key>] [corewait=<stem>#<N>[,<stem>#<N>]] [clerked=<stamp>[+human|+issue]] [scouted=<stamp>[+human]] [conducted=<stamp>[+human]] [retroed=<stamp>[+human]]; ...
 lead <stem>: <40 chars, to the end of this line>
 ```
 

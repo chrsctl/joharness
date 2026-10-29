@@ -722,7 +722,7 @@ JOHARNESS_CLERK_BATCH=${CLERK_BATCH}
 # Outside reads one scout pass may make before it proposes from what it has.
 JOHARNESS_SCOUT_READS=${SCOUT_READS}
 
-# GitHub login whose approved comment gates a scout proposal issue. Empty =
+# GitHub login naming who applies the approved label that gates a scout proposal issue. Empty =
 # nothing can be approved, so no scout is ever spawned.
 JOHARNESS_SCOUT_REVIEWER=${SCOUT_REVIEWER}
 

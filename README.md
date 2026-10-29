@@ -122,7 +122,7 @@ nothing is lost but the work since its last push.
 - **Protected files.** If a plan needs a change to a file only you may
   edit, the manager prepares it as a separate pull request labelled
   `human-review`. You review and merge that one yourself.
-- **Approvals.** Scout ideas wait for your `approved` comment.
+- **Approvals.** Scout ideas wait for your `approved` label.
 - **Stopping things.** Revert a merge you don't want. Add the
   `human-review` label to freeze an issue or pull request. Set the manager
   budget to 0 to pause everything, or pause the hourly heartbeat to stop

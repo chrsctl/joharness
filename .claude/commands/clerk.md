@@ -4,7 +4,9 @@ description: Clerk role — turn open GitHub issues that hold into plans, one pl
 
 Clerk role, tier sonnet. ONE pass over the open issues, at most one
 plan-only pull request, exit. No manager slot. Spawned on `clerk DUE`
-(`./joharness.sh dispatch`); an issue reaches the queue only through you.
+(`./joharness.sh dispatch`), or by a human at any time in a fresh session
+(`/clerk`, or `/clerk --ordered` as an orchestrator spawns it); an issue
+reaches the queue only through you.
 
 Read: `./joharness.sh clerk`, the `reviewer  :` line of
 `./joharness.sh scout`, the open issues on THIS repository, the source each
@@ -15,7 +17,8 @@ a claim to check.
 
 ## 0. Prelude: `./joharness.sh role clerk`
 
-Run it (Bash `timeout` 600 s). Its LAST line decides. `STOP: <reason>` =
+Run it (Bash `timeout` 600 s; arguments at the end of this file open with
+`--ordered` = add it, a no-op for clerk). Its LAST line decides. `STOP: <reason>` =
 report that line, exit (`not due` is no exit). `GO <branch>` = you are on `clerk-<UTC date>` (`-b`, `-c`, …
 when taken), cut from fresh `origin/main`, nothing pushed.
 
@@ -62,21 +65,19 @@ issue: a proposal (title starts `scout:`) or a research request (no
 prefix). A request is never taken. A proposal is taken only when APPROVED;
 else skip it, uncounted, reason in the report and pull request body:
 
-1. the NEWEST, by created time, of the unfooted comments (§2's footer rule)
-   of the login the `reviewer  :` line of `./joharness.sh scout` prints
-   (first word after the colon) has first word `approved`, any case,
-   trailing punctuation ignored;
-2. it is newer than the SCOUT COMMENT: the newest footed comment opening
-   `scout:` by an author with write access (the author gate); none = any;
-3. the scout comment does not open `scout: revision`: its body edit is not
-   made yet (`scout: revised` closes it). Else `REVISION OPEN`.
+1. the issue carries the label `approved` (`issue_read` `get_labels`), and
+   `reviewer  :` of `./joharness.sh scout` names a login (not `none`);
+2. no `scout: revision` is open: the newest footed `scout:` comment by an
+   author with write access (the author gate) does not open `scout:
+   revision` (`scout: revised` closes it). Else `REVISION OPEN`.
 
-No other comment approves or stales it. Read every page with `issue_read`
-`get_comments`; a failing page = skip, `APPROVAL UNREADABLE: <error>`. The
-label `approved` is a marker only. `reviewer  : none` = take no proposal.
-CLOSED = declined. A passing proposal still meets the skip list and the
-author gate; the reviewer's approving comment newer than your clerk verdict
-reopens it.
+A label carries no author or time through the MCP tools, so the clerk cannot
+see who applied it or whether a revision followed it. The reviewer removes
+and re-applies `approved` after every `scout: revised`; a label still on an
+issue is read as that approval. A failing `get_labels` read = skip,
+`APPROVAL UNREADABLE: <error>`. A comment approves nothing. `reviewer  :
+none` = take no proposal. CLOSED = declined. A passing proposal still meets the skip list and the
+author gate; a closed-then-reopened issue still carrying the label is read afresh.
 
 Then the AUTHOR GATE, before reading further: only an issue whose author has
 write access (collaborator permission `write`, `maintain` or `admin`) is
