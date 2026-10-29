@@ -212,7 +212,9 @@ lands on `ci` alone — gx merged ten regressions that way (gx #797). Clear it
 by committing `local-check` running the consumer's own suites (the ones its
 workflow runs); `exit 0` clears it too and gates nothing, which edge review
 reads as a weakening. The canonical repository (`JOHARNESS_CANONICAL=1`)
-has no suites of a consumer's: there it stays a note and green. `finish` names the rest of
+has no suites of a consumer's: there it stays a note and green. The sync
+delivering this red is itself red in such a consumer: land `local-check`
+first (§ "Before merging one"). `finish` names the rest of
 the gap only in general ("Not covered here: any job in .github/workflows/ that
 ci does not run"); no role runs those jobs on a clock or files their failures. A workflow that INVOKES a suite
 proves nothing while the key holds. Local mode is a posture for an outage,
@@ -255,7 +257,10 @@ breaks:
 - The consumer's own suites: a sync can narrow an enum or tighten a guard
   that consumer files then fail.
 - `./joharness.sh finish` — a sync branch carries no workstream file by design
-  (`handover.md`, "When NOT to write one").
+  (`handover.md`, "When NOT to write one"). Under local mode with no
+  `local-check` it is red (§ Local checks), and committing one onto the
+  bot-owned sync branch is wiped by the next run: land `local-check` in its
+  own pull request first, then re-run the sync.
 
 Read the diff against canonical: the report says what was copied, not what it means.
 

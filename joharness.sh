@@ -6317,8 +6317,8 @@ checks_gate() {
     printf 'first merge condition — this command does not read them (no network, no\n'
     printf 'token). Not waiting for Actions is a per-environment choice:\n'
     printf 'JOHARNESS_CHECKS=local in the environment (never joharness.conf, which\n'
-    printf 'is ignored) makes this command run ci, verify and a declared\n'
-    printf 'local-check here instead and be red on their result.\n'
+    printf 'is ignored) makes this command run ci, verify and local-check here\n'
+    printf 'instead (a consumer with none is red) and be red on their result.\n'
     return 0
   fi
 
@@ -9633,8 +9633,7 @@ cmd_session_start() {
     printf 'Step 7 does NOT wait for GitHub Actions here. ./joharness.sh finish\n'
     printf 'runs this head'"'"'s checks itself — ci, verify when the diff touches\n'
     printf 'non-*.md harness code, and the repo'"'"'s local-check (a consumer with none\n'
-    printf 'is red) —\n'
-    printf 'and is red on what they say. It refuses a head\n'
+    printf 'is red) — and is red on what they say. It refuses a head\n'
     printf 'that is not what merges: uncommitted or untracked paths, unpushed tip,\n'
     printf 'or behind the base branch. Every other step 7 condition unchanged.\n\n'
   elif checks_conf_ignored; then
