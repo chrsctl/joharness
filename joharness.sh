@@ -143,6 +143,7 @@ JOHARNESS_RETRO_SAMPLE|3|dispatch|Sessions that did not come back clean one retr
 JOHARNESS_RETRO_EVENTS|200|dispatch|Transcript events a retro reviewer reads per sampled session.
 JOHARNESS_DEFECT_PLAN_HOURS|48|dispatch|Hours after the first defect: park on an issue with no plan naming it = PARKED UNPLANNED; 0 lifts it.
 JOHARNESS_DEFECT_CLERK_HOURS|1|dispatch|Hours after the first defect: park on an issue no plan names, no clerk having read the issues since, before the clerk is due ahead of its cadence; 0 lifts it.
+JOHARNESS_ISSUE_CLERK_HOURS|1|dispatch|Hours an open issue no clerk has read, not planned or claimed, waits before the orchestrator spawns the clerk ahead of its cadence; never below JOHARNESS_DEFECT_CLERK_HOURS; 0 = off.
 JOHARNESS_DEFECT_FIX_HOURS|72|dispatch|Hours after the first defect: park on an issue with no RESUME = PARKED STUCK; 0 lifts it.
 JOHARNESS_DEFECT_RECHECK_HOURS|2|dispatch|Hours after a defect: block, the base moved since and no plan naming its issue, before PARKED RECHECK; 0 lifts it.
 JOHARNESS_SCOUT_REVIEWER||base-conf|GitHub login whose approved comment gates a scout proposal; empty = none. Read from the base branch conf.
@@ -4294,7 +4295,7 @@ CLERK_EARLY=""
 CLERK_EARLY_WHY=""
 clerk_park_early() {
   local last="${1:-0}" knob base_branch="${HANDOVER_BASE_BRANCH:-main}" base_id
-  local refs=() r out rc hit ref ws doc st nx planned="" b now mh rd
+  local refs=() r out rc hit ref ws doc st nx planned="" b now
   local dst dn dplan dage best="" bage=-1 seen=" "
   case "$last" in '' | *[!0-9]*) last=0 ;; esac
   CLERK_EARLY=""; CLERK_EARLY_WHY=""
@@ -4320,23 +4321,9 @@ clerk_park_early() {
     </dev/null 2>/dev/null)"; rc=$?
   [ "$rc" -le 1 ] || return 0
   [ -n "$out" ] || return 0
-  # Neither record dates the clerk's read of the issues: a no-op is stamped
-  # at the END of its pass, a landed clerk's first commit follows its read.
-  # Each is read as the knob before it. A clerk this made due commits later
-  # than that, so it still ends the early due; one that read just before a
-  # park does not.
-  mh="$(git -C "$ROOT" log -1 --first-parent --merges -E \
-    --grep='^Merge pull request #[0-9]+ from [^/ ]+/clerk-[0-9]' \
-    --format=%H "$base_id" </dev/null 2>/dev/null)"
-  if [ -n "$mh" ]; then
-    rd="$(git -C "$ROOT" log --format=%at "${mh}^1..${mh}^2" </dev/null 2>/dev/null |
-      sort -n | head -1)"
-    # Unreadable = the merge itself: errs toward no early clerk.
-    [ -n "$rd" ] || rd="$(git -C "$ROOT" log -1 --format=%ct "$mh" </dev/null 2>/dev/null)"
-    case "$rd" in '' | *[!0-9]*) return 0 ;; esac
-    [ "$rd" -le "$last" ] || last="$rd"
-  fi
-  [ "$last" -eq 0 ] || last=$((last - knob * 3600))
+  clerk_last_read "$last"
+  case "$CLERK_LAST_READ" in '' | *[!0-9]*) return 0 ;; esac
+  last="$CLERK_LAST_READ"
   now="$(date +%s)"
   while IFS= read -r hit; do
     [ -n "$hit" ] || continue
@@ -4369,6 +4356,40 @@ clerk_park_early() {
   CLERK_EARLY="#${best}"
   CLERK_EARLY_WHY="PARKED #${best} unplanned $(dispatch_age_text "$bage") after its first park (>= ${knob}h: JOHARNESS_DEFECT_CLERK_HOURS)"
   [ -z "$seen" ] || CLERK_EARLY_WHY="${CLERK_EARLY_WHY}, and #${seen// /, #} too"
+}
+
+# When the last clerk read the issues: the one reading the defect trigger
+# (clerk_park_early) and the issue trigger (`clerk`'s `last read`) share.
+# Neither record dates the read: a no-op is stamped at the END of its pass,
+# a landed clerk's first commit follows its read. Each is read as
+# JOHARNESS_DEFECT_CLERK_HOURS before it (0 = as recorded). A clerk the
+# defect trigger made due commits later than that, so it still ends the
+# early due; one that read just before a park does not.
+# arg: <newest no-op record time, unix; empty = none>. Sets CLERK_LAST_READ:
+# unix, 0 = no clerk ever read, `?` = a git read failed (never 0: an
+# unreadable history is no "never read", which would fire on every issue).
+CLERK_LAST_READ=""
+clerk_last_read() {
+  local last="${1:-0}" knob base_branch="${HANDOVER_BASE_BRANCH:-main}" base_id mh rd
+  case "$last" in '' | *[!0-9]*) last=0 ;; esac
+  CLERK_LAST_READ='?'
+  knob="$(num_knob JOHARNESS_DEFECT_CLERK_HOURS)"
+  base_id="$(git -C "$ROOT" rev-parse --verify -q \
+    "refs/remotes/origin/${base_branch}^{commit}" </dev/null 2>/dev/null)"
+  [ -n "$base_id" ] || return 0
+  mh="$(git -C "$ROOT" log -1 --first-parent --merges -E \
+    --grep='^Merge pull request #[0-9]+ from [^/ ]+/clerk-[0-9]' \
+    --format=%H "$base_id" </dev/null 2>/dev/null)" || return 0
+  if [ -n "$mh" ]; then
+    rd="$(git -C "$ROOT" log --format=%at "${mh}^1..${mh}^2" </dev/null 2>/dev/null |
+      sort -n | head -1)"
+    # Unreadable = the merge itself: errs toward no early clerk.
+    [ -n "$rd" ] || rd="$(git -C "$ROOT" log -1 --format=%ct "$mh" </dev/null 2>/dev/null)"
+    case "$rd" in '' | *[!0-9]*) return 0 ;; esac
+    [ "$rd" -le "$last" ] || last="$rd"
+  fi
+  [ "$last" -eq 0 ] || last=$((last - knob * 3600))
+  CLERK_LAST_READ="$last"
 }
 
 # Issue numbers an `issue:` field names under one directory, one per line,
@@ -4428,6 +4449,49 @@ clerk_issue_line() {
   esac
 }
 
+# The issue trigger's wait in hours, 0 = off. Never below
+# JOHARNESS_DEFECT_CLERK_HOURS: the read is dated that far back, so a
+# shorter wait would let an issue the firing clerk read fire again.
+clerk_issue_wait() {
+  local w d
+  w="$(num_knob JOHARNESS_ISSUE_CLERK_HOURS)"
+  d="$(num_knob JOHARNESS_DEFECT_CLERK_HOURS)"
+  [ "$w" -eq 0 ] || [ "$d" -le "$w" ] || w="$d"
+  printf '%s' "$w"
+}
+
+# `last read :` and `issue wait:`, the issue trigger's git-side facts (the
+# orchestrator reads the issues: orchestrate-reference.md, Role sessions).
+# arg: `unreadable` = the cadence could not be read.
+clerk_read_lines() {
+  local lr iso w k noop
+  if [ "${1:-}" = unreadable ]; then
+    lr='?'
+  else
+    noop="$(clerk_noop)"
+    clerk_last_read "${noop%%$'\t'*}"
+    lr="$CLERK_LAST_READ"
+  fi
+  case "$lr" in
+    0) printf 'last read : none — no clerk has read the issues\n' ;;
+    '' | *[!0-9]*) printf 'last read : UNREADABLE — fire no clerk on a new issue this pass\n' ;;
+    *)
+      iso="$(date -u -d "@${lr}" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null ||
+        date -u -r "$lr" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null)"
+      printf 'last read : %s %s\n' "$lr" "$iso"
+      ;;
+  esac
+  w="$(clerk_issue_wait)"
+  k="$(num_knob JOHARNESS_ISSUE_CLERK_HOURS)"
+  if [ "$w" -eq 0 ]; then
+    printf 'issue wait: off (JOHARNESS_ISSUE_CLERK_HOURS=0)\n'
+  elif [ "$w" -ne "$k" ]; then
+    printf 'issue wait: %sh (JOHARNESS_ISSUE_CLERK_HOURS=%s, raised to JOHARNESS_DEFECT_CLERK_HOURS)\n' "$w" "$k"
+  else
+    printf 'issue wait: %sh (JOHARNESS_ISSUE_CLERK_HOURS)\n' "$w"
+  fi
+}
+
 cmd_clerk() {
   local hours batch due rows state why b w st n_inflight=0 n_ended
   [ "$#" -eq 0 ] || die "usage: $0 clerk"
@@ -4441,7 +4505,11 @@ cmd_clerk() {
   due="$CLERK_DUE"; rows="$CLERK_ROWS"
   state="${due%% *}"; why="${due#* }"
   case "$state" in
-    unreadable) printf 'cadence   : UNREADABLE — %s\n' "$why"; return 0 ;;
+    unreadable)
+      printf 'cadence   : UNREADABLE — %s\n' "$why"
+      clerk_read_lines unreadable
+      return 0
+      ;;
     off)        printf 'cadence   : off — %s\n' "$why" ;;
   esac
   while IFS=$'\t' read -r b w st; do
@@ -4467,6 +4535,7 @@ cmd_clerk() {
       printf 'ended     : holds nothing — no net change, and a no-op record landed at or after its tip\n'
     printf '            %s  %s  %s\n' "$b" "$w" "$st"
   done <<<"$rows"
+  clerk_read_lines
   printf '\n'
   printf 'planned   : %s\n' "$(clerk_issue_nums docs/plans all | clerk_issue_line)"
   printf '            (a plan'"'"'s issue: on %s or any unmerged branch)\n' "${HANDOVER_BASE_BRANCH:-main}"
@@ -8442,7 +8511,7 @@ cmd_dispatch() {
   local leftover_rows="" estate="" fleet_age stall_young=""
   local rel_stale rel_needs="" rel_line
   local scout_inflight="" n_scout=0 sstate sreason sb sw ss spend
-  local clerk_due=0 clerk_inflight="" n_clerk=0 kdue kstate kreason kb kw ks
+  local clerk_due=0 clerk_issue=0 clerk_inflight="" n_clerk=0 kdue kstate kreason kb kw ks
   local conduct_due=0 role_spawned=0 n_conduct=0 odue ostate oreason orate ob oa conduct_inflight=""
   local retro_due=0 n_retro=0 rtstate rtreason rtb rta retro_inflight="" conduct_spawned=0
   local fetch_failed=0
@@ -8540,6 +8609,8 @@ cmd_dispatch() {
       printf 'clerk     : DUE — %s\n' "$kreason"
     else
       printf 'clerk     : not due — %s\n' "$kreason"
+      # A new issue may call it early: the orchestrator reads the issues.
+      [ "$(clerk_issue_wait)" -eq 0 ] || clerk_issue=1
     fi
   fi
   # The third cycle, the same reader (scout_state) `scout` asks. No clock:
@@ -9421,6 +9492,14 @@ cmd_dispatch() {
     role_spawned=1
     printf '            clerk DUE%s: spawn ONE clerk (agent: sonnet) on /clerk — beyond the cap, holds no slot, at most one in flight. It turns open issues into plans and merges that plan-only pull request itself (JOHARNESS_CLERK_HOURS, JOHARNESS_CLERK_BATCH)\n' \
       "${CLERK_EARLY:+ (PARKED ${CLERK_EARLY} unplanned, JOHARNESS_DEFECT_CLERK_HOURS)}"
+  fi
+  # The clerk's own holds: a read the clerk could not act on is none.
+  if [ "$clerk_issue" -eq 1 ] && [ "$fetch_failed" -eq 1 ]; then
+    printf '            clerk issue read, held — no fresh view of every branch this pass (fetch failed, DISPATCH_FETCH=0, or a remote.origin.fetch that does not reach refs/heads/*), so a clerk in flight might not show: read none this pass\n'
+  elif [ "$clerk_issue" -eq 1 ] && [ "$cap" -eq 0 ]; then
+    printf '            clerk issue read, held — JOHARNESS_MAX_MANAGERS=0 is the human'"'"'s pause: read none this pass\n'
+  elif [ "$clerk_issue" -eq 1 ]; then
+    printf '            clerk issue read: the clerk is not due and none is in flight — read the open issues for one no clerk has read (orchestrate-reference.md, Role sessions, "A new issue needs the clerk"); an issue that fires = the clerk DUE row, one clerk (JOHARNESS_ISSUE_CLERK_HOURS)\n'
   fi
   # Not gated on DRAINED: sampling merged work competes with nothing.
   if [ "$conduct_due" -eq 1 ] && [ "$cap" -eq 0 ]; then

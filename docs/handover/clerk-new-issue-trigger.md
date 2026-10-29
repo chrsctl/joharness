@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK5uhS1o6RkivUJMsPa
 agent: opus
 updated: 2026-10-29
-next: Build clerk_last_read and the cmd_clerk lines
+next: Run the verifier at the tier ./joharness.sh review names, record findings, then finish clerk_last_read and the cmd_clerk lines
 ---
 
 ## Goal
@@ -20,6 +20,9 @@ orchestrator reads issues, `./joharness.sh clerk` supplies `last read` and
 ## Decisions
 
 - A1, A2, A4, A5: confirmed (plan-checker read the cited lines). A3: refuted as written — the computation lives in clerk_park_early; plan fixed.
+- clerk_last_read fails closed on a failed clerk-merge lookup (was: read as no landed clerk); the defect trigger's own comment says any failed read makes nothing due early.
+- Dispatch prints the `clerk issue read` tail line rather than the orchestrator inferring the holds: every other role is driven by a dispatch line.
+- Measured 2026-10-29: `bash .agents/harness/selftest.sh` 3938 passed, 0 failed; with origin/main's joharness.sh, 14 failed (the 13 new positive cases plus knobs-declared). `./joharness.sh ci`: ci: pass. `./joharness.sh verify`: first run 5 passed 1 failed (unnamed, output not kept, during provisioning), then 6 passed 0 failed twice on this branch and 6 passed 0 failed on origin/main. SHIPS reproduction (scratch repo, joharness.sh + conf only): `clerk | grep -cE` printed 2.
 
 ## Rejected
 

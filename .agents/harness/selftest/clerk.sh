@@ -105,6 +105,18 @@ expect "no retire commit is DUE" "cadence   : DUE" "$out"
 expect "measured from the repository's beginning" "since the repository began, no clerk having run" "$out"
 expect "an empty queue plans nothing" "planned   : none" "$out"
 expect "and claims nothing" "claimed   : none" "$out"
+# The issue trigger's git-side facts (plan clerk-new-issue-trigger).
+expect "no clerk ever: last read is none" "last read : none" "$out"
+expect "the issue wait is the knob's, 1h by default" "issue wait: 1h (JOHARNESS_ISSUE_CLERK_HOURS)" "$out"
+out="$(clerk_run JOHARNESS_ISSUE_CLERK_HOURS=0)"
+expect "JOHARNESS_ISSUE_CLERK_HOURS=0 switches the issue trigger off" "issue wait: off" "$out"
+out="$(clerk_run JOHARNESS_ISSUE_CLERK_HOURS=1 JOHARNESS_DEFECT_CLERK_HOURS=3)"
+expect "a wait below the defect knob is raised to it: the read is dated that far back" \
+  "issue wait: 3h (JOHARNESS_ISSUE_CLERK_HOURS=1, raised to JOHARNESS_DEFECT_CLERK_HOURS)" "$out"
+out="$(clerk_run HANDOVER_BASE_BRANCH=nope)"
+expect "an unreadable cadence still prints last read, UNREADABLE" "last read : UNREADABLE" "$out"
+expect "and the issue wait beside it" "issue wait: 1h" "$out"
+refute "and never none" "last read : none" "$out"
 out="$(clerk_run JOHARNESS_CLERK_BATCH=7)"
 expect "the batch knob is read" "at most 7 issue(s) a pass" "$out"
 
@@ -400,6 +412,7 @@ git -C "$clerk_work" push -qu origin main
 out="$(clerk_dsp)"
 expect "(e) no clerk ever: dispatch reads DUE from the beginning" \
   "since the repository began, no clerk having run" "$out"
+refute "(e) a due clerk prints no issue-read line" "clerk issue read" "$out"
 
 # (d) A pass with no plan pushes `clerk-noop-<UTC stamp>` at the base's head.
 # Dated by its NAME, not the commit (2026-01-01 here): a stamp 30h old is
@@ -438,6 +451,24 @@ expect "an older landing does not move the clock back past the no-op record" \
   "1h since the last clerk pass found nothing to plan" "$out"
 out="$(clerk_dsp)"
 expect "(f) dispatch reads the clerk not due" "clerk     : not due — " "$out"
+# Not due, none in flight: the orchestrator reads the issues, under the
+# clerk's own holds.
+expect "(f) and tells the orchestrator to read the issues" \
+  "clerk issue read: the clerk is not due and none is in flight" "$out"
+out="$(clerk_dsp JOHARNESS_ISSUE_CLERK_HOURS=0)"
+refute "(f) the issue trigger off prints no read line" "clerk issue read" "$out"
+out="$(clerk_dsp DISPATCH_FETCH=0)"
+expect "(f) a view of unknown age holds the read" "clerk issue read, held — no fresh view" "$out"
+out="$(clerk_dsp JOHARNESS_MAX_MANAGERS=0)"
+expect "(f) the human's pause holds the read" \
+  "clerk issue read, held — JOHARNESS_MAX_MANAGERS=0 is the human's pause" "$out"
+# The no-op record (1h old) is newer than the landing: its stamp, less the
+# defect knob, dates the read.
+out="$(clerk_run)"
+expect "(f) a no-op record dates the read: its stamp less JOHARNESS_DEFECT_CLERK_HOURS" \
+  "last read : $((clerk_now - 7200)) " "$out"
+out="$(clerk_run JOHARNESS_DEFECT_CLERK_HOURS=0)"
+expect "(f) knob 0: the stamp itself" "last read : $((clerk_now - 3600)) " "$out"
 
 # (h) A clerk in flight while the clock reads NOT due is still in flight.
 clerk_branch clerk-2026-02-05-b notes-b.txt "$(clerk_ago 0)"
@@ -446,6 +477,7 @@ expect "(h) a clerk in flight under a not-due clock is counted" \
   "clerk     : IN FLIGHT, so none is due. Clock: not-due" "$out"
 expect "(h) it takes no manager slot" "slots     : 4 of 4 free" "$out"
 expect "(h) and holds no scout: the scout row is free" "scout     : none in flight" "$out"
+refute "(h) a clerk in flight prints no issue-read line" "clerk issue read" "$out"
 
 # A landing NEWER than the no-op record dates the clock (verifier r7).
 GIT_COMMITTER_DATE="$(clerk_ago 0)" GIT_AUTHOR_DATE="$(clerk_ago 0)" \
@@ -455,6 +487,14 @@ git -C "$clerk_work" push -q origin main
 out="$(clerk_run)"
 expect "a landing newer than the no-op record dates the clock" \
   "0h since the last clerk landed (clerk-2026-02-05-b, #4)" "$out"
+# And the read: the branch's first commit (author time), less the knob.
+clerk_rd="$(git -C "$clerk_work" log -1 --format=%at clerk-2026-02-05-b)"
+clerk_iso="$(TZ=UTC git -C "$clerk_work" log -1 --date=format-local:%Y-%m-%dT%H:%M:%SZ \
+  --format=%ad clerk-2026-02-05-b)"
+expect "a landed clerk dates the read by its first commit less the defect knob" \
+  "last read : $((clerk_rd - 3600)) " "$out"
+out="$(clerk_run JOHARNESS_DEFECT_CLERK_HOURS=0)"
+expect "knob 0: its first commit, with the UTC ISO time" "last read : ${clerk_rd} ${clerk_iso}" "$out"
 
 # --- the plan's issue: is linted --------------------------------------------
 # Through the graph-lint topic's own fixture and helpers (listed just before
