@@ -35,12 +35,14 @@ sibling's worktree admin directory while the sibling is still inside
   — confidence: high
 - A2: `c2_cleanup` runs `git worktree prune` on the shared repo —
   evidence: `.agents/scripts/c2-run.sh:c2_cleanup` — confidence: high
-- A3: the prune is what removes a sibling's half-made worktree entry (an admin
-  dir whose `gitdir` file is not written yet counts as stale) — evidence:
-  issue #687's failure text matches; not reproduced by the clerk —
-  confidence: medium. Step one for the builder: reproduce (loop the topic or
-  a tight add/prune pair) before changing code; if prune is not the cause,
-  stop and report.
+- A3: a sibling's `git worktree prune` deletes another run's admin dir during
+  `git worktree add` — evidence: issue #687's error text; the verifier
+  reproduced that exact `could not open '.git/worktrees/a/gitdir'` error at
+  the git level (add loop against a prune loop, 1 to 13 failures in 200
+  tries). `add` writes `locked` right after `mkdir` and `gitdir` later, so the
+  window is between `mkdir` and the `locked` write, or between prune's
+  `locked` and `gitdir` checks. Not reproduced at the topic level —
+  confidence: medium
 - A4: the existing case "no worktree outlives a run" still passes without the
   prune — evidence: `.agents/harness/selftest/c2-run.sh` (`worktrees 1`
   check) — confidence: medium
@@ -53,18 +55,18 @@ sibling's worktree admin directory while the sibling is still inside
 
 ## Acceptance
 
-- Reproducer, before the change: from a fixture repo, running one loop of
-  `git worktree add -q --detach <tmp>/a HEAD` against a loop of
-  `git worktree prune` fails at least once in 200 tries; after the change the
-  script under test never calls prune, so `grep -c 'worktree prune'
-  .agents/scripts/c2-run.sh` prints `0`.
-- `bash .agents/harness/selftest/c2-run.sh` style run via
-  `./joharness.sh ci` — `ci: pass`, and the topic's "no worktree outlives a
-  run" case still passes.
-- Ten consecutive `./joharness.sh ci` runs all print `ci: pass`.
-- A selftest case in `.agents/harness/selftest/c2-run.sh` asserting
-  `grep -c 'worktree prune' .agents/scripts/c2-run.sh` is `0`; it FAILS on
-  `origin/main`.
+- New selftest case in `.agents/harness/selftest/c2-run.sh`: before the
+  `xargs` launch, plant `"$c2r_fx/.git/worktrees/planted/"` (a directory with
+  no `gitdir` and no `locked` file) in `c2r_fx`; after the runs, assert it
+  still exists: `expect "c2-run: a run's cleanup leaves a sibling's worktree
+  entry alone" "planted kept" "planted $( [ -d ... ] && echo kept || echo
+  gone )"`. It must FAIL on `origin/main` (today's prune deletes the planted
+  dir: `git worktree prune -v` prints `Removing worktrees/planted: gitdir
+  file does not exist`) and pass after the change.
+- `./joharness.sh ci` — `ci: pass`, including the existing case "c2-run: no
+  worktree outlives a run" (`worktrees 1`).
+- No comment or spelling variant is needed to pass: the test asserts behaviour,
+  not a grep of the source.
 
 ## Escape
 
@@ -73,7 +75,7 @@ Answer in the pull request body, each with its command:
 1. Entry — `git log -S'worktree prune' --oneline -- .agents/scripts/c2-run.sh`.
 2. Gate — the c2-run selftest passed on most runs; the race needs a sibling
    to prune inside another's `worktree add`, so a single green run proves
-   nothing. The new grep case pins the cause.
+   nothing. The planted-entry case pins the cause.
 3. Route — fixed in this PR; the gate is this repo's own.
 
 ## Where to look
@@ -86,3 +88,9 @@ Answer in the pull request body, each with its command:
 
 - Do not skip, disable or quarantine a test to get green.
 - Keep the diff to the two scoped files; no other plan names them.
+- Do not pin the fix with a grep of `c2-run.sh` for `worktree prune`: it
+  passes under a respelling and fails on an explanatory comment.
+- Second possible prune path: `git commit` inside a worktree can trigger
+  `gc --auto` (runs `worktree prune --expire`); unlikely at the fixture's
+  size. If the planted-dir case passes yet #687 recurs, that is the next
+  suspect (see Out of scope).
