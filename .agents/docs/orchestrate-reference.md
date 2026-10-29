@@ -335,8 +335,9 @@ no handover, and no handover is no replace. Why:
   (dispatch's header block says), `create_session` as § Create session,
   prompt =
   the command + the lines its row names (clerk and retro, either mode: "the role lines";
-  scout, surveyor: "the standard lines" — they claim by workstream
-  file):
+  surveyor: "the standard lines" — it claims by workstream file; scout:
+  none, `/scout` alone — any text after it is a seed (`scout.md`), and its
+  prelude claims):
 
   | line | model (Lineup) | title | prompt | ledger |
   | --- | --- | --- | --- | --- |
