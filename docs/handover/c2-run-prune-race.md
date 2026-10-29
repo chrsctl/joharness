@@ -23,6 +23,11 @@ prune each other's worktree admin dirs.
 - A3: confirmed as plan states (medium; not reproduced at topic level).
 - A4: confirmed — ci: pass with the existing worktrees 1 case.
 
+## Review
+
+- r1: clean pass; new case fails with prune restored (planted gone), passes without (verifier) (no change)
+- r2: orphan admin dir if add dies before workdir exists, nothing prunes it; plan accepts trade-off (verifier) (wontfix: plan accepts; leak not break)
+
 ## Blockers
 
 None.
