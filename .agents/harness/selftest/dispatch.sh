@@ -774,6 +774,36 @@ refute "a merged branch drops out entirely" "mgr-eta" "$out"
 expect "and gives its slot back" "slots     : 4 of 8 free" "$out"
 refute "its item leaves the queue with it" "docs/plans/eta.md" "$out"
 
+# The same edge on a human/<stem> branch: its pull request is a human's to
+# merge (manage.md §2), so no manager is left to hold a slot for. Counting it
+# showed "0 of 4 free" over three managers on chrsctl/gx (2026-10-28), with
+# a STALL? on a branch whose next step was a human's click.
+dspplan omicron
+dsppush "a plan whose remainder goes to a human"
+git -C "$dspwork" checkout -qb human/omicron
+printf -- '---\nworkstream: omicron\nstatus: review\nbranch: human/omicron\nplan: omicron\nsession: https://example.invalid/session_omicron\nagent: sonnet\nupdated: 2026-01-04\nnext: Open the pull request\n---\n\n## Goal\nFixture.\n' \
+  >"${dspwork}/docs/handover/omicron.md"
+commit_all "$dspwork" "claim omicron"
+fixture_rm "$dspwork" "retire the workstream file and the done plan (step 7)" \
+  docs/handover/omicron.md docs/plans/omicron.md
+git -C "$dspwork" push -qu origin human/omicron
+git -C "$dspwork" checkout -q main
+out="$(dsp env JOHARNESS_MAX_MANAGERS=8 JOHARNESS_STALL_MINUTES=0)"
+expect "a retired human/ branch still has its row" \
+  "docs/plans/omicron.md  human/omicron  retired  pushed" "$out"
+expect "which says it waits on a human and holds no slot" \
+  "a human/ branch: a human merges its pull request, so it holds NO slot" "$out"
+expect "so the slot is free" "slots     : 4 of 8 free" "$out"
+refute "its item is still not offered" "  docs/plans/omicron.md (agent" "$out"
+refute "and push age raises no STALL? on it" "STALL? no push" \
+  "$(printf '%s\n' "$out" | grep -A1 'human/omicron')"
+expect "the verdict names it as not counted" \
+  "1 human/ branch(es) at the edge waiting on a human merge: NOT counted, never respawned" "$out"
+git -C "$dspwork" merge -q --no-ff -m "merge omicron" human/omicron
+git -C "$dspwork" push -q origin main
+out="$(dsp env JOHARNESS_MAX_MANAGERS=8)"
+refute "merged, the human/ branch drops out" "human/omicron" "$out"
+
 # The other half of the ritual, and the one a net diff CAN see on the
 # handover side: a workstream file the branch INHERITED and swept, no queue
 # item finished with it. Same slot, and the row says the item is unknown
