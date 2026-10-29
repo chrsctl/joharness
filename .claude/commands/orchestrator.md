@@ -258,8 +258,8 @@ first pass that arms `retire=yes` → ref § RETIRE.
 
 RUN END. A pass that ends at DRAINED, PAUSED or DEFECT-BOUND arms nothing. Ends = the
 verdict `DRAINED — nothing free, nothing in flight: exit`, `PAUSED — …
-spawn nothing, exit` or `DEFECT-BOUND — … spawn no manager, exit`; any
-other DRAINED, PAUSED or DEFECT-BOUND verdict is no end. Its last act,
+spawn nothing, exit` or `DEFECT-BOUND — … spawn no manager, exit`; any other DRAINED or PAUSED verdict is no end, nor any other
+DEFECT-BOUND one. Its last act,
 after the final report: `set_session_title` yours to `💤 orchestrator
 (retired): <owner/repo>`, so the session list reads it as done and a wake
 that still fires does nothing (Pass entry, Retired). The same last act

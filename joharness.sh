@@ -9722,6 +9722,12 @@ cmd_dispatch() {
       printf '; %s spawned this pass has not pushed (JOHARNESS_PENDING_SPAWNS): keep the health pass going\n' "$pending"
     elif [ "$clerk_due" -eq 1 ] && [ "$fetch_failed" -eq 0 ]; then
       printf '; a role is due: spawn it, then schedule the next pass\n'
+    elif [ -n "$release_due" ]; then
+      # The DRAINED branch's own reasons not to exit, in its order.
+      printf '; a release is due (release DUE below): release, then schedule the next pass\n'
+    elif [ "$n_edge_aged" -gt 0 ]; then
+      printf '; %s aged edge: look up its pull request first (GitHub MCP), then keep the health pass going\n' \
+        "$n_edge_aged"
     else
       printf ', exit; the heartbeat re-seeds\n'
     fi

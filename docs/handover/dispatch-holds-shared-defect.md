@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK5sbgbhefzA9MHbwCu
 agent: opus
 updated: 2026-10-29
-next: Write orchestrator.md (HOLD row, DEFECT-BOUND at RUN END) and orchestrated.md why, then ci and verify
+next: Run ci and verify (paired verify on origin/main if red outside the diff), then finish
 ---
 
 ## Goal
@@ -36,6 +36,12 @@ issue.
   exit, so orchestrator.md RUN END names it.
 
 ## Review
+
+- r1: (plan-checker) none ran: it is spawned before the first worker, and this build ran no worker (no change)
+- r2: (verifier) RUN END rewrite dropped the phrase `any other DRAINED or PAUSED verdict is no end` that orchestrated.sh pins: ci red (fixed: phrase kept, DEFECT-BOUND added after it)
+- r3: (verifier) DEFECT-BOUND said exit beside an aged edge or a due release, which the DRAINED branch never exits on (fixed: same two checks in its order; selftest case for the aged edge)
+- r4: (verifier) workstream next: not updated in the docs commit (fixed: updated here)
+- r5: (verifier) verify red here: docker could not pull alpine:3, the diff touches nothing under .agents/env (no change: paired run on origin/main recorded under Blockers)
 
 ## Blockers
 

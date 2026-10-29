@@ -992,6 +992,22 @@ expect "the verdict names the issue and spawns no manager" \
 expect "a hold is never a slot: the item stays queued" \
   "1 item(s) on HOLD behind a red base (#41 (2 parked)): not counted as free, still queued" "$out"
 refute "and never a surveyor" "OVERLAP-BOUND" "$out"
+expect "nothing in flight, nothing due: the hold exits" \
+  "no plan names it: spawn no manager, exit; the heartbeat re-seeds" "$out"
+# An aged edge beside the hold: its pull request is unread, so no exit.
+git -C "$dfwork" checkout -qb dh-edge main
+git -C "$dfwork" rm -q docs/plans/dh-free.md
+dfcommit 10 "retire dh-free"
+git -C "$dfwork" push -qu origin dh-edge
+git -C "$dfwork" checkout -q main
+dfplan dh-free2 none
+dfpush 1 "dh-free2"
+out="$(dfx env JOHARNESS_DEFECT_RECHECK_HOURS=0)"
+expect "an aged edge beside the hold: no exit, its pull request first" \
+  "spawn no manager; 1 aged edge: look up its pull request first" "$out"
+git -C "$dfwork" push -q origin --delete dh-edge
+git -C "$dfwork" branch -qD dh-edge
+git -C "$dfwork" update-ref -d refs/remotes/origin/dh-edge
 # A plan naming #41 on a live branch lifts it; so does one on the base.
 git -C "$dfwork" checkout -qb dh-clerk main
 dfplan fix41 41
@@ -1006,6 +1022,6 @@ git -C "$dfwork" update-ref -d refs/remotes/origin/dh-clerk
 dfplan fix41 41
 dfpush 1 "fix41 on the base"
 out="$(dfx)"
-expect "a base plan naming #41: the item spawns" \
-  "verdict   : NOT DRAINED — 2 free item(s) now" "$out"
+expect "a base plan naming #41: the items spawn" \
+  "verdict   : NOT DRAINED — 3 free item(s) now" "$out"
 refute "and no hold" "red base" "$out"
