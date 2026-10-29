@@ -4325,8 +4325,8 @@ clerk_yield() {
 # and STUCK already reach the human, RESUME and RECHECK are dispatch's.
 # Planned = what the clerk itself skips as planned (clerk_issue_nums all).
 # Fails closed: any read that fails makes nothing due early.
-# args: <newest no-op record time, unix; empty = none> [any: a planned issue
-# counts too — the twin check, whose own plan names it]. Sets CLERK_EARLY
+# args: <newest no-op record time, unix; empty = none> [<branch>: its own
+# plans count as unplanned — the twin check, whose own plan names it]. Sets CLERK_EARLY
 # (`#<n>`, the oldest such park), CLERK_EARLY_WHY and CLERK_EARLY_AGE (its
 # minutes since the first park), or leaves all three empty.
 CLERK_EARLY=""
@@ -4334,7 +4334,7 @@ CLERK_EARLY_WHY=""
 CLERK_EARLY_AGE=""
 clerk_park_early() {
   local last="${1:-0}" knob base_branch="${HANDOVER_BASE_BRANCH:-main}" base_id
-  local refs=() r out rc hit ref ws doc st nx planned="" b now any="${2:-}"
+  local refs=() r out rc hit ref ws doc st nx planned="" b now own="${2:-}"
   local dst dn dplan dage best="" bage=-1 seen=" "
   case "$last" in '' | *[!0-9]*) last=0 ;; esac
   CLERK_EARLY=""; CLERK_EARLY_WHY=""; CLERK_EARLY_AGE=""
@@ -4383,12 +4383,10 @@ clerk_park_early() {
     # A clerk that read the issues after the first park had its chance: the
     # cadence and PARKED UNPLANNED take it from there.
     [ $((now - (dage + 1) * 60)) -gt "$last" ] || continue
-    if [ "$any" != any ]; then
-      if [ -z "$planned" ]; then
-        planned=" $(clerk_issue_nums docs/plans all | tr '\n' ' ')"
-      fi
-      case "$planned" in *'?'*) return 0 ;; *" ${dn} "*) continue ;; esac
+    if [ -z "$planned" ]; then
+      planned=" $(CLERK_ISSUE_SKIP="$own" clerk_issue_nums docs/plans all | tr '\n' ' ')"
     fi
+    case "$planned" in *'?'*) return 0 ;; *" ${dn} "*) continue ;; esac
     case "$seen" in *" ${dn} "*) ;; *) seen="${seen}${dn} " ;; esac
     if [ "$dage" -gt "$bage" ]; then best="$dn"; bage="$dage"; fi
   done <<<"$out"
@@ -4435,7 +4433,8 @@ clerk_last_read() {
 }
 
 # Issue numbers an `issue:` field names under one directory, one per line,
-# sorted, valid ones only (issue_verdict).
+# sorted, valid ones only (issue_verdict). CLERK_ISSUE_SKIP=<branch>: `all`
+# reads every unmerged branch but that one.
 clerk_issue_nums() {
   local dir="$1" scope="$2" base_branch="${HANDOVER_BASE_BRANCH:-main}"
   local ids=() id r out rc line v
@@ -4450,6 +4449,7 @@ clerk_issue_nums() {
     while IFS=$'\t' read -r r line; do
       case "$line" in
         '' | refs/remotes/origin/HEAD | "refs/remotes/origin/${base_branch}") continue ;;
+        "refs/remotes/origin/${CLERK_ISSUE_SKIP:-/}") continue ;;
       esac
       case " ${ids[*]} " in *" ${r} "*) ;; *) ids+=("$r") ;; esac
     done < <(git -C "$ROOT" for-each-ref --no-merged="$id" \
@@ -5776,13 +5776,14 @@ role_twin_run() {
 
 # <cur> <rows> — the clerk rows a twin check weighs. A park-called clerk
 # (clerk_yield) plans the issue, so the early due ends and the clerk it
-# yielded to reads in flight again. The same park read, planned or not
-# (clerk_park_early any): the ONE other row whose tip predates that park is
-# no twin. No park, two such rows, or a read that fails: every row counts.
+# yielded to reads in flight again. The yield's own park read, this branch's
+# plans not counted (clerk_park_early <cur>): the ONE other row whose tip
+# predates that park is no twin. No park, two such rows, or a read that
+# fails: every row counts.
 clerk_twin_rows() {
   local cur="$1" rows="$2" noop now park r ct n=0 drop=""
   noop="$(clerk_noop)"
-  clerk_park_early "${noop%%$'\t'*}" any
+  clerk_park_early "${noop%%$'\t'*}" "$cur"
   case "$CLERK_EARLY_AGE" in
     '' | *[!0-9]*) printf '%s\n' "$rows"; return 0 ;;
   esac
@@ -9771,7 +9772,7 @@ cmd_dispatch() {
   elif [ "$clerk_due" -eq 1 ]; then
     role_spawned=1
     printf '            clerk DUE%s: spawn ONE clerk (agent: sonnet) on /clerk — beyond the cap, holds no slot, at most one in flight (a yielded one aside). It turns open issues into plans and merges that plan-only pull request itself (JOHARNESS_CLERK_HOURS, JOHARNESS_CLERK_BATCH)\n' \
-      "${CLERK_EARLY:+ (PARKED ${CLERK_EARLY} unplanned, JOHARNESS_DEFECT_CLERK_HOURS)}"
+      "$(case "$kreason" in PARKED*) printf ' (PARKED %s unplanned, JOHARNESS_DEFECT_CLERK_HOURS)' "$CLERK_EARLY" ;; esac)"
   fi
   # The clerk's own holds: a read the clerk could not act on is none.
   if [ "$clerk_issue" -eq 1 ] && [ "$fetch_failed" -eq 1 ]; then

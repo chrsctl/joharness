@@ -7,7 +7,7 @@ needs: none
 requirement: none
 serves: all
 issue: none
-scope: joharness.sh, .claude/commands/clerk.md, .agents/docs/orchestrated.md, .agents/docs/orchestrator-reference.md, .agents/harness/selftest/dispatch-park.sh
+scope: joharness.sh, .claude/commands/clerk.md, .claude/commands/orchestrator.md, .agents/docs/orchestrated.md, .agents/docs/orchestrator-reference.md, .agents/harness/selftest/dispatch-park.sh
 ---
 
 ## Goal

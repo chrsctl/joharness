@@ -818,6 +818,32 @@ expect "JOHARNESS_DEFECT_CLERK_HOURS=0: the twin rule as before" "STOP: TWIN cle
 git -C "$ckwork" checkout -q main
 ckgone clerk-20260109
 ckgone clerk-20260107
+# Two parks: #31 planned on a live branch, #32 not. The yield reads #32's
+# park, and so does the park-called clerk's twin check.
+git -C "$ckwork" checkout -qb plan-31b main
+ckplan fix31c 31
+ckcommit 1 "a plan naming #31"
+git -C "$ckwork" push -qu origin plan-31b
+git -C "$ckwork" checkout -q main
+cksha2="$(git -C "$ckwork" rev-parse main)"
+ckplan own-t none
+ckcommit 3 "own-t"
+git -C "$ckwork" push -q origin main
+ckpark park-t own-t 'defect: #32: the lint breaks' 1
+ckfly clerk-20260111 5400
+out="$(ckc)"
+expect "two parks: the clerk yields on the unplanned one" \
+  "yielded   : holds nothing — its tip predates the first park on #32" "$out"
+git -C "$ckwork" checkout -qb clerk-20260112 main
+ckplan fix32 32
+git -C "$ckwork" add -A; git -C "$ckwork" commit -qm "park-called clerk plans #32"
+git -C "$ckwork" push -qu origin clerk-20260112
+out="$( cd "$ckwork" && JOHARNESS_CONF="$ckconf" ./joharness.sh role clerk --twin 2>&1 )"
+expect "its twin check reads the same park: GO" "GO clerk-20260112" "$out"
+git -C "$ckwork" checkout -q main
+for b in clerk-20260112 clerk-20260111 park-t plan-31b; do ckgone "$b"; done
+git -C "$ckwork" reset -q --hard "$cksha2"
+git -C "$ckorigin" update-ref refs/heads/main "$cksha2"
 
 # A clerk landed after the first park had its chance: the cadence again. The
 # landing is undone after, on the fixture's own origin.

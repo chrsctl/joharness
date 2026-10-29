@@ -45,7 +45,8 @@ commit `649b832` — docs only, no text reproduced (`.agents/NOTICE`).
 | retro (trace) | sonnet | a session on `retro DUE`, or on the human's order (`--ordered`), beyond the cap; prelude `./joharness.sh role retro` | nothing (it files plans, fixes nothing) | one pull request: ledger rows in `docs/retro-log.md` and new plans for mechanisms, no workstream file; never a rule-only fix | its pull request merges, or `TWIN: deferred` |
 
 `JOHARNESS_MAX_MANAGERS` caps managers only; every role session runs beyond
-the cap, one of each in flight, a blocked one included (`orchestrator.md` §3).
+the cap, one of each in flight, a blocked one included (`orchestrator.md` §3);
+one exception, a clerk `yielded` to a parked defect (The one stop).
 
 ### The role prelude is a command
 

@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK3HUXzoWdaRTTWngzF
 agent: opus
 updated: 2026-10-29
-next: Rerun ci and verify (verify red on Docker Hub 429), then finish
+next: Rerun ci (verify green 6/0 at 365fb14f), then retire and finish
 ---
 
 ## Goal
@@ -37,7 +37,7 @@ first park, dispatch prints the clerk DUE row anyway (at most two clerks).
 - r5: (plan-checker) at-most-one texts in orchestrator-reference.md, orchestrated.md roles row, dispatch tail row (fixed: each names the yielded exception; scope widened)
 - r6: (plan-checker) selftest file not in scope (fixed: dispatch-park.sh added to scope)
 - r7: (plan-checker) overlap with dispatch-holds-shared-defect in cmd_dispatch (no change: different lines, git merges it)
-- r8: (plan-checker) acceptance 1 not a command (no change: the cases sit in dispatch-park.sh; 7 fail with joharness.sh reverted, 181 pass with it)
+- r8: (plan-checker) acceptance 1 not a command (no change: the cases sit in dispatch-park.sh; topic dispatch-park alone, 2026-10-29 20:36Z: 176 passed, 11 failed with joharness.sh from 670e1708; 187 passed, 0 failed at head)
 - r9: (plan-checker) acceptance 2 consumer checkout not runnable here (no change: the fixture is a consumer-shaped checkout; dispatch prints `clerk     : DUE`)
 - r10: (plan-checker) acceptance 3/4 give pass output only (no change: the counts are read)
 - r11: (plan-checker) A1 wording partly wrong (fixed: recorded corrected in Decisions)
@@ -55,6 +55,12 @@ first park, dispatch prints the clerk DUE row anyway (at most two clerks).
 - r23: (verifier) hand-started audit no longer held by a yielded clerk (wontfix: dispatch still suppresses through role_spawned; a yielded clerk holds nothing by design)
 - r24: (verifier) orchestrated.md dated incident story and history wording (fixed: status-quo wording, marked not re-taken)
 - r25: shellcheck SC2015 on clerk_twin_rows skip line (fixed: if-then)
+- r26: (verifier) shellcheck SC2015 at clerk_twin_rows, ci red (fixed: r25, same line)
+- r27: (verifier) twin check read the oldest park planned or not, the yield the oldest unplanned: two parks, the park-called clerk STOPs TWIN (fixed: clerk_park_early <cur> skips only this branch's plans, CLERK_ISSUE_SKIP in clerk_issue_nums; two-parks selftest case; the old read fails 2)
+- r28: (verifier) orchestrated.md roles line, orchestrator.md §3, orchestrator-reference.md per-run rule still say one clerk (fixed: each names the yielded exception; orchestrator.md added to scope)
+- r29: (verifier) r8 counts stale (fixed: re-measured, written with command and time)
+- r30: (verifier) tail spawn row names a park when the cadence made the clerk due (fixed: label only when the status reason opens PARKED)
+- r31: (verifier) cadence-due yield is excess against the plan (no change: the plan's Goal case, a clerk that never lands, keeps the cadence due; r18)
 
 ## Blockers
 

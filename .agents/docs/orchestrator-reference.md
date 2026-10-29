@@ -335,8 +335,9 @@ no handover, and no handover is no replace. Why:
 ## Role sessions
 
 - At most ONE of each per run and none while one is in flight
-  (dispatch's header block says; a clerk row `yielded` is not in flight:
-  `orchestrated.md`, The one stop), `create_session` as § Create session,
+  (dispatch's header block says; a clerk row `yielded` is not in flight,
+  and a clerk DUE beside it is one more this run: `orchestrated.md`, The
+  one stop), `create_session` as § Create session,
   prompt =
   the command + the lines its row names (clerk and retro, either mode: "the role lines";
   surveyor: "the standard lines" — it claims by workstream file; scout:
