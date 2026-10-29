@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK6feckvXP4AdjUBvJZ
 agent: opus
 updated: 2026-10-29
-next: Add the one-role-per-session rule to the Loop, orchestrate.md Never and subagents.md Never
+next: Run ci, verify, finish; open the PR and merge it
 ---
 
 ## Goal
@@ -27,11 +27,18 @@ session for that role.
 
 ## Rejected
 
-- None yet.
+- A mechanism (`role <name>` refusing inside an orchestrator session): no
+  command can tell which role a turn plays; follow-up candidate, not this lane.
 
 ## Review
 
-- None yet.
+- r1: rule is prose only; gx broke a rule that already said spawn (ref § Role sessions) — wontfix: no command can see the session's role; mechanism is a follow-up plan
+- r2: (verifier) spawn prompt named the workstream file beyond tier, branch, base, stem — no change: one parenthetical, prompt discipline noted
+- r3: (verifier) "never a subagent of another role's session" forbade a manager's workers and the verifier (fixed in subagents.md)
+- r4: (verifier) Loop line listed "a fix" as another role's work, forbidding a builder's own review fix (fixed in .agents/harness/AGENTS.md)
+- r5: (verifier) workstream `next:` named finished work (fixed in docs/handover/role-in-new-session.md)
+- r6: (verifier) no acceptance check for the Goal — wontfix: same as r1
+- r7: (verifier) `agent: opus` vs haiku review tier — no change: fast lane reviews at haiku whatever `agent:` says
 
 ## Blockers
 
