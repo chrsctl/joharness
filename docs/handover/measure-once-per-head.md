@@ -22,6 +22,8 @@ Plan `docs/plans/measure-once-per-head.md`: attribute reds outside the diff by o
 
 ## Review
 
+- r1: clean pass, verifier at sonnet found no defect; edge review clean (verifier) (no change)
+
 ## Blockers
 
 None.
