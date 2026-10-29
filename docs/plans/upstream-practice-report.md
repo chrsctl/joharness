@@ -117,6 +117,10 @@ harness. It files the same thing edge mode files: one research node.
   SKIPPED` note counts: this plan edits no shell). Anything else = not
   done.
 - `./joharness.sh verify` — `0 failed`. Anything else = not done.
+- Consumer-side (SHIPS; run in a consumer after its next sync, not a
+  gate on this pull request): `grep -c '^## 3\. Practice mode'
+  .claude/commands/upstream-report.md` — `1`, and its `./joharness.sh ci`
+  prints a line starting `ci: pass`.
 
 ## Where to look
 
