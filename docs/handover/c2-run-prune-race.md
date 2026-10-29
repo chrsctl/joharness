@@ -8,7 +8,7 @@ issue: 687
 session: https://claude.ai/code/session_01J1YMK68B2FzdJmugJTTtFh
 agent: sonnet
 updated: 2026-10-29
-next: Drop worktree prune from c2_cleanup, add planted-entry selftest case, run ci
+next: Record verifier findings in ## Review, then finish (retire commit, PR, merge)
 ---
 
 ## Goal
@@ -21,7 +21,7 @@ prune each other's worktree admin dirs.
 - A1: confirmed — selftest xargs -P 4 runs against one `c2r_fx`.
 - A2: confirmed — `c2_cleanup` ends with `git worktree prune`.
 - A3: confirmed as plan states (medium; not reproduced at topic level).
-- A4: to confirm by ci run.
+- A4: confirmed — ci: pass with the existing worktrees 1 case.
 
 ## Blockers
 

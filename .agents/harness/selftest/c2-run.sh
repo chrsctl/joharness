@@ -113,6 +113,8 @@ git -C "$ROOT" ls-files -z -- . ':(exclude).agents/harness/selftest/' |
 ) >"${c2r_out}/build.log" 2>&1
 c2r_built=$?
 
+mkdir -p "$c2r_fx/.git/worktrees/planted"
+
 # Four at a time, each bounded.
 # shellcheck disable=SC2086  # the stem list, one name a word
 printf '%s\n' $c2r_stems absent |
@@ -148,6 +150,8 @@ c2r_line "c2-run: an old case skipping both ways is no unread" oldskip "NO FLIP"
 expect "c2-run: a retire committed onto main has no main merge" "[NO EVIDENCE: no main merge holds " \
   "[$(tail -1 "${c2r_out}/direct.out" 2>/dev/null)]"
 c2r_line "c2-run: a tree with no topic directory is no evidence" notopics "NO EVIDENCE: lists"
+expect "c2-run: a run's cleanup leaves a sibling's worktree entry alone" "planted kept" \
+  "planted $([ -d "$c2r_fx/.git/worktrees/planted" ] && echo kept || echo gone)"
 expect "c2-run: no worktree outlives a run" "worktrees 1" \
   "worktrees $(git -C "$c2r_fx" worktree list | wc -l | tr -d ' ')"
 refute "c2-run: the runner prints no diff body" "@@ " "$(cat "${c2r_out}"/*.out)"
