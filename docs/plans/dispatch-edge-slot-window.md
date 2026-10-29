@@ -30,16 +30,19 @@ stops holding a slot.
   NOT increment `n_inflight` or `n_edge`; it increments a new `n_edge_aged`
   and its row says: `retired, no claim file, no push for <age> (>= <h>h
   JOHARNESS_EDGE_SLOT_HOURS): holds NO slot — dispatch cannot see whether a
-  pull request exists; the health pass looks it up (open = merging, none =
-  report to the human). Its items stay withheld, never respawn blind`. Unknown
+  pull request exists; look its pull request up (open = merging; none = the
+  health table's edge rows decide, by title). Its items stay withheld, never
+  respawn blind`. Unknown
   age keeps holding a slot (cannot prove it old). The verdict section prints
   one line for `n_edge_aged > 0`, next to the `n_edge` line. The STALL? line
   does NOT run for aged rows (they are neither counted in `n_stall` nor in
   `n_inflight`, so the stopped-fleet test `n_stall == n_inflight - n_blocked`
-  stays true to its meaning). No `verdict   : DRAINED` line fires while an aged
-  edge exists: a new `NOT DRAINED — … aged edge: look up its pull request
-  first` branch ahead of every DRAINED printf (the `n_inflight - n_blocked`
-  test and the exit lines below it).
+  stays true to its meaning). The exit verdict (`DRAINED — nothing free,
+  nothing in flight: exit`) never fires while an aged edge exists: a `NOT
+  DRAINED — … aged edge: look up its pull request first` branch takes its
+  place; the in-flight, pending, role-due and release-due verdicts stay.
+  An edge naming no item never ages: its STALL? REPORT and leftover cut-off
+  already handle it.
 - `joharness.sh` — add a `KNOBS` row for `JOHARNESS_EDGE_SLOT_HOURS`.
 - `.agents/docs/orchestrated.md` — add its row to the knob table, beside
   `JOHARNESS_STALL_MINUTES`.
@@ -58,7 +61,7 @@ stops holding a slot.
 - `.agents/docs/orchestrator-reference.md` — one sentence near the
   `retired, no claim file` HELD BY HUMAN paragraph: an aged edge row holds no
   slot; the orchestrator looks the pull request up (GitHub MCP) and either
-  confirms it is merging or reports it to the human.
+  confirms it is merging or, none open, lets the health table's edge rows decide.
 
 ## Assumptions
 
@@ -80,9 +83,9 @@ stops holding a slot.
 ## Acceptance
 
 - `./joharness.sh ci` — `ci: pass`.
-- `./joharness.sh verify` — 0 failed, including the dispatch selftest's new aged and `=0` cases and `knobs-declared` (never run `selftest/dispatch.sh` alone: not runnable alone, it writes at `/`).
+- `./joharness.sh ci` — the dispatch selftest's new aged and `=0` cases and `knobs-declared` pass (`ci` runs the selftest; `verify` runs the layer's smoke only) (never run `selftest/dispatch.sh` alone: not runnable alone, it writes at `/`).
 - `./joharness.sh ci` — ship-scope names this plan as SHIPS to consumers: the same `verify` is the check a consumer runs after sync.
-- A dispatch fixture of its own holding only an aged edge (the shared one always has an item free or a manager in flight): `verify` red if its verdict reads `verdict   : DRAINED` or lacks `aged edge: look up its pull request first`.
+- A dispatch fixture of its own holding only an aged edge (the shared one always has an item free or a manager in flight): `ci` red if its verdict reads `verdict   : DRAINED` or lacks `aged edge: look up its pull request first`.
 - The new aged case FAILS on `origin/main`'s `joharness.sh`: `git show origin/main:joharness.sh >joharness.sh && ./joharness.sh ci`, red on `an edge older than the window gives its slot back`, then `git checkout joharness.sh`.
 - `./joharness.sh verify` — 0 failed, count read from the output.
 

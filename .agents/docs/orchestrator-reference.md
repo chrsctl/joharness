@@ -205,7 +205,7 @@ queue cannot see").
 
 HELD BY HUMAN: never nudge, never respawn (a nudge meets the same refusal). `PushNotification` once carrying stem, branch, PR link, the session's ask verbatim; no ledger `held-human=` yet = send and ledger `held-human=<pr>`, else report only. The row frees its slot. Drop the entry when the branch merges (the `done` row), or when the session is RUNNING again, its last turn no longer asks, or dispatch no longer lists the branch as `retired, no claim file`
 
-An aged edge row (`retired, no claim file, no push for … holds NO slot`, past `JOHARNESS_EDGE_SLOT_HOURS`) already freed its slot, its items still withheld: look its pull request up (GitHub MCP) — open = merging, let it land; none = report it to the human.
+An aged edge row (`retired, no claim file, no push for … holds NO slot`, past `JOHARNESS_EDGE_SLOT_HOURS`) already freed its slot, its items still withheld: look its pull request up (GitHub MCP) — open = merging, let it land; none = the health table's edge rows decide as for any edge (`gone` = RESPAWN to finish the merge, whose first push makes it hold a slot again).
 
 ## Unratified block
 

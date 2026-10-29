@@ -747,6 +747,7 @@ git -C "$dspaged" push -qu origin mgr-omega
 git -C "$dspaged" checkout -q main
 out="$( cd "$dspaged" && JOHARNESS_CONF="$dspconf" DRAIN_FETCH=0 DISPATCH_FETCH=0 \
   JOHARNESS_EDGE_SLOT_HOURS=1 ./joharness.sh dispatch 2>&1 )"
+expect "only an aged edge: no slot held" "slots     : 4 of 4 free" "$out"
 expect "only an aged edge: the verdict sends the reader to its pull request first" \
   "aged edge: look up its pull request first" "$out"
 refute "and never reads DRAINED on it" "verdict   : DRAINED" "$out"
@@ -1147,6 +1148,22 @@ expect "the row says what makes it litter" \
   "names NO item, so nothing here says a merge is coming" "$out"
 expect "and the verdict counts it as the kind with no item" \
   "naming no item at all" "$out"
+# Past JOHARNESS_EDGE_SLOT_HOURS but under the litter cut-off, a row naming
+# no item keeps its slot: its STALL? line is a REPORT, and only the cut-off
+# frees it. Aged, it read `holds NO slot` with no REPORT at all. Backdated 2h
+# on its own push, then set back.
+sweep_tip="$(git -C "$dspwork" rev-parse mgr-sweep)"
+git -C "$dspwork" checkout -q mgr-sweep
+GIT_COMMITTER_DATE="$(( $(date +%s) - 7200 )) +0000" \
+  git -C "$dspwork" commit -q --amend --no-edit
+git -C "$dspwork" push -qf origin mgr-sweep
+git -C "$dspwork" checkout -q main
+out="$(dsp env JOHARNESS_MAX_MANAGERS=20 JOHARNESS_EDGE_SLOT_HOURS=1)"
+expect "an itemless row past the slot window still holds its slot" \
+  "?  mgr-sweep  retired  pushed 2h  retired, no claim file — a pull request is expected" "$out"
+expect "and keeps its REPORT" "this row names no item, so there is no title to look up" "$out"
+git -C "$dspwork" branch -qf mgr-sweep "$sweep_tip"
+git -C "$dspwork" push -qf origin mgr-sweep
 
 # --- a glob character in a plan path decides nothing --------------------------
 # `for cand in $items` was an unquoted expansion: `docs/plans/x[y].md` globbed

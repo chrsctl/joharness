@@ -8,7 +8,7 @@ issue: 701
 session: https://claude.ai/code/session_01J1YMK53poa2Ag5SDkEp9AR
 agent: opus
 updated: 2026-10-29
-next: Run ci and verify, the origin/main red check, then verifier at opus, then step 7
+next: Second verifier pass on the r14-r18 fixes, then step 7
 ---
 
 ## Goal
@@ -25,7 +25,7 @@ items stay withheld, slot is freed.
 - A4: confirmed — `.agents/harness/AGENTS.md` step 7, last line.
 - A5: confirmed — `dispatch_age_min` prints `(now - ts) / 60`.
 - A6: confirmed — `.claude/commands/orchestrator.md` §3 Spawn, held-human rule.
-- Aged NOT DRAINED branch sits before the in-flight DRAINED, so it covers every DRAINED form.
+- Aged NOT DRAINED replaces only the exit verdict: the in-flight, pending, role and release verdicts are no exit and carry their own orders (r17).
 - DRAINED case gets its own mini repo (`dispatchaged`): the shared fixture always has a free item, so a DRAINED assertion there passes both ways (measured: its verdict read `NOT DRAINED — 1 free item(s) now`). Without the fix the mini repo reads `verdict   : DRAINED — nothing free; 1 manager(s) in flight` (origin/main joharness.sh, 2026-10-29).
 - No workers: five small edits, two of them one sharing joharness.sh with the selftest that measures it; a brief would cost more than the edit.
 
@@ -46,6 +46,11 @@ items stay withheld, slot is freed.
 - r11: (plan-checker) prefix should be substring (fixed)
 - r12: (plan-checker) `halt` already frees an edge slot but re-offers its plan (no change)
 - r13: (plan-checker) spawn prompt carried the repo path beyond the plan path (no change)
+- r14: (verifier) aged row and reference sentence said none open = report to the human, against health-table row `gone | edge row naming an item | RESPAWN`, and the sentence sat where only HELD BY HUMAN reaches (fixed: row, verdict note and sentence defer to the health table's edge rows when no pull request is open; the table stays out of scope)
+- r15: (verifier) plan Acceptance says `verify` runs the dispatch selftest; `verify` here is the layer smoke only (fixed: item names `ci`)
+- r16: (verifier) an edge naming no item aged at 4h lost its STALL? REPORT and read `items stay withheld` (fixed: itemless edges never age; case red without the guard, 2 FAIL, ci 2026-10-29)
+- r17: (verifier) aged NOT DRAINED masked the in-flight, pending, role-due and release-due verdicts (fixed: it replaces only the exit verdict)
+- r18: (verifier) plan red-check command rewrites the tree; branch 1 behind origin/main (fixed: run only with no verifier live; origin/main merged in)
 
 ## Blockers
 

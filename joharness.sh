@@ -8933,11 +8933,12 @@ cmd_dispatch() {
     esac
     # Aged: no push for the window. The slot comes back; the items stay
     # withheld above, because the branch may be mid-merge and git cannot say.
-    # Unknown age keeps the slot: nothing proves it old.
-    if [ "$edge_hours" -gt 0 ] && [ -n "$eage" ] &&
+    # Unknown age keeps the slot: nothing proves it old. No item keeps it
+    # too: that row's STALL? line is a REPORT, and its leftover cut-off frees it.
+    if [ "$edge_hours" -gt 0 ] && [ -n "$eage" ] && [ -n "$efirst" ] &&
        [ "$eage" -ge $((edge_hours * 60)) ]; then
       n_edge_aged=$((n_edge_aged + 1))
-      edge_rows="${edge_rows}  ${efirst:-?}  ${ebranch}  retired  pushed ${eagetext}  retired, no claim file, no push for ${eagetext} (>= ${edge_hours}h JOHARNESS_EDGE_SLOT_HOURS): holds NO slot — dispatch cannot see whether a pull request exists; the health pass looks it up (open = merging, none = report to the human). Its items stay withheld, never respawn blind"
+      edge_rows="${edge_rows}  ${efirst:-?}  ${ebranch}  retired  pushed ${eagetext}  retired, no claim file, no push for ${eagetext} (>= ${edge_hours}h JOHARNESS_EDGE_SLOT_HOURS): holds NO slot — dispatch cannot see whether a pull request exists; look its pull request up (open = merging; none = the health table's edge rows decide, by title). Its items stay withheld, never respawn blind"
       [ "$emore" -le 1 ] ||
         edge_rows="${edge_rows} (and $((emore - 1)) more item(s) retired here: ${eitem#* })"
       edge_rows="${edge_rows}"$'\n'
@@ -9619,11 +9620,6 @@ cmd_dispatch() {
       printf 'verdict   : OVERLAP-BOUND — %s slot(s) free, %s plan(s) held behind shared-registry declarations: spawn ONE surveyor (agent: sonnet) on key %s\n' \
         "$n_slots" "$n_hold" "${rescope_key:-none}"
     fi
-  elif [ "$n_edge_aged" -gt 0 ]; then
-    # Its slot is freed but its pull request is unread: an exit here could
-    # leave a branch nobody merges.
-    printf 'verdict   : NOT DRAINED — nothing free; %s aged edge: look up its pull request first (GitHub MCP), then keep the health pass going\n' \
-      "$n_edge_aged"
   elif [ $((n_inflight - n_blocked)) -gt 0 ]; then
     printf 'verdict   : DRAINED — nothing free; %s manager(s) in flight: keep the health pass going\n' \
       "$((n_inflight - n_blocked))"
@@ -9642,6 +9638,11 @@ cmd_dispatch() {
     elif [ -n "$release_due" ]; then
       # A release hands a plan back to the queue: a pass must run after it.
       printf 'verdict   : DRAINED — nothing free, nothing in flight; a release is due (release DUE below): release, then schedule the next pass\n'
+    elif [ "$n_edge_aged" -gt 0 ]; then
+      # Its slot is freed but its pull request is unread: an exit here could
+      # leave a branch nobody merges.
+      printf 'verdict   : NOT DRAINED — nothing free, nothing in flight; %s aged edge: look up its pull request first (GitHub MCP), then keep the health pass going\n' \
+        "$n_edge_aged"
     else
       printf 'verdict   : DRAINED — nothing free, nothing in flight: exit, the heartbeat re-seeds\n'
     fi
@@ -9724,7 +9725,7 @@ cmd_dispatch() {
     printf '            %s branch(es) at the edge with no claim file: each holds a slot because its item is STILL on %s, so that merge has not landed. The control plane says what to do about the session, never whether the slot is real\n' \
       "$n_edge" "${HANDOVER_BASE_BRANCH:-main}"
   [ "$n_edge_aged" -eq 0 ] ||
-    printf '            %s aged edge branch(es) with no claim file and no push for >= %sh (JOHARNESS_EDGE_SLOT_HOURS): NOT counted, items still withheld; the health pass looks up each pull request — open = merging, none = report to the human\n' \
+    printf '            %s aged edge branch(es) with no claim file and no push for >= %sh (JOHARNESS_EDGE_SLOT_HOURS): NOT counted, items still withheld; look up each pull request — open = merging, none = the edge rows of the health table decide\n' \
       "$n_edge_aged" "$edge_hours"
   [ "$n_human_edge" -eq 0 ] ||
     printf '            %s human/ branch(es) at the edge waiting on a human merge: NOT counted, never respawned\n' \
