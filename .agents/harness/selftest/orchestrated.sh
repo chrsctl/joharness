@@ -601,7 +601,7 @@ expect "the superseded check never counts another session's wake" \
   'Another session'"'"'s wake never supersedes you, whatever its `pass=`' "$orcfold"
 # shellcheck disable=SC2016 # literal backticks in the needles
 expect "the keeper never calls a stood-down orchestrator LIVE" \
-  'Else NOT LIVE, whatever its title: IDLE with no wake = stood down.' "$keepfold"
+  'Neither, and no pending wake = NOT LIVE, whatever its title.' "$keepfold"
 # shellcheck disable=SC2016 # literal backticks in the needles
 refute "REGISTER no longer starts its keeper on the hourly prompt" \
   '`title` = `🔑 keeper: <owner/repo>`, `prompt` = `/keeper`.' "$reffold"

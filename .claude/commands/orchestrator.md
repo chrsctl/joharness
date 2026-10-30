@@ -84,8 +84,8 @@ nothing.
   carrying a higher `pass=` than yours = report `superseded by pass <m>`, do
   nothing, schedule nothing. Another session's wake never supersedes you,
   whatever its `pass=`: a SWAP successor starts at `pass=1` while its
-  retired predecessor's wake is still pending. That wake is Duplicate's
-  matter, never this check's.
+  retired predecessor's wake is still pending. Another session's wake is
+  Duplicate's matter: a retired one is not LIVE, so it stops nothing.
 - **Duplicate.** Another session's pending `/orchestrator pass` wake in that
   answer → ref § Duplicate.
 - **Heartbeat.** `pass=` above 1: ref § 0. Start step 5 on that same
