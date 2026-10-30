@@ -50,8 +50,8 @@ first hourly wake runs the check.
    absent or empty = skip it. Each counts when
    `get_session` finds it titled exactly `🎼 orchestrator:
    <owner/repo>` (glossary, role title) and `RUNNING` or `PENDING` — in its first start it holds
-   no wake. Both are the reference's "## 0. Start" step 3 LIVE, on the
-   sessions you can name. LIVE, and its pending
+   no wake. Else NOT LIVE, whatever its title: IDLE with no wake = stood
+   down. LIVE, and its pending
    wake's `harness=` line carries `retire=yes` = SWAP, below. Else LIVE =
    report `orchestrator live: <id>`, end the turn. No `list_triggers`, or it errors = report
    `keeper: no list_triggers`, create nothing.

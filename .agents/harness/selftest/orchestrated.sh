@@ -597,6 +597,12 @@ for needle in 'Routine named exactly `💗 heartbeat: <owner/repo>` (the bare `h
   expect "orchestrator-reference.md heartbeat check spells ${needle}" "$needle" "$reffold"
 done
 # shellcheck disable=SC2016 # literal backticks in the needles
+expect "the superseded check never counts another session's wake" \
+  'Another session'"'"'s wake never supersedes you, whatever its `pass=`' "$orcfold"
+# shellcheck disable=SC2016 # literal backticks in the needles
+expect "the keeper never calls a stood-down orchestrator LIVE" \
+  'Else NOT LIVE, whatever its title: IDLE with no wake = stood down.' "$keepfold"
+# shellcheck disable=SC2016 # literal backticks in the needles
 refute "REGISTER no longer starts its keeper on the hourly prompt" \
   '`title` = `🔑 keeper: <owner/repo>`, `prompt` = `/keeper`.' "$reffold"
 refute "keeper.md no longer says its first turn runs the LIVE check" \
