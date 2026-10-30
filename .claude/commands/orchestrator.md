@@ -80,9 +80,12 @@ nothing.
   moved: <old> to <new>`.
 - **Superseded.** `list_triggers` with `include_completed` lists
   `send_later` wakes account-wide with their stored prompts; take this
-  session's (`persistent_session_id` = your id). Another one
+  session's (`persistent_session_id` = your id). Another of THOSE
   carrying a higher `pass=` than yours = report `superseded by pass <m>`, do
-  nothing, schedule nothing.
+  nothing, schedule nothing. Another session's wake never supersedes you,
+  whatever its `pass=`: a SWAP successor starts at `pass=1` while its
+  retired predecessor's wake is still pending. Another session's wake is
+  Duplicate's matter: a retired one is not LIVE, so it stops nothing.
 - **Duplicate.** Another session's pending `/orchestrator pass` wake in that
   answer → ref § Duplicate.
 - **Heartbeat.** `pass=` above 1: ref § 0. Start step 5 on that same
