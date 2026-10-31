@@ -914,15 +914,18 @@ write_ws routes.md review none "" \
   "- r14: setting never reaches installs (wontfix: true of every plugin-declared setting, not this branch's)" \
   "- r15: a naming nit (wontfix: not the plan's style)" \
   "- r16: an odd guard (wontfix: not built here because the plan's Goal requires it)" \
-  "- r17: a battery note (wontfix: a lead dev would fix it, in this plan)"
+  "- r17: a battery note (wontfix: a lead dev would fix it, in this plan)" \
+  "- r18: a lost hint (wontfix: sent to the orchestrator as a lead)" \
+  "- r19: an old race (wontfix: not built here — see lead)" \
+  "- r20: a stale flag (wontfix: not this change’s)"
 printf 'code\n' >"${rwork}/routes.txt"
-commit_all "$rwork" "seventeen wontfix findings, seven routed nowhere"
+commit_all "$rwork" "twenty wontfix findings, ten routed nowhere"
 git -C "$rwork" rm -q docs/handover/routes.md
 git -C "$rwork" commit -qm "Finish ritual: delete the workstream file"
 out="$(ci_routes)"
 expect "an out-of-item wontfix with no route is named, after the retire" \
   "r1: delete_field leaves _chunk rows" "$out"
-expect "and counted" "7 out-of-item finding(s) recorded only here" "$out"
+expect "and counted" "10 out-of-item finding(s) recorded only here" "$out"
 # Three more real gx verdicts (2026-10-30/31 scan) the first patterns missed.
 expect "a finding sent as a lead to the orchestrator is unrouted" "r12: is_passage admits" "$out"
 expect "so is one raised as a lead, not built here" "r13: followup_session" "$out"
@@ -931,6 +934,10 @@ expect "and one that is not this branch's" "r14: setting never reaches" "$out"
 refute "not the plan's style is an in-item decline" "r15: a naming nit" "$out"
 refute "not built here, because of the plan, is in-item" "r16: an odd guard" "$out"
 refute "a lead dev is no lead" "r17: a battery note" "$out"
+# False greens the code review found; the guess leans red, never green.
+expect "as a lead, after an object" "r18: a lost hint" "$out"
+expect "not built here, before a dash" "r19: an old race" "$out"
+expect "a curly apostrophe, and the shared targets" "r20: a stale flag" "$out"
 # The verifier's wordings: a blacklist of one phrasing lets the next through.
 expect "predates is out-of-item" "r6: an old parser bug" "$out"
 expect "so is not part of this plan" "r7: a dangling citation" "$out"
