@@ -384,12 +384,41 @@ CHECK_FAILS=0
 CHECK_FAILED=""
 CHECK_SKIPPED=0
 
+# check_call <function> [args]: run one of the checks run_check may name. A
+# case, not "$@": shellcheck follows a call it can read, and a check reached
+# only through a string made every function under it "never invoked" (SC2329,
+# 0.11+). A name missing here is an error, not a silent skip.
+check_call() {
+  local fn="$1"
+  shift
+  case "$fn" in
+    ci_shellcheck) ci_shellcheck "$@" ;;
+    ci_syntax) ci_syntax "$@" ;;
+    ci_selftest) ci_selftest "$@" ;;
+    lint_glossary) lint_glossary "$@" ;;
+    lint_graph) lint_graph "$@" ;;
+    lint_plans_in_diff) lint_plans_in_diff "$@" ;;
+    lint_fast_lane) lint_fast_lane "$@" ;;
+    lint_finding_ids) lint_finding_ids "$@" ;;
+    lint_finding_markers) lint_finding_markers "$@" ;;
+    lint_ship) lint_ship "$@" ;;
+    ci_churn) ci_churn "$@" ;;
+    ci_broken_windows) ci_broken_windows "$@" ;;
+    review_report) review_report "$@" ;;
+    fin_gate) fin_gate "$@" ;;
+    finish_adds) finish_adds "$@" ;;
+    finish_map) finish_map "$@" ;;
+    checks_gate) checks_gate "$@" ;;
+    *) die "run_check: '${fn}' is not a registered check (add it to check_call)" ;;
+  esac
+}
+
 # run_check <name> <function> [args]: run one check, print its output only
 # when it fails (or verbose). Status 3 = skipped, said in the verdict line.
 run_check() {
   local name="$1" out rc
   shift
-  out="$("$@" 2>&1)"; rc=$?
+  out="$(check_call "$@" 2>&1)"; rc=$?
   # A pass that carries a report about THIS branch or checkout (not
   # measurable, edge report, ships, not covered, shallow — incl. graph reds
   # degraded to warnings — churn warning) still prints. Plain lint warnings
@@ -422,10 +451,7 @@ check_args() {
 ci_shellcheck() {
   printf '%d files\n' "$#"
   if ensure_shellcheck; then
-    # SC2329 (info, shellcheck 0.11+) calls every function reached through
-    # run_check, a trap or a sourced topic "never invoked": a finding about
-    # the checker's reach, not the code. Older shellchecks do not know it.
-    shellcheck -x -e SC2329 "$@" || return 1
+    shellcheck -x "$@" || return 1
     printf '  zero findings\n'
   elif [ "${GITHUB_ACTIONS:-}" = "true" ]; then
     warn "shellcheck not installed and not installable on the CI runner"

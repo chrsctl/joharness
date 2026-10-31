@@ -61,6 +61,7 @@ git -C "$ROOT" ls-files -z -- . ':(exclude).agents/harness/selftest/' |
     git checkout -q main && git merge -q --no-ff -m "merge fx-$1" "fx-$1"
   }
   c2r_fix() { sed -i 's/\$1 - \$2/$1 + $2/' ".agents/scripts/c2-$1.sh"; }
+  # shellcheck disable=SC2329  # run by name inside c2r_stem's eval
   c2r_refactor() { sed -i 's/^echo \$((/printf "%s\\n" $((/' ".agents/scripts/c2-$1.sh"; }
   c2r_case() { printf '%s\n' "$2" >>".agents/harness/selftest/c2-$1.sh"; }
   c2r_r() { printf '$(bash "${ROOT}/.agents/scripts/c2-%s.sh" %s)' "$1" "$2"; }
