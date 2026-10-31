@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK5ar6zySs8TZR5L7EP
 agent: opus
 updated: 2026-10-31
-next: Rewrite the reference's Unclaimed spawn rows, then pin them in the selftest
+next: Run verify, verifier at opus, record review, then finish
 ---
 
 ## Goal

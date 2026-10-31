@@ -7,10 +7,10 @@ lines say when to read each; its terms hold here.
 
 | absent | what changes |
 | --- | --- |
-| `PushNotification` (or the environment's equivalent) | a valid block, and a `corewait` pull request, are reported in the pass report only, no push to the human: say so once. |
+| `PushNotification` (or the environment's equivalent) | a valid block, a `corewait` pull request and a FAILED SPAWN AT LIMIT are reported in the pass report only, no push to the human: say so once. |
 | any transport that delivers | no nudge: still two passes, the first sends nothing; the KILL's interrupt does the asking. `JOHARNESS_STALL_MINUTES` becomes a kill threshold — say so. |
-| `interrupt_session` | cannot stop, so must not replace: write the handover from the branch, `status: blocked`, `next:` = "stalled: Stalled; the orchestrator could not stop the session that holds this.", report, no respawn. A session already gone (ARCHIVED, not found, FAILED twice) is respawned anyway. BLOCKED BEFORE CLAIM: report, spawn nothing. |
-| `archive_session` | the stopped session is left in place; report, respawn as written. UNCLAIMED: report, spawn nothing. |
+| `interrupt_session` | cannot stop, so must not replace: write the handover from the branch, `status: blocked`, `next:` = "stalled: Stalled; the orchestrator could not stop the session that holds this.", report, no respawn. A session already gone (ARCHIVED, not found, FAILED twice) is respawned anyway. BLOCKED BEFORE CLAIM or FAILED SPAWN: FAILED SPAWN AT LIMIT at once, spawn nothing (§ Unclaimed spawn rows). |
+| `archive_session` | the stopped session is left in place; report, respawn as written. UNCLAIMED with a session to archive: FAILED SPAWN AT LIMIT at once, spawn nothing (§ Unclaimed spawn rows). |
 | `status_bucket` | crash and BLOCKED BEFORE CLAIM rows unreachable: take the IDLE path (nudge, confirm, respawn; the unratified-block row still applies); never respawn on one observation; name the managers judged this way. |
 | `set_session_title` | the one-orchestrator check cannot work: report it every pass as a cost in the human's money; do not stop. |
 | `create_trigger` | no REGISTER: report `heartbeat not registered: no create_trigger`. |
@@ -21,7 +21,7 @@ A call REFUSED or erroring at run time (a permission denial) is
 that tool ABSENT for that target this pass: take its row in the table above, name the
 refused call in the report, never retry it. Respawn-after-archive rows then
 follow the `archive_session` row ONLY after a confirmed stop; an archive
-refused with no confirmed interrupt (dead row, STILLBORN) follows the
+refused with no confirmed interrupt (dead row, FAILED SPAWN) follows the
 `interrupt_session` row (no replace). Interrupt-before-KILL follows the
 `interrupt_session` row (no replace, `status: blocked`).
 
@@ -29,10 +29,10 @@ refused with no confirmed interrupt (dead row, STILLBORN) follows the
 
 | field | says |
 | --- | --- |
-| `session_status` | `RUNNING` working; `IDLE` between turns; `PENDING` starting; `ARCHIVED` gone |
+| `session_status` | `RUNNING` working; `IDLE` between turns; `PENDING` starting; `COMPLETED` ended; `ARCHIVED` gone |
 | `status_bucket` | `..._FAILED` = that turn died, decides only while not `RUNNING`; a usage/rate-limit `status_detail` = throttled, never dead. `..._BLOCKED` decides only in the BLOCKED BEFORE CLAIM rows; the unratified-block row reads `session_status` IDLE and `status_detail`, never the bucket |
 | `status_detail`, `updated_at` | unchanged across two passes turns a suspicion into a verdict; `updated_at` decides nothing ALONE |
-| `session_context.sources`, `external_metadata.last_served_model` | checkout attached at spawn; a turn was served. Read together |
+| `session_context.sources`, `external_metadata.last_served_model` | checkout attached at spawn (absent, or tag `config:no-git-repo` = none); a turn was served. Read together |
 | merge state | a manager on dispatch's in-flight list is unmerged by construction (`queue-context.sh`, `ref_merged`); `base unreadable` on its row = report, decide nothing; a ledger stem dispatch does NOT list keeps today's check, `git merge-base --is-ancestor <head> origin/main`, never a summary |
 
 `post_turn_summary`, `context_usage.used_tokens`,
@@ -48,6 +48,16 @@ get-url origin`, `clone_depth: 5000` (a 50-deep clone hides the merge base
 in an empty `/home/user`, no checkout, no `/manager` (repo skills load only
 once a repo is attached), and the session cannot be relied on to attach it
 itself, so it may never claim.
+
+Source check, every `create_session` above, before its ledger entry:
+the result's `session_context.sources` (not in the result = `get_session`
+on the returned id) names this repository. Absent, empty, another
+repository, or tag `config:no-git-repo` = `archive_session` it at once,
+`create_session` again with `source_url`, report `spawned with no checkout:
+<stem>, re-spawned`; not counted. The second fails too = `archive_session`
+it, report, `PushNotification` once `spawn has no checkout: <stem>`; a
+manager's stem goes on `failed=` (§ Unclaimed spawn rows), a role's key
+is ledgered as its row says.
 
 A manager's prompt, after the standard lines and the lead line, each only when it applies:
 the RESPAWN resume line; on a RESPAWN after an unratified block only, one
@@ -256,20 +266,34 @@ for a slot` is no RECHECK: next pass.
 ## Unclaimed spawn rows
 
 UNCLAIMED: a `new` ledger entry from a previous pass, its session spawned
-and no claim pushed yet; the rows below judge it. BLOCKED BEFORE CLAIM: an
+and no claim pushed yet (no claimed in-flight row for its stem on this
+pass's dispatch); the rows below judge it. BLOCKED BEFORE CLAIM: an
 UNCLAIMED session whose `status_bucket` reads BLOCKED while it is not IDLE,
-PENDING or ARCHIVED (the first two rows). STILLBORN: an UNCLAIMED session
-IDLE or PENDING with no `last_served_model` and no `sources`, `updated_at`
-unchanged since `seen=`: it never got a checkout or a turn.
+PENDING or ARCHIVED (the first two rows). FAILED SPAWN: an UNCLAIMED
+session that ended — ARCHIVED, COMPLETED, not found, or IDLE/PENDING with
+`updated_at` unchanged since `seen=` — ran and stopped, or never got a turn
+(STILLBORN). NO SOURCE: its record has no `session_context.sources`, or
+carries tag `config:no-git-repo`: the report line adds `spawned with no
+checkout` (§ Create session, Source check).
+
+An UNCLAIMED entry holds a slot (`JOHARNESS_PENDING_SPAWNS`). Every row
+below ends in a look recorded, a spawn, or FAILED SPAWN AT LIMIT; never
+keep the entry so nothing re-spawns it.
+
+FAILED SPAWN AT LIMIT: `respawns` at `JOHARNESS_RESPAWN_LIMIT`. Touch no
+session. `PushNotification` once carrying stem, session link,
+`status_detail` and the NO SOURCE note: `failed spawn: <stem> stopped
+unclaimed; a human decides`. Drop the entry, ledger `failed=<stem>`: the
+ledger key `failed=<stem>[,<stem>]` is run-scoped; §3 spawns no manager for
+a stem on it this run; report it every pass.
 
 | control plane | push age | ledger | do |
 | --- | --- | --- | --- |
 | BLOCKED, not IDLE/PENDING/ARCHIVED | any | `new` from a previous pass, no `held=` | ledger `held=<updated_at>` |
-| same | any | `held=`, still `new`, `updated_at` unchanged | item gone from `origin/main` or `respawns` at limit: report only. Else `interrupt_session`, `archive_session`, plain spawn of the ITEM, `respawns`+1 |
-| ARCHIVED / not found | any | `new` from a previous pass | gone before claim: report; keep the entry so nothing re-spawns it |
+| same | any | `held=`, still `new`, `updated_at` unchanged | `respawns` at limit: FAILED SPAWN AT LIMIT. Else `interrupt_session`, `archive_session`, plain spawn of the ITEM, `respawns`+1 |
+| ARCHIVED, COMPLETED or not found | any | `new` from a previous pass | FAILED SPAWN: plain spawn of the ITEM, counted; at the limit FAILED SPAWN AT LIMIT |
 | IDLE/PENDING | any | `new` from a previous pass, no `seen=` | ledger `seen=<updated_at>` and whether `last_served_model`/`sources` exist |
-| IDLE/PENDING, no `last_served_model`, no `sources` | any | `seen=`, `updated_at` unchanged | STILLBORN: `archive_session`, plain spawn of the ITEM, counted; at the limit report |
-| IDLE/PENDING with `last_served_model` | any | `seen=`, `updated_at` unchanged | ran and stopped unclaimed: report detail, keep the entry, never respawn |
+| IDLE/PENDING | any | `seen=`, `updated_at` unchanged | FAILED SPAWN (STILLBORN: no `last_served_model`, no `sources`): `archive_session`, plain spawn of the ITEM, counted; at the limit FAILED SPAWN AT LIMIT |
 
 ## KILL and LOOP
 
