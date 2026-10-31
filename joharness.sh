@@ -72,10 +72,6 @@
 # KNOBS table below holds every one the script reads, with its default, scope
 # and meaning; `conf` prints them with their live values.
 
-# The script ends in `main "$@"; exit $?`; after that exit shellcheck sees the
-# checks run_check calls through "$@" as unreachable.
-# shellcheck disable=SC2317
-
 set -uo pipefail
 
 ROOT="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
