@@ -97,6 +97,11 @@ Append one row per sampled stem to `docs/conduct-log.md`, in sample order:
 | <UTC date> | <stem> | <C1 verdict> | <C2 verdict, or -> | <note: cited line, or what is missing; `-` when nothing to cite> |
 ```
 
+C2 `-` (no runner) is written in the C2 column and nowhere else: the note
+stays `-`, never "C2 not run". A ledger header lacking a column this row
+needs is a defect to fix in this pull request's one commit (add the column,
+`-` in earlier rows), never a reason to move a verdict into the note.
+
 A `|` inside a cited line is written `\|`. Edit no earlier row. No
 `docs/conduct-log.md` on `origin/main`: create it with a title line and
 exactly this header — the tally finds columns by these names:
