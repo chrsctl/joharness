@@ -908,15 +908,22 @@ write_ws routes.md review none "" \
   "- r8: a leaked handle (wontfix: pre-existing; see PR #5)" \
   "- r9: a second old bug (wontfix: out of plan scope, flagged in the pull request body)" \
   "- r10: a slow loop (wontfix: not in practice a problem)" \
-  "- r11: an old leak (wontfix: pre-existing; same root as r2, see https://github.com/o/r/issues/41)"
+  "- r11: an old leak (wontfix: pre-existing; same root as r2, see https://github.com/o/r/issues/41)" \
+  "- r12: is_passage admits JSON fields (wontfix: plan-literal predicate; narrowing it is a product call — lead to the orchestrator)" \
+  "- r13: followup_session PATCHable (wontfix: the model has no read-only field; raised as a lead, not built here)" \
+  "- r14: setting never reaches installs (wontfix: true of every plugin-declared setting, not this branch's)"
 printf 'code\n' >"${rwork}/routes.txt"
-commit_all "$rwork" "nine wontfix findings, four routed nowhere"
+commit_all "$rwork" "fourteen wontfix findings, seven routed nowhere"
 git -C "$rwork" rm -q docs/handover/routes.md
 git -C "$rwork" commit -qm "Finish ritual: delete the workstream file"
 out="$(ci_routes)"
 expect "an out-of-item wontfix with no route is named, after the retire" \
   "r1: delete_field leaves _chunk rows" "$out"
-expect "and counted" "4 out-of-item finding(s) recorded only here" "$out"
+expect "and counted" "7 out-of-item finding(s) recorded only here" "$out"
+# Three more real gx verdicts (2026-10-30/31 scan) the first patterns missed.
+expect "a finding sent as a lead to the orchestrator is unrouted" "r12: is_passage admits" "$out"
+expect "so is one raised as a lead, not built here" "r13: followup_session" "$out"
+expect "and one that is not this branch's" "r14: setting never reaches" "$out"
 # The verifier's wordings: a blacklist of one phrasing lets the next through.
 expect "predates is out-of-item" "r6: an old parser bug" "$out"
 expect "so is not part of this plan" "r7: a dangling citation" "$out"

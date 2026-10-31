@@ -1891,6 +1891,10 @@ fr_out_of_item() {
     if (t ~ (b "outside" sp "(of" sp ")?" det tgt)) exit 0
     if (t ~ (b "out[- ]of([- ]|" sp det ")" tgt)) exit 0
     if (t ~ (b "not" sp "(part" sp "of|in|of)" sp det tgt)) exit 0
+    if (t ~ (b "not" sp "(this|the|our|my)" sp tgt)) exit 0
+    # A lead is the hole itself: sent as one, the lead is the only record.
+    if (t ~ (b "a" sp "lead" b) || t ~ (b "lead" sp "to" sp "the" sp "orchestrator" b)) exit 0
+    if (t ~ (b "not" sp "built" sp "here" b)) exit 0
     if (t ~ (b "beyond" sp det tgt)) exit 0
     if (t ~ (b "unrelated" sp "to" sp det tgt)) exit 0
     if (t ~ (b "(another|other)" sp "(plan|item)" b)) exit 0
