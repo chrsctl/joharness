@@ -105,7 +105,8 @@ other becomes `<stem>@<head>`, its `respawns=` kept; §2 judges it as a
 claimed manager. Never re-run dispatch in a pass.
 
 Every ledger entry that holds a slot leaves by a row: done, a spawn, or a
-notify and drop. An `@new` entry whose session ended unclaimed is a FAILED
+notify and drop. Slot-holding here = an `@new` entry, counted into
+`JOHARNESS_PENDING_SPAWNS`; a claimed branch's slot is dispatch's. An `@new` entry whose session ended unclaimed is a FAILED
 SPAWN (ref § Unclaimed spawn rows), never the human's to find. An entry no
 row of §2 matched this pass (read at §2's end) = report `slot held with no
 exit: <stem>`; no ledger `noexit=<stem>` yet = `PushNotification` it and

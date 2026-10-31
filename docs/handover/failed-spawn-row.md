@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK5ar6zySs8TZR5L7EP
 agent: opus
 updated: 2026-10-31
-next: Second verifier look at the fix commit, verify, then finish
+next: Delete plan and workstream file, open the PR, finish, merge
 ---
 
 ## Goal
@@ -52,6 +52,14 @@ spawn, and pin that every slot-holding ledger entry has an exit.
 - r22: (verifier) consumer-side Acceptance cannot run, the selftest is canonical-only (fixed: plan says so)
 - r23: (verifier) `noexit=` not declared run-scoped, read before §2 ran (fixed: run-scoped, read at §2's end); `PushNotification`-absent row missed two pushes (fixed)
 - r24: (verifier) no plan-checker ran on an opus plan; COMPLETED in the claimed rows is beyond the plan's Goal (no change: same-session plan on the human's order, two verifier passes stand in; COMPLETED kept because a claimed manager whose session completed otherwise matched no row)
+- r25: (verifier) the selftest check accepted "next pass decides" on any row, so an ended session reworded to wait passed (fixed: a wait or a re-recorded look passes only under CEILING; the ended-session row and the CEILING pinned verbatim; the checker run on both rewordings)
+- r26: (verifier) re-recorded `seen=`/`held=` looks had no bound (fixed: CEILING row, `created_at` twice `JOHARNESS_STALL_MINUTES` = FAILED SPAWN whatever the session does)
+- r27: (verifier) a plain spawn kept the old session's `seen=`, `held=`, nudge (fixed: the new entry carries none)
+- r28: (verifier) no way for a human to lift `failed=` within a run (fixed: a human's word in this session's turn naming the stem)
+- r29: (verifier) "every slot-holding entry" read wider than `@new` (fixed: defined as an `@new` entry counted into `JOHARNESS_PENDING_SPAWNS`)
+- r30: (verifier) `archive_session` absent sent a COMPLETED session to the limit exit (fixed: COMPLETED needs no archive; the rebuild skips COMPLETED titles)
+- r31: (verifier) whether the control plane emits COMPLETED and tag `config:no-git-repo` is unverified here (no change: the human's report names tag `config:no-git-repo` on the gx sessions; COMPLETED is the human's spelling in the order)
+- r32: ci flaked once on `c2-run: a fix with a new case flips` (no change: the known prune race of docs/handover/c2-run-prune-race.md, issue #687; re-run green)
 
 ## Blockers
 

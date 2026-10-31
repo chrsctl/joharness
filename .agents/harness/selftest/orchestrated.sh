@@ -269,6 +269,9 @@ for needle in 'ledger `held-human=<pr>`' \
   'the ledger key `failed=<stem>[,<stem>]` is run-scoped' \
   'Source check, every `create_session` above: the call carries `source_url`, never sent without it.' \
   'A record with no `sources` yet decides nothing here' \
+  '| ARCHIVED, COMPLETED or not found | any | `new` from a previous pass | FAILED SPAWN: `archive_session` a COMPLETED one, plain spawn; at the limit FAILED SPAWN AT LIMIT |' \
+  'CEILING: an UNCLAIMED session `created_at` twice `JOHARNESS_STALL_MINUTES` old is a FAILED SPAWN whatever it does' \
+  'no `seen=`, `held=` or nudge (those were the old session'"'"'s)' \
   'ledger `held=<updated_at>`' \
   'the ledger key `corewait=<stem>#<N>[,<stem>#<N>]` is' \
   'the ledger key `released=<stem>[,<stem>]` is run-scoped' \
@@ -291,7 +294,8 @@ unclaimed_ok() { # $1 = a row's do cell; 0 = it has an exit
     *'keep the entry'*|*'report only'*|*'at the limit report'*|*'never respawn'*) return 1 ;;
     *'FAILED SPAWN AT LIMIT'*) return 0 ;;
     *spawn*) return 1 ;;
-    *'ledger `seen='*|*'ledger `held='*|*'NUDGE'*|*'next pass decides'*) return 0 ;;
+    *'anew'*|*'next pass decides'*) case "$1" in *'under CEILING'*) return 0 ;; esac; return 1 ;;
+    *'ledger `seen='*|*'ledger `held='*|*'NUDGE'*) return 0 ;;
   esac
   return 1
 }
@@ -315,6 +319,8 @@ fi
 # shellcheck disable=SC2016 # literal backticks in the needles
 for bad in ' gone before claim: report; keep the entry so nothing re-spawns it ' \
   ' ran and stopped unclaimed: report detail, keep the entry, never respawn ' \
+  ' ran and stopped unclaimed: next pass decides ' \
+  ' ledger `seen=<updated_at>` anew ' \
   ' FAILED SPAWN: `archive_session`, plain spawn of the ITEM, counted; at the limit report '; do
   if unclaimed_ok "$bad"; then
     fail "the unclaimed-row check catches:${bad}"

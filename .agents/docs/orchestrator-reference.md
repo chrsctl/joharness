@@ -10,7 +10,7 @@ lines say when to read each; its terms hold here.
 | `PushNotification` (or the environment's equivalent) | a valid block, a `corewait` pull request, a FAILED SPAWN AT LIMIT, `slot held with no exit` and `spawn has no checkout` are reported in the pass report only, no push to the human: say so once. |
 | any transport that delivers | no nudge: still two passes, the first sends nothing; the KILL's interrupt does the asking. `JOHARNESS_STALL_MINUTES` becomes a kill threshold — say so. |
 | `interrupt_session` | cannot stop, so must not replace: write the handover from the branch, `status: blocked`, `next:` = "stalled: Stalled; the orchestrator could not stop the session that holds this.", report, no respawn. A session already gone (ARCHIVED, COMPLETED, not found, FAILED twice) is respawned anyway. An UNCLAIMED session a row would interrupt (BLOCKED BEFORE CLAIM, RUNNING nudged): FAILED SPAWN AT LIMIT at once, spawn nothing (§ Unclaimed spawn rows). |
-| `archive_session` | the stopped session is left in place; report, respawn as written. An UNCLAIMED session a row would archive, not ARCHIVED or not found: FAILED SPAWN AT LIMIT at once, spawn nothing (§ Unclaimed spawn rows). |
+| `archive_session` | the stopped session is left in place; report, respawn as written. An UNCLAIMED session a row would archive, not ARCHIVED, COMPLETED or not found: FAILED SPAWN AT LIMIT at once, spawn nothing (§ Unclaimed spawn rows). |
 | `status_bucket` | crash and BLOCKED BEFORE CLAIM rows unreachable: take the IDLE path (nudge, confirm, respawn; the unratified-block row still applies); never respawn on one observation; name the managers judged this way. |
 | `set_session_title` | the one-orchestrator check cannot work: report it every pass as a cost in the human's money; do not stop. |
 | `create_trigger` | no REGISTER: report `heartbeat not registered: no create_trigger`. |
@@ -122,7 +122,7 @@ queue cannot see").
    act: `set_session_title` yours to `👯 orchestrator (duplicate):
    <owner/repo>` (RUN END, §4). Else
    `set_session_title` yours to `🎼 orchestrator: <owner/repo>`. From the same result rebuild `@new`:
-   each `🔨 manager: <stem>` not `ARCHIVED`, not in your ledger, whose item file
+   each `🔨 manager: <stem>` not `ARCHIVED` or `COMPLETED`, not in your ledger, whose item file
    still exists on `origin/main` (`git cat-file -e origin/main:<path>`) →
    ledger `<stem>@new respawns=<RESPAWN_LIMIT>` (never a stem on `failed=`); report `rebuilt <stem>@new
    from its title`.
@@ -288,8 +288,12 @@ report and the push.
 An UNCLAIMED entry holds a slot (`JOHARNESS_PENDING_SPAWNS`). Every row
 below records a look, waits on a bound that ends (next pass decides), or
 ends in a spawn or FAILED SPAWN AT LIMIT; never keep the entry so nothing
-respawns it. Plain spawn: the ITEM again, `respawns`+1, through the Source
-check; an entry still `new` never goes to § Respawn limit (it has no branch).
+respawns it. Plain spawn: the ITEM again, through the Source check; its
+entry `<stem>@new`, `respawns`+1, no `seen=`, `held=` or nudge (those were
+the old session's); an entry still `new` never goes to § Respawn limit (it
+has no branch). CEILING: an UNCLAIMED session `created_at` twice
+`JOHARNESS_STALL_MINUTES` old is a FAILED SPAWN whatever it does: every wait
+below ends there.
 
 FAILED SPAWN AT LIMIT: `respawns` at `JOHARNESS_RESPAWN_LIMIT`.
 `archive_session` the session unless ARCHIVED or not found (absent or
@@ -298,20 +302,22 @@ stem, session link, `status_detail` and the NO SOURCE note: `failed spawn:
 <stem> stopped unclaimed; a human decides`. Drop the entry, ledger
 `failed=<stem>`: the ledger key `failed=<stem>[,<stem>]` is run-scoped; §3
 spawns no manager for a stem on it and the `@new` rebuild skips it, this
-run; report it every pass.
+run; report it every pass. A human's word in YOUR turn naming the stem
+(as § Relay reads an answer) takes it off `failed=`.
 
 | control plane | push age | ledger | do |
 | --- | --- | --- | --- |
 | ARCHIVED, COMPLETED or not found | any | `new` from a previous pass | FAILED SPAWN: `archive_session` a COMPLETED one, plain spawn; at the limit FAILED SPAWN AT LIMIT |
+| any other, `created_at` twice `JOHARNESS_STALL_MINUTES` old | any | `new` from a previous pass | CEILING, FAILED SPAWN: `interrupt_session` one not IDLE/PENDING, `archive_session`, plain spawn; at the limit FAILED SPAWN AT LIMIT |
 | BLOCKED, not IDLE/PENDING | any | `new` from a previous pass, no `held=` | ledger `held=<updated_at>` |
 | same | any | `held=`, still `new`, `updated_at` unchanged | BLOCKED BEFORE CLAIM: at the limit FAILED SPAWN AT LIMIT. Else `interrupt_session`, `archive_session`, plain spawn |
-| same | any | `held=`, `updated_at` moved | ledger `held=<updated_at>` anew |
-| RUNNING, `created_at` under `JOHARNESS_STALL_MINUTES` old | any | `new` from a previous pass | starting: next pass decides |
+| same | any | `held=`, `updated_at` moved | under CEILING: ledger `held=<updated_at>` anew |
+| RUNNING, `created_at` under `JOHARNESS_STALL_MINUTES` old | any | `new` from a previous pass | starting, under CEILING: next pass decides |
 | RUNNING | any | `new`, no nudge | NUDGE "Orchestrator health pass: no claim pushed for <N>m. Now: push your workstream file, or set status blocked and stop." Ledger the nudge, `updated_at`; no transport: send nothing, still ledger |
-| RUNNING | any | `new`, nudged, `updated_at` and `status_detail` unchanged since, or `created_at` twice `JOHARNESS_STALL_MINUTES` old | FAILED SPAWN: `interrupt_session`, `archive_session`, plain spawn; at the limit FAILED SPAWN AT LIMIT |
-| RUNNING | any | `new`, nudged, moved since | working toward a claim: next pass decides |
+| RUNNING | any | `new`, nudged, `updated_at` and `status_detail` unchanged since | FAILED SPAWN: `interrupt_session`, `archive_session`, plain spawn; at the limit FAILED SPAWN AT LIMIT |
+| RUNNING | any | `new`, nudged, moved since | working toward a claim, under CEILING: next pass decides |
 | IDLE/PENDING | any | `new` from a previous pass, no `seen=` | ledger `seen=<updated_at>` and whether `last_served_model`/`sources` exist |
-| IDLE/PENDING | any | `seen=`, `updated_at` moved | ledger `seen=<updated_at>` anew |
+| IDLE/PENDING | any | `seen=`, `updated_at` moved | under CEILING: ledger `seen=<updated_at>` anew |
 | IDLE/PENDING | any | `seen=`, `updated_at` unchanged | FAILED SPAWN (STILLBORN: no `last_served_model`, no `sources`): `archive_session`, plain spawn; at the limit FAILED SPAWN AT LIMIT |
 
 ## KILL and LOOP
