@@ -176,8 +176,8 @@ stub_suite '2 passed, 0 failed'
 # wrapper exec'ing that name finds itself on PATH and never stops. Bounded:
 # without the fix this case is a 60s timeout, not a hung suite (timeout
 # signals its whole process group, the looping wrapper included).
-# shellcheck disable=SC2317  # git() is called, through the export
 out="$( git() { command git "$@"; }; export -f git
+  git --version >/dev/null  # the function, called here as the wrapper will call it
   CLAUDE_PROJECT_DIR="$swork" JOHARNESS_CONF="${swork}/joharness.conf" \
   GITHUB_ACTIONS='' JOHARNESS_SELFTEST='' JOHARNESS_SELFTEST_GIT_PER_CASE=1 \
   timeout 60 "${swork}/joharness.sh" ci 2>&1 | sed -n '/== harness selftest/,/^$/p' )"

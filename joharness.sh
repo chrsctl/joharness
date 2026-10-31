@@ -72,10 +72,6 @@
 # KNOBS table below holds every one the script reads, with its default, scope
 # and meaning; `conf` prints them with their live values.
 
-# The script ends in `main "$@"; exit $?`; after that exit shellcheck sees the
-# checks run_check calls through "$@" as unreachable.
-# shellcheck disable=SC2317
-
 set -uo pipefail
 
 ROOT="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
@@ -384,12 +380,40 @@ CHECK_FAILS=0
 CHECK_FAILED=""
 CHECK_SKIPPED=0
 
+# check_call <function> [args]: run a check run_check names. One arm per
+# check, so shellcheck sees every call; a name with no arm dies.
+check_call() {
+  local fn="$1"
+  shift
+  case "$fn" in
+    ci_shellcheck) ci_shellcheck "$@" ;;
+    ci_syntax) ci_syntax "$@" ;;
+    ci_selftest) ci_selftest "$@" ;;
+    lint_glossary) lint_glossary "$@" ;;
+    lint_graph) lint_graph "$@" ;;
+    lint_plans_in_diff) lint_plans_in_diff "$@" ;;
+    lint_fast_lane) lint_fast_lane "$@" ;;
+    lint_finding_ids) lint_finding_ids "$@" ;;
+    lint_finding_markers) lint_finding_markers "$@" ;;
+    lint_finding_routes) lint_finding_routes "$@" ;;
+    lint_ship) lint_ship "$@" ;;
+    ci_churn) ci_churn "$@" ;;
+    ci_broken_windows) ci_broken_windows "$@" ;;
+    review_report) review_report "$@" ;;
+    fin_gate) fin_gate "$@" ;;
+    finish_adds) finish_adds "$@" ;;
+    finish_map) finish_map "$@" ;;
+    checks_gate) checks_gate "$@" ;;
+    *) die "run_check: '${fn}' is not a registered check (add it to check_call)" ;;
+  esac
+}
+
 # run_check <name> <function> [args]: run one check, print its output only
 # when it fails (or verbose). Status 3 = skipped, said in the verdict line.
 run_check() {
   local name="$1" out rc
   shift
-  out="$("$@" 2>&1)"; rc=$?
+  out="$(check_call "$@" 2>&1)"; rc=$?
   # A pass that carries a report about THIS branch or checkout (not
   # measurable, edge report, ships, not covered, shallow — incl. graph reds
   # degraded to warnings — churn warning) still prints. Plain lint warnings
@@ -1781,16 +1805,6 @@ review_recipe() {
     *)
       printf '/code-review (high) on the full diff' ;;
   esac
-}
-
-# Bullets under `## Review`. Same awk the handover hook counts with, so the
-# gate and the hook can never disagree about what a recorded finding is.
-review_count() {
-  awk '
-    /^## Review[[:space:]]*$/ { in_r = 1; next }
-    /^## /                    { in_r = 0 }
-    in_r && /^- /             { n++ }
-    END { print n + 0 }'
 }
 
 # Findings this branch recorded that nothing can ever serve back.
@@ -3307,8 +3321,8 @@ ref_fact() {
   [ -z "${4:-}" ] || printf -v "$4" '%s' "${rest#* }"
 }
 
-# <ref>: base_mb into MBV, its failure the return: no `$(...)` fork, which the
-# per-ref walks paid once per ref each.
+# <ref>: the merge-base of <ref> and the base branch into MBV, its failure
+# the return. No `$(...)` fork: the per-ref walks would pay one per ref.
 MBV=""
 base_mb_v() {
   if memo_get "$MB_MEMO" $'\n'"${1}"$'\t'; then
@@ -3317,18 +3331,6 @@ base_mb_v() {
   else
     MBV="$(git -C "$ROOT" merge-base "$1" \
          "refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" </dev/null 2>/dev/null)"
-  fi
-}
-
-# <ref>: `git merge-base <ref> <base>`, its output and its failure, from the
-# memo when mb_prime saw the ref.
-base_mb() {
-  if memo_get "$MB_MEMO" $'\n'"${1}"$'\t'; then
-    [ -n "$MEMO_VAL" ] || return 1
-    printf '%s\n' "$MEMO_VAL"
-  else
-    git -C "$ROOT" merge-base "$1" \
-      "refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" </dev/null 2>/dev/null
   fi
 }
 

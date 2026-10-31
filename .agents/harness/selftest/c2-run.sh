@@ -61,26 +61,28 @@ git -C "$ROOT" ls-files -z -- . ':(exclude).agents/harness/selftest/' |
     git checkout -q main && git merge -q --no-ff -m "merge fx-$1" "fx-$1"
   }
   c2r_fix() { sed -i 's/\$1 - \$2/$1 + $2/' ".agents/scripts/c2-$1.sh"; }
-  c2r_refactor() { sed -i 's/^echo \$((/printf "%s\\n" $((/' ".agents/scripts/c2-$1.sh"; }
+  # Code step of the stems that change no behaviour: same output, other
+  # spelling. Exported: c2r_stem evals the steps as strings.
+  export c2r_respell='s/^echo \$((/printf "%s\\n" $((/'
   c2r_case() { printf '%s\n' "$2" >>".agents/harness/selftest/c2-$1.sh"; }
   c2r_r() { printf '$(bash "${ROOT}/.agents/scripts/c2-%s.sh" %s)' "$1" "$2"; }
 
   c2r_stem chain "c2r_fix chain" "c2r_case chain 'expect \"c2-chain chained args sum to 5\" 5 \"\$(bash \"\${ROOT}/.agents/scripts/c2-chain.sh\" \$c2_chain_args 2>/dev/null)\"'"
   c2r_stem fix "c2r_fix fix" "c2r_case fix 'expect \"c2-fix 2 3 is 5\" 5 \"$(c2r_r fix '2 3')\"'"
-  c2r_stem char "c2r_refactor char" "c2r_case char 'expect \"c2-char 5 3 is 2\" 2 \"$(c2r_r char '5 3')\"'"
+  c2r_stem char "sed -i \"\$c2r_respell\" .agents/scripts/c2-char.sh" "c2r_case char 'expect \"c2-char 5 3 is 2\" 2 \"$(c2r_r char '5 3')\"'"
   c2r_stem skip "c2r_fix skip" "c2r_case skip 'if [ -n \"\${C2_NEVER:-}\" ]; then expect \"c2-skip 2 3 is 5\" 5 \"$(c2r_r skip '2 3')\"; else skip \"c2-skip 2 3 is 5\" \"C2_NEVER unset\"; fi'"
   c2r_stem death "c2r_fix death" "c2r_case death '[ \"$(c2r_r death '2 3')\" = 5 ] || exit 3; pass \"c2-death 2 3 exits clean\"'"
   # helperchar: the case calls a helper the branch adds to the runner.
-  c2r_stem helperchar "c2r_refactor helperchar; sed -i 's/^skip() {/c2_run() { bash \"\${ROOT}\/.agents\/scripts\/c2-\$1.sh\" \"\${@:2}\"; }\nskip() {/' $c2r_st" \
+  c2r_stem helperchar "sed -i \"\$c2r_respell\" .agents/scripts/c2-helperchar.sh; sed -i 's/^skip() {/c2_run() { bash \"\${ROOT}\/.agents\/scripts\/c2-\$1.sh\" \"\${@:2}\"; }\nskip() {/' $c2r_st" \
     "c2r_case helperchar 'expect \"c2-helperchar via helper 5 3 is 2\" 2 \"\$(c2_run helperchar 5 3)\"'"
   c2r_stem newtopic "c2r_fix newtopic" "printf '%s\n' '# shellcheck shell=bash' 'step \"c2-new\"' 'expect \"c2-new 2 3 is 5\" 5 \"$(c2r_r newtopic '2 3')\"' >.agents/harness/selftest/c2-new.sh; sed -i 's/^  c2-newtopic\$/  c2-newtopic\n  c2-new/' $c2r_st"
   c2r_stem testonly ":" "c2r_case testonly 'expect \"c2-testonly 4 4 is 0\" 0 \"$(c2r_r testonly '4 4')\"'"
   c2r_stem random "c2r_fix random" "c2r_case random 'expect \"c2-random 2 3 is 5 run \$RANDOM\" 5 \"$(c2r_r random '2 3')\"'"
   # other: the Goal's fix B gets a case that passes either way; an unrelated
   # wording change A is what turns the topic red without the change.
-  c2r_stem other "c2r_refactor other; sed -i 's/^# c2-other.*/&\\necho \"c2-other v2\" >\&2/' .agents/scripts/c2-other.sh" \
+  c2r_stem other "sed -i \"\$c2r_respell\" .agents/scripts/c2-other.sh; sed -i 's/^# c2-other.*/&\\necho \"c2-other v2\" >\&2/' .agents/scripts/c2-other.sh" \
     "c2r_case other 'expect \"c2-other says v2\" v2 \"\$(bash \"\${ROOT}/.agents/scripts/c2-other.sh\" 1 1 2>&1)\"'; c2r_case other 'expect \"c2-other fix B: 5 3 is 2\" 2 \"$(c2r_r other '5 3')\"'"
-  c2r_stem newtopicchar "c2r_refactor newtopicchar" "printf '%s\n' '# shellcheck shell=bash' 'step \"c2-newc\"' 'expect \"c2-newc 5 3 is 2\" 2 \"$(c2r_r newtopicchar '5 3')\"' >.agents/harness/selftest/c2-newc.sh; sed -i 's/^  c2-newtopicchar\$/  c2-newtopicchar\n  c2-newc/' $c2r_st"
+  c2r_stem newtopicchar "sed -i \"\$c2r_respell\" .agents/scripts/c2-newtopicchar.sh" "printf '%s\n' '# shellcheck shell=bash' 'step \"c2-newc\"' 'expect \"c2-newc 5 3 is 2\" 2 \"$(c2r_r newtopicchar '5 3')\"' >.agents/harness/selftest/c2-newc.sh; sed -i 's/^  c2-newtopicchar\$/  c2-newtopicchar\n  c2-newc/' $c2r_st"
   # direct: claim, fix, case and retire committed onto main itself, a merge
   # after them: no main merge brought the retire in.
   printf -- '---\nworkstream: fx-direct\n---\n' >docs/handover/fx-direct.md
@@ -106,7 +108,7 @@ git -C "$ROOT" ls-files -z -- . ':(exclude).agents/harness/selftest/' |
   printf -- '---\nworkstream: fx-absent\n---\n' >docs/handover/fx-absent.md
   git add -A && git commit -qm "fx-absent: claim"
   git checkout -q main && git merge -q --no-ff -m "merge fx-absent" fx-absent
-  c2r_stem oldskip "c2r_refactor oldskip" "c2r_case oldskip 'expect \"c2-oldskip 5 3 is 2\" 2 \"$(c2r_r oldskip '5 3')\"'"
+  c2r_stem oldskip "sed -i \"\$c2r_respell\" .agents/scripts/c2-oldskip.sh" "c2r_case oldskip 'expect \"c2-oldskip 5 3 is 2\" 2 \"$(c2r_r oldskip '5 3')\"'"
   # notopics, last: its retire tree has no topic directory, as a tree from
   # before the topic split.
   c2r_stem notopics "c2r_fix notopics" "git rm -rq .agents/harness/selftest"
