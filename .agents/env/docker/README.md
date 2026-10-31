@@ -104,8 +104,8 @@ Known reachable: `registry-1.docker.io`, `mirror.gcr.io`, `raw.githubusercontent
   for its one soft spot.
 - Docker Hub rate-limits anonymous pulls (`429 Too Many Requests`), and a
   shared sandbox or runner IP trips it. The smoke test and `ci-verify` pull
-  Docker Hub library images through Google's public mirror instead:
-  `mirror.gcr.io/library/<image>:<tag>`, same image, no Docker Hub quota.
+  Docker Hub library images through Google's public mirror of them instead:
+  `mirror.gcr.io/library/<image>:<tag>`; those pulls never reach Docker Hub.
   Your own `docker pull` hits a 429? Same prefix.
 - The dockerd start logic mirrors `.agents/env/k8s/devenv.sh` rather than calling
   it: layers are self-contained by contract ([`../README.md`](../README.md)),

@@ -14,7 +14,8 @@ next: Run ci and verify, record review, open the pull request
 ## Goal
 
 Pull the docker layer's dev images via mirror.gcr.io: Docker Hub 429s
-reddened verify (c2-run-prune-race blocked on it).
+reddened this layer's verify (c2-run-prune-race blocked on it). The k8s
+layer is not covered (Decisions).
 
 ## Decisions
 
@@ -25,6 +26,12 @@ reddened verify (c2-run-prune-race blocked on it).
 - k8s layer still pulls from Docker Hub: out of fast-lane scope (3 paths).
 
 ## Review
+
+- r1: own /code-review pass: unquoted Dockerfile heredoc expands only ${ALPINE}; compose heredoc only ${NGINX} (no change)
+- r2: (verifier) image list duplicated in smoke-test.sh and ci-verify, no check ties them (wontfix: pre-existing, alpine:3 was duplicated the same way; tying them is layer work beyond the fast lane)
+- r3: (verifier) Goal claimed the 429 fix without naming the k8s layer it skips (fixed)
+- r4: (verifier) README "same image, no Docker Hub quota" overclaims; nginx digest unverifiable here (Hub 429'd the verifier) (fixed: worded as a mirror of Docker Hub's library images)
+- r5: (verifier) explicit reference working on a stock runner is reasoned, not run (no change: CI on this head runs it)
 
 ## Blockers
 
