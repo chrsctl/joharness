@@ -161,12 +161,15 @@ the call in your final report line; never block or retry.
 
 A lead is a heads-up to a LIVE queue item, never a finding's record: it can
 be dropped (its stem is no item dispatch lists, the orchestrator retired) and
-it is never filed. A finding about EXISTING code outside your item — a review
-line `wontfix` because it is outside the Goal or pre-existing — is a defect:
-§ Defect files it (an issue, or a PR body line for a second unmatched one),
-and the `## Review` verdict cites where it went, `#<n>` or `PR body`. `ci`
-stage `finding routes` reds one that cites neither (`joharness.sh:lint_finding_routes`).
-A lead may follow, never replace it.
+it is never filed. A finding outside your item — a review line `wontfix`
+because it is outside the Goal or scope, or pre-existing — leaves with the
+workstream file unless routed: one that reproduces on `origin/main` is a
+defect, § Defect (an issue, `Refs #M`, or a PR body line for a second
+unmatched one); anything else (an observation, a declined design change) is
+one line in your pull request body. The `## Review` verdict cites where it
+went, `#<n>` or `PR body`. `ci`
+stage `finding routes` reds one that cites neither (`joharness.sh:lint_finding_routes`);
+a verdict naming `canonical's file` routes through `upstream` instead.
 
 After the merge, send it as one message on the transport your prompt
 names, in the orchestrator's grammar — `lead <stem>: <text>`, text at most

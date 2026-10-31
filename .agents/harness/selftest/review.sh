@@ -902,25 +902,36 @@ write_ws routes.md review none "" \
   "- r2: a write outside the lock, seen in PR #12 (wontfix: costs more than it catches)" \
   "- r3: a stale cache key (wontfix: pre-existing, filed #41)" \
   "- r4: an old retry loop (wontfix: out of scope, in PR body)" \
-  "- r5: a canonical gate let it through (wontfix: canonical's file, pre-existing)"
+  "- r5: a canonical gate let it through (wontfix: canonical's file, pre-existing)" \
+  "- r6: an old parser bug (wontfix: predates this change)" \
+  "- r7: a dangling citation (wontfix: not part of this plan)" \
+  "- r8: a leaked handle (wontfix: pre-existing; see PR #5)" \
+  "- r9: a second old bug (wontfix: out of plan scope, flagged in the pull request body)" \
+  "- r10: a slow loop (wontfix: not in practice a problem)" \
+  "- r11: an old leak (wontfix: pre-existing; same root as r2, see https://github.com/o/r/issues/41)"
 printf 'code\n' >"${rwork}/routes.txt"
-commit_all "$rwork" "five wontfix findings, one routed nowhere"
+commit_all "$rwork" "nine wontfix findings, four routed nowhere"
 git -C "$rwork" rm -q docs/handover/routes.md
 git -C "$rwork" commit -qm "Finish ritual: delete the workstream file"
 out="$(ci_routes)"
 expect "an out-of-item wontfix with no route is named, after the retire" \
   "r1: delete_field leaves _chunk rows" "$out"
-expect "and counted" "1 out-of-item finding(s) recorded only here" "$out"
+expect "and counted" "4 out-of-item finding(s) recorded only here" "$out"
+# The verifier's wordings: a blacklist of one phrasing lets the next through.
+expect "predates is out-of-item" "r6: an old parser bug" "$out"
+expect "so is not part of this plan" "r7: a dangling citation" "$out"
+expect "a pull request's number is no filed issue" "r8: a leaked handle" "$out"
+refute "the pull request body, spelled out, routes it" "r9: a second old bug" "$out"
+refute "a word only containing a target is no scope claim" "r10: a slow loop" "$out"
+refute "an issues URL routes it" "r11: an old leak" "$out"
 refute "a description saying outside, or citing a PR, is not the verdict" \
   "r2: a write outside the lock" "$out"
 refute "an issue cited in the verdict routes it" "r3: a stale cache key" "$out"
 refute "so does the PR body" "r4: an old retry loop" "$out"
 refute "a canonical finding routes through upstream" "r5: a canonical gate" "$out"
-if jr ci >/dev/null 2>&1; then
-  fail "and ci is RED — the finding would be lost at merge"
-else
-  pass "and ci is RED — the finding would be lost at merge"
-fi
+out="$(jr ci || :)"
+expect "and ci is RED on this stage — the finding would be lost at merge" \
+  "finding routes" "$(printf '%s\n' "$out" | grep '^ci: FAIL' || :)"
 git -C "$rwork" checkout -q main
 git -C "$rwork" checkout -qb routesok main
 write_ws routesok.md review none "" \
