@@ -156,3 +156,19 @@ if [ -z "$st_bad" ]; then
 else
   fail "first topics of units, chain or alone, are no problem"
 fi
+
+# A unit started a second time is a named FAIL, and the second run writes
+# nothing the first one reads.
+st_twice="$(
+  run="${st_dir}/twice"
+  mkdir -p "$run"
+  selftest_topics_dir="${st_dir}/topics"
+  SELFTEST_TOPICS=(st-a) SELFTEST_CHAINS=() SELFTEST_FIRST=()
+  selftest_unit 7 "$run" st-a
+  selftest_unit 7 "$run" st-a
+  PASS=0 FAIL=0 SKIP=0
+  selftest_shards 1 "$run" 2>&1 | grep 'started twice'
+  cat "${run}/u7.counts" 2>/dev/null
+)"
+expect "a unit started twice is a FAIL naming it" "FAIL unit 7 started twice" "$st_twice"
+expect "and the first run's counts are intact" "1 0 0" "$st_twice"

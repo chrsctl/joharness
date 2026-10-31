@@ -819,6 +819,15 @@ selftest_units() {
 selftest_unit() {
   local _st_n="$1" _st_out="$2" _st_t
   shift 2
+  # A unit runs once: two runs in one TMP write one fixture and one topic
+  # file together, and every red they cause names a git lock, not the cause.
+  if ! mkdir "${_st_out}/u${_st_n}.started" 2>/dev/null; then
+    printf 'unit %s started twice (first by pid %s, again by pid %s): %s\n' \
+      "$_st_n" "$(cat "${_st_out}/u${_st_n}.started/by" 2>/dev/null || echo '?')" "$BASHPID" "$*" \
+      >>"${_st_out}/twice.fail"
+    return 0
+  fi
+  printf '%s\n' "$BASHPID" >"${_st_out}/u${_st_n}.started/by"
   (
     TMP="${_st_out}/u${_st_n}.tmp"
     mkdir -p "$TMP" || exit 1
@@ -916,6 +925,12 @@ selftest_shards() {
     [ ! -e "${out}/${t}.out" ] || cat "${out}/${t}.out"
   done
   wait
+  if [ -s "${out}/twice.fail" ]; then
+    while IFS= read -r p; do
+      printf '  FAIL %s\n' "$p" | tee -a "${out}/units.fail"
+      FAIL=$((FAIL + 1))
+    done <"${out}/twice.fail"
+  fi
 }
 
 # <out dir>: the FAIL lines again, grouped by the topic that printed them,
