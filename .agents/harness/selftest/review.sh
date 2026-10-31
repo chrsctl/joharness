@@ -888,6 +888,54 @@ fi
 
 git -C "$rwork" checkout -q main
 
+# --- finding routes --------------------------------------------------------
+# chrsctl/gx#1173: a verifier found a defect in pre-existing code, the manager
+# wrote `wontfix: outside this plan's Goal, pre-existing; sent as a lead`, the
+# lead's stem was no queue item, the orchestrator dropped it, and the finding
+# lived on only in the retired workstream file. An out-of-item wontfix must
+# name an issue or the PR body.
+ci_routes() { jr ci | awk '/^== finding routes/ { f = 1; next } f && /^== / { exit } f'; }
+
+git -C "$rwork" checkout -qb routes main
+write_ws routes.md review none "" \
+  "- r1: delete_field leaves _chunk rows (wontfix: outside this plan's Goal, pre-existing; sent as a lead) (verifier)" \
+  "- r2: a write outside the lock, seen in PR #12 (wontfix: costs more than it catches)" \
+  "- r3: a stale cache key (wontfix: pre-existing, filed #41)" \
+  "- r4: an old retry loop (wontfix: out of scope, in PR body)" \
+  "- r5: a canonical gate let it through (wontfix: canonical's file, pre-existing)"
+printf 'code\n' >"${rwork}/routes.txt"
+commit_all "$rwork" "five wontfix findings, one routed nowhere"
+git -C "$rwork" rm -q docs/handover/routes.md
+git -C "$rwork" commit -qm "Finish ritual: delete the workstream file"
+out="$(ci_routes)"
+expect "an out-of-item wontfix with no route is named, after the retire" \
+  "r1: delete_field leaves _chunk rows" "$out"
+expect "and counted" "1 out-of-item finding(s) recorded only here" "$out"
+refute "a description saying outside, or citing a PR, is not the verdict" \
+  "r2: a write outside the lock" "$out"
+refute "an issue cited in the verdict routes it" "r3: a stale cache key" "$out"
+refute "so does the PR body" "r4: an old retry loop" "$out"
+refute "a canonical finding routes through upstream" "r5: a canonical gate" "$out"
+if jr ci >/dev/null 2>&1; then
+  fail "and ci is RED — the finding would be lost at merge"
+else
+  pass "and ci is RED — the finding would be lost at merge"
+fi
+git -C "$rwork" checkout -q main
+git -C "$rwork" checkout -qb routesok main
+write_ws routesok.md review none "" \
+  "- r1: delete_field leaves _chunk rows (wontfix: outside this plan's Goal, pre-existing, filed #1173) (verifier)"
+printf 'code\n' >"${rwork}/routesok.txt"
+commit_all "$rwork" "the same finding, filed"
+out="$(ci_routes)"
+expect "a routed branch says so" "every out-of-item finding names where it lives on" "$out"
+if jr ci >/dev/null 2>&1; then
+  pass "and ci is green"
+else
+  fail "and ci is green"
+fi
+git -C "$rwork" checkout -q main
+
 # NOT RETIRED: added, deleted by mistake, then RE-ADDED and still present at
 # HEAD. fin_retired_own's first draft matched 'added' and 'deleted' as sets
 # over the branch's whole history, so this shape — a file that is very much

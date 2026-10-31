@@ -160,6 +160,9 @@ GitHub lost at step 7:
 
 **A LEAD, when you have one.** Learned something about an item you do NOT
 own, or about an issue, a merged item or the harness itself? ref § Lead.
+A lead is never a finding's only record: a review finding outside your item
+or pre-existing goes through § Defect, and its `wontfix` cites `#<n>` or
+`PR body` (`ci` stage `finding routes`).
 
 A rescope may rewrite your plan's `scope:` while you hold it. At step 7 that
 is a modify/delete conflict on your OWN plan file: KEEP THE DELETE (`git rm`

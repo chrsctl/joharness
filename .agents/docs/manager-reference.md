@@ -159,6 +159,15 @@ the call in your final report line; never block or retry.
 
 ## Lead
 
+A lead is a heads-up to a LIVE queue item, never a finding's record: it can
+be dropped (its stem is no item dispatch lists, the orchestrator retired) and
+it is never filed. A finding about EXISTING code outside your item — a review
+line `wontfix` because it is outside the Goal or pre-existing — is a defect:
+§ Defect files it (an issue, or a PR body line for a second unmatched one),
+and the `## Review` verdict cites where it went, `#<n>` or `PR body`. `ci`
+stage `finding routes` reds one that cites neither (`joharness.sh:lint_finding_routes`).
+A lead may follow, never replace it.
+
 After the merge, send it as one message on the transport your prompt
 names, in the orchestrator's grammar — `lead <stem>: <text>`, text at most
 40 characters:

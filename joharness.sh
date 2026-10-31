@@ -658,6 +658,7 @@ cmd_ci() {
   run_check "fast lane" lint_fast_lane
   run_check "finding ids" lint_finding_ids
   run_check "finding verdicts" lint_finding_markers
+  run_check "finding routes" lint_finding_routes
   run_check "ship scope" lint_ship
   run_check churn ci_churn
   run_check "broken windows" ci_broken_windows
@@ -1872,6 +1873,80 @@ lint_finding_markers() {
   printf '    - r1: <finding> (fixed in <file or commit>)\n'
   printf '    - r2: <finding> — wontfix: <why>\n'
   printf '    - r3: <finding> — no change: <why>\n'
+  return 1
+}
+
+# A wontfix finding about code outside this item — the reason says outside
+# the plan/item/goal/scope, or pre-existing — has no home once the workstream
+# file retires. It must name where it lives on: an issue (`#<n>`) or the pull
+# request body (`PR body`). A lead is no record (manager-reference.md § Lead).
+# `canonical` findings route through `upstream` and are exempt.
+fr_out_of_item() {
+  printf '%s\n' "$1" | awk '{
+    t = tolower($0)
+    if (t ~ /canonical/) exit 1
+    if (t ~ /outside[ \t]+(of[ \t]+)?((this|the|our|my)[ \t]+)?(plan|item|goal|scope|diff|branch|change|pr|pull)/) exit 0
+    if (t ~ /out[- ]of[- ](scope|item|plan)/) exit 0
+    if (t ~ /pre[- ]?existing/) exit 0
+    exit 1
+  }'
+}
+
+fr_routed() {
+  printf '%s\n' "$1" | awk '{ t = tolower($0)
+    if (t ~ /#[0-9]+/ || t ~ /pr[ \t]+body/) exit 0; exit 1 }'
+}
+
+lint_finding_routes() {
+  local over="origin/${HANDOVER_BASE_BRANCH:-main}" base ws content text
+  local bad=0 seen=0 here short verdict
+  base="$(git -C "$ROOT" merge-base HEAD "$over" 2>/dev/null)"
+  if [ -z "$base" ]; then
+    printf '  not measurable here (no merge-base with %s; unrelated history)\n' "$over"
+    return 0
+  fi
+  while IFS= read -r ws; do
+    [ -n "$ws" ] || continue
+    content="$(lint_ws_content "$ws")"
+    [ -n "$content" ] || continue
+    seen=$((seen + 1))
+    here=0
+    while IFS= read -r text; do
+      [ -n "$text" ] || continue
+      [ "$(fb_marker "$text")" = "wontfix" ] || continue
+      # The verdict only: "a write outside the lock" in the description, or
+      # "PR #12" cited as evidence, says nothing about where this lives on.
+      verdict="(wontfix${text##*(wontfix}"
+      fr_out_of_item "$verdict" || continue
+      fr_routed "$verdict" && continue
+      bad=$((bad + 1))
+      [ "$here" -eq 1 ] || { here=1; printf '  %s\n' "$ws"; }
+      short=""
+      if [ "${#text}" -gt 76 ]; then
+        short="${text:0:72}"
+        case "$short" in
+          *' '*) short="${short% *}" ;;
+          *) short="" ;;
+        esac
+      fi
+      if [ -n "$short" ]; then printf '    %s …\n' "$short"
+      else printf '    %s\n' "$text"; fi
+    done <<<"$(printf '%s\n' "$content" | fb_findings)"
+  done <<<"$(fin_own_ws "$base")"
+
+  if [ "$seen" -eq 0 ]; then
+    printf '  no workstream file in this branch'"'"'s diff\n'
+    return 0
+  fi
+  if [ "$bad" -eq 0 ]; then
+    printf '  every out-of-item finding names where it lives on\n'
+    return 0
+  fi
+  printf '\n  %d out-of-item finding(s) recorded only here. This file retires;\n' "$bad"
+  printf '  file the issue (manager-reference.md § Defect) and cite it, or put\n'
+  printf '  it in the pull request body and say so:\n'
+  printf '    - r2: <finding> (wontfix: pre-existing, filed #<n>)\n'
+  printf '    - r3: <finding> (wontfix: outside this plan, in PR body)\n'
   return 1
 }
 
