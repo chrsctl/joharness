@@ -85,7 +85,7 @@ the CA bundle above and no proxy configuration at all.
 Egress policy filters by host. `github.com` HTML pages return `403` — the
 `/releases/latest` redirect most install scripts follow is broken, direct
 release asset URLs work, so pin versions if this layer ever needs a download.
-Known reachable: `registry-1.docker.io`, `raw.githubusercontent.com`,
+Known reachable: `registry-1.docker.io`, `mirror.gcr.io`, `raw.githubusercontent.com`,
 `dl.k8s.io`, `get.helm.sh`, `proxy.golang.org`, `registry.k8s.io`.
 
 ## Notes and limits
@@ -102,6 +102,11 @@ Known reachable: `registry-1.docker.io`, `raw.githubusercontent.com`,
   runner without the proxy CA (the egress check degrades to a plain HTTPS
   fetch there). The marker lists the images the smoke test pulls; read it
   for its one soft spot.
+- Docker Hub rate-limits anonymous pulls (`429 Too Many Requests`), and a
+  shared sandbox or runner IP trips it. The smoke test and `ci-verify` pull
+  Docker Hub library images through Google's public mirror of them instead:
+  `mirror.gcr.io/library/<image>:<tag>`; those pulls never reach Docker Hub.
+  Your own `docker pull` hits a 429? Same prefix.
 - The dockerd start logic mirrors `.agents/env/k8s/devenv.sh` rather than calling
   it: layers are self-contained by contract ([`../README.md`](../README.md)),
   so neither layer may reference the other.

@@ -6,8 +6,8 @@ layer's smoke test runs, pulled with retries before verify so a rate-limited
 registry skips this layer loudly instead of reddening the gate. Everything
 else here is prose for humans.
 
-image: alpine:3
-image: nginx:alpine
+image: mirror.gcr.io/library/alpine:3
+image: mirror.gcr.io/library/nginx:alpine
 
 What declaring it promises (contract: ../README.md):
 
