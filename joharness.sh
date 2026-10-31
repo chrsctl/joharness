@@ -380,10 +380,8 @@ CHECK_FAILS=0
 CHECK_FAILED=""
 CHECK_SKIPPED=0
 
-# check_call <function> [args]: run one of the checks run_check may name. A
-# case, not "$@": shellcheck follows a call it can read, and a check reached
-# only through a string made every function under it "never invoked" (SC2329,
-# 0.11+). A name missing here is an error, not a silent skip.
+# check_call <function> [args]: run a check run_check names. One arm per
+# check, so shellcheck sees every call; a name with no arm dies.
 check_call() {
   local fn="$1"
   shift
@@ -3323,8 +3321,8 @@ ref_fact() {
   [ -z "${4:-}" ] || printf -v "$4" '%s' "${rest#* }"
 }
 
-# <ref>: the merge-base of <ref> and the base branch into MBV, its failure the return: no `$(...)` fork, which the
-# per-ref walks paid once per ref each.
+# <ref>: the merge-base of <ref> and the base branch into MBV, its failure
+# the return. No `$(...)` fork: the per-ref walks would pay one per ref.
 MBV=""
 base_mb_v() {
   if memo_get "$MB_MEMO" $'\n'"${1}"$'\t'; then

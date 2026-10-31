@@ -610,10 +610,8 @@ else
 fi
 
 # --- every run_check names a function check_call dispatches -----------------
-# run_check reaches a check through check_call's case, which shellcheck can
-# read; through "$@" it could not, and SC2329 (0.11+) called every function
-# under a check "never invoked". A run_check naming a function the case lacks
-# dies at run time with the registration message.
+# A function with no arm in check_call dies at run time with the
+# registration message; this reds before that run.
 kc_ran="$(grep -v '^[[:space:]]*#' "${ROOT}/joharness.sh" |
   grep -oE 'run_check +("[^"]+"|[^ ]+) +[A-Za-z_][A-Za-z0-9_]*' | awk '{print $NF}' | sort -u)"
 kc_missing=""
@@ -629,4 +627,4 @@ fi
 # sourceable.
 sed '$d' "${ROOT}/joharness.sh" >"${TMP}/joharness-nomain.sh"
 kc_out="$(ROOT="$kcwork" bash -c '. "$1" 2>/dev/null; run_check x not_a_check' _ "${TMP}/joharness-nomain.sh" 2>&1 | head -3)"
-expect "an unregistered check name is refused, not skipped" "is not a registered check" "$kc_out"
+expect "an unregistered check name is refused" "is not a registered check" "$kc_out"
