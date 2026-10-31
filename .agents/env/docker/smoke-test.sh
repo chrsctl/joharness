@@ -18,6 +18,11 @@ set -euo pipefail
 PREFIX="${SMOKE_PREFIX:-docker-smoke}"
 NET="${PREFIX}-net"
 CA_BUNDLE="${DEVENV_CA_BUNDLE:-/root/.ccr/ca-bundle.crt}"
+# Docker Hub library images, pulled through Google's public mirror: Docker Hub
+# rate-limits anonymous pulls (429), and a shared sandbox or runner IP hits
+# that limit. ci-verify lists the same references; keep the two in step.
+ALPINE="mirror.gcr.io/library/alpine:3"
+NGINX="mirror.gcr.io/library/nginx:alpine"
 KEEP=0
 [ "${1:-}" = "--keep" ] && KEEP=1
 
@@ -59,18 +64,18 @@ else
   exit 1
 fi
 
-if docker run --rm alpine:3 true >/dev/null 2>&1; then
+if docker run --rm "$ALPINE" true >/dev/null 2>&1; then
   pass "docker can pull an image and run a container"
 else
-  fail "docker could not pull/run alpine:3 (egress proxy or registry problem)"
+  fail "docker could not pull/run ${ALPINE} (egress proxy or registry problem)"
 fi
 
 # --- 3: build ---------------------------------------------------------------
 step "Image build"
 mkdir -p "${WORKDIR}/build"
 printf 'smoke-build-ok\n' >"${WORKDIR}/build/marker"
-cat >"${WORKDIR}/build/Dockerfile" <<'EOF'
-FROM alpine:3
+cat >"${WORKDIR}/build/Dockerfile" <<EOF
+FROM ${ALPINE}
 COPY marker /marker
 CMD ["cat", "/marker"]
 EOF
@@ -94,7 +99,7 @@ step "Container egress"
 if [ -r "$CA_BUNDLE" ]; then
   if docker run --rm \
        -v "${CA_BUNDLE}:/etc/ssl/certs/ca-certificates.crt:ro" \
-       alpine:3 wget -q -O /dev/null -T 20 "$EGRESS_URL" >/dev/null 2>&1; then
+       "$ALPINE" wget -q -O /dev/null -T 20 "$EGRESS_URL" >/dev/null 2>&1; then
     pass "HTTPS from a container works with the CA bundle mounted"
   else
     fail "HTTPS from a container failed even with the CA bundle mounted"
@@ -102,7 +107,7 @@ if [ -r "$CA_BUNDLE" ]; then
 else
   # Outside the sandbox (local machine) there is no proxy and no bundle;
   # plain HTTPS is the same guarantee.
-  if docker run --rm alpine:3 wget -q -O /dev/null -T 20 "$EGRESS_URL" \
+  if docker run --rm "$ALPINE" wget -q -O /dev/null -T 20 "$EGRESS_URL" \
        >/dev/null 2>&1; then
     pass "HTTPS from a container works (no proxy CA bundle present)"
   else
@@ -125,8 +130,8 @@ docker rm -f "${PREFIX}-server" >/dev/null 2>&1 || true
 if [ "$NET_OK" -eq 0 ]; then
   fail "could not create network ${NET}: ${NET_ERR}"
 elif docker run -d --name "${PREFIX}-server" --network "$NET" \
-     nginx:alpine >/dev/null 2>&1 \
-   && docker run --rm --network "$NET" alpine:3 \
+     "$NGINX" >/dev/null 2>&1 \
+   && docker run --rm --network "$NET" "$ALPINE" \
         sh -c "for i in 1 2 3 4 5; do wget -q -O /dev/null -T 5 http://${PREFIX}-server && exit 0; sleep 1; done; exit 1" \
         >/dev/null 2>&1; then
   pass "resolved a container by name on a user-defined network and got HTTP"
@@ -142,7 +147,7 @@ if docker compose version >/dev/null 2>&1; then
 name: ${PREFIX}
 services:
   web:
-    image: nginx:alpine
+    image: ${NGINX}
 EOF
   if docker compose --project-directory "${WORKDIR}/compose" \
        up -d --wait --wait-timeout 60 >/dev/null 2>&1 \
