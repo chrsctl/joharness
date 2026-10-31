@@ -1785,16 +1785,6 @@ review_recipe() {
   esac
 }
 
-# Bullets under `## Review`. Same awk the handover hook counts with, so the
-# gate and the hook can never disagree about what a recorded finding is.
-review_count() {
-  awk '
-    /^## Review[[:space:]]*$/ { in_r = 1; next }
-    /^## /                    { in_r = 0 }
-    in_r && /^- /             { n++ }
-    END { print n + 0 }'
-}
-
 # Findings this branch recorded that nothing can ever serve back.
 lint_ws_in_diff() {
   git -C "$ROOT" log --format= --name-only --diff-filter=ACMRT \
@@ -3210,7 +3200,7 @@ ref_fact() {
   [ -z "${4:-}" ] || printf -v "$4" '%s' "${rest#* }"
 }
 
-# <ref>: base_mb into MBV, its failure the return: no `$(...)` fork, which the
+# <ref>: the merge-base of <ref> and the base branch into MBV, its failure the return: no `$(...)` fork, which the
 # per-ref walks paid once per ref each.
 MBV=""
 base_mb_v() {
@@ -3220,18 +3210,6 @@ base_mb_v() {
   else
     MBV="$(git -C "$ROOT" merge-base "$1" \
          "refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" </dev/null 2>/dev/null)"
-  fi
-}
-
-# <ref>: `git merge-base <ref> <base>`, its output and its failure, from the
-# memo when mb_prime saw the ref.
-base_mb() {
-  if memo_get "$MB_MEMO" $'\n'"${1}"$'\t'; then
-    [ -n "$MEMO_VAL" ] || return 1
-    printf '%s\n' "$MEMO_VAL"
-  else
-    git -C "$ROOT" merge-base "$1" \
-      "refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" </dev/null 2>/dev/null
   fi
 }
 
