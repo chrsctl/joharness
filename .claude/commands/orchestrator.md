@@ -99,14 +99,17 @@ nothing.
 
 `JOHARNESS_PENDING_SPAWNS=<n> ./joharness.sh dispatch`, `<n>` = manager
 `@new` entries in the ledger (not `rescope-<key>@new`:
-roles hold no slot). Act on its output only. Then drop every rebuilt entry
-whose stem now has a claimed in-flight row. Never re-run dispatch in a pass.
+roles hold no slot). Act on its output only. Then every `@new` entry whose
+stem now has a claimed in-flight row is claimed: a rebuilt one drops, any
+other becomes `<stem>@<head>`, its `respawns=` kept; §2 judges it as a
+claimed manager. Never re-run dispatch in a pass.
 
 Every ledger entry that holds a slot leaves by a row: done, a spawn, or a
 notify and drop. An `@new` entry whose session ended unclaimed is a FAILED
 SPAWN (ref § Unclaimed spawn rows), never the human's to find. An entry no
-row of §2 matched this pass = report `slot held with no exit: <stem>`; no
-ledger `noexit=<stem>` yet = `PushNotification` it and ledger it.
+row of §2 matched this pass (read at §2's end) = report `slot held with no
+exit: <stem>`; no ledger `noexit=<stem>` yet = `PushNotification` it and
+ledger it; the ledger key `noexit=<stem>[,<stem>]` is run-scoped.
 
 `DEGRADED — shallow clone` on the verdict: `git fetch --unshallow`, or
 confirm each `spawn` item on the control plane first.
@@ -133,7 +136,7 @@ Act on the FIRST row that matches:
 | --- | --- | --- | --- |
 | any | any | branch merged (dispatch no longer lists it), or a plan/research/requirement entry still `new` whose item file is gone from fresh `origin/main` (merged between passes; never a `rescope-<key>` entry, which has no item file) | done: drop the ledger entry. A message carrying `lead <stem>: <text>` is the one exception that is never nothing: carry it and print it |
 | any | any | a `rescope-<key>` entry whose dispatch row reads `done: finished rescope, holds no slot — never nudge` (genuine holds: it merges nothing, ever) | done: drop the entry, keep `rescoped=<key>`. Nudge nothing, respawn nothing |
-| any | any | `new` from a previous pass, whatever `seen=`, `held=` or nudge it carries (not claimed: no branch, no workstream file) | UNCLAIMED → ref § Unclaimed spawn rows, which decide it whole: an ended unclaimed session is a FAILED SPAWN, archived and spawned again, counted; past the limit archived, notified once and dropped |
+| any | any | `new` from a previous pass, no claimed in-flight row for its stem on this pass's dispatch, whatever `seen=`, `held=` or nudge it carries | UNCLAIMED → ref § Unclaimed spawn rows, which decide it whole: an ended unclaimed session is a FAILED SPAWN, archived and spawned again, counted; past the limit archived, notified once and dropped |
 | any | `LOOP?`, or head moved and `next:` unchanged with `same=2` already | any | LOOP, below. No nudge |
 | IDLE | any | `retired, no claim file`, last turn asks a human to merge or grant merge permission (`status_detail` / needs-action) | HELD BY HUMAN → ref § Held by human |
 | any | any | edge row reading `a human/ branch` | a human merges it: confirm its pull request is open, none = report to the human. Never nudge, NEVER respawn |
@@ -231,7 +234,7 @@ or command that says nothing to do spawns nothing.
   else.
 
 Ledger every spawn as `<stem>@new` the moment it passes the Source check
-(ref § Create session); a spawn without `sources` never holds a slot.
+(ref § Create session); a spawn it finds with no checkout never holds a slot.
 
 ## 4. Schedule the next pass, then end the turn
 

@@ -7,7 +7,7 @@ lines say when to read each; its terms hold here.
 
 | absent | what changes |
 | --- | --- |
-| `PushNotification` (or the environment's equivalent) | a valid block, a `corewait` pull request and a FAILED SPAWN AT LIMIT are reported in the pass report only, no push to the human: say so once. |
+| `PushNotification` (or the environment's equivalent) | a valid block, a `corewait` pull request, a FAILED SPAWN AT LIMIT, `slot held with no exit` and `spawn has no checkout` are reported in the pass report only, no push to the human: say so once. |
 | any transport that delivers | no nudge: still two passes, the first sends nothing; the KILL's interrupt does the asking. `JOHARNESS_STALL_MINUTES` becomes a kill threshold — say so. |
 | `interrupt_session` | cannot stop, so must not replace: write the handover from the branch, `status: blocked`, `next:` = "stalled: Stalled; the orchestrator could not stop the session that holds this.", report, no respawn. A session already gone (ARCHIVED, COMPLETED, not found, FAILED twice) is respawned anyway. An UNCLAIMED session a row would interrupt (BLOCKED BEFORE CLAIM, RUNNING nudged): FAILED SPAWN AT LIMIT at once, spawn nothing (§ Unclaimed spawn rows). |
 | `archive_session` | the stopped session is left in place; report, respawn as written. An UNCLAIMED session a row would archive, not ARCHIVED or not found: FAILED SPAWN AT LIMIT at once, spawn nothing (§ Unclaimed spawn rows). |
@@ -30,7 +30,7 @@ refused with no confirmed interrupt (dead row, FAILED SPAWN) follows the
 | field | says |
 | --- | --- |
 | `session_status` | `RUNNING` working; `IDLE` between turns; `PENDING` starting; `COMPLETED` ended; `ARCHIVED` gone |
-| `status_bucket` | `..._FAILED` = that turn died, decides only while not `RUNNING`; a usage/rate-limit `status_detail` = throttled, never dead. `..._BLOCKED` decides only in the BLOCKED BEFORE CLAIM rows; the unratified-block row reads `session_status` IDLE and `status_detail`, never the bucket |
+| `status_bucket` | `..._FAILED` = that turn died, decides only while not `RUNNING`; a usage/rate-limit `status_detail` = throttled, never dead (an UNCLAIMED one past a look: § Unclaimed spawn rows). `..._BLOCKED` decides only in the BLOCKED BEFORE CLAIM rows; the unratified-block row reads `session_status` IDLE and `status_detail`, never the bucket |
 | `status_detail`, `updated_at` | unchanged across two passes turns a suspicion into a verdict; `updated_at` decides nothing ALONE |
 | `session_context.sources`, `external_metadata.last_served_model` | checkout attached at spawn (absent, or tag `config:no-git-repo` = none); a turn was served. Read together |
 | merge state | a manager on dispatch's in-flight list is unmerged by construction (`queue-context.sh`, `ref_merged`); `base unreadable` on its row = report, decide nothing; a ledger stem dispatch does NOT list keeps today's check, `git merge-base --is-ancestor <head> origin/main`, never a summary |
@@ -49,16 +49,20 @@ in an empty `/home/user`, no checkout, no `/manager` (repo skills load only
 once a repo is attached), and the session cannot be relied on to attach it
 itself, so it may never claim.
 
-Source check, every `create_session` above, before its ledger entry:
-the result's `session_context.sources` (not in the result = `get_session`
-on the returned id) names this repository. Absent, empty, another
-repository, or tag `config:no-git-repo` = `archive_session` it at once,
-`create_session` again with `source_url`, report `spawned with no checkout:
-<stem>, respawned`; not counted. The second fails too = a manager: FAILED
-SPAWN AT LIMIT for its stem, whatever `respawns` reads (it drops the entry
-the spawn replaced); a role: `archive_session` it, report, `PushNotification`
-once `spawn has no checkout: <role>`, ledger only its stamp key
-(`clerked=`, `rescoped=<key>`, …), never a `rescope-<key>@new` entry.
+Source check, every `create_session` above: the call carries `source_url`,
+never sent without it. After it returns, before its ledger entry: the
+record (the result, else `get_session` on the returned id) carries tag
+`config:no-git-repo`, or `session_context.sources` names another repository
+= no checkout: `archive_session` it at once, `create_session` again with
+`source_url`, report `spawned with no checkout: <stem>, respawned`; not
+counted. A record with no `sources` yet decides nothing here: a PENDING one
+may not have filled it; § Unclaimed spawn rows judge it. The second fails
+too = an unclaimed manager: FAILED SPAWN AT LIMIT for its stem, whatever
+`respawns` reads (it drops the entry the spawn replaced); a RESPAWN on a
+branch: § Respawn limit; a role: `archive_session` it, report,
+`PushNotification` once `spawn has no checkout: <role>`, ledger only its
+stamp key (`clerked=`, `rescoped=<key>`, …), never a `rescope-<key>@new`
+entry.
 
 A manager's prompt, after the standard lines and the lead line, each only when it applies:
 the RESPAWN resume line; on a RESPAWN after an unratified block only, one
@@ -276,7 +280,10 @@ session that ended — ARCHIVED, COMPLETED, not found, IDLE/PENDING with
 ran and stopped, or never got a turn (STILLBORN). NO SOURCE: its record has
 no `session_context.sources`, or carries tag `config:no-git-repo`: the
 report line adds `spawned with no checkout` (§ Create session, Source
-check).
+check). A usage or rate-limit `status_detail` gets the same one look
+(`seen=`) as any IDLE session: an unclaimed session claims nothing while it
+waits, so past that look it is a FAILED SPAWN, the detail carried in the
+report and the push.
 
 An UNCLAIMED entry holds a slot (`JOHARNESS_PENDING_SPAWNS`). Every row
 below records a look, waits on a bound that ends (next pass decides), or
@@ -295,14 +302,14 @@ run; report it every pass.
 
 | control plane | push age | ledger | do |
 | --- | --- | --- | --- |
-| not ARCHIVED, `status_detail` a usage or rate limit | any | `new` from a previous pass | throttled, never dead (§ Control plane fields): next pass decides |
 | ARCHIVED, COMPLETED or not found | any | `new` from a previous pass | FAILED SPAWN: `archive_session` a COMPLETED one, plain spawn; at the limit FAILED SPAWN AT LIMIT |
 | BLOCKED, not IDLE/PENDING | any | `new` from a previous pass, no `held=` | ledger `held=<updated_at>` |
 | same | any | `held=`, still `new`, `updated_at` unchanged | BLOCKED BEFORE CLAIM: at the limit FAILED SPAWN AT LIMIT. Else `interrupt_session`, `archive_session`, plain spawn |
 | same | any | `held=`, `updated_at` moved | ledger `held=<updated_at>` anew |
 | RUNNING, `created_at` under `JOHARNESS_STALL_MINUTES` old | any | `new` from a previous pass | starting: next pass decides |
 | RUNNING | any | `new`, no nudge | NUDGE "Orchestrator health pass: no claim pushed for <N>m. Now: push your workstream file, or set status blocked and stop." Ledger the nudge, `updated_at`; no transport: send nothing, still ledger |
-| RUNNING | any | `new`, nudged | FAILED SPAWN: `interrupt_session`, `archive_session`, plain spawn; at the limit FAILED SPAWN AT LIMIT |
+| RUNNING | any | `new`, nudged, `updated_at` and `status_detail` unchanged since, or `created_at` twice `JOHARNESS_STALL_MINUTES` old | FAILED SPAWN: `interrupt_session`, `archive_session`, plain spawn; at the limit FAILED SPAWN AT LIMIT |
+| RUNNING | any | `new`, nudged, moved since | working toward a claim: next pass decides |
 | IDLE/PENDING | any | `new` from a previous pass, no `seen=` | ledger `seen=<updated_at>` and whether `last_served_model`/`sources` exist |
 | IDLE/PENDING | any | `seen=`, `updated_at` moved | ledger `seen=<updated_at>` anew |
 | IDLE/PENDING | any | `seen=`, `updated_at` unchanged | FAILED SPAWN (STILLBORN: no `last_served_model`, no `sources`): `archive_session`, plain spawn; at the limit FAILED SPAWN AT LIMIT |

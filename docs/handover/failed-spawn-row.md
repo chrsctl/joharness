@@ -43,6 +43,15 @@ spawn, and pin that every slot-holding ledger entry has an exit.
 - r13: (verifier) "re-spawn" spelling; at-limit BLOCKED session could later claim past the cap; surveyor failing the Source check twice ledgered `rescope-<key>@new` (fixed: respawn; the limit exit archives; a role ledgers only its stamp key)
 - r14: (verifier) whether `sources` is set at once on create could not be checked here (no change: the reference's field table already reads it as checkout attached at spawn; the gx records that lacked it were the failed spawns)
 - r15: verify on head 6c4f89fa 08:43Z red twice in docker networking and compose; paired run on origin/main c8e797c7 green, re-run on the head green 6/0 (no change: flake in the environment layer, diff touches none of it)
+- r16: (verifier) spawn prompt carried "do not modify the tree" and a plan path hint (no change: neither steered the verdict)
+- r17: (verifier) an `@new` claimed between passes still read `new` and the raised pointer row respawned it as unclaimed (fixed: §1 turns every claimed `@new` into `<stem>@<head>`, respawns kept; the pointer row's ledger cell tests "no claimed in-flight row")
+- r18: (verifier) the throttle row waited forever on an ended session (fixed: row removed; an unclaimed throttle gets the IDLE look, then FAILED SPAWN with the detail in the push; field table notes it)
+- r19: (verifier) the Source check could fail healthy spawns if `sources` fills late (fixed: the call must carry `source_url`; after it, only tag `config:no-git-repo` or a wrong repository decides, a missing `sources` waits for the unclaimed rows)
+- r20: (verifier) a RESPAWN on a branch failing the Source check twice went to the unclaimed exit (fixed: § Respawn limit for a branch)
+- r21: (verifier) the RUNNING nudged row killed a session that moved (fixed: kill only unchanged since the nudge, or `created_at` twice `JOHARNESS_STALL_MINUTES` old; moved and younger = next pass decides)
+- r22: (verifier) consumer-side Acceptance cannot run, the selftest is canonical-only (fixed: plan says so)
+- r23: (verifier) `noexit=` not declared run-scoped, read before §2 ran (fixed: run-scoped, read at §2's end); `PushNotification`-absent row missed two pushes (fixed)
+- r24: (verifier) no plan-checker ran on an opus plan; COMPLETED in the claimed rows is beyond the plan's Goal (no change: same-session plan on the human's order, two verifier passes stand in; COMPLETED kept because a claimed manager whose session completed otherwise matched no row)
 
 ## Blockers
 

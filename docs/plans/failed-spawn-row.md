@@ -48,8 +48,8 @@ slot-holding ledger entry has a way out.
 - `./joharness.sh ci` — `ci: pass`.
 - `./joharness.sh verify` — 0 failed.
 - The new table check fails on `origin/main`'s reference.
-- Consumer side, after sync: `./joharness.sh ci` selftest prints `PASS every
-  Unclaimed spawn row frees its slot or records a look`.
+- Consumer side: none runs (the selftest is canonical-only); consumers get
+  the protocol text at sync, pinned here by the canonical selftest.
 
 ## Where to look
 

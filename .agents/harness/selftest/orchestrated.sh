@@ -267,7 +267,8 @@ for needle in 'ledger `held-human=<pr>`' \
   'Orchestrator health pass: you stopped asking for input while status is in-progress. Do the work, or set status blocked with a reason from manager.md §3, push.' \
   'FAILED SPAWN (STILLBORN: no `last_served_model`, no `sources`): `archive_session`, plain spawn; at the limit FAILED SPAWN AT LIMIT' \
   'the ledger key `failed=<stem>[,<stem>]` is run-scoped' \
-  'Source check, every `create_session` above, before its ledger entry:' \
+  'Source check, every `create_session` above: the call carries `source_url`, never sent without it.' \
+  'A record with no `sources` yet decides nothing here' \
   'ledger `held=<updated_at>`' \
   'the ledger key `corewait=<stem>#<N>[,<stem>#<N>]` is' \
   'the ledger key `released=<stem>[,<stem>]` is run-scoped' \
@@ -324,7 +325,7 @@ done
 # An unclaimed entry has no branch: its pointer row sits above every row
 # that reads push age or drops a look record, or those rows catch it first.
 # shellcheck disable=SC2016 # literal backticks in the pattern
-ptr_ln="$(grep -n '^| any | any | `new` from a previous pass, whatever' "$orcmd" | head -1 | cut -d: -f1)"
+ptr_ln="$(grep -n '^| any | any | `new` from a previous pass, no claimed in-flight row' "$orcmd" | head -1 | cut -d: -f1)"
 run_ln="$(grep -n '^| RUNNING | under stall' "$orcmd" | head -1 | cut -d: -f1)"
 drop_ln="$(grep -n '| working: drop that record |' "$orcmd" | head -1 | cut -d: -f1)"
 if [ -n "$ptr_ln" ] && [ -n "$run_ln" ] && [ -n "$drop_ln" ] \
@@ -341,6 +342,8 @@ for needle in 'Every ledger entry that holds a slot leaves by a row' \
   'slot held with no exit: <stem>' \
   'no ledger `noexit=<stem>` yet' \
   'never § Respawn limit' \
+  'any other becomes `<stem>@<head>`, its `respawns=` kept' \
+  'no claimed in-flight row for its stem on this pass'"'"'s dispatch' \
   'and a stem on the ledger'"'"'s `failed=`' \
   'the moment it passes the Source check'; do
   expect "orchestrator.md spells ${needle}" "$needle" "$orcfold"
