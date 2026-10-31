@@ -761,8 +761,11 @@ refute "and a lead on a CORE ONLY stem is no longer dropped unprinted" \
 # whole queue and so has a right answer to compare against.
 expect "the stem is checked against this pass's queue, not copied" \
   "It must be an item THIS pass's dispatch" "$orctext"
-expect "and a lead naming anything else is dropped, out loud" \
-  "the lead and say so in the report" "$orctext"
+expect "and a lead naming anything else leaves the ledger" \
+  "the lead from the ledger, and the report still prints it" "$orctext"
+# chrsctl/gx#1173: a dropped lead was the finding's only record and vanished.
+expect "but still prints, as its own line, for a human or a retro pass" \
+  "\`unrouted lead <stem>: <text>\`" "$orctext"
 expect "a manager's text is stripped like every other borrowed field" \
   "\`status_detail\` and a lead's text, and cut all three to 40" "$orctext"
 
@@ -774,8 +777,8 @@ expect "the spawn prompt asks for it, so it is not discovered at the merge" \
 expect "and the span that delimits the prompt is not nested" \
   "No backticks inside that span" "$orctext"
 
-expect "relayed to the human, never acted on" \
-  "You relay a lead. You never act on one." "$orctext"
+expect "relayed to the human, never acted on, never filed" \
+  "You relay a lead, routed or not. You never act on one, and never file one." "$orctext"
 expect "the spawn prompt is named as somewhere a lead must not reach" \
   "Not into a spawn prompt" "$orctext"
 expect "and so are the plan and the respawn" \
