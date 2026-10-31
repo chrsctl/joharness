@@ -136,11 +136,13 @@ a guard that refuses, a message a command prints when it matters.
 ## 4. Ledger and plans
 
 Append one row per sampled session to `docs/retro-log.md`, in sample
-order, then the CONCERN's: `branch` = its stem, `session` = its key
+order, then the CONCERN's: `stem` = the workstream file's name without
+`.md` (sample line's third field; never the branch, which does not outlive its
+merge), `session` = for a CONCERN its key
 (`concern:<date>:<stem>`), which retires it:
 
 ```
-| <UTC date> | <branch> | <session URL> | <outcome> |
+| <UTC date> | <stem> | <session URL> | <outcome> |
 ```
 
 outcome = `plans: <stem>, <stem>` | `repair: <stem>` | `refs: <#n or stem>, …` | `rule broken:
@@ -150,7 +152,7 @@ outcome = `plans: <stem>, <stem>` | `repair: <stem>` | `refs: <#n or stem>, …`
 exactly this header — `retro` finds the session column by name:
 
 ```
-| date | branch | session | outcome |
+| date | stem | session | outcome |
 |------|--------|---------|---------|
 ```
 
