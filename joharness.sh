@@ -401,6 +401,7 @@ check_call() {
     lint_fast_lane) lint_fast_lane "$@" ;;
     lint_finding_ids) lint_finding_ids "$@" ;;
     lint_finding_markers) lint_finding_markers "$@" ;;
+    lint_finding_routes) lint_finding_routes "$@" ;;
     lint_ship) lint_ship "$@" ;;
     ci_churn) ci_churn "$@" ;;
     ci_broken_windows) ci_broken_windows "$@" ;;
