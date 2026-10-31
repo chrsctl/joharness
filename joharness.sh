@@ -1877,10 +1877,13 @@ lint_finding_markers() {
 }
 
 # A wontfix finding about code outside this item — the reason says outside
-# the plan/item/goal/scope, or pre-existing — has no home once the workstream
+# the plan/item/goal/scope, pre-existing, sent as a lead, not built here, or
+# not this branch's — has no home once the workstream
 # file retires. It must name where it lives on: an issue (`#<n>`) or the pull
 # request body (`PR body`). A lead is no record (manager-reference.md § Lead).
-# `canonical` findings route through `upstream` and are exempt.
+# `canonical` findings route through `upstream` and are exempt. Prose is
+# guessed at, so the guess leans red: a false red costs one PR body line,
+# a false green loses the finding.
 fr_out_of_item() {
   printf '%s\n' "$1" | awk '{
     t = " " tolower($0) " "
@@ -1891,6 +1894,14 @@ fr_out_of_item() {
     if (t ~ (b "outside" sp "(of" sp ")?" det tgt)) exit 0
     if (t ~ (b "out[- ]of([- ]|" sp det ")" tgt)) exit 0
     if (t ~ (b "not" sp "(part" sp "of|in|of)" sp det tgt)) exit 0
+    # Possessive only: "not the plan" is the commonest in-item wording. Any
+    # apostrophe, curly ones included (several bytes under mawk).
+    pt = "(plan|item|goal|scope|diff|branch|change|pr|pull|work)"
+    if (t ~ (b "not" sp "(this|our|my)" sp pt "[^a-z0-9 \t]+s" b)) exit 0
+    # A lead is the hole itself: sent as one, the lead is the only record.
+    if (t ~ (b "as" sp "a" sp "lead" b) && t !~ (b "(never|not)" sp "([a-z]+" sp ")?as" sp "a" sp "lead")) exit 0
+    if (t ~ (b "leads?" sp "to" sp "the" sp "orchestrator" b)) exit 0
+    if (t ~ (b "not" sp "built" sp "here" "[ \t]*([^a-z0-9 \t]|$)")) exit 0
     if (t ~ (b "beyond" sp det tgt)) exit 0
     if (t ~ (b "unrelated" sp "to" sp det tgt)) exit 0
     if (t ~ (b "(another|other)" sp "(plan|item)" b)) exit 0
