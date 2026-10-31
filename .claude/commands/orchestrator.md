@@ -99,8 +99,18 @@ nothing.
 
 `JOHARNESS_PENDING_SPAWNS=<n> ./joharness.sh dispatch`, `<n>` = manager
 `@new` entries in the ledger (not `rescope-<key>@new`:
-roles hold no slot). Act on its output only. Then drop every rebuilt entry
-whose stem now has a claimed in-flight row. Never re-run dispatch in a pass.
+roles hold no slot). Act on its output only. Then every `@new` entry whose
+stem now has a claimed in-flight row is claimed: a rebuilt one drops, any
+other becomes `<stem>@<head>`, its `respawns=` kept; §2 judges it as a
+claimed manager. Never re-run dispatch in a pass.
+
+Every ledger entry that holds a slot leaves by a row: done, a spawn, or a
+notify and drop. Slot-holding here = an `@new` entry, counted into
+`JOHARNESS_PENDING_SPAWNS`; a claimed branch's slot is dispatch's. An `@new` entry whose session ended unclaimed is a FAILED
+SPAWN (ref § Unclaimed spawn rows), never the human's to find. An entry no
+row of §2 matched this pass (read at §2's end) = report `slot held with no
+exit: <stem>`; no ledger `noexit=<stem>` yet = `PushNotification` it and
+ledger it; the ledger key `noexit=<stem>[,<stem>]` is run-scoped.
 
 `DEGRADED — shallow clone` on the verdict: `git fetch --unshallow`, or
 confirm each `spawn` item on the control plane first.
@@ -115,7 +125,7 @@ rebuild's, once per session. Before any message, interrupt or archive,
 confirm the title is `🔨 manager: <stem>` (glossary, role title) and the
 branch is the one dispatch printed; mismatch = report, touch nothing.
 
-**GONE is ARCHIVED, not found on the control plane, a FAILED bucket confirmed
+**GONE is ARCHIVED, COMPLETED, not found on the control plane, a FAILED bucket confirmed
 by a second look, or a session that did not move across a nudge and a
 confirming pass. Never IDLE on its own. Never PENDING on its own.**
 
@@ -127,6 +137,7 @@ Act on the FIRST row that matches:
 | --- | --- | --- | --- |
 | any | any | branch merged (dispatch no longer lists it), or a plan/research/requirement entry still `new` whose item file is gone from fresh `origin/main` (merged between passes; never a `rescope-<key>` entry, which has no item file) | done: drop the ledger entry. A message carrying `lead <stem>: <text>` is the one exception that is never nothing: carry it and print it |
 | any | any | a `rescope-<key>` entry whose dispatch row reads `done: finished rescope, holds no slot — never nudge` (genuine holds: it merges nothing, ever) | done: drop the entry, keep `rescoped=<key>`. Nudge nothing, respawn nothing |
+| any | any | `new` from a previous pass, no claimed in-flight row for its stem on this pass's dispatch, whatever `seen=`, `held=` or nudge it carries | UNCLAIMED → ref § Unclaimed spawn rows, which decide it whole: an ended unclaimed session is a FAILED SPAWN, archived and spawned again, counted; past the limit archived, notified once and dropped |
 | any | `LOOP?`, or head moved and `next:` unchanged with `same=2` already | any | LOOP, below. No nudge |
 | IDLE | any | `retired, no claim file`, last turn asks a human to merge or grant merge permission (`status_detail` / needs-action) | HELD BY HUMAN → ref § Held by human |
 | any | any | edge row reading `a human/ branch` | a human merges it: confirm its pull request is open, none = report to the human. Never nudge, NEVER respawn |
@@ -145,8 +156,7 @@ Act on the FIRST row that matches:
 | not RUNNING | any | status `blocked`, row carries `INVALID BLOCK?` | not the human's: its `next:` names no reason from the list. Treat as a stall: where a transport delivers, message it to name a reason or do the work; always report it as an invalid block. Never respawn on it alone |
 | not RUNNING, bucket FAILED | any | no `seen=` | CRASHED: no nudge; ledger `seen=<updated_at>` and head |
 | same | any | `seen=`, `updated_at` and head unchanged | dead: `archive_session`, RESPAWN |
-| ARCHIVED / not found | any | claimed, branch unmerged | gone: RESPAWN on the branch |
-| any | any | `new` from a previous pass, or `seen=` | ref § Unclaimed spawn rows; none matches = next row |
+| ARCHIVED / COMPLETED / not found | any | claimed, branch unmerged | gone: RESPAWN on the branch |
 | IDLE/PENDING | any | branch unmerged, no nudge | NUDGE as above; spawn nothing for it |
 | IDLE/PENDING | any | nudged, head and `status_detail` unchanged | gone: RESPAWN on the branch |
 | RUNNING | any | `retired, no claim file` | merging; nothing |
@@ -161,7 +171,8 @@ KILL, LOOP → ref § KILL and LOOP.
 
 RESPAWN = spawn (step 3) plus "Resume branch <branch>: check it out, read
 docs/handover/<file>.md WHOLE before anything else." An entry still `new`
-has no branch: plain spawn. Past
+has no branch: plain spawn; past the limit, FAILED SPAWN AT LIMIT (ref §
+Unclaimed spawn rows), never § Respawn limit. Past
 `JOHARNESS_RESPAWN_LIMIT` → ref § Respawn limit.
 
 GUARD `<verb>`, before every push onto a manager's branch → ref § GUARD.
@@ -179,7 +190,7 @@ or command that says nothing to do spawns nothing.
   this pass's spawns (dispatch already took their slots): ref § Resume.
 - Edge work whose session is gone first. An item already in your ledger
   spawns only when this pass's health pass said so.
-- Skip `HOLD`, `WAIT`. `HOLD — red base: #<n> (<k> parked)` = two or more
+- Skip `HOLD`, `WAIT`, and a stem on the ledger's `failed=`. `HOLD — red base: #<n> (<k> parked)` = two or more
   managers parked on #<n>, no plan names it: report it, spawn no manager
   (verdict `DEFECT-BOUND`); a plan naming #<n> lifts it, the clerk's
   path. `that branch is BLOCKED on a human:
@@ -223,7 +234,8 @@ or command that says nothing to do spawns nothing.
   Plus, only when they apply, the lines of ref § Create session. Nothing
   else.
 
-Ledger every spawn the moment it returns as `<stem>@new`.
+Ledger every spawn as `<stem>@new` the moment it passes the Source check
+(ref § Create session); a spawn it finds with no checkout never holds a slot.
 
 ## 4. Schedule the next pass, then end the turn
 
@@ -232,7 +244,7 @@ Ledger every spawn the moment it returns as `<stem>@new`.
 ```
 /orchestrator pass
 harness=<first 12 chars of git hash-object of origin/main:.claude/commands/orchestrator.md> pass=<this pass's number plus one> [retire=yes]
-ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] [held=<updated_at>] [unratified=<head>] [notified=<stem>] [released=<stem>[,<stem>]] [held-human=<pr>] respawns=<n> [rescoped=<key>] [corewait=<stem>#<N>[,<stem>#<N>]] [clerked=<stamp>[+human|+issue]] [scouted=<stamp>[+human]] [conducted=<stamp>[+human]] [retroed=<stamp>[+human]]; ...
+ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] [held=<updated_at>] [unratified=<head>] [notified=<stem>] [released=<stem>[,<stem>]] [held-human=<pr>] respawns=<n> [rescoped=<key>] [corewait=<stem>#<N>[,<stem>#<N>]] [failed=<stem>[,<stem>]] [noexit=<stem>[,<stem>]] [clerked=<stamp>[+human|+issue]] [scouted=<stamp>[+human]] [conducted=<stamp>[+human]] [retroed=<stamp>[+human]]; ...
 lead <stem>: <40 chars, to the end of this line>
 ```
 

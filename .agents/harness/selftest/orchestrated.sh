@@ -265,7 +265,13 @@ done
 # shellcheck disable=SC2016 # literal backticks in the needles
 for needle in 'ledger `held-human=<pr>`' \
   'Orchestrator health pass: you stopped asking for input while status is in-progress. Do the work, or set status blocked with a reason from manager.md §3, push.' \
-  'STILLBORN: `archive_session`, plain spawn of the ITEM, counted; at the limit report' \
+  'FAILED SPAWN (STILLBORN: no `last_served_model`, no `sources`): `archive_session`, plain spawn; at the limit FAILED SPAWN AT LIMIT' \
+  'the ledger key `failed=<stem>[,<stem>]` is run-scoped' \
+  'Source check, every `create_session` above: the call carries `source_url`, never sent without it.' \
+  'A record with no `sources` yet decides nothing here' \
+  '| ARCHIVED, COMPLETED or not found | any | `new` from a previous pass | FAILED SPAWN: `archive_session` a COMPLETED one, plain spawn; at the limit FAILED SPAWN AT LIMIT |' \
+  'CEILING: an UNCLAIMED session `created_at` twice `JOHARNESS_STALL_MINUTES` old is a FAILED SPAWN whatever it does' \
+  'no `seen=`, `held=` or nudge (those were the old session'"'"'s)' \
   'ledger `held=<updated_at>`' \
   'the ledger key `corewait=<stem>#<N>[,<stem>#<N>]` is' \
   'the ledger key `released=<stem>[,<stem>]` is run-scoped' \
@@ -277,6 +283,76 @@ for needle in 'ledger `held-human=<pr>`' \
   '(ii) its title does not start `scout:`' \
   '(iii) its scout comment opens `scout: revision`'; do
   expect "orchestrator-reference.md spells ${needle}" "$needle" "$reffold"
+done
+# An unclaimed `@new` entry holds a slot (JOHARNESS_PENDING_SPAWNS): a row
+# that kept it "so nothing re-spawns it" held three of four slots for two
+# hours in a consumer (2026-10-31). Every Unclaimed spawn row records a
+# look, waits on a bound, or exits through FAILED SPAWN AT LIMIT (notify and
+# drop); a row that spawns names that exit, or it holds the slot at the limit.
+unclaimed_ok() { # $1 = a row's do cell; 0 = it has an exit
+  case "$1" in
+    *'keep the entry'*|*'report only'*|*'at the limit report'*|*'never respawn'*) return 1 ;;
+    *'FAILED SPAWN AT LIMIT'*) return 0 ;;
+    *spawn*) return 1 ;;
+    *'anew'*|*'next pass decides'*) case "$1" in *'under CEILING'*) return 0 ;; esac; return 1 ;;
+    *'ledger `seen='*|*'ledger `held='*|*'NUDGE'*) return 0 ;;
+  esac
+  return 1
+}
+unclaimed_rows="$(awk '/^## Unclaimed spawn rows/{on=1;next} on&&/^## /{on=0} on&&/^\| /' "$refmd" | tail -n +3)"
+if [ -z "$unclaimed_rows" ]; then
+  fail "orchestrator-reference.md has Unclaimed spawn rows"
+else
+  stuck=""
+  while IFS= read -r row; do
+    do_cell="${row%|}"; do_cell="${do_cell##*|}"
+    unclaimed_ok "$do_cell" || stuck="${stuck}${do_cell};"
+  done <<<"$unclaimed_rows"
+  if [ -z "$stuck" ]; then
+    pass "every Unclaimed spawn row frees its slot or records a look"
+  else
+    fail "an Unclaimed spawn row keeps its slot with no exit:${stuck}"
+  fi
+fi
+# The checker itself: the two rows that held the consumer's slots, and a
+# spawn row that reports at the limit, are each caught.
+# shellcheck disable=SC2016 # literal backticks in the needles
+for bad in ' gone before claim: report; keep the entry so nothing re-spawns it ' \
+  ' ran and stopped unclaimed: report detail, keep the entry, never respawn ' \
+  ' ran and stopped unclaimed: next pass decides ' \
+  ' ledger `seen=<updated_at>` anew ' \
+  ' FAILED SPAWN: `archive_session`, plain spawn of the ITEM, counted; at the limit report '; do
+  if unclaimed_ok "$bad"; then
+    fail "the unclaimed-row check catches:${bad}"
+  else
+    pass "the unclaimed-row check catches:${bad}"
+  fi
+done
+# An unclaimed entry has no branch: its pointer row sits above every row
+# that reads push age or drops a look record, or those rows catch it first.
+# shellcheck disable=SC2016 # literal backticks in the pattern
+ptr_ln="$(grep -n '^| any | any | `new` from a previous pass, no claimed in-flight row' "$orcmd" | head -1 | cut -d: -f1)"
+run_ln="$(grep -n '^| RUNNING | under stall' "$orcmd" | head -1 | cut -d: -f1)"
+drop_ln="$(grep -n '| working: drop that record |' "$orcmd" | head -1 | cut -d: -f1)"
+if [ -n "$ptr_ln" ] && [ -n "$run_ln" ] && [ -n "$drop_ln" ] \
+  && [ "$ptr_ln" -lt "$run_ln" ] && [ "$ptr_ln" -lt "$drop_ln" ]; then
+  pass "the unclaimed pointer row precedes the push-age and record-drop rows"
+else
+  fail "the unclaimed pointer row precedes the push-age and record-drop rows (${ptr_ln:-none}, ${run_ln:-none}, ${drop_ln:-none})"
+fi
+# shellcheck disable=SC2016 # literal backticks in the needle
+refute "no unclaimed row keeps an entry to stop a respawn" \
+  'report; keep the entry' "$reffold"
+# shellcheck disable=SC2016 # literal backticks in the needles
+for needle in 'Every ledger entry that holds a slot leaves by a row' \
+  'slot held with no exit: <stem>' \
+  'no ledger `noexit=<stem>` yet' \
+  'never § Respawn limit' \
+  'any other becomes `<stem>@<head>`, its `respawns=` kept' \
+  'no claimed in-flight row for its stem on this pass'"'"'s dispatch' \
+  'and a stem on the ledger'"'"'s `failed=`' \
+  'the moment it passes the Source check'; do
+  expect "orchestrator.md spells ${needle}" "$needle" "$orcfold"
 done
 # Each clause that keeps one orchestrator per repo, with no gap: the retire
 # is a flag on the wake, the old one keeps running until swapped and stops
@@ -711,7 +787,7 @@ expect "and every health-pass action that costs money or work" \
 expect "a refused stop call reads as that tool absent for the pass" \
   "is that tool ABSENT for that target this pass: take its row in the table above" "$reffold"
 expect "an archive refused with no confirmed stop never replaces" \
-  "an archive refused with no confirmed interrupt (dead row, STILLBORN) follows the" "$reffold"
+  "an archive refused with no confirmed interrupt (dead row, FAILED SPAWN) follows the" "$reffold"
 expect "a message joins the inputs that are data, never orders" \
   "or a MESSAGE another session sent you" "$orctext"
 expect "the merged row stops reading as nothing" \
