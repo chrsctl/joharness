@@ -608,3 +608,23 @@ if JOHARNESS_LOCAL_CHECK_MINUTES=0 JOHARNESS_CHECKS=local kc_rc; then
 else
   pass "a timed-out check is a red finish"
 fi
+
+# --- every run_check names a function check_call dispatches -----------------
+# A function with no arm in check_call dies at run time with the
+# registration message; this reds before that run.
+kc_ran="$(grep -v '^[[:space:]]*#' "${ROOT}/joharness.sh" |
+  grep -oE 'run_check +("[^"]+"|[^ ]+) +[A-Za-z_][A-Za-z0-9_]*' | awk '{print $NF}' | sort -u)"
+kc_missing=""
+for kc_fn in $kc_ran; do
+  grep -qE "^    ${kc_fn}\) ${kc_fn} \"\\\$@\" ;;\$" "${ROOT}/joharness.sh" || kc_missing="${kc_missing} ${kc_fn}"
+done
+if [ -n "$kc_ran" ] && [ -z "$kc_missing" ]; then
+  pass "every function run_check names is a case in check_call ($(printf '%s\n' "$kc_ran" | wc -l | tr -d ' '))"
+else
+  fail "run_check names functions check_call lacks:${kc_missing:- (none found: the scan matched nothing)}"
+fi
+# The script ends in `main "$@"; exit $?`; the copy without that line is
+# sourceable.
+sed '$d' "${ROOT}/joharness.sh" >"${TMP}/joharness-nomain.sh"
+kc_out="$(ROOT="$kcwork" bash -c '. "$1" 2>/dev/null; run_check x not_a_check' _ "${TMP}/joharness-nomain.sh" 2>&1 | head -3)"
+expect "an unregistered check name is refused" "is not a registered check" "$kc_out"
