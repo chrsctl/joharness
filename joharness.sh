@@ -422,7 +422,10 @@ check_args() {
 ci_shellcheck() {
   printf '%d files\n' "$#"
   if ensure_shellcheck; then
-    shellcheck -x "$@" || return 1
+    # SC2329 (info, shellcheck 0.11+) calls every function reached through
+    # run_check, a trap or a sourced topic "never invoked": a finding about
+    # the checker's reach, not the code. Older shellchecks do not know it.
+    shellcheck -x -e SC2329 "$@" || return 1
     printf '  zero findings\n'
   elif [ "${GITHUB_ACTIONS:-}" = "true" ]; then
     warn "shellcheck not installed and not installable on the CI runner"
