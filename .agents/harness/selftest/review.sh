@@ -898,7 +898,7 @@ ci_routes() { jr ci | awk '/^== finding routes/ { f = 1; next } f && /^== / { ex
 
 git -C "$rwork" checkout -qb routes main
 write_ws routes.md review none "" \
-  "- r1: delete_field leaves _chunk rows (wontfix: outside this plan's Goal, pre-existing; sent as a lead) (verifier)" \
+  "- r1: delete_field leaves _chunk rows (verifier) (wontfix: outside this plan's Goal, pre-existing; sent as a lead)" \
   "- r2: a write outside the lock, seen in PR #12 (wontfix: costs more than it catches)" \
   "- r3: a stale cache key (wontfix: pre-existing, filed #41)" \
   "- r4: an old retry loop (wontfix: out of scope, in PR body)" \
@@ -924,7 +924,7 @@ fi
 git -C "$rwork" checkout -q main
 git -C "$rwork" checkout -qb routesok main
 write_ws routesok.md review none "" \
-  "- r1: delete_field leaves _chunk rows (wontfix: outside this plan's Goal, pre-existing, filed #1173) (verifier)"
+  "- r1: delete_field leaves _chunk rows (verifier) (wontfix: outside this plan's Goal, pre-existing, filed #1173)"
 printf 'code\n' >"${rwork}/routesok.txt"
 commit_all "$rwork" "the same finding, filed"
 out="$(ci_routes)"

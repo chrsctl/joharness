@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK4juJSACHPjU3DpzHJ
 agent: sonnet
 updated: 2026-10-31
-next: Read ci result (scratchpad ci1.txt), then verify, review + verifier at sonnet, PR
+next: Run verify, then code-review high + verifier at sonnet, record ## Review, PR
 ---
 
 ## Goal
@@ -33,7 +33,9 @@ workstream file or a dropped lead. Asked for by chrsctl after chrsctl/gx#1173.
 
 ## Rejected
 
-None yet.
+- Fixture with `(verifier)` AFTER the verdict: fb_marker reads the trailing
+  parenthetical only, so that line is `unmarked` (finding verdicts reds it)
+  and never a wontfix. Tag goes before the verdict.
 
 ## Review
 

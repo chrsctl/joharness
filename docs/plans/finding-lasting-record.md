@@ -7,7 +7,7 @@ needs: none
 requirement: none
 serves: all
 issue: none
-scope: joharness.sh, .agents/harness/selftest/review.sh, .agents/docs/manager-reference.md, .claude/commands/manager.md, .claude/commands/orchestrator.md, .agents/docs/glossary.md
+scope: joharness.sh, .agents/harness/selftest/review.sh, .agents/harness/selftest/orchestrated.sh, .agents/docs/manager-reference.md, .claude/commands/manager.md, .claude/commands/orchestrator.md, .agents/docs/glossary.md
 ---
 
 ## Goal
@@ -32,6 +32,7 @@ in a workstream file or a lead.
   the item or pre-existing must cite `#<n>` or say `PR body`, else red.
   `finish` runs `ci`, so it gates the merge too.
 - `.agents/harness/selftest/review.sh` — cases for the stage.
+- `.agents/harness/selftest/orchestrated.sh` — text pins for the dropped-lead line.
 - `.claude/commands/orchestrator.md` §4 / Report — a dropped lead still
   prints `unrouted lead <stem>: <text>`, sanitised as a kept lead.
 - `.agents/docs/glossary.md` — only if a contested term appears.
