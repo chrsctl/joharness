@@ -888,6 +888,86 @@ fi
 
 git -C "$rwork" checkout -q main
 
+# --- finding routes --------------------------------------------------------
+# chrsctl/gx#1173: a verifier found a defect in pre-existing code, the manager
+# wrote `wontfix: outside this plan's Goal, pre-existing; sent as a lead`, the
+# lead's stem was no queue item, the orchestrator dropped it, and the finding
+# lived on only in the retired workstream file. An out-of-item wontfix must
+# name an issue or the PR body.
+ci_routes() { jr ci | awk '/^== finding routes/ { f = 1; next } f && /^== / { exit } f'; }
+
+git -C "$rwork" checkout -qb routes main
+write_ws routes.md review none "" \
+  "- r1: delete_field leaves _chunk rows (verifier) (wontfix: outside this plan's Goal, pre-existing; sent as a lead)" \
+  "- r2: a write outside the lock, seen in PR #12 (wontfix: costs more than it catches)" \
+  "- r3: a stale cache key (wontfix: pre-existing, filed #41)" \
+  "- r4: an old retry loop (wontfix: out of scope, in PR body)" \
+  "- r5: a canonical gate let it through (wontfix: canonical's file, pre-existing)" \
+  "- r6: an old parser bug (wontfix: predates this change)" \
+  "- r7: a dangling citation (wontfix: not part of this plan)" \
+  "- r8: a leaked handle (wontfix: pre-existing; see PR #5)" \
+  "- r9: a second old bug (wontfix: out of plan scope, flagged in the pull request body)" \
+  "- r10: a slow loop (wontfix: not in practice a problem)" \
+  "- r11: an old leak (wontfix: pre-existing; same root as r2, see https://github.com/o/r/issues/41)" \
+  "- r12: is_passage admits JSON fields (wontfix: plan-literal predicate; narrowing it is a product call — lead to the orchestrator)" \
+  "- r13: followup_session PATCHable (wontfix: the model has no read-only field; raised as a lead, not built here)" \
+  "- r14: setting never reaches installs (wontfix: true of every plugin-declared setting, not this branch's)" \
+  "- r15: a naming nit (wontfix: not the plan's style)" \
+  "- r16: an odd guard (wontfix: not built here because the plan's Goal requires it)" \
+  "- r17: a battery note (wontfix: a lead dev would fix it, in this plan)" \
+  "- r18: a lost hint (wontfix: sent to the orchestrator as a lead)" \
+  "- r19: an old race (wontfix: not built here — see lead)" \
+  "- r20: a stale flag (wontfix: not this change’s)"
+printf 'code\n' >"${rwork}/routes.txt"
+commit_all "$rwork" "twenty wontfix findings, ten routed nowhere"
+git -C "$rwork" rm -q docs/handover/routes.md
+git -C "$rwork" commit -qm "Finish ritual: delete the workstream file"
+out="$(ci_routes)"
+expect "an out-of-item wontfix with no route is named, after the retire" \
+  "r1: delete_field leaves _chunk rows" "$out"
+expect "and counted" "10 out-of-item finding(s) recorded only here" "$out"
+# Three more real gx verdicts (2026-10-30/31 scan) the first patterns missed.
+expect "a finding sent as a lead to the orchestrator is unrouted" "r12: is_passage admits" "$out"
+expect "so is one raised as a lead, not built here" "r13: followup_session" "$out"
+expect "and one that is not this branch's" "r14: setting never reaches" "$out"
+# And the in-item wordings those patterns must not swallow (verifier, haiku).
+refute "not the plan's style is an in-item decline" "r15: a naming nit" "$out"
+refute "not built here, because of the plan, is in-item" "r16: an odd guard" "$out"
+refute "a lead dev is no lead" "r17: a battery note" "$out"
+# False greens the code review found; the guess leans red, never green.
+expect "as a lead, after an object" "r18: a lost hint" "$out"
+expect "not built here, before a dash" "r19: an old race" "$out"
+expect "a curly apostrophe, and the shared targets" "r20: a stale flag" "$out"
+# The verifier's wordings: a blacklist of one phrasing lets the next through.
+expect "predates is out-of-item" "r6: an old parser bug" "$out"
+expect "so is not part of this plan" "r7: a dangling citation" "$out"
+expect "a pull request's number is no filed issue" "r8: a leaked handle" "$out"
+refute "the pull request body, spelled out, routes it" "r9: a second old bug" "$out"
+refute "a word only containing a target is no scope claim" "r10: a slow loop" "$out"
+refute "an issues URL routes it" "r11: an old leak" "$out"
+refute "a description saying outside, or citing a PR, is not the verdict" \
+  "r2: a write outside the lock" "$out"
+refute "an issue cited in the verdict routes it" "r3: a stale cache key" "$out"
+refute "so does the PR body" "r4: an old retry loop" "$out"
+refute "a canonical finding routes through upstream" "r5: a canonical gate" "$out"
+out="$(jr ci || :)"
+expect "and ci is RED on this stage — the finding would be lost at merge" \
+  "finding routes" "$(printf '%s\n' "$out" | grep '^ci: FAIL' || :)"
+git -C "$rwork" checkout -q main
+git -C "$rwork" checkout -qb routesok main
+write_ws routesok.md review none "" \
+  "- r1: delete_field leaves _chunk rows (verifier) (wontfix: outside this plan's Goal, pre-existing, filed #1173)"
+printf 'code\n' >"${rwork}/routesok.txt"
+commit_all "$rwork" "the same finding, filed"
+out="$(ci_routes)"
+expect "a routed branch says so" "every out-of-item finding names where it lives on" "$out"
+if jr ci >/dev/null 2>&1; then
+  pass "and ci is green"
+else
+  fail "and ci is green"
+fi
+git -C "$rwork" checkout -q main
+
 # NOT RETIRED: added, deleted by mistake, then RE-ADDED and still present at
 # HEAD. fin_retired_own's first draft matched 'added' and 'deleted' as sets
 # over the branch's whole history, so this shape — a file that is very much

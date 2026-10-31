@@ -658,6 +658,7 @@ cmd_ci() {
   run_check "fast lane" lint_fast_lane
   run_check "finding ids" lint_finding_ids
   run_check "finding verdicts" lint_finding_markers
+  run_check "finding routes" lint_finding_routes
   run_check "ship scope" lint_ship
   run_check churn ci_churn
   run_check "broken windows" ci_broken_windows
@@ -1872,6 +1873,105 @@ lint_finding_markers() {
   printf '    - r1: <finding> (fixed in <file or commit>)\n'
   printf '    - r2: <finding> — wontfix: <why>\n'
   printf '    - r3: <finding> — no change: <why>\n'
+  return 1
+}
+
+# A wontfix finding about code outside this item — the reason says outside
+# the plan/item/goal/scope, pre-existing, sent as a lead, not built here, or
+# not this branch's — has no home once the workstream
+# file retires. It must name where it lives on: an issue (`#<n>`) or the pull
+# request body (`PR body`). A lead is no record (manager-reference.md § Lead).
+# `canonical` findings route through `upstream` and are exempt. Prose is
+# guessed at, so the guess leans red: a false red costs one PR body line,
+# a false green loses the finding.
+fr_out_of_item() {
+  printf '%s\n' "$1" | awk '{
+    t = " " tolower($0) " "
+    # Exempt only the canonical routing words, not every "canonical".
+    if (t ~ /canonical.s[ \t]+file|canonical[ \t]+owns|upstream[- ]report/) exit 1
+    b = "[^a-z0-9]"; sp = "[ \t]+"; det = "((this|the|our|my|its)" sp ")?"
+    tgt = "(plan|item|goal|scope|diff|branch|change|pr|pull|work)s?" b
+    if (t ~ (b "outside" sp "(of" sp ")?" det tgt)) exit 0
+    if (t ~ (b "out[- ]of([- ]|" sp det ")" tgt)) exit 0
+    if (t ~ (b "not" sp "(part" sp "of|in|of)" sp det tgt)) exit 0
+    # Possessive only: "not the plan" is the commonest in-item wording. Any
+    # apostrophe, curly ones included (several bytes under mawk).
+    pt = "(plan|item|goal|scope|diff|branch|change|pr|pull|work)"
+    if (t ~ (b "not" sp "(this|our|my)" sp pt "[^a-z0-9 \t]+s" b)) exit 0
+    # A lead is the hole itself: sent as one, the lead is the only record.
+    if (t ~ (b "as" sp "a" sp "lead" b) && t !~ (b "(never|not)" sp "([a-z]+" sp ")?as" sp "a" sp "lead")) exit 0
+    if (t ~ (b "leads?" sp "to" sp "the" sp "orchestrator" b)) exit 0
+    if (t ~ (b "not" sp "built" sp "here" "[ \t]*([^a-z0-9 \t]|$)")) exit 0
+    if (t ~ (b "beyond" sp det tgt)) exit 0
+    if (t ~ (b "unrelated" sp "to" sp det tgt)) exit 0
+    if (t ~ (b "(another|other)" sp "(plan|item)" b)) exit 0
+    if (t ~ (b "(pre[- ]?existing|predates|existed" sp "before)" b)) exit 0
+    if (t ~ (b "(already" sp "(broken|on" sp "main)|on" sp "origin/main)" b)) exit 0
+    exit 1
+  }'
+}
+
+# Routed = an issue cited (`#<n>` or an issues URL; a pull request's number
+# given as evidence is no filed issue) or the pull request body named.
+fr_routed() {
+  printf '%s\n' "$1" | awk '{ t = " " tolower($0)
+    gsub(/[^a-z0-9](pr|pull[ \t]+request)[ \t]*#[0-9]+/, " ", t)
+    if (t ~ /#[0-9]+|\/issues\/[0-9]+/) exit 0
+    if (t ~ /[^a-z0-9](pr|pull[ \t]+request).?s?[ \t]+(body|description)/) exit 0
+    exit 1 }'
+}
+
+lint_finding_routes() {
+  local over="origin/${HANDOVER_BASE_BRANCH:-main}" base ws content text
+  local bad=0 seen=0 here short verdict
+  base="$(git -C "$ROOT" merge-base HEAD "$over" 2>/dev/null)"
+  if [ -z "$base" ]; then
+    printf '  not measurable here (no merge-base with %s; unrelated history)\n' "$over"
+    return 0
+  fi
+  while IFS= read -r ws; do
+    [ -n "$ws" ] || continue
+    content="$(lint_ws_content "$ws")"
+    [ -n "$content" ] || continue
+    seen=$((seen + 1))
+    here=0
+    while IFS= read -r text; do
+      [ -n "$text" ] || continue
+      [ "$(fb_marker "$text")" = "wontfix" ] || continue
+      # The verdict only: "a write outside the lock" in the description, or
+      # "PR #12" cited as evidence, says nothing about where this lives on.
+      verdict="(wontfix${text##*"(wontfix"}"
+      fr_out_of_item "$verdict" || continue
+      fr_routed "$verdict" && continue
+      bad=$((bad + 1))
+      [ "$here" -eq 1 ] || { here=1; printf '  %s\n' "$ws"; }
+      short=""
+      if [ "${#text}" -gt 76 ]; then
+        short="${text:0:72}"
+        case "$short" in
+          *' '*) short="${short% *}" ;;
+          *) short="" ;;
+        esac
+      fi
+      if [ -n "$short" ]; then printf '    %s …\n' "$short"
+      else printf '    %s\n' "$text"; fi
+    done <<<"$(printf '%s\n' "$content" | fb_findings)"
+  done <<<"$(fin_own_ws "$base")"
+
+  if [ "$seen" -eq 0 ]; then
+    printf '  no workstream file in this branch'"'"'s diff\n'
+    return 0
+  fi
+  if [ "$bad" -eq 0 ]; then
+    printf '  every out-of-item finding names where it lives on\n'
+    return 0
+  fi
+  printf '\n  %d out-of-item finding(s) recorded only here. This file retires;\n' "$bad"
+  printf '  route each (manager-reference.md § Lead): a defect that reproduces\n'
+  printf '  is filed (§ Defect) and cited, anything else is one line in the\n'
+  printf '  pull request body, and the verdict says so:\n'
+  printf '    - r2: <finding> (wontfix: pre-existing, filed #<n>)\n'
+  printf '    - r3: <finding> (wontfix: outside this plan, in PR body)\n'
   return 1
 }
 
