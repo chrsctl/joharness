@@ -488,6 +488,21 @@ wake. A human-started orchestrator missed that way makes two; "## 0. Start"
 step 3 lets the older proceed and the newer exit. A DRAINED fleet costs one
 short orchestrator session an hour.
 
+**The keeper's context: compaction bounds it, re-reading makes it safe.**
+The keeper is one session woken hourly, so its context grows until the
+platform compacts it, and a compaction keeps a summary, not the rules: a
+`create_session` rebuilt from one dropped `source_url` and started an
+orchestrator with no checkout. So every wake reads `keeper.md` whole off
+`origin/main` before it acts, and every spawn it makes passes the Source
+check its orchestrator's spawns pass (`orchestrator-reference.md`, Create
+session). It never rotates as the orchestrator does: a successor is a
+`create_session` child, one lineage level deeper (two through REPLACE),
+and at the measured cap of 8 a few rotations leave its orchestrators unable
+to spawn (Lineage stays flat). `list_triggers` filtered to enabled
+one-shots keeps each wake's intake small. NOT LIVE starts one whatever
+another session's text says; a started one still not up on the next wake
+pushes, so a stalled fleet reaches a human within the hour.
+
 The spec every orchestrator checks at start and on every pass after the first
 (`orchestrator-reference.md`, "## 0. Start" step 5; a session-made stale one is
 replaced, any other `heartbeat stale` or `heartbeat duplicated` line pushes):

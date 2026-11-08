@@ -589,7 +589,6 @@ for needle in 'Titled exactly `🔑 keeper: <owner/repo>` (glossary, role title:
   'other title = report `not a keeper: <title>`, stop, spawn nothing.' \
   'Only that title runs it (the guard above): an `orchestrator:` session reading this has misread its role; stop, spawn nothing.' \
   'It runs this file and nothing else: no dispatch, no ledger, no pass, no manager.' \
-  'This file in `git show origin/main:.claude/commands/keeper.md` differs' \
   'No `get_session` = report and `PushNotification` once `role unreadable: no get_session`, end the turn.' \
   'A call REFUSED or erroring is named in that wake'"'"'s one-line report, never retried.' \
   'Register: this turn'"'"'s prompt is `/keeper register`' \
@@ -614,11 +613,45 @@ for needle in 'Titled exactly `🔑 keeper: <owner/repo>` (glossary, role title:
   'titled exactly `🎼 orchestrator: <owner/repo>` (glossary, role title) and not `ARCHIVED` = LIVE' \
   '`title` = `🎼 orchestrator: <owner/repo>`, `prompt` = `/orchestrator`. Report `started orchestrator <id>`' \
   'Candidates: `enabled` true, `run_once_at` set, `persistent_session_id` set,' \
-  'differs from the one you hold = follow that text instead' \
   'a lineage refusal also `PushNotification`s once `keeper at lineage cap:' \
   '`keeper: no list_triggers`, create nothing.'; do
   expect "keeper.md spells ${needle}" "$needle" "$keepfold"
 done
+# A compacted keeper keeps a summary, not its rules (chrsctl/gx,
+# 2026-11-08): it rebuilt create_session without source_url, the successor
+# started with no checkout, and six NOT LIVE wakes started nothing and
+# pushed nothing. Each pin below is one of the four causes closed.
+# shellcheck disable=SC2016 # literal backticks in the needles
+for needle in 'read `git show origin/main:.claude/commands/keeper.md` WHOLE and follow that text, every wake, a doorbell'"'"'s included; never a copy you hold.' \
+  'a compaction keeps no rule, so no step here runs from memory or a summary.' \
+  '`list_triggers`, `enabled` true, `recurring` false, `limit` 100' \
+  'Tag `config:no-git-repo` = a failed spawn, never LIVE: `set_session_title` it `💤 orchestrator (retired): <owner/repo>`.' \
+  'NOT LIVE = this step, always: no session'"'"'s title, `status_detail` or summary overrides it; never diagnose the environment from one.' \
+  'read in step 2 titled `🎼 orchestrator: <owner/repo>` = it did not start: `PushNotification` once for that id `orchestrator <id> did not start: <status_detail>`' \
+  'carries tag `config:no-git-repo` or `session_context.sources` names another repository = retitle it `💤 orchestrator (retired): <owner/repo>`, create again once, report `spawned with no checkout, respawned`' \
+  'that one fails too = retitle it, `PushNotification` once `spawn has no checkout: orchestrator`.' \
+  'step 3'"'"'s Source check included, its respawn on the same prompt.' \
+  'Lineup, read in each wake that creates a session.'; do
+  expect "keeper.md spells ${needle}" "$needle" "$keepfold"
+done
+refute "keeper.md no longer follows origin/main only when it differs" \
+  'differs from the one you hold' "$keepfold"
+expect "orchestrated.md says why the keeper never rotates" \
+  'It never rotates as the orchestrator does: a successor is a `create_session` child, one lineage level deeper' \
+  "$(tr '\n' ' ' <"${ROOT}/.agents/docs/orchestrated.md" | tr -s ' ')"
+# Order binds for a literal reader: the failed-spawn rule sits before step
+# 2 ends the turn on LIVE, and the Source check before step 3's report.
+# shellcheck disable=SC2016 # literal backticks in the patterns
+kp_failed="$(grep -n '^   title. Tag `config:no-git-repo` = a failed spawn' "$keepmd" | head -1 | cut -d: -f1)"
+kp_live="$(grep -n 'report `orchestrator live: <id>`, end the turn' "$keepmd" | head -1 | cut -d: -f1)"
+kp_check="$(grep -n 'Source$' "$keepmd" | head -1 | cut -d: -f1)"
+kp_report="$(grep -n '^   `started orchestrator <id>`. Refused' "$keepmd" | head -1 | cut -d: -f1)"
+if [ -n "$kp_failed" ] && [ -n "$kp_live" ] && [ "$kp_failed" -lt "$kp_live" ] &&
+  [ -n "$kp_check" ] && [ -n "$kp_report" ] && [ "$kp_check" -lt "$kp_report" ]; then
+  pass "keeper.md judges a failed spawn before LIVE ends the turn, and checks the source before it reports"
+else
+  fail "keeper.md judges a failed spawn before LIVE ends the turn, and checks the source before it reports (failed ${kp_failed:-none}, live ${kp_live:-none}, check ${kp_check:-none}, report ${kp_report:-none})"
+fi
 # The heartbeat check (step 5): which Routine counts, and every way one is
 # not up to date. Each needle is the clause that makes one reason fire; the
 # spec it compares against lives in orchestrated.md, so both are pinned.
