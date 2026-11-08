@@ -54,17 +54,19 @@ first hourly wake runs the check.
    `get_session` finds it titled exactly `🎼 orchestrator:
    <owner/repo>` (glossary, role title) and `RUNNING` or `PENDING` — in its first start it holds
    no wake. Neither, and no pending wake = NOT LIVE, whatever its
-   title. Tag `config:no-git-repo` = a failed spawn, never LIVE:
+   title. Any session this step reads with tag `config:no-git-repo` = a
+   failed spawn, never LIVE:
    `set_session_title` it `💤 orchestrator (retired): <owner/repo>`.
    LIVE, and its pending wake's `harness=` line carries `retire=yes` = SWAP, below. Else LIVE =
    report `orchestrator live: <id>`, end the turn. No `list_triggers`, or it errors = report
    `keeper: no list_triggers`, create nothing.
 3. NOT LIVE = this step, always: no session's title, `status_detail` or
    summary overrides it; never diagnose the environment from one. The one
-   your last `started orchestrator <id>` report named, read in step 2
-   titled `🎼 orchestrator: <owner/repo>` = it did not start:
-   `PushNotification` once for that id `orchestrator <id> did not start:
-   <status_detail>`; no such report = skip. Then
+   your last `started orchestrator <id>` report named (SWAP's report
+   counts), titled `🎼 orchestrator: <owner/repo>` when step 2 read it,
+   before any retitle = it did not start: `PushNotification` `orchestrator
+   <id> did not start: <status_detail>`, once per id, never again on a
+   later wake; no such report = skip. Then
    `create_session` with `source_url` = `git remote get-url
    origin`, `clone_depth: 5000`, `model` = the Lineup's `sonnet`, `title` =
    `🎼 orchestrator: <owner/repo>`, `prompt` = `/orchestrator`. Source

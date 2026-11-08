@@ -611,7 +611,8 @@ for needle in 'Titled exactly `🔑 keeper: <owner/repo>` (glossary, role title:
   'SWAP — the one place the keeper retires an orchestrator' \
   '`derived_state.prompt` starting `/orchestrator pass`' \
   'titled exactly `🎼 orchestrator: <owner/repo>` (glossary, role title) and not `ARCHIVED` = LIVE' \
-  '`title` = `🎼 orchestrator: <owner/repo>`, `prompt` = `/orchestrator`. Report `started orchestrator <id>`' \
+  '`title` = `🎼 orchestrator: <owner/repo>`, `prompt` = `/orchestrator`. Source check:' \
+  'No `sources` yet = the next wake judges. Report `started orchestrator <id>`' \
   'Candidates: `enabled` true, `run_once_at` set, `persistent_session_id` set,' \
   'a lineage refusal also `PushNotification`s once `keeper at lineage cap:' \
   '`keeper: no list_triggers`, create nothing.'; do
@@ -625,9 +626,9 @@ done
 for needle in 'read `git show origin/main:.claude/commands/keeper.md` WHOLE and follow that text, every wake, a doorbell'"'"'s included; never a copy you hold.' \
   'a compaction keeps no rule, so no step here runs from memory or a summary.' \
   '`list_triggers`, `enabled` true, `recurring` false, `limit` 100' \
-  'Tag `config:no-git-repo` = a failed spawn, never LIVE: `set_session_title` it `💤 orchestrator (retired): <owner/repo>`.' \
+  'Any session this step reads with tag `config:no-git-repo` = a failed spawn, never LIVE: `set_session_title` it `💤 orchestrator (retired): <owner/repo>`.' \
   'NOT LIVE = this step, always: no session'"'"'s title, `status_detail` or summary overrides it; never diagnose the environment from one.' \
-  'read in step 2 titled `🎼 orchestrator: <owner/repo>` = it did not start: `PushNotification` once for that id `orchestrator <id> did not start: <status_detail>`' \
+  '(SWAP'"'"'s report counts), titled `🎼 orchestrator: <owner/repo>` when step 2 read it, before any retitle = it did not start: `PushNotification` `orchestrator <id> did not start: <status_detail>`, once per id, never again on a later wake' \
   'carries tag `config:no-git-repo` or `session_context.sources` names another repository = retitle it `💤 orchestrator (retired): <owner/repo>`, create again once, report `spawned with no checkout, respawned`' \
   'that one fails too = retitle it, `PushNotification` once `spawn has no checkout: orchestrator`.' \
   'step 3'"'"'s Source check included, its respawn on the same prompt.' \
@@ -642,7 +643,7 @@ expect "orchestrated.md says why the keeper never rotates" \
 # Order binds for a literal reader: the failed-spawn rule sits before step
 # 2 ends the turn on LIVE, and the Source check before step 3's report.
 # shellcheck disable=SC2016 # literal backticks in the patterns
-kp_failed="$(grep -n '^   title. Tag `config:no-git-repo` = a failed spawn' "$keepmd" | head -1 | cut -d: -f1)"
+kp_failed="$(grep -n '^   title. Any session this step reads with tag `config:no-git-repo`' "$keepmd" | head -1 | cut -d: -f1)"
 kp_live="$(grep -n 'report `orchestrator live: <id>`, end the turn' "$keepmd" | head -1 | cut -d: -f1)"
 kp_check="$(grep -n 'Source$' "$keepmd" | head -1 | cut -d: -f1)"
 kp_report="$(grep -n '^   `started orchestrator <id>`. Refused' "$keepmd" | head -1 | cut -d: -f1)"
