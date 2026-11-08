@@ -637,15 +637,19 @@ for needle in 'read `git show origin/main:.claude/commands/keeper.md` WHOLE and 
 done
 refute "keeper.md no longer follows origin/main only when it differs" \
   'differs from the one you hold' "$keepfold"
+# shellcheck disable=SC2016 # literal backticks in the pattern
 expect "orchestrated.md says why the keeper never rotates" \
   'It never rotates as the orchestrator does: a successor is a `create_session` child, one lineage level deeper' \
   "$(tr '\n' ' ' <"${ROOT}/.agents/docs/orchestrated.md" | tr -s ' ')"
 # Order binds for a literal reader: the failed-spawn rule sits before step
 # 2 ends the turn on LIVE, and the Source check before step 3's report.
-# shellcheck disable=SC2016 # literal backticks in the patterns
+# shellcheck disable=SC2016 # literal backticks in the pattern
 kp_failed="$(grep -n '^   title. Any session this step reads with tag `config:no-git-repo`' "$keepmd" | head -1 | cut -d: -f1)"
+# shellcheck disable=SC2016 # literal backticks in the pattern
 kp_live="$(grep -n 'report `orchestrator live: <id>`, end the turn' "$keepmd" | head -1 | cut -d: -f1)"
+# shellcheck disable=SC2016 # literal backticks in the pattern
 kp_check="$(grep -n 'Source$' "$keepmd" | head -1 | cut -d: -f1)"
+# shellcheck disable=SC2016 # literal backticks in the pattern
 kp_report="$(grep -n '^   `started orchestrator <id>`. Refused' "$keepmd" | head -1 | cut -d: -f1)"
 if [ -n "$kp_failed" ] && [ -n "$kp_live" ] && [ "$kp_failed" -lt "$kp_live" ] &&
   [ -n "$kp_check" ] && [ -n "$kp_report" ] && [ "$kp_check" -lt "$kp_report" ]; then
