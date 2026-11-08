@@ -16,16 +16,17 @@ Find each with `ToolSearch("+<name>")` (names carry an unstable prefix).
 Claude Code Remote MCP: `list_triggers`, `get_session`, `create_session`,
 `set_session_title`. `PushNotification` absent = the push lines are
 reported only; say so once. Model IDs: `.agents/docs/agent-selection.md`
-Lineup, read once. A call REFUSED or erroring is named in that wake's
-one-line report, never retried.
+Lineup, read in each wake that creates a session. A call REFUSED or
+erroring is named in that wake's one-line report, never retried.
 
 ## Run
 
 The heartbeat wakes this session hourly. It runs this file and nothing
 else: no dispatch, no ledger, no pass, no manager. Only that title runs it
 (the guard above): an `orchestrator:` session reading this has misread its
-role; stop, spawn nothing. Its context persists across wakes: keep every
-report to one line.
+role; stop, spawn nothing. Its context persists across wakes and
+compacts: a compaction keeps no rule, so no step here runs from memory or a
+summary. Keep every report to one line.
 
 Register: this turn's prompt is `/keeper register` (REGISTER's
 `create_session`, `orchestrator-reference.md` "## 0. Start" step 5; the
@@ -34,10 +35,12 @@ registered: parent <parent_session_id>` (`none` if absent), end the turn. No LIV
 start, no SWAP: the session that made you has just read dispatch, and the
 first hourly wake runs the check.
 
-1. `git fetch origin main`. This file in `git show
-   origin/main:.claude/commands/keeper.md` differs from the one you
-   hold = follow that text instead.
-2. `list_triggers`, `limit` 100 (fired one-shots stay hidden). Candidates:
+1. `git fetch origin main`, then read `git show
+   origin/main:.claude/commands/keeper.md` WHOLE and follow that text,
+   every wake, a doorbell's included; never a copy you hold. No fetch =
+   read `.claude/commands/keeper.md` whole.
+2. `list_triggers`, `enabled` true, `recurring` false, `limit` 100 (fired
+   one-shots stay hidden). Candidates:
    `enabled` true, `run_once_at` set, `persistent_session_id` set,
    `derived_state.prompt` starting `/orchestrator pass`. `list_triggers` is
    account-wide: it lists other sessions' `send_later` wakes with their
@@ -51,13 +54,28 @@ first hourly wake runs the check.
    `get_session` finds it titled exactly `🎼 orchestrator:
    <owner/repo>` (glossary, role title) and `RUNNING` or `PENDING` — in its first start it holds
    no wake. Neither, and no pending wake = NOT LIVE, whatever its
-   title. LIVE, and its pending
-   wake's `harness=` line carries `retire=yes` = SWAP, below. Else LIVE =
+   title. Any session this step reads with tag `config:no-git-repo` = a
+   failed spawn, never LIVE:
+   `set_session_title` it `💤 orchestrator (retired): <owner/repo>`.
+   LIVE, and its pending wake's `harness=` line carries `retire=yes` = SWAP, below. Else LIVE =
    report `orchestrator live: <id>`, end the turn. No `list_triggers`, or it errors = report
    `keeper: no list_triggers`, create nothing.
-3. Not LIVE: `create_session` with `source_url` = `git remote get-url
+3. NOT LIVE = this step, always: no session's title, `status_detail` or
+   summary overrides it; never diagnose the environment from one. The one
+   your last `started orchestrator <id>` report named (SWAP's report
+   counts), titled `🎼 orchestrator: <owner/repo>` when step 2 read it,
+   before any retitle = it did not start: `PushNotification` `orchestrator
+   <id> did not start: <status_detail>`, once per id, never again on a
+   later wake; no such report = skip. Then
+   `create_session` with `source_url` = `git remote get-url
    origin`, `clone_depth: 5000`, `model` = the Lineup's `sonnet`, `title` =
-   `🎼 orchestrator: <owner/repo>`, `prompt` = `/orchestrator`. Report
+   `🎼 orchestrator: <owner/repo>`, `prompt` = `/orchestrator`. Source
+   check: the result, else `get_session` on its id, carries tag
+   `config:no-git-repo` or `session_context.sources` names another
+   repository = retitle it `💤 orchestrator (retired): <owner/repo>`,
+   create again once, report `spawned with no checkout, respawned`; that
+   one fails too = retitle it, `PushNotification` once `spawn has no
+   checkout: orchestrator`. No `sources` yet = the next wake judges. Report
    `started orchestrator <id>`. Refused = report the refusal verbatim; a
    lineage refusal also `PushNotification`s once `keeper at lineage cap:
    delete heartbeat <trigger id> and run /orchestrator`.
@@ -76,7 +94,8 @@ the turn; the next wake swaps. Else, in order:
    refused`, start nothing, end the turn.
 2. `create_session` as step 3, `prompt` = that wake's
    `derived_state.prompt` with `pass=1`, `retire=yes` removed and every
-   `lead` line removed (a spawn prompt never carries a lead). The text is
+   `lead` line removed (a spawn prompt never carries a lead), step 3's
+   Source check included, its respawn on the same prompt. The text is
    the one the retired session would have run as its own wake, so it
    carries no more than that session already trusted. Refused =
    `set_session_title` it back to `🎼 orchestrator: <owner/repo>`, report and
