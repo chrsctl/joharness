@@ -3,7 +3,8 @@
 Each plan file under `docs/plans/` names in frontmatter which agent tier
 implements it (`agent`) and at what effort (`effort`). Lineup facts:
 claude-api skill's model table, read 2026-10-06 (verify against Models API
-when stale); cache-read column: Anthropic's pricing page, 2026-10-09.
+when stale); cache-read column: Anthropic's pricing page, 2026-10-09; fable
+row: claude-api skill, read 2026-11-09.
 
 ## Lineup
 
@@ -15,7 +16,7 @@ mapping:
 | haiku | `claude-haiku-5-5` | 1M | 0.10 / 0.50 (prompt ≤100K; 0.50 / 2.50 above) | 0.01 (prompt ≤100K) / 0.05 above | Mechanical, fully specified, acceptance executable |
 | sonnet | `claude-sonnet-5-5` | 1M | 2 / 10 | 0.10 | Default. Near-Opus coding + agentic quality |
 | opus | `claude-opus-5-5` | 1M | 4 / 20 | 0.20 | Correctness-critical, invariant reasoning, irreversible-path code |
-| fable | `claude-fable-5-1` | 1M | 10 / 50 | 0.25 | Judgement with a small context: decomposition, review-churn research, scouting. Never a build. |
+| fable | `claude-fable-5-2` | 1M | 8 / 40 | 0.20 | Judgement with a small context: decomposition, review-churn research, scouting. Never a build. |
 
 The 100K line counts the whole prompt, cache reads included, per request: a
 haiku session whose context grows past it pays 5x on every later turn. A
