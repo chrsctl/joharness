@@ -25,3 +25,6 @@ without (`.agents/scripts/c2-run.sh`)? Verdict `N/A`, `FINE`, `CONCERN` or
 | 2026-10-29 | map-in-the-loop | FINE | NO EVIDENCE | c2-run.sh: "fix: exit 1 in 2s, first name not listed: bootstrap-consumer" on fix, nofix and pre, no case rows, NO FLIP; Review r4 records a hand mutation check |
 | 2026-10-29 | core-only-scope-lint | FINE | NO EVIDENCE | c2-run.sh: "fix: exit 1 in 2s, first name not listed: bootstrap-consumer" on fix, nofix and pre, no case rows, NO FLIP |
 | 2026-10-29 | flatten-agents-readmes | FINE | N/A | Goal is a rename and a deleted path table, no behaviour change; c2-run.sh died first too ("first name not listed: dispatch-branch-plans") |
+| 2026-11-09 | finding-lasting-record | FINE | NO EVIDENCE | c2-run.sh: "fix: exit 1 in 1s, first name not listed: bootstrap-consumer" on fix, nofix and pre, no case rows, NO FLIP |
+| 2026-11-09 | keeper-stillborn-spawn | FINE | NO EVIDENCE | c2-run.sh: "fix: exit 1 in 1s, first name not listed: bootstrap-consumer" on fix, nofix and pre, no case rows, NO FLIP |
+| 2026-11-09 | dispatch-holds-shared-defect | FINE | NO EVIDENCE | c2-run.sh: "fix: exit 1 in 2s, first name not listed: bootstrap-consumer" on fix, nofix and pre, no case rows, NO FLIP |
