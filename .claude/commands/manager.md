@@ -114,8 +114,8 @@ Your `$ARGUMENTS` carries the `rescope` block. ref § Surveyor.
   one reason that is not a human's (ref § Defect.). None applies = the work
   is yours, do it. Block form and `human-review` labelling: Loop, Decide
   alone (`next:` = `<reason>: <question>`). Waiting on a human PR =
-  `core path: waiting on #<N>: <question>` (any text may follow `#<N>`;
-  no other number before it): respawned once #<N> merges.
+  `core path: waiting on #<N>: <question>` (`#<N>` first, at most 7
+  digits; any text may follow it): respawned once #<N> merges.
   Not a `defect:` block: label with `issue_write` (method `update`, labels =
   existing plus `human-review`); it fails = say so in `next:` after the
   question, still push, still exit. A block or park with a pull request

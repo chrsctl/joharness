@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK4epwqHSw7TAtGuAco
 agent: sonnet
 updated: 2026-11-09
-next: Run ci + verify, verifier at haiku, record review, PR, merge
+next: Open PR, finish, merge
 ---
 
 ## Goal
@@ -27,6 +27,12 @@ dispatch resume it, with a test, docs consistent.
   non-digit ends the number; the digit bound still refuses `#77` read as `#7`.
 
 ## Review
+
+- r1: (verifier) new case leaves human/own-x and the #81 merge on the fixture's main (no change: as own-w's case does; no later case reads #81)
+- r2: (verifier) manager.md wording omitted the 7-digit bound on #<N> (fixed: wording names it)
+- r3: (verifier) orchestrated.md:277 and manager-reference.md:35 show only the `#<N>: ` form (wontfix: that form stays valid; the fast lane's 3-path bound keeps the one rule in manager.md §3)
+- r4: (verifier) #81 RESUME needs a second slot after #77's (no change: dispatch-park ran 201 passed, 0 failed with it)
+- r5: (verifier) agent: sonnet vs haiku review (no change: the fast lane reviews at haiku whatever agent: says)
 
 ## Blockers
 
