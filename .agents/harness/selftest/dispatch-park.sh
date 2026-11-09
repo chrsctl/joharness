@@ -466,6 +466,27 @@ expect "awaited PR merged: a plan overlapping it is held" "HOLD — overlaps own
 out="$(dfx env JOHARNESS_PENDING_SPAWNS=4)"
 expect "awaited PR merged, 0 slots: the resume waits" \
   "PARKED #77: #77 merged, resume waits for a slot" "$out"
+# Free text after the number, not `:` (a consumer's real next:): #<n> still
+# parses — waits while open, RESUMEs once merged.
+dfplan own-x none
+dfpush 3 "own-x"
+dfpark park-x own-x 'core path: waiting on #81 (ci.yml runs the commerce suite): then add the entries, merge' 2
+out="$(dfx)"
+expect "awaited PR with text after #<n>, open: on the wait line" "#81 (own-x)" \
+  "$(grep 'wait on a human merge' <<<"$out")"
+git -C "$dfwork" checkout -qb human/own-x main
+printf 'edit\n' >"${dfwork}/core-edit-x.txt"
+dfcommit 1 "the human's core edit for own-x"
+git -C "$dfwork" checkout -q main
+git -C "$dfwork" merge -q --no-ff -m "Merge pull request #81 from example/human/own-x" human/own-x
+git -C "$dfwork" push -q origin main
+out="$(dfx)"
+expect "awaited PR with text after #<n>, merged: the block RESUMEs" \
+  "PARKED #81 RESUME — #81 merged" "$out"
+git -C "$dfwork" push -q origin --delete park-x
+git -C "$dfwork" branch -qD park-x
+git -C "$dfwork" rm -q docs/plans/own-x.md
+dfpush 0 "retire own-x"
 # <n> <head> <hours ago> [body]: a first-parent merge commit on the base.
 dfmerge() {
   git -C "$dfwork" checkout -qb "side-$1" main

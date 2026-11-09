@@ -8812,10 +8812,12 @@ block_reason_ok() {
 }
 
 # The pull request number a `core path: waiting on #<n>: ...` next: names
-# (manager.md §3), or nothing. Branch-written text: digits only, bounded.
+# (manager.md §3), or nothing. Branch-written text: digits only, bounded. Any
+# non-digit ends the number: `#1266 (ci.yml ...): ...` waits on #1266 as
+# `#1266: ...` does; demanding `:` read it as no PR, so it never RESUMEd.
 awaited_pr() {
   local t="${1#[\"\']}"
-  [[ "$t" =~ ^core\ path:\ waiting\ on\ \#([0-9]{1,7})(:|$) ]] || return 0
+  [[ "$t" =~ ^core\ path:\ waiting\ on\ \#([0-9]{1,7})([^0-9]|$) ]] || return 0
   printf '%s' "${BASH_REMATCH[1]#"${BASH_REMATCH[1]%%[!0]*}"}"
 }
 

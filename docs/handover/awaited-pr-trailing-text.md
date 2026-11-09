@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK4epwqHSw7TAtGuAco
 agent: sonnet
 updated: 2026-11-09
-next: Fix awaited_pr to accept text after #<n>, add the fixture, ci + verify, PR, merge
+next: Run ci + verify, verifier at haiku, record review, PR, merge
 ---
 
 ## Goal
