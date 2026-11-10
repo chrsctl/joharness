@@ -180,19 +180,18 @@ to keep:
 
 - A defect that reproduces on `origin/main` cites `#<n>` (filed or
   matched, § Defect steps 2–3). `PR body` is legal for it only as the
-  unmatched second or later one (§ Defect step 4).
+  unmatched second or later one (§ Defect step 4), or as `defect not
+  filed` when `issue_write` failed (§ Defect step 5).
 - A defect noticed anywhere else — `## Decisions`, `## Rejected`, a
   worker's return, the pull request body — gets its own `## Review` line
   too. Outside `## Review` the gate never sees it.
 
 Why: the clerk plans from issues, never pull request bodies. A defect that
 leaves only through the body drops out of the queue unless a human files
-it. Seen on a consumer edge: a reproducible 422 on every unitless invoice
-line, recorded as a `## Decisions` bullet and a PR body line, reached the
-queue only because a human filed the issue after the merge
-(`docs/research/first-defect-pr-body-route.md`, recover with
-`git log --diff-filter=D -- <that path>`). The lint closing both gaps is
-plan `finding-routes-defect-grammar`.
+it. A consumer edge reported exactly that: a reproducible defect, recorded
+as a `## Decisions` bullet and a pull request body line, reached the queue
+only because a human filed the issue after the merge (reported, not
+re-read here).
 
 After the merge, send it as one message on the transport your prompt
 names, in the orchestrator's grammar — `lead <stem>: <text>`, text at most

@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK3vHrFHTrRoGWz9mNL
 agent: opus
 updated: 2026-11-10
-next: Run ci, verifier, then open PR and finish
+next: Re-run ci, open PR, finish
 ---
 
 ## Goal
@@ -31,6 +31,13 @@ recorded outside `## Review`? Graduate the answer, delete the file.
 ## Rejected
 
 ## Review
+
+- r1: (verifier) new "PR body only for second defect" rule contradicts § Defect step 5 (`defect not filed`); plan's lint would red it (fixed: § Lead names step 5, plan Scope and fixture cover it)
+- r2: (verifier) plan Acceptance names `./joharness.sh selftest review`, which does not exist (fixed: `.agents/harness/selftest.sh`, 0 failed)
+- r3: (verifier) plan SHIPS but Acceptance names no consumer-side check (fixed: consumer `ci` red case added)
+- r4: (verifier) shipped doc points at a canonical-only research path and a plan stem that consumers lack and that goes stale (fixed: both pointers removed; plan Scope says name no stem)
+- r5: (verifier) plan's `defect`/`reproduces` keyword test reds negations like "not a defect" (fixed: Scope excludes negations, fixture and Trap added)
+- r6: (verifier) graduated why states a WEAK consumer claim as fact, with drifted wording (fixed: marked as reported, detail dropped)
 
 ## Blockers
 
