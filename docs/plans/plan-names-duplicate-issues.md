@@ -26,10 +26,13 @@ so the fix must be readable from git.
 Mechanism (decided here):
 
 1. A plan's `issue:` may name several issues, bare numbers comma-separated
-   (`issue: 1449, 1450`): one defect filed twice is one plan. A `#` is
+   (`issue: 1449, 1450`): one defect filed twice is one plan.
+   `clerk_issue_nums` reads a list under `docs/plans` only; under
+   `docs/handover` (claims) one number, as today. A `#` is
    allowed on the first entry only: every reader cuts ` #…` as a comment
    (`gr_fields`, `base_issues_prime`, `clerk_issue_nums`), so `#1449, #1450`
-   reads `#1449,` and the lint reds its empty entry — never a silent drop.
+   reads `#1449,` and the lint reds its empty entry; `#1449,#1450` (no
+   space, no cut) reds on its second `#` — never a silent drop.
    `issue_list_verdict` prints `none`, `ok <n> [<n>...]` (space-separated),
    or `bad <why>` for the first entry `issue_verdict` refuses, an empty
    entry, or `none` inside a list: one bad entry fails the whole list. Every reader of a
@@ -40,7 +43,8 @@ Mechanism (decided here):
    request closes is in the plan's `issue:` before the retire commit — the
    deleted plan's text is what RESUME reads, so a `Closes #1450` the plan
    does not name resumes nobody. `Closes` or `Refs` is decided per number,
-   by § Plan issue's existing rule.
+   by § Plan issue's existing rule: a `## Issue remainder` section makes
+   every number `Refs`; otherwise the `git grep` test per number.
 3. Clerk rule: an issue that is a duplicate of one a plan (or this pass)
    already takes is added to that plan's `issue:`, never planned twice.
 4. Park-time rule (manager-reference § Defect): after filing, search once
@@ -54,9 +58,11 @@ Mechanism (decided here):
   each), `plan_names_issue`, `base_issues_prime`, `clerk_issue_nums`, the
   plan lint's `lint_issue` call.
 - `.agents/harness/selftest/dispatch-park.sh` — appended after the
-  DEFECT-BOUND fixture, its own numbers (#61, #62, unused elsewhere): two
+  DEFECT-BOUND fixture, in that fixture's repo (#61, #62 unused there; the
+  first repo's #61 UNPLANNED case is another repo): two
   parks on #62 hold; a branch plan `fix6162` naming `61, 62` lifts the hold;
-  it lands and retires: the park on #62 RESUMEs.
+  it lands and retires: the parks on #62 and on #61 (the list's first
+  number) RESUME.
 - `.agents/harness/selftest/feedback.sh` — `issue_list_verdict` cases.
 - `.agents/harness/selftest/clerk.sh` — a list plan is PLANNED for every
   number; the plan lint passes `12, 13` and reds `#12, #13`.
@@ -92,17 +98,21 @@ Mechanism (decided here):
 
 ## Acceptance
 
-- `./joharness.sh ci` — `ci: pass`.
+- `./joharness.sh ci` — `ci: pass`; red prints `ci: FAIL (<n>: <stage>)`.
 - `./joharness.sh verify` — `0 failed`. Among the PASS lines: `a retired
   plan naming 61, 62 resumes a park on #62`, `a branch plan naming 61, 62
   lifts the hold on #62`, `a plan's issue list reads every number`, `a
   workstream claim's issue: stays one number`. Red meaning: `PARKED #62: a
   defect's … waits for a plan naming #62` still printed = RESUME does not
   read the list; `red base: #62` still printed = the lift does not.
-- Fails without the fix: `git show origin/main:joharness.sh` copied over a
-  scratch copy's `joharness.sh`, the selftest run there with only the
-  topics `clerk dispatch-park feedback ci-graph-lint` listed — expected:
-  the cases above FAIL (feedback's: `issue_list_verdict` undefined).
+- Fails without the fix: `git archive HEAD` into a scratch dir,
+  `git show origin/main:joharness.sh` over its `joharness.sh`, delete every
+  `.agents/harness/selftest/*.sh` but `clerk feedback dispatch-park
+  ci-graph-lint`, in `.agents/harness/selftest.sh` set `SELFTEST_TOPICS` to
+  those four, `SELFTEST_FIRST=(dispatch-park)`, `SELFTEST_CHAINS=()`,
+  `git init` + commit, `bash .agents/harness/selftest.sh` — expected:
+  `N passed, M failed`, M > 0, the FAIL lines naming the new cases above
+  (the claim case passes: it guards a clause that already held).
 
 ## Where to look
 

@@ -373,6 +373,8 @@ out="$(pe_fn issue_verdict issue_list_verdict -- 'issue_list_verdict "12,,13"')"
 expect "an empty entry is red" "bad empty entry" "$out"
 out="$(pe_fn issue_verdict issue_list_verdict -- 'issue_list_verdict "12, 012"')"
 expect "each entry goes through issue_verdict" "bad leading zero" "$out"
+out="$(pe_fn issue_verdict issue_list_verdict -- 'issue_list_verdict "1449,#1450"')"
+expect "a # after the first entry is red, spaced or not" "bad a # after the first entry" "$out"
 out="$(JOHARNESS_FEEDBACK_EDGES=99999999999999999999 jf feedback)"
 refute "an oversized edge limit does not wrap" "integer expression" "$out"
 expect "a trailing period after the verdict still counts" "fixed" \

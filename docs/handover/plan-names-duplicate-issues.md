@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK4RW1j77ndMMrueb8T
 agent: opus
 updated: 2026-11-10
-next: Wait for ci and plan-checker; prove new tests fail on origin/main joharness.sh; then verify, verifier, PR
+next: Run ci and verify on the head, then spawn the verifier at the tier ./joharness.sh review names
 ---
 
 ## Goal
@@ -46,6 +46,14 @@ A parked manager on a duplicate defect issue never resumes (chrsctl/gx
 - r8: Closes vs Refs for a list undefined (plan-checker) — per number, § Plan issue's rule (fixed)
 - r9: claim stays one number has no Acceptance (plan-checker) — ci-graph-lint case (fixed)
 - r10: A3 evidence grep misses `gr_fields` readers (plan-checker) — grep widened (fixed)
+- r11: `#1449,#1450` with no space passes as two numbers (plan-checker) — later entries refuse `#`, tested (fixed)
+- r12: plan calls #61 unused, but the first fixture repo uses it (plan-checker) — plan says per-repo; the new section is in the DEFECT-BOUND repo (fixed)
+- r13: fails-without-fix procedure not runnable as written (plan-checker) — exact steps named; run: 440 passed, 10 failed on origin/main's joharness.sh, the new cases among them (fixed)
+- r14: scope overlap with human-answers-on-github, second round (plan-checker) (wontfix: as r3)
+- r15: clerk_issue_nums list reading per directory unstated (plan-checker) — plan says plans only (fixed)
+- r16: Refs vs Closes for a list with a remainder section ambiguous (plan-checker) — remainder = every number Refs (fixed)
+- r17: ci Acceptance line names no red output (plan-checker) (fixed)
+- r18: `plan_names_issue` matched only a list's later numbers, the `ok ` prefix ate the first's space; 42 dispatch-park cases red (ci) — pattern fixed, a park on the first number tested (fixed)
 
 ## Blockers
 

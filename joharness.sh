@@ -1275,10 +1275,11 @@ issue_verdict() {
 # the park on the other never resumed). `none`, `ok <n> [<n>...]`, or
 # `bad <why>` on the first entry that fails issue_verdict. A `#` after the
 # first entry never reaches here: gr_field cuts ` #…` as a comment, so
-# `#12, #13` reads `#12,` and its empty entry is red. A workstream claim's
+# `#12, #13` reads `#12,` and its empty entry is red; `#12,#13` reaches here
+# whole and its second `#` is red. A workstream claim's
 # `issue:` stays one number: issue_verdict.
 issue_list_verdict() {
-  local iss="$1" e v out="" rest
+  local iss="$1" e v out="" rest first=1
   case "$iss" in
     '' | none) printf 'none'; return 0 ;;
   esac
@@ -1289,7 +1290,10 @@ issue_list_verdict() {
     case "$e" in
       '') printf 'bad empty entry; write numbers comma-separated, no # after the first'; return 0 ;;
       none) printf 'bad none inside a list'; return 0 ;;
+      '#'*) [ "$first" -eq 1 ] ||
+        { printf 'bad a # after the first entry; bare numbers only, or a reader with a space before it cuts it as a comment'; return 0; } ;;
     esac
+    first=0
     v="$(issue_verdict "$e")"
     case "$v" in
       "ok "*) out="${out} ${v#ok }" ;;
