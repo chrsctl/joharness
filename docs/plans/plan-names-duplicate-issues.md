@@ -99,6 +99,11 @@ Mechanism (decided here):
 ## Acceptance
 
 - `./joharness.sh ci` — `ci: pass`; red prints `ci: FAIL (<n>: <stage>)`.
+- SHIPS: the consumer-side check is a consumer's own `./joharness.sh ci`
+  graph lint — a plan `issue: 12, 13` green, `#12, #13` and a claim
+  `issue: 12, 13` red (the clerk.sh and ci-graph-lint.sh cases run that
+  lint on a consumer-shaped fixture) — and its `dispatch`, which resumes a
+  park on any listed number (dispatch-park.sh cases).
 - `./joharness.sh verify` — `0 failed`. Among the PASS lines: `a retired
   plan naming 61, 62 resumes a park on #62`, `a branch plan naming 61, 62
   lifts the hold on #62`, `a plan's issue list reads every number`, `a
