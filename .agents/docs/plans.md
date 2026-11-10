@@ -60,7 +60,7 @@ Frontmatter: `plan`, `urgency` (`normal` | `urgent`), `agent` (`haiku` |
   = one plan naming both, bare numbers comma-separated (`issue: 1449,
   1450`; a ` #` after the first reads as a comment and `ci` reds the
   dangling comma). Every number counts: PLANNED, a parked manager's RESUME,
-  the DEFECT-BOUND lift (`orchestrated.md`, The one stop). The pull request
+  the fix row a DEFECT-BOUND hold spares (`orchestrated.md`, The one stop). The pull request
   closing an issue the plan does not name resumes no park on it: name it
   before the retire commit (`manager-reference.md` § Plan issue).
 - `scope` — path prefixes the plan will touch; `none` joins no wave. The queue hook proves
