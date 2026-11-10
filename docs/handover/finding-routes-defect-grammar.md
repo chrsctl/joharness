@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK6RVKJCUgZxwubwoSr
 agent: sonnet
 updated: 2026-11-10
-next: Read scratchpad all.out (selftest, ci, verify of the regex fix); if green run verifier, record ## Review, retire ws+plan, PR, merge.
+next: Read verifier return + scratchpad ci.out; record ## Review (verifier), run verify, retire ws+plan, PR, merge.
 ---
 
 ## Goal

@@ -2024,7 +2024,7 @@ lint_finding_routes() {
   printf '  A FIRST defect that reproduces on origin/main cannot cite PR body: the\n'
   printf '  clerk plans from issues. File it (§ Defect step 3) and cite #<n>; PR\n'
   printf '  body is legal only after an earlier wontfix cited an issue for a\n'
-  printf '  defect, or as `defect not filed` when issue_write failed.\n'
+  printf '  defect, or as "defect not filed" when issue_write failed.\n'
   return 1
 }
 
