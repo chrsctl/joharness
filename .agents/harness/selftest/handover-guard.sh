@@ -709,3 +709,89 @@ printf 'dirty\n' >>"${sgz}/code.txt"
 out="$(printf '%s' "$JSON_STOP" | CLAUDE_PROJECT_DIR="$sgz" \
   bash "${ROOT}/.agents/harness/handover-guard.sh" 2>&1)"
 expect "but a dirty tree on it still fires" "uncommitted changes" "$out"
+
+# Blocked after the retire with the pull request not drafted (chrsctl/gx PR
+# #1437: retire, PR opened, restore `status: blocked`, PR left ready; a human
+# merged the workstream file onto main). The retire delete then the restore
+# is what git shows of an open pull request; `drafted: <N>` is the manager's
+# read-back of `draft: true` (manager-reference.md § Block on an open pull
+# request). Fixture: a clean, pushed branch, so only this fact can fire.
+sgd="${TMP}/sgdraft"
+git init -q "$sgd"
+git -C "$sgd" symbolic-ref HEAD refs/heads/main
+printf 'code\n' >"${sgd}/code.txt"
+commit_all "$sgd" "base"
+git init -q --bare "${TMP}/sgdraft.git"
+git -C "$sgd" remote add origin "${TMP}/sgdraft.git"
+git -C "$sgd" push -qu origin main
+git -C "$sgd" checkout -qb sg-draft
+sgd_ws() {  # <status> [extra frontmatter line]
+  mkdir -p "${sgd}/docs/handover"
+  printf -- '---\nworkstream: sgd\nstatus: %s\npr: none\n%s---\n\n## Goal\n\nx\n' \
+    "$1" "${2:+$2
+}" >"${sgd}/docs/handover/sgd.md"
+}
+guard_d() { printf '%s' "$JSON_STOP" | CLAUDE_PROJECT_DIR="$sgd" \
+  bash "${ROOT}/.agents/harness/handover-guard.sh" 2>&1; }
+printf 'feat\n' >"${sgd}/feat.txt"
+sgd_ws in-progress
+commit_all "$sgd" "work and claim"
+# Blocked before any retire: no pull request yet, nothing to draft.
+sgd_ws blocked
+commit_all "$sgd" "block before the retire"
+git -C "$sgd" push -qu origin sg-draft
+out="$(guard_d)"
+refute "blocked with no retire before it asks for no draft" "drafted:" "$out"
+git -C "$sgd" rm -q docs/handover/sgd.md
+commit_all "$sgd" "retire"
+sgd_ws blocked
+commit_all "$sgd" "restore: blocked on checks"
+git -C "$sgd" push -q origin sg-draft
+out="$(guard_d)"
+expect "blocked restore without drafted: blocks the stop" '"decision": "block"' "$out"
+expect "and names the draft step" "carry no drafted:" "$out"
+refute "and carries no path" "sgd.md" "$out"
+if ! python3 -c 'import json' >/dev/null 2>&1; then
+  skip "draft block is valid JSON" "python3 missing or a Store stub here"
+elif printf '%s' "$out" | python3 -c 'import json,sys; json.load(sys.stdin)' 2>/dev/null; then
+  pass "draft block is valid JSON"
+else
+  fail "draft block is valid JSON"
+  printf '%s\n' "$(indent "$out")"
+fi
+sgd_ws blocked 'drafted: none'
+commit_all "$sgd" "drafted none"
+git -C "$sgd" push -q origin sg-draft
+out="$(guard_d)"
+expect "drafted: none is no read-back" "carry no drafted:" "$out"
+sgd_ws '"blocked"' "drafted: '1437'"
+commit_all "$sgd" "quoted values"
+git -C "$sgd" push -q origin sg-draft
+out="$(guard_d)"
+if [ -z "$out" ]; then
+  pass "quoted status and drafted: values read as bare ones"
+else
+  fail "quoted status and drafted: values read as bare ones"
+  printf '%s\n' "$(indent "$out")"
+fi
+sgd_ws '"blocked"'
+commit_all "$sgd" "quoted status, no drafted"
+git -C "$sgd" push -q origin sg-draft
+out="$(guard_d)"
+expect "a quoted blocked status still asks for the draft" "carry no drafted:" "$out"
+sgd_ws blocked 'drafted: #1437'
+commit_all "$sgd" "drafted"
+git -C "$sgd" push -q origin sg-draft
+out="$(guard_d)"
+if [ -z "$out" ]; then
+  pass "blocked restore with drafted: #N stays silent"
+else
+  fail "blocked restore with drafted: #N stays silent"
+  printf '%s\n' "$(indent "$out")"
+fi
+# Resumed: status back to in-progress, the PR un-drafts at step 7, not here.
+sgd_ws in-progress
+commit_all "$sgd" "resume"
+git -C "$sgd" push -q origin sg-draft
+out="$(guard_d)"
+refute "a resumed restore asks for no draft" "drafted:" "$out"

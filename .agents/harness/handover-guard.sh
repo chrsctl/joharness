@@ -87,6 +87,40 @@ if [ -n "$base" ] && [ "$base" != "$(git rev-parse HEAD 2>/dev/null)" ]; then
   fi
 fi
 
+# --- blocked after the retire, pull request not drafted --------------------
+# The pull request opens only after the retire commit deletes the workstream
+# file (Loop step 7), so a file this branch deleted and HEAD carries again
+# is a restore onto a head with a pull request. Blocked there, nothing on
+# GitHub stops a human merging the file onto the base unless the pull
+# request is a draft (.agents/docs/manager-reference.md § Block on an open
+# pull request; chrsctl/gx PR #1437). Git cannot see the draft; the manager
+# writes `drafted: <N>` after reading it back, and this reads that.
+if [ -n "$base" ]; then
+  undrafted=0
+  while IFS= read -r ws; do
+    case "$ws" in
+      docs/handover/TEMPLATE.md | docs/handover/README.md ) continue ;;
+      docs/handover/*.md ) ;;
+      * ) continue ;;
+    esac
+    fm="$(git show "HEAD:${ws}" 2>/dev/null |
+      awk 'NR == 1 && /^---[[:space:]]*$/ { f = 1; next }
+           f && /^---[[:space:]]*$/ { exit }
+           f { print }')"
+    printf '%s\n' "$fm" |
+      grep -qE "^status:[[:space:]]*([\"']?)blocked\\1[[:space:]]*(#.*)?\$" || continue
+    [ -n "$(git log --diff-filter=D --format=%H -1 "${base}..HEAD" -- "$ws" 2>/dev/null)" ] ||
+      continue
+    printf '%s\n' "$fm" |
+      grep -qE "^drafted:[[:space:]]*([\"']?)#?[0-9]+\\1[[:space:]]*(#.*)?\$" && continue
+    undrafted=$((undrafted + 1))
+  done <<EOF
+$(git ls-tree -r --name-only HEAD -- docs/handover 2>/dev/null)
+EOF
+  [ "$undrafted" -eq 0 ] ||
+    add_fact "${undrafted} blocked workstream file(s) restored after the retire commit carry no drafted: <PR number> — mark the open pull request a draft, read it back, write drafted: into the frontmatter, commit, push (.agents/docs/manager-reference.md § Block on an open pull request)"
+fi
+
 trees="$("${PROJECT_DIR}/joharness.sh" protocol-paths 2>/dev/null)"
 [ -n "$trees" ] || trees="joharness.conf
 .claude/settings.json

@@ -92,10 +92,15 @@ Any block or park whose head already has an open pull request — a
 `defect:` park at step 7, a `hardware:` block after the retire commit, §
 Label at merge — first marks that pull request a draft
 (`update_pull_request` `draft: true`), reads it back (`pull_request_read`
-`get`: `draft: true`), then commits the workstream file, pushes, exits. The
+`get`: `draft: true`), writes `drafted: <N>` into the workstream file's
+frontmatter, then commits it, pushes, exits. Checked: the Stop guard
+(`.agents/harness/handover-guard.sh`) blocks the stop of a head whose
+workstream file this branch deleted and restored `status: blocked` without
+`drafted: <N>` (chrsctl/gx PR #1437 merged that way, 2026-11-10). The
 resume restores nothing by hand: at step 7, after the delete commit,
 `update_pull_request` `draft: false`, read it back, then merge. The draft
-call fails = say so in `next:` after the question; still push, still exit.
+call fails = say so in `next:` after the question, no `drafted:`; still
+push, still exit (the guard fires once; stop again).
 
 Why: the restore puts `docs/handover/<w>.md` back on the head, and nothing
 on GitHub stops a person merging it. No `human-review` on a `defect:` park
