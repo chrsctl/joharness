@@ -36,6 +36,17 @@ A parked manager on a duplicate defect issue never resumes (chrsctl/gx
 
 ## Review
 
+- r1: spawn prompt carried repo path and branch beside the plan path (plan-checker) (no change: the path alone; later spawns carry the path only)
+- r2: list item with `#` silently drops the twin (plan-checker) (fixed: plan states `#` on the first entry only; lint reds `#12, #13` as an empty entry, tested)
+- r3: scope overlaps queued plan human-answers-on-github on four docs (plan-checker) (wontfix: neither reads the other's result, so no `needs:`; edits sit in different paragraphs, a reconcile merge at finish if it lands first)
+- r4: Acceptance "fails without it" is no command (plan-checker) (fixed: scratch-copy procedure and expected FAIL named)
+- r5: no Acceptance line says what red means (plan-checker) (fixed)
+- r6: `issue_list_verdict` output undefined (plan-checker) (fixed: `none` / `ok <n>...` / `bad <why>`, one bad entry fails the list)
+- r7: fixtures #21/#41 collide with existing cases (plan-checker) (fixed: #61/#62, own section after the DEFECT-BOUND fixture)
+- r8: Closes vs Refs for a list undefined (plan-checker) (fixed: per number, § Plan issue's rule)
+- r9: claim stays one number has no Acceptance (plan-checker) (fixed: ci-graph-lint case)
+- r10: A3 evidence grep misses `gr_fields` readers (plan-checker) (fixed: grep widened)
+
 ## Blockers
 
 None.

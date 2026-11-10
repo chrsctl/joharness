@@ -7,7 +7,7 @@ needs: none
 requirement: none
 serves: all
 issue: none
-scope: joharness.sh, .agents/harness/selftest/dispatch-park.sh, .agents/harness/selftest/feedback.sh, .agents/docs/plans.md, .agents/docs/plans/TEMPLATE.md, .agents/docs/orchestrated.md, .agents/docs/orchestrator-reference.md, .agents/docs/manager-reference.md, .claude/commands/clerk.md
+scope: joharness.sh, .agents/harness/selftest/dispatch-park.sh, .agents/harness/selftest/feedback.sh, .agents/harness/selftest/clerk.sh, .agents/harness/selftest/ci-graph-lint.sh, .agents/docs/plans.md, .agents/docs/plans/TEMPLATE.md, .agents/docs/orchestrated.md, .agents/docs/orchestrator-reference.md, .agents/docs/manager-reference.md, .claude/commands/clerk.md
 ---
 
 ## Goal
@@ -25,15 +25,22 @@ so the fix must be readable from git.
 
 Mechanism (decided here):
 
-1. A plan's `issue:` may name several issues, comma-separated
-   (`issue: 1449, 1450`): one defect filed twice is one plan. Every reader of a
+1. A plan's `issue:` may name several issues, bare numbers comma-separated
+   (`issue: 1449, 1450`): one defect filed twice is one plan. A `#` is
+   allowed on the first entry only: every reader cuts ` #…` as a comment
+   (`gr_fields`, `base_issues_prime`, `clerk_issue_nums`), so `#1449, #1450`
+   reads `#1449,` and the lint reds its empty entry — never a silent drop.
+   `issue_list_verdict` prints `none`, `ok <n> [<n>...]` (space-separated),
+   or `bad <why>` for the first entry `issue_verdict` refuses, an empty
+   entry, or `none` inside a list: one bad entry fails the whole list. Every reader of a
    PLAN's `issue:` reads the list — `plan_names_issue` (RESUME and the
    `named` lift), `base_issues_prime`, `clerk_issue_nums` (`clerk` PLANNED),
    the plan lint. A workstream claim's `issue:` stays one number.
 2. Retire-time rule (manager-reference § Plan issue): every issue the pull
    request closes is in the plan's `issue:` before the retire commit — the
    deleted plan's text is what RESUME reads, so a `Closes #1450` the plan
-   does not name resumes nobody.
+   does not name resumes nobody. `Closes` or `Refs` is decided per number,
+   by § Plan issue's existing rule.
 3. Clerk rule: an issue that is a duplicate of one a plan (or this pass)
    already takes is added to that plan's `issue:`, never planned twice.
 4. Park-time rule (manager-reference § Defect): after filing, search once
@@ -46,10 +53,15 @@ Mechanism (decided here):
 - `joharness.sh` — `issue_list_verdict` (new: list through `issue_verdict`
   each), `plan_names_issue`, `base_issues_prime`, `clerk_issue_nums`, the
   plan lint's `lint_issue` call.
-- `.agents/harness/selftest/dispatch-park.sh` — a fix plan naming `21, 22`
-  retires: a park on #22 RESUMEs; a plan naming `41, 42` on the base lifts
-  DEFECT-BOUND for #42.
+- `.agents/harness/selftest/dispatch-park.sh` — appended after the
+  DEFECT-BOUND fixture, its own numbers (#61, #62, unused elsewhere): two
+  parks on #62 hold; a branch plan `fix6162` naming `61, 62` lifts the hold;
+  it lands and retires: the park on #62 RESUMEs.
 - `.agents/harness/selftest/feedback.sh` — `issue_list_verdict` cases.
+- `.agents/harness/selftest/clerk.sh` — a list plan is PLANNED for every
+  number; the plan lint passes `12, 13` and reds `#12, #13`.
+- `.agents/harness/selftest/ci-graph-lint.sh` — a claim's `issue: 12, 13`
+  stays red.
 - `.agents/docs/plans.md`, `.agents/docs/plans/TEMPLATE.md` — `issue` field
   takes a list.
 - `.agents/docs/orchestrated.md` (The one stop),
@@ -67,7 +79,8 @@ Mechanism (decided here):
   and DEFECT-BOUND keys on it — evidence: `joharness.sh:dispatch_defect_state`
   (`DEFECT_NAMED`) — confidence: medium
 - A3: no other harness reader parses a plan's `issue:` — evidence: `grep -n
-  "gr_field issue\|'^issue:'" joharness.sh` — confidence: medium
+  "gr_field issue\|'^issue:'\|gr_fields.* issue" joharness.sh` (plan lint,
+  claim lint, clerk, base set, plan_names_issue) — confidence: medium
 
 ## Out of scope
 
@@ -80,11 +93,16 @@ Mechanism (decided here):
 ## Acceptance
 
 - `./joharness.sh ci` — `ci: pass`.
-- `./joharness.sh verify` — `0 failed`, including the new dispatch-park cases:
-  `PARKED #22 RESUME — the fix retired (fix2122)` printed, and DEFECT-BOUND
-  absent once a base plan names `41, 42`.
-- A test for the fix fails without it (run the new cases on `origin/main`'s
-  `joharness.sh`).
+- `./joharness.sh verify` — `0 failed`. Among the PASS lines: `a retired
+  plan naming 61, 62 resumes a park on #62`, `a branch plan naming 61, 62
+  lifts the hold on #62`, `a plan's issue list reads every number`, `a
+  workstream claim's issue: stays one number`. Red meaning: `PARKED #62: a
+  defect's … waits for a plan naming #62` still printed = RESUME does not
+  read the list; `red base: #62` still printed = the lift does not.
+- Fails without the fix: `git show origin/main:joharness.sh` copied over a
+  scratch copy's `joharness.sh`, the selftest run there with only the
+  topics `clerk dispatch-park feedback ci-graph-lint` listed — expected:
+  the cases above FAIL (feedback's: `issue_list_verdict` undefined).
 
 ## Where to look
 
