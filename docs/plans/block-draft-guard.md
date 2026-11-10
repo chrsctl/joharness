@@ -55,6 +55,8 @@ and make manager.md name it.
 - `./joharness.sh ci` — `ci: pass`.
 - `./joharness.sh verify` — `0 failed`, including the new handover-guard cases.
 - The new fire case FAILS with the guard change reverted.
+- Consumer side: the plan SHIPS; a consumer's `./joharness.sh ci` runs the
+  same handover-guard selftest topic after sync — `ci: pass`.
 
 ## Where to look
 

@@ -764,6 +764,21 @@ commit_all "$sgd" "drafted none"
 git -C "$sgd" push -q origin sg-draft
 out="$(guard_d)"
 expect "drafted: none is no read-back" "carry no drafted:" "$out"
+sgd_ws '"blocked"' "drafted: '1437'"
+commit_all "$sgd" "quoted values"
+git -C "$sgd" push -q origin sg-draft
+out="$(guard_d)"
+if [ -z "$out" ]; then
+  pass "quoted status and drafted: values read as bare ones"
+else
+  fail "quoted status and drafted: values read as bare ones"
+  printf '%s\n' "$(indent "$out")"
+fi
+sgd_ws '"blocked"'
+commit_all "$sgd" "quoted status, no drafted"
+git -C "$sgd" push -q origin sg-draft
+out="$(guard_d)"
+expect "a quoted blocked status still asks for the draft" "carry no drafted:" "$out"
 sgd_ws blocked 'drafted: #1437'
 commit_all "$sgd" "drafted"
 git -C "$sgd" push -q origin sg-draft

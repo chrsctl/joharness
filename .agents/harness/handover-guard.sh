@@ -108,11 +108,11 @@ if [ -n "$base" ]; then
            f && /^---[[:space:]]*$/ { exit }
            f { print }')"
     printf '%s\n' "$fm" |
-      grep -qE '^status:[[:space:]]*blocked[[:space:]]*(#.*)?$' || continue
+      grep -qE "^status:[[:space:]]*([\"']?)blocked\\1[[:space:]]*(#.*)?\$" || continue
     [ -n "$(git log --diff-filter=D --format=%H -1 "${base}..HEAD" -- "$ws" 2>/dev/null)" ] ||
       continue
     printf '%s\n' "$fm" |
-      grep -qE '^drafted:[[:space:]]*#?[0-9]+[[:space:]]*(#.*)?$' && continue
+      grep -qE "^drafted:[[:space:]]*([\"']?)#?[0-9]+\\1[[:space:]]*(#.*)?\$" && continue
     undrafted=$((undrafted + 1))
   done <<EOF
 $(git ls-tree -r --name-only HEAD -- docs/handover 2>/dev/null)
