@@ -9259,6 +9259,10 @@ cmd_dispatch() {
     branch="${label##*claimed on }"; branch="${branch%%,*}"; branch="${branch%%]*}"
     # Bare, the way a successor is spawned onto it; the hook says origin/.
     branch="${branch#origin/}"
+    # The hook lists every branch but the checked-out one, so the claim is
+    # found through what the branch owns, never through its name: a suffixed
+    # `<stem>-<session id>` reads in full from any other branch. Run from the
+    # branch itself, the row is blank (`?`, 0 findings) — position, not name.
     ws="$(printf '%s\n' "$hout" |
       sed -n "s#^  origin/${branch}: \(docs/handover/[^ ]*\.md\)\$#\1#p" | head -1)"
     status=""; session=""; next=""; doc=""; pr=""

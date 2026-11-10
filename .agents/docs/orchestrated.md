@@ -536,3 +536,15 @@ replaced, any other `heartbeat stale` or `heartbeat duplicated` line pushes):
 No cap on work per run, no halt on red `main`, no ban on sessions spawning
 sessions. A session proposes them with evidence; it never adds one on its
 own judgment (money, `.agents/harness/AGENTS.md`, Decide alone). The lever is the Routine pause.
+
+## `dispatch` run from a manager's own branch
+
+`dispatch` reads each branch's claim through the handover hook, which lists
+every branch but the checked-out one. Run FROM a manager's branch, that
+manager's row reads status `?`, 0 findings and no `CEILING?`; the same head
+read from any other branch is in full. The branch name is not the cause: a
+`<stem>-<session id>` suffix reads in full (selftest `dispatch.sh`, the `sfx`
+case). A consumer once read the blank row as a stem lookup because its
+reproduction was checked out on the suffixed branch and its "bare stem"
+control was not. The orchestrator never sits on a manager's branch; `review`
+reads the own file directly, so it counts there.
