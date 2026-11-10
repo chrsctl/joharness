@@ -116,10 +116,10 @@ else
   exit 1
 fi
 
-if docker run --rm alpine:3 true >/dev/null 2>&1; then
+if docker run --rm mirror.gcr.io/library/alpine:3 true >/dev/null 2>&1; then
   pass "docker can pull an image and run a container"
 else
-  fail "docker could not pull/run alpine:3"
+  fail "docker could not pull/run mirror.gcr.io/library/alpine:3"
 fi
 
 # --- 3/4: cluster reachable ------------------------------------------------
@@ -166,11 +166,11 @@ fi
 
 # --- 6: image pull + rollout -----------------------------------------------
 step "Workload rollout"
-k -n "$NS" create deployment web --image=nginx:alpine >/dev/null 2>&1 || true
+k -n "$NS" create deployment web --image=mirror.gcr.io/library/nginx:alpine >/dev/null 2>&1 || true
 k -n "$NS" expose deployment web --port=80 >/dev/null 2>&1 || true
 
 if k -n "$NS" rollout status deployment/web --timeout=180s >/dev/null 2>&1; then
-  pass "deployment pulled nginx:alpine and rolled out"
+  pass "deployment pulled mirror.gcr.io/library/nginx:alpine and rolled out"
 else
   fail "deployment did not roll out (in-cluster image pull or scheduling failed)"
   k -n "$NS" describe pod -l app=web 2>&1 | grep -A5 'Events:' | tail -6 || true
@@ -188,7 +188,7 @@ step "Service DNS and networking"
 # race, not the networking. A Service that never answers still fails, ~20s
 # later, which is the honest question this check is asking.
 web_ok=0
-if k -n "$NS" run curl-probe --image=curlimages/curl:8.11.1 --restart=Never \
+if k -n "$NS" run curl-probe --image=mirror.gcr.io/curlimages/curl:8.11.1 --restart=Never \
      --command --timeout=60s -- sleep 120 >/dev/null 2>&1 \
    && k -n "$NS" wait --for=jsonpath='{.status.phase}'=Running \
         pod/curl-probe --timeout=180s >/dev/null 2>&1; then
@@ -231,7 +231,7 @@ else
   h uninstall "$HELM_RELEASE" -n "$NS" --ignore-not-found >/dev/null 2>&1 || true
   if helm create "${CHART_ROOT}/smoke-chart" >/dev/null 2>&1 \
      && h install "$HELM_RELEASE" "${CHART_ROOT}/smoke-chart" -n "$NS" \
-          --set image.repository=nginx --set image.tag=alpine \
+          --set image.repository=mirror.gcr.io/library/nginx --set image.tag=alpine \
           --wait --timeout 180s >/dev/null 2>&1 \
      && h status "$HELM_RELEASE" -n "$NS" 2>/dev/null | grep -q 'STATUS: deployed' \
      && h uninstall "$HELM_RELEASE" -n "$NS" >/dev/null 2>&1; then
