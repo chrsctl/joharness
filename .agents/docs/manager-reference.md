@@ -140,7 +140,7 @@ most 3 rounds, as §2 says for the build.
 
 Plan names `issue: N`? Plan carries a `## Issue remainder` section: body
 carries `Refs #N`, never `Closes #N`. Otherwise `Closes #N` when no other
-plan on fresh `origin/main` names it (`git grep -l -E '^issue:[ #0-9,]*[^0-9]N([^0-9]|$)'
+plan on fresh `origin/main` names it (`git grep -l -E '^issue: *(#?[0-9]+, *)*#?N *(,.*|( #.*)?)$'
 origin/main -- docs/plans`, yours excluded), else `Refs #N`, for each
 number of a list. Every issue the pull request closes is in the plan's
 `issue:` before the retire commit — a duplicate found while building
@@ -235,7 +235,8 @@ no retry, no second transport. Run no queue command.
    - **Yes, nothing found:** file the issue as step 3 does, its body's
      first line `blocking: <your branch>`, then search once more: a
      lower-numbered open issue for the same failing command or test is a
-     twin filed in the same window. Twin M found: comment `duplicate of #M`
+     twin filed in the same window. Twin found: M = the lowest-numbered
+     one; comment `duplicate of #M`
      on yours, close it (`state_reason: duplicate`), park on M. None: park
      on yours. Parks split over twins count apart
      (`.agents/docs/orchestrated.md`, The one stop). The clerk takes it

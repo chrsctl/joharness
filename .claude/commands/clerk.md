@@ -141,7 +141,10 @@ the pull request body with the evidence, one line each:
   each, the recommended one marked `(recommended)` (the author gate's comment
   is its one sentence, no options). Write no plan. After the comment, apply
   `human-review` to the issue.
-- **DUPLICATE** — comment naming the issue or plan it duplicates. Then
+- **DUPLICATE** — one defect filed twice, its twin planned or planned this
+  pass: never this verdict, the twin goes into that plan's `issue:` (§3,
+  "One defect filed twice"; closing it leaves a park on it unresumed).
+  Otherwise: comment naming the issue or plan it duplicates. Then
   close it `state_reason: duplicate`, `duplicate_of` that issue (for a
   plan, its `issue:`; a plan with `issue: none` = close `not_planned`,
   the comment naming the plan). Never closed: the same two as DOES NOT

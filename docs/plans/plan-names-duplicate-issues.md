@@ -104,7 +104,8 @@ Mechanism (decided here):
   `issue: 12, 13` red (the clerk.sh and ci-graph-lint.sh cases run that
   lint on a consumer-shaped fixture) — and its `dispatch`, which resumes a
   park on any listed number (dispatch-park.sh cases).
-- `./joharness.sh verify` — `0 failed`. Among the PASS lines: `a retired
+- `./joharness.sh verify` — `0 failed` (the selected layer's check).
+- `./joharness.sh ci` runs the selftest; among its PASS lines: `a retired
   plan naming 61, 62 resumes a park on #62`, `a branch plan naming 61, 62
   lifts the hold on #62`, `a plan's issue list reads every number`, `a
   workstream claim's issue: stays one number`. Red meaning: `PARKED #62: a
@@ -114,10 +115,13 @@ Mechanism (decided here):
   `git show origin/main:joharness.sh` over its `joharness.sh`, delete every
   `.agents/harness/selftest/*.sh` but `clerk feedback dispatch-park
   ci-graph-lint`, in `.agents/harness/selftest.sh` set `SELFTEST_TOPICS` to
-  those four, `SELFTEST_FIRST=(dispatch-park)`, `SELFTEST_CHAINS=()`,
-  `git init` + commit, `bash .agents/harness/selftest.sh` — expected:
-  `N passed, M failed`, M > 0, the FAIL lines naming the new cases above
-  (the claim case passes: it guards a clause that already held).
+  `feedback dispatch-park ci-graph-lint clerk` (that order: the chain
+  `ci-graph-lint clerk` stays, clerk's lint cases read its fixture),
+  `SELFTEST_FIRST=(dispatch-park)`, every other chain removed, `git init` +
+  commit, `bash .agents/harness/selftest.sh` — expected: `N passed, M
+  failed`, M > 0, the FAIL lines naming the new cases above; the same tree
+  with the head's `joharness.sh`: `0 failed` (the claim case passes in both:
+  it guards a clause that already held).
 
 ## Where to look
 

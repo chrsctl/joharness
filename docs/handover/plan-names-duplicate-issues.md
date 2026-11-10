@@ -48,11 +48,16 @@ A parked manager on a duplicate defect issue never resumes (chrsctl/gx
 - r10: A3 evidence grep misses `gr_fields` readers (plan-checker) — grep widened (fixed)
 - r11: `#1449,#1450` with no space passes as two numbers (plan-checker) — later entries refuse `#`, tested (fixed)
 - r12: plan calls #61 unused, but the first fixture repo uses it (plan-checker) — plan says per-repo; the new section is in the DEFECT-BOUND repo (fixed)
-- r13: fails-without-fix procedure not runnable as written (plan-checker) — exact steps named; run: 440 passed, 10 failed on origin/main's joharness.sh, the new cases among them (fixed)
+- r13: fails-without-fix procedure not runnable as written (plan-checker) — exact steps named; corrected by r21 (fixed)
 - r14: scope overlap with human-answers-on-github, second round (plan-checker) (wontfix: as r3)
 - r15: clerk_issue_nums list reading per directory unstated (plan-checker) — plan says plans only (fixed)
 - r16: Refs vs Closes for a list with a remainder section ambiguous (plan-checker) — remainder = every number Refs (fixed)
 - r17: ci Acceptance line names no red output (plan-checker) (fixed)
+- r19: clerk DUPLICATE verdict still closes a twin unplanned, contradicting the new fold-into-plan rule (verifier) — DUPLICATE defers to it for a planned twin (fixed)
+- r20: § Plan issue grep missed `issue:12` (no space) and counted a ` #12` comment (verifier) — regex `^issue: *(#?[0-9]+, *)*#?N *(,.*|( #.*)?)$`, probed on 10 lines (fixed)
+- r21: fails-without-fix recipe dropped the ci-graph-lint→clerk chain, so clerk lint cases died either way; r13's 440/10 was that broken run (verifier) — recipe keeps the chain; verifier's run, head a72a1fe: with fix 552 passed 0 failed, merge-base joharness.sh 539 passed 13 failed, every new case among the FAILs (fixed)
+- r22: Acceptance named `verify` for selftest PASS lines; verify is the docker layer check (verifier) — moved to `ci` (fixed)
+- r23: "lowest-numbered twin" vs "a lower-numbered issue M" (verifier) — M = the lowest-numbered (fixed)
 - r18: `plan_names_issue` matched only a list's later numbers, the `ok ` prefix ate the first's space; 42 dispatch-park cases red (ci) — pattern fixed, a park on the first number tested (fixed)
 
 ## Blockers
