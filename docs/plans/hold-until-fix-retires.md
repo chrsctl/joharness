@@ -1,6 +1,6 @@
 ---
 plan: hold-until-fix-retires
-urgency: high
+urgency: urgent
 agent: sonnet
 effort: high
 needs: none
