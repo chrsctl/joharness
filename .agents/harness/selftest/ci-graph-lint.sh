@@ -266,6 +266,16 @@ issue: 0114
 ## Goal
 Fixture.
 EOF
+cat >"${lwork}/docs/handover/claim-list.md" <<'EOF'
+---
+workstream: claim-list
+status: in-progress
+issue: 12, 13
+---
+
+## Goal
+Fixture.
+EOF
 cat >"${lwork}/docs/handover/claim-none.md" <<'EOF'
 ---
 workstream: claim-none
@@ -286,7 +296,11 @@ expect "a padded number is red, with the reason" \
   "leading zero" "$out"
 refute "a hash-prefixed number is fine" "claim-ok.md: issue" "$out"
 refute "and so is none" "claim-none.md: issue" "$out"
-rm -f "${lwork}/docs/handover/claim-bad.md" "${lwork}/docs/handover/claim-padded.md"
+# A plan's issue: takes a list (one defect filed twice); a claim stays one.
+expect "a workstream claim's issue: stays one number" \
+  "claim-list.md: issue '12, 13' — not a number" "$out"
+rm -f "${lwork}/docs/handover/claim-bad.md" "${lwork}/docs/handover/claim-padded.md" \
+  "${lwork}/docs/handover/claim-list.md"
 out="$(lint_section "$(lint_ci)")"
 refute "clearing them clears the lint" "not a number" "$out"
 rm -f "${lwork}/docs/handover/claim-ok.md" "${lwork}/docs/handover/claim-none.md"

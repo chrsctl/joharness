@@ -1060,6 +1060,35 @@ out="$(dfx)"
 expect "the fix retired: the parks resume" "PARKED #41 RESUME" "$out"
 refute "and no hold" "red base" "$out"
 
+# --- one defect filed twice: a plan naming both issues ----------------------
+# chrsctl/gx, 2026-11-10: #1449 and #1450 were one defect, the fix named
+# #1449 alone, and the park on #1450 never resumed. A plan's `issue:` takes a
+# list; every number on it marks the fix row and resumes its parks.
+dfplan dt-a none; dfplan dt-b none; dfplan dt-c none
+dfpush 3 "dt-a, dt-b, dt-c"
+dfpark dt-park-a dt-a 'defect: #62: the base is red' 2
+dfpark dt-park-b dt-b 'defect: #62: the twin issue' 2
+# The list's FIRST number too: `ok 61 62` once matched only the later ones.
+dfpark dt-park-c dt-c 'defect: #61: the first twin' 2
+out="$(dfx)"
+expect "two parks on #62 hold the spawn rows" "red base: #62 (2 parked)" "$out"
+# The fix on the base names #62 second in its list: it is the fix, it spawns.
+dfplan fix6162 '61, 62'
+dfpush 1 "fix6162 on the base"
+out="$(dfx)"
+expect "a base plan naming 61, 62 is #62's fix: its row is free" \
+  "  docs/plans/fix6162.md (agent: sonnet)"$'\n' "$out"
+expect "every other row stays held" \
+  "docs/plans/dh-free2.md (agent: sonnet)  HOLD — red base: #62 (2 parked)" "$out"
+git -C "$dfwork" rm -q docs/plans/fix6162.md
+dfpush 0 "retire fix6162"
+out="$(dfx env JOHARNESS_MAX_MANAGERS=8)"
+expect "a retired plan naming 61, 62 resumes a park on #62" \
+  "PARKED #62 RESUME — the fix retired (fix6162)" "$out"
+expect "and a park on its first number, #61" \
+  "PARKED #61 RESUME — the fix retired (fix6162)" "$out"
+refute "and the hold on #62 lifts" "red base: #62" "$out"
+
 # --- a defect: on the plan's OWN issue is no park --------------------------
 # chrsctl/gx, 2026-11-10: plan `issue: 1323` parked `defect: #1323: …` and sat
 # 31h a plain PARKED row. Only its own plan names the issue, so RESUME never
@@ -1122,3 +1151,10 @@ dfpark park-own43 own-43 'defect: #43: cannot reproduce' 2
 out="$(dfx)"
 expect "issue: 043 against defect: #43: INVALID BLOCK?" \
   "INVALID BLOCK? defect: #43 is this plan's own issue" "$(dfrow own-43)"
+# A plan's issue: list: any number on it is its own.
+dfplan own-list '70, 71'
+dfpush 3 "own-list serves 70, 71"
+dfpark park-ownlist own-list 'defect: #71: cannot reproduce' 2
+out="$(dfx)"
+expect "issue: 70, 71 against defect: #71: INVALID BLOCK?" \
+  "INVALID BLOCK? defect: #71 is this plan's own issue" "$(dfrow own-list)"
