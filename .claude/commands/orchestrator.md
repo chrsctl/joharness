@@ -191,9 +191,9 @@ or command that says nothing to do spawns nothing.
 - Edge work whose session is gone first. An item already in your ledger
   spawns only when this pass's health pass said so.
 - Skip `HOLD`, `WAIT`, and a stem on the ledger's `failed=`. `HOLD — red base: #<n> (<k> parked)` = two or more
-  managers parked on #<n>, no plan names it: report it, spawn no manager
-  (verdict `DEFECT-BOUND`); a plan naming #<n> lifts it, the clerk's
-  path. `that branch is BLOCKED on a human:
+  managers parked on #<n>, its fix not retired: report it, spawn no manager
+  but the fix plan dispatch lists free (verdict `DEFECT-BOUND` while none
+  is); the fix retiring lifts it. `that branch is BLOCKED on a human:
   spawn` is free; add the reconcile line. `CORE ONLY — build it` is free,
   the usual prompt: its manager routes the core edit (manager.md §2).
 - `UNPLANNED` or `PARTLY PLANNED` requirement = ONE planning manager, fable,

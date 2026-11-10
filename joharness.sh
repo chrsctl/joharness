@@ -7428,11 +7428,8 @@ own_defect_park() {
 # The minutes column is since the block commit for RESUME and RECHECK, since
 # the first park otherwise.
 # args: <branch> <workstream path> <merge base> <next:> <branch-plan rows>
-# The line lands in DEFECT_STATE, never on stdout. DEFECT_NAMED: 1 when a
-# plan on the base or on a `live` branch row names #<n> now, else 0
-# (UNREADABLE: 0, never read).
+# The line lands in DEFECT_STATE, never on stdout.
 DEFECT_STATE=""
-DEFECT_NAMED=0
 # <commit>: DS_NEXT = the raw next: of dispatch_defect_state's file <ws> at
 # <commit>, kept in its local `nx` (dynamic scope): one `show` per commit
 # though both of its walks read it.
@@ -7450,7 +7447,6 @@ dispatch_defect_state() {
   local ref n h cur prev bh="" bt now age phours fhours rhours retired="" named=0
   local ft fage hist hct nx=""
   local line rh rt p kind b st
-  DEFECT_NAMED=0
   ref="refs/remotes/origin/${branch}"
   # The caller's next: went through gr_fields, which cut ` #<n>…` as a comment:
   # the raw line, from the claim file the caller read ($6) or from git.
@@ -7545,7 +7541,6 @@ dispatch_defect_state() {
         { named=1; break; }
     done <<<"$bprows"
   fi
-  DEFECT_NAMED="$named"
   if [ -n "$retired" ] && [ "$named" -eq 0 ]; then
     printf -v DEFECT_STATE 'RESUME\t%s\t%s\t%s' "$n" "$retired" "$age"; return 0
   fi
@@ -8962,7 +8957,7 @@ cmd_dispatch() {
   local printed_deferred=
   local inflight="" free="" questions="" corefree="" row mergewait=""
   local n_parked=0 n_fixed=0 n_resume=0 n_recheck=0 parked_lines="" dst dn dplan dage di ri rtext dresume=0 bkind selfpark n_ownpark=0
-  local dpark="" dhold="" n_dhold=0
+  local dpark="" dhold="" dhold_n="" dhn dfix n_dhold=0
   local fx_label fx_wait fx_k fx_r fx_c fx_slot fx_lim
   local bts redge rstem rts n_release=0 release_due="" hseen hst
   local -a fx_rows=() fx_lines=() fx_n=() fx_plan=() fx_di=() fx_kind=()
@@ -9368,11 +9363,13 @@ cmd_dispatch() {
             "$(printf '%s\n' "$doc" | gr_field_raw next)"
           IFS=$'\t' read -r dst dn dplan dage <<<"$DEFECT_STATE"
           di="$(lint_stem "$path") (${branch})"
-          # A park on an issue no plan names, its fix not retired: the
-          # base every new manager finishes on is red with it.
+          # A park whose fix has not retired on the base's first parent,
+          # planned or not: the base every new manager finishes on is red
+          # with it until that fix merges (RESUME). A plan naming #<n> is no
+          # fix yet (chrsctl/gx, 2026-11-10, #1449).
           case "$dst" in
             PARKED | UNPLANNED | STUCK | RECHECK)
-              [ "$DEFECT_NAMED" -ne 0 ] || dpark="${dpark}${dn}"$'\n' ;;
+              dpark="${dpark}${dn}"$'\n' ;;
           esac
           case "$dst" in
             RESUME | RECHECK)
@@ -9673,11 +9670,14 @@ cmd_dispatch() {
   fi
 
   # --- what to spawn, in the queue's order --------------------------------
-  # Two or more managers parked on one issue no plan names = a red base
-  # every new manager hits at finish: every spawn row is held until a plan
-  # names it (orchestrated.md, The one stop). `#<n> (<k> parked)`, by issue.
+  # Two or more managers parked on one issue whose fix has not retired = a
+  # red base every new manager hits at finish: every spawn row is held until
+  # that fix retires, but the fix itself — a base plan naming the issue —
+  # spawns (orchestrated.md, The one stop). `#<n> (<k> parked)`, by issue.
   dhold="$(printf '%s' "$dpark" | grep -v '^$' | sort -n | uniq -c |
     awk '$1 >= 2 { printf "%s#%s (%s parked)", (n++ ? ", " : ""), $2, $1 }')"
+  dhold_n="$(printf '%s' "$dpark" | grep -v '^$' | sort -n | uniq -c |
+    awk '$1 >= 2 { print $2 }')"
   # Free = neither claimed nor blocked, every row. A CORE ONLY plan is free
   # too, listed after every other item: its manager builds the core edit in
   # a human/<stem> pull request a human merges.
@@ -9711,10 +9711,23 @@ cmd_dispatch() {
       hs="${hline%% on *}"
       [ "${blocked_claims#* "${hs}@${hb}" }" != "$blocked_claims" ] || hold_live=1
     done <<<"$TR_ALL"
+    dfix=0
     if [ -n "$dhold" ]; then
+      # The fix: a plan on the base whose issue: names a held issue. Held,
+      # it would hold the one row that lifts the hold.
+      case "$path" in
+        docs/plans/*)
+          while IFS= read -r dhn; do
+            [ -n "$dhn" ] || continue
+            plan_names_issue "refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" "$path" "$dhn" &&
+              { dfix=1; break; }
+          done <<<"$dhold_n" ;;
+      esac
+    fi
+    if [ -n "$dhold" ] && [ "$dfix" -eq 0 ]; then
       # Held, never dropped: the row stays in the queue and takes no slot.
       n_dhold=$((n_dhold + 1))
-      free="${free}  ${path} (agent: ${tier:-unreadable})  HOLD — red base: ${dhold}, no plan names it: spawn once a plan names it"$'\n'
+      free="${free}  ${path} (agent: ${tier:-unreadable})  HOLD — red base: ${dhold}, its fix not retired: spawn once it retires"$'\n'
       continue
     fi
     case "$path" in
@@ -9748,7 +9761,7 @@ cmd_dispatch() {
   printf 'spawn, in this order, one manager per item, model = its agent tier:\n'
   if [ -n "$req" ] && [ -n "$dhold" ]; then
     n_dhold=$((n_dhold + 1))
-    printf '  %s  HOLD — red base: %s, no plan names it: spawn its planning manager once a plan names it\n' \
+    printf '  %s  HOLD — red base: %s, its fix not retired: spawn its planning manager once it retires\n' \
       "${req%% *}" "$dhold"
   elif [ -n "$req" ]; then
     # Planning outranks the plan queue (step 2), so it is first and it is ONE
@@ -9916,10 +9929,11 @@ cmd_dispatch() {
       "$n_slots" "$([ "$n_free" -lt "$n_slots" ] && printf '%s' "$n_free" || printf '%s' "$n_slots")"
   elif [ "$n_fixed" -gt 0 ]; then
     printf 'verdict   : NOT DRAINED — %s parked item(s) %s, 0 slots: resume each once a slot frees\n' "$n_fixed" "$fx_wait"
-  elif [ "$n_dhold" -gt 0 ]; then
-    # Held, not drained: a plan naming the issue lifts it. Nothing in flight
-    # and no role due = exit as DRAINED does; the heartbeat re-seeds.
-    printf 'verdict   : DEFECT-BOUND — %s item(s) held: red base, %s, no plan names it: spawn no manager' \
+  elif [ "$n_dhold" -gt 0 ] && [ "$n_free" -eq 0 ]; then
+    # Held, not drained: the fix retiring lifts it (a free fix plan is
+    # spawned by the NOT DRAINED line below instead). Nothing in flight and
+    # no role due = exit as DRAINED does; the heartbeat re-seeds.
+    printf 'verdict   : DEFECT-BOUND — %s item(s) held: red base, %s, its fix not retired: spawn no manager' \
       "$n_dhold" "$dhold"
     if [ $((n_inflight - n_blocked)) -gt 0 ]; then
       printf '; %s manager(s) in flight: keep the health pass going\n' "$((n_inflight - n_blocked))"
@@ -10020,7 +10034,7 @@ cmd_dispatch() {
   [ "$n_hold" -eq 0 ] ||
     printf '            %s plan(s) on HOLD behind work in flight: not counted as free\n' "$n_hold"
   [ "$n_dhold" -eq 0 ] ||
-    printf '            %s item(s) on HOLD behind a red base (%s): not counted as free, still queued; a plan naming it lifts the hold\n' "$n_dhold" "$dhold"
+    printf '            %s item(s) on HOLD behind a red base (%s): not counted as free, still queued; its fix retiring lifts the hold\n' "$n_dhold" "$dhold"
   # Roles run beyond the cap: a full fleet of managers holds none of them.
   # JOHARNESS_MAX_MANAGERS=0 is the human's pause, and holds every one.
   if [ "$clerk_due" -eq 1 ] && [ "$fetch_failed" -eq 1 ]; then

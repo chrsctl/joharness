@@ -978,9 +978,9 @@ out="$(ckx)"
 expect "a base plan names #31: the cadence only" "clerk     : not due — 3h since" "$out"
 refute "and nothing spawns" "spawn ONE clerk" "$out"
 
-# --- two parks on one issue no plan names hold every spawn row --------------
+# --- two parks on one issue whose fix has not retired hold every spawn row --------------
 # A red base every new manager hits at finish (gx, 2026-10-29): spawn none
-# onto it until a plan names the issue. Its own repo, the df helpers reused.
+# onto it until the issue's fix retires. Its own repo, the df helpers reused.
 dfwork="${TMP}/dhwork"
 dforigin="${TMP}/dhorigin.git"
 git init -q --bare "$dforigin"
@@ -1007,14 +1007,14 @@ refute "and no row reads a red base" "red base" "$out"
 dfpark dh-park-b dh-b 'defect: #41: the base is red too' 2
 out="$(dfx)"
 expect "two parks on one unplanned issue hold the spawn row, naming it" \
-  "docs/plans/dh-free.md (agent: sonnet)  HOLD — red base: #41 (2 parked), no plan names it" "$out"
+  "docs/plans/dh-free.md (agent: sonnet)  HOLD — red base: #41 (2 parked), its fix not retired" "$out"
 expect "the verdict names the issue and spawns no manager" \
-  "verdict   : DEFECT-BOUND — 1 item(s) held: red base, #41 (2 parked), no plan names it: spawn no manager" "$out"
+  "verdict   : DEFECT-BOUND — 1 item(s) held: red base, #41 (2 parked), its fix not retired: spawn no manager" "$out"
 expect "a hold is never a slot: the item stays queued" \
   "1 item(s) on HOLD behind a red base (#41 (2 parked)): not counted as free, still queued" "$out"
 refute "and never a surveyor" "OVERLAP-BOUND" "$out"
 expect "nothing in flight, nothing due: the hold exits" \
-  "no plan names it: spawn no manager, exit; the heartbeat re-seeds" "$out"
+  "its fix not retired: spawn no manager, exit; the heartbeat re-seeds" "$out"
 # An aged edge beside the hold: its pull request is unread, so no exit.
 git -C "$dfwork" checkout -qb dh-edge main
 git -C "$dfwork" rm -q docs/plans/dh-free.md
@@ -1029,22 +1029,35 @@ expect "an aged edge beside the hold: no exit, its pull request first" \
 git -C "$dfwork" push -q origin --delete dh-edge
 git -C "$dfwork" branch -qD dh-edge
 git -C "$dfwork" update-ref -d refs/remotes/origin/dh-edge
-# A plan naming #41 on a live branch lifts it; so does one on the base.
+# A plan naming #41 is no fix yet: the base stays red until it retires
+# (chrsctl/gx, 2026-11-10, #1449: four managers spawned behind a planned fix,
+# each parked within minutes). On a live branch it lifts nothing.
 git -C "$dfwork" checkout -qb dh-clerk main
 dfplan fix41 41
 dfcommit 1 "a plan naming #41"
 git -C "$dfwork" push -qu origin dh-clerk
 git -C "$dfwork" checkout -q main
 out="$(dfx)"
-refute "a branch plan naming #41 lifts the hold" "red base" "$out"
+expect "a branch plan naming #41 keeps the hold" \
+  "docs/plans/dh-free2.md (agent: sonnet)  HOLD — red base: #41 (2 parked), its fix not retired" "$out"
 git -C "$dfwork" push -q origin --delete dh-clerk
 git -C "$dfwork" branch -qD dh-clerk
 git -C "$dfwork" update-ref -d refs/remotes/origin/dh-clerk
+# On the base: the fix itself spawns, every other row stays held.
 dfplan fix41 41
 dfpush 1 "fix41 on the base"
 out="$(dfx)"
-expect "a base plan naming #41: the items spawn" \
-  "verdict   : NOT DRAINED — 3 free item(s) now" "$out"
+expect "a base plan naming #41: the fix spawns" \
+  "verdict   : NOT DRAINED — 1 free item(s) now" "$out"
+expect "and its row is free" "  docs/plans/fix41.md (agent: sonnet)"$'\n' "$out"
+expect "every other row stays held" \
+  "docs/plans/dh-free2.md (agent: sonnet)  HOLD — red base: #41 (2 parked), its fix not retired" "$out"
+refute "and no DEFECT-BOUND while the fix is free" "DEFECT-BOUND" "$out"
+# The fix retires on the base's first parent: RESUME, and the hold lifts.
+git -C "$dfwork" rm -q docs/plans/fix41.md
+dfpush 0 "retire fix41"
+out="$(dfx)"
+expect "the fix retired: the parks resume" "PARKED #41 RESUME" "$out"
 refute "and no hold" "red base" "$out"
 
 # --- a defect: on the plan's OWN issue is no park --------------------------
