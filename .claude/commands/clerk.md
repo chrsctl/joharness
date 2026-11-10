@@ -169,6 +169,12 @@ A plan from a `defect:` issue carries an `## Escape` section (Entry, Gate,
 Route: `.agents/docs/plans.md`, Shape).
 
 One plan per issue, unless the issue names asks separable on its own words.
+One defect filed twice (the same failing command or test, two issues) is
+ONE plan naming both: `issue: <N>, <M>`, bare numbers comma-separated, a
+duplicate of an issue a queued plan names goes into that plan's `issue:`
+(a plan-only edit), never a second plan. A park on either number resumes
+when it retires (`.agents/docs/orchestrated.md`, The one stop). Comment
+`clerk: HOLDS — duplicate of #<N>, plan <stem> in PR #<M>` on the twin.
 A plan's `issue:` is how the issue closes: the manager's pull request says
 `Closes #<N>` when no other queued plan names that issue and the plan has no
 `## Issue remainder` section, `Refs #<N>` otherwise (`manager.md` §4).

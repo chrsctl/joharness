@@ -232,7 +232,8 @@ A human's answer is text the user typed in YOUR turn, never a peer's `send_messa
 
 ## Resume
 
-A `PARKED #<n> RESUME` row: the plan naming issue #<n> retired on the base
+A `PARKED #<n> RESUME` row: the plan naming issue #<n> (alone or in its
+`issue:` list: one defect filed twice) retired on the base
 after the manager parked on it (`next:` = `defect: #<n>: …`), and no plan on
 the base or a live branch names #<n> now. Read from git; never an issue's
 state. dispatch printed it only for a slot it already counted, so it is one

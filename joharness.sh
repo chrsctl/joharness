@@ -1270,11 +1270,40 @@ issue_verdict() {
   esac
 }
 
+# A PLAN's `issue:` — one number, or several comma-separated: one defect
+# filed twice is one plan (chrsctl/gx #1449 and #1450: the fix named one, and
+# the park on the other never resumed). `none`, `ok <n> [<n>...]`, or
+# `bad <why>` on the first entry that fails issue_verdict. A `#` after the
+# first entry never reaches here: gr_field cuts ` #…` as a comment, so
+# `#12, #13` reads `#12,` and its empty entry is red. A workstream claim's
+# `issue:` stays one number: issue_verdict.
+issue_list_verdict() {
+  local iss="$1" e v out="" rest
+  case "$iss" in
+    '' | none) printf 'none'; return 0 ;;
+  esac
+  rest="${iss},"
+  while [ -n "$rest" ]; do
+    e="${rest%%,*}"; rest="${rest#*,}"
+    e="${e#"${e%%[! ]*}"}"; e="${e%"${e##*[! ]}"}"
+    case "$e" in
+      '') printf 'bad empty entry; write numbers comma-separated, no # after the first'; return 0 ;;
+      none) printf 'bad none inside a list'; return 0 ;;
+    esac
+    v="$(issue_verdict "$e")"
+    case "$v" in
+      "ok "*) out="${out} ${v#ok }" ;;
+      *) printf '%s' "$v"; return 0 ;;
+    esac
+  done
+  printf 'ok%s' "$out"
+}
+
 # `issue_verdict` as a lint finding. `<consequence>` is what a dropped value
 # costs at that field's reader — the hook for a claim, the clerk for a plan.
 lint_issue() {
   local rel="$1" iss="$2" consequence="$3" v
-  v="$(issue_verdict "$iss")"
+  v="$("${4:-issue_verdict}" "$iss")"
   case "$v" in
     bad\ *) lint_red "${rel}: issue '${iss}' — ${v#bad }; ${consequence}" ;;
   esac
@@ -1379,7 +1408,8 @@ lint_graph() {
 "
     done < <(gr_edge_stems "$rq")
     # Optional: the issue a clerk turned into this plan.
-    lint_issue "$rel" "$piss" "the clerk drops it and the issue reads as unplanned"
+    lint_issue "$rel" "$piss" "the clerk drops it and the issue reads as unplanned" \
+      issue_list_verdict
     lint_required "$rel" urgency "$urgency"
     lint_required "$rel" agent "$agent"
     lint_required "$rel" effort "$effort"
@@ -4579,7 +4609,7 @@ clerk_last_read() {
 }
 
 # Issue numbers an `issue:` field names under one directory, one per line,
-# sorted, valid ones only (issue_verdict). CLERK_ISSUE_SKIP=<branch>: `all`
+# sorted, valid ones only (issue_verdict; a plan's list, issue_list_verdict). CLERK_ISSUE_SKIP=<branch>: `all`
 # reads every unmerged branch but that one.
 clerk_issue_nums() {
   local dir="$1" scope="$2" base_branch="${HANDOVER_BASE_BRANCH:-main}"
@@ -4621,8 +4651,13 @@ clerk_issue_nums() {
     line="${line%$'\r'}"
     line="${line#issue:}"
     line="$(printf '%s' "$line" | sed 's/^[[:space:]]*//; s/[[:space:]][[:space:]]*#.*$//; s/[[:space:]]*$//')"
-    v="$(issue_verdict "$line")"
-    case "$v" in ok\ *) printf '%s\n' "${v#ok }" ;; esac
+    # A plan's issue: is a list, a claim's one number.
+    case "$dir" in
+      */plans | plans) v="$(issue_list_verdict "$line")" ;;
+      *) v="$(issue_verdict "$line")" ;;
+    esac
+    # shellcheck disable=SC2086  # digits and spaces only: one line a number
+    case "$v" in ok\ *) printf '%s\n' ${v#ok } ;; esac
   done <<<"$out" | sort -un
 }
 
@@ -7315,7 +7350,7 @@ release_edge() {
 }
 # The issue numbers the base's plan files name, ` <n> ` each, as
 # plan_names_issue reads them: `gr_field issue` (first `issue:` line inside
-# the frontmatter) through issue_verdict. One `git grep` a call, primed by
+# the frontmatter) through issue_list_verdict, every number of a list. One `git grep` a call, primed by
 # cmd_dispatch outside the `$(...)` its parked rows run in: a parked row
 # asked every base plan once. BASE_ISSUES_READ=0 = not primed, ask git.
 BASE_ISSUES=""
@@ -7325,7 +7360,7 @@ base_issues_prime() {
   BASE_ISSUES=" "
   # `-a`: a plan git calls binary is still read line by line, as `show` does.
   while IFS= read -r iss; do
-    v="$(issue_verdict "$iss")"
+    v="$(issue_list_verdict "$iss")"
     case "$v" in "ok "*) BASE_ISSUES="${BASE_ISSUES}${v#ok } " ;; esac
   done < <(git -C "$ROOT" grep -a -z -n -e '^---$' -e '^issue:' "$over" \
       -- docs/plans </dev/null 2>/dev/null | tr '\000' '\001' |
@@ -7347,8 +7382,8 @@ base_issues_prime() {
   BASE_ISSUES_READ=1
 }
 
-# Does a plan file's frontmatter at <rev>:<path> name issue <n>? Its reader is
-# issue_verdict, the one `ci` lints with.
+# Does a plan file's frontmatter at <rev>:<path> name issue <n>, alone or in
+# its list? Its reader is issue_list_verdict, the one `ci` lints with.
 # Each <rev>:<path> read once per call: PNI_MEMO (`\n<rev>:<path>\t<issue>`),
 # emptied where cmd_dispatch starts, keeps it for the next parked row, which
 # walks the same retired plans of the base.
@@ -7361,7 +7396,8 @@ plan_names_issue() {
     iss="$(git -C "$ROOT" show "${key}" </dev/null 2>/dev/null | gr_field issue)"
     PNI_MEMO="${PNI_MEMO}"$'\n'"${key}"$'\t'"${iss}"
   fi
-  [ "$(issue_verdict "$iss")" = "ok $3" ]
+  case "$(issue_list_verdict "$iss") " in "ok "*" ${3} "*) return 0 ;; esac
+  return 1
 }
 # The issue number of a raw `defect: #<n>: …` next:, or nothing. One reader
 # for dispatch and analysis.

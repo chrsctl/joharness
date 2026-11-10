@@ -1046,3 +1046,31 @@ out="$(dfx)"
 expect "a base plan naming #41: the items spawn" \
   "verdict   : NOT DRAINED — 3 free item(s) now" "$out"
 refute "and no hold" "red base" "$out"
+
+# --- one defect filed twice: a plan naming both issues ----------------------
+# chrsctl/gx, 2026-11-10: #1449 and #1450 were one defect, the fix named
+# #1449 alone, and the park on #1450 never resumed. A plan's `issue:` takes a
+# list; every number on it lifts the hold and resumes its parks.
+dfplan dt-a none; dfplan dt-b none
+dfpush 3 "dt-a, dt-b"
+dfpark dt-park-a dt-a 'defect: #62: the base is red' 2
+dfpark dt-park-b dt-b 'defect: #62: the twin issue' 2
+out="$(dfx)"
+expect "two parks on #62 hold the spawn rows" "red base: #62 (2 parked)" "$out"
+git -C "$dfwork" checkout -qb dt-clerk main
+dfplan fix6162 '61, 62'
+dfcommit 1 "a plan naming #61 and #62"
+git -C "$dfwork" push -qu origin dt-clerk
+git -C "$dfwork" checkout -q main
+out="$(dfx)"
+refute "a branch plan naming 61, 62 lifts the hold on #62" "red base: #62" "$out"
+git -C "$dfwork" push -q origin --delete dt-clerk
+git -C "$dfwork" branch -qD dt-clerk
+git -C "$dfwork" update-ref -d refs/remotes/origin/dt-clerk
+dfplan fix6162 '61, 62'
+dfpush 1 "fix6162 on the base"
+git -C "$dfwork" rm -q docs/plans/fix6162.md
+dfpush 0 "retire fix6162"
+out="$(dfx)"
+expect "a retired plan naming 61, 62 resumes a park on #62" \
+  "PARKED #62 RESUME — the fix retired (fix6162)" "$out"

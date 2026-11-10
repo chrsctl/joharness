@@ -140,8 +140,13 @@ most 3 rounds, as §2 says for the build.
 
 Plan names `issue: N`? Plan carries a `## Issue remainder` section: body
 carries `Refs #N`, never `Closes #N`. Otherwise `Closes #N` when no other
-plan on fresh `origin/main` names it (`git grep -l -E '^issue: *#?N([^0-9]|$)'
-origin/main -- docs/plans`, yours excluded), else `Refs #N`. That issue's
+plan on fresh `origin/main` names it (`git grep -l -E '^issue:[ #0-9,]*[^0-9]N([^0-9]|$)'
+origin/main -- docs/plans`, yours excluded), else `Refs #N`, for each
+number of a list. Every issue the pull request closes is in the plan's
+`issue:` before the retire commit — a duplicate found while building
+included (`issue: N, M`): RESUME reads the retired plan's `issue:`, never the
+pull request body, so a `Closes #M` the plan does not name resumes no
+manager parked on #M. That issue's
 labels (`issue_read` `get_labels`, one read at pull request open) include
 `scout`, or its title starts `scout:`? Title starts `scout: ` and the pull
 request carries label `scout` (`issue_write` update on its number, labels);
@@ -228,7 +233,12 @@ no retry, no second transport. Run no queue command.
      `human-review`? Say so in `next:`; `defect-resume`'s UNPLANNED row then
      reaches the human.
    - **Yes, nothing found:** file the issue as step 3 does, its body's
-     first line `blocking: <your branch>`, then park. The clerk takes it
+     first line `blocking: <your branch>`, then search once more: a
+     lower-numbered open issue for the same failing command or test is a
+     twin filed in the same window. Twin M found: comment `duplicate of #M`
+     on yours, close it (`state_reason: duplicate`), park on M. None: park
+     on yours. Parks split over twins count apart
+     (`.agents/docs/orchestrated.md`, The one stop). The clerk takes it
      first and plans it urgent (`.claude/commands/clerk.md` §2, §3). Its fix
      needs a human's call (step 3)? Then it is not a `defect:` park: file it
      with `human-review` and block on that reason (`product:`, `money:`, …;
