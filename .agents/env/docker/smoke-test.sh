@@ -20,9 +20,13 @@ NET="${PREFIX}-net"
 CA_BUNDLE="${DEVENV_CA_BUNDLE:-/root/.ccr/ca-bundle.crt}"
 # Docker Hub library images, pulled through Google's public mirror: Docker Hub
 # rate-limits anonymous pulls (429), and a shared sandbox or runner IP hits
-# that limit. ci-verify lists the same references; keep the two in step.
-ALPINE="mirror.gcr.io/library/alpine:3"
-NGINX="mirror.gcr.io/library/nginx:alpine"
+# that limit. JOHARNESS_REGISTRY_MIRROR names the registry (default
+# mirror.gcr.io; set but empty = Docker Hub itself). ci-verify lists the
+# default references, which is all CI pulls; keep the two in step.
+REG="${JOHARNESS_REGISTRY_MIRROR-mirror.gcr.io}"
+REG="${REG:+${REG%/}/}"
+ALPINE="${REG}library/alpine:3"
+NGINX="${REG}library/nginx:alpine"
 KEEP=0
 [ "${1:-}" = "--keep" ] && KEEP=1
 
