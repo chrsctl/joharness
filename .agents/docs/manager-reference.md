@@ -171,11 +171,14 @@ went, `#<n>` or `PR body`. `ci`
 stage `finding routes` reds one that cites neither (`joharness.sh:lint_finding_routes`);
 a verdict naming `canonical's file` routes through `upstream` instead.
 
-**The gate checks the citation, not the route; the route is yours.** It
-reads `## Review` bullets only (`fb_findings`), and `fr_routed` passes any
-verdict naming `#<n>` or `PR body`. It cannot tell a defect from an
-observation, nor a first defect from a second, so a FIRST reproduced
-defect cited `PR body` passes green. Two rules follow, both the manager's
+**The gate checks the citation, mostly; the route is yours.** It
+reads `## Review` bullets only (`fb_findings`). `fr_routed` passes a verdict
+naming `#<n>`, `defect not filed`, or `PR body`, except that a verdict saying
+the finding is a defect that reproduces (`reproduces`, `defect`, not negated)
+cannot cite `PR body` alone unless an EARLIER wontfix line cited `#<n>` for a
+defect: a FIRST reproduced defect cited `PR body` reds. It cannot tell an
+observation worded with those keywords from a defect, and it never reads
+`## Decisions` or the pull request body. Two rules follow, both the manager's
 to keep:
 
 - A defect that reproduces on `origin/main` cites `#<n>` (filed or

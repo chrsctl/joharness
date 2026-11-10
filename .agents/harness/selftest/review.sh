@@ -968,6 +968,35 @@ else
 fi
 git -C "$rwork" checkout -q main
 
+# A FIRST defect that reproduces on origin/main must be an issue (§ Defect
+# step 3): the clerk plans from issues, never the pull request body.
+git -C "$rwork" checkout -qb routesdef main
+write_ws routesdef.md review none "" \
+  "- r1: a first old bug (wontfix: pre-existing, reproduces on origin/main, in PR body)" \
+  "- r2: an observation (wontfix: pre-existing, a declined design change, in PR body)" \
+  "- r3: a non-bug (wontfix: pre-existing, not a defect, in PR body)" \
+  "- r4: a flake (wontfix: pre-existing, does not reproduce on origin/main, in PR body)" \
+  "- r5: a lost write (wontfix: pre-existing defect, issue_write failed — defect not filed, in PR body)"
+printf 'code\n' >"${rwork}/routesdef.txt"
+commit_all "$rwork" "first defect cites only the PR body"
+out="$(ci_routes)"
+expect "a first reproduced defect cited PR body is unrouted" "r1: a first old bug" "$out"
+expect "and the failure names the case" "FIRST defect" "$out"
+refute "an observation cited PR body is routed" "r2: an observation" "$out"
+refute "not a defect is no defect" "r3: a non-bug" "$out"
+refute "does not reproduce is no defect" "r4: a flake" "$out"
+refute "defect not filed routes it" "r5: a lost write" "$out"
+git -C "$rwork" checkout -q main
+git -C "$rwork" checkout -qb routesdef2 main
+write_ws routesdef2.md review none "" \
+  "- r1: a first old bug (wontfix: pre-existing, reproduces on origin/main, filed #12)" \
+  "- r2: a second old bug (wontfix: pre-existing, reproduces on origin/main, in PR body)"
+printf 'code\n' >"${rwork}/routesdef2.txt"
+commit_all "$rwork" "defect filed, then a second one body-only"
+out="$(ci_routes)"
+expect "a second defect may go body-only after a filed one" \
+  "every out-of-item finding names where it lives on" "$out"
+
 # NOT RETIRED: added, deleted by mistake, then RE-ADDED and still present at
 # HEAD. fin_retired_own's first draft matched 'added' and 'deleted' as sets
 # over the branch's whole history, so this shape — a file that is very much

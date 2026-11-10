@@ -1927,17 +1927,48 @@ fr_out_of_item() {
 
 # Routed = an issue cited (`#<n>` or an issues URL; a pull request's number
 # given as evidence is no filed issue) or the pull request body named.
-fr_routed() {
+fr_cites_issue() {
   printf '%s\n' "$1" | awk '{ t = " " tolower($0)
     gsub(/[^a-z0-9](pr|pull[ \t]+request)[ \t]*#[0-9]+/, " ", t)
     if (t ~ /#[0-9]+|\/issues\/[0-9]+/) exit 0
+    exit 1 }'
+}
+fr_cites_body() {
+  printf '%s\n' "$1" | awk '{ t = " " tolower($0)
     if (t ~ /[^a-z0-9](pr|pull[ \t]+request).?s?[ \t]+(body|description)/) exit 0
     exit 1 }'
+}
+# `defect not filed`: issue_write failed (manager-reference.md § Defect step 5).
+fr_defect_unfiled() {
+  printf '%s\n' "$1" | awk '{ t = " " tolower($0)
+    if (t ~ /[^a-z0-9]defect[ \t]+not[ \t]+filed/) exit 0
+    exit 1 }'
+}
+# The verdict says the finding is a defect that reproduces. A negated keyword
+# (`not a defect`, `does not reproduce`, `no ... reproduced`) is not one.
+fr_defect_claim() {
+  printf '%s\n' "$1" | awk '{ t = " " tolower($0)
+    gsub(/[^a-z0-9](not|no|never|without|non)[- \t]+([a-z]+[ \t]+){0,3}(defect|reproduc[a-z]*)/, " ", t)
+    gsub(/n.t[ \t]+([a-z]+[ \t]+){0,3}(defect|reproduc[a-z]*)/, " ", t)
+    if (t ~ /[^a-z0-9](defects?|reproduces|reproduced)[^a-z0-9]/) exit 0
+    exit 1 }'
+}
+# Routed: an issue; or the PR body, except that a defect that reproduces may
+# go body-only only as the second or later one ($2 = 1 once an earlier wontfix
+# cited an issue for a defect, § Defect step 4); or `defect not filed`.
+fr_routed() {
+  fr_cites_issue "$1" && return 0
+  fr_defect_unfiled "$1" && return 0
+  if fr_cites_body "$1"; then
+    fr_defect_claim "$1" || return 0
+    [ "${2:-0}" -eq 1 ] && return 0
+  fi
+  return 1
 }
 
 lint_finding_routes() {
   local over="origin/${HANDOVER_BASE_BRANCH:-main}" base ws content text
-  local bad=0 seen=0 here short verdict
+  local bad=0 seen=0 here short verdict filed was
   base="$(git -C "$ROOT" merge-base HEAD "$over" 2>/dev/null)"
   if [ -z "$base" ]; then
     printf '  not measurable here (no merge-base with %s; unrelated history)\n' "$over"
@@ -1949,14 +1980,18 @@ lint_finding_routes() {
     [ -n "$content" ] || continue
     seen=$((seen + 1))
     here=0
+    filed=0
     while IFS= read -r text; do
       [ -n "$text" ] || continue
       [ "$(fb_marker "$text")" = "wontfix" ] || continue
       # The verdict only: "a write outside the lock" in the description, or
       # "PR #12" cited as evidence, says nothing about where this lives on.
       verdict="(wontfix${text##*"(wontfix"}"
+      # Filed before this line? Then a later defect may go body-only.
+      was="$filed"
+      if fr_defect_claim "$verdict" && fr_cites_issue "$verdict"; then filed=1; fi
       fr_out_of_item "$verdict" || continue
-      fr_routed "$verdict" && continue
+      fr_routed "$verdict" "$was" && continue
       bad=$((bad + 1))
       [ "$here" -eq 1 ] || { here=1; printf '  %s\n' "$ws"; }
       short=""
@@ -1986,6 +2021,10 @@ lint_finding_routes() {
   printf '  pull request body, and the verdict says so:\n'
   printf '    - r2: <finding> (wontfix: pre-existing, filed #<n>)\n'
   printf '    - r3: <finding> (wontfix: outside this plan, in PR body)\n'
+  printf '  A FIRST defect that reproduces on origin/main cannot cite PR body: the\n'
+  printf '  clerk plans from issues. File it (§ Defect step 3) and cite #<n>; PR\n'
+  printf '  body is legal only after an earlier wontfix cited an issue for a\n'
+  printf '  defect, or as `defect not filed` when issue_write failed.\n'
   return 1
 }
 
