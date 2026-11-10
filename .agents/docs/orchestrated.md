@@ -343,8 +343,9 @@ red. With five parked on one unplanned `blocking:` defect, the gx
 orchestrator spawned two more onto it and both parked within 15 minutes
 (chrsctl/gx, 2026-10-29, #1101; not re-taken here). A held row stays queued
 and takes no slot; only the RESUME condition lifts it — the fix retired on
-the base's first parent, no plan naming #<n> left. A plan naming #<n> is no
-fix: the base stays red until it merges. When the hold lifted on a plan,
+the base's first parent, no plan naming #<n> left (a second plan naming it,
+live after the first retired, keeps the hold as it keeps RESUME). A plan
+naming #<n> is no fix: the base stays red until it merges. When the hold lifted on a plan,
 four managers spawned behind the planned fix of #1449 between its plan
 (clerk branch 20:30Z, base 21:08Z) and its merge (22:22Z), each parked on
 #1449 in 5 to 14 minutes (chrsctl/gx, 2026-11-10; not re-taken here). The

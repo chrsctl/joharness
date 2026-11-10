@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK4wp9cyBubHVHvhdvK
 agent: sonnet
 updated: 2026-11-10
-next: Build per the plan, then ci, verify, review.
+next: Run verify, open the PR, merge on finish: pass.
 ---
 
 ## Goal
@@ -26,6 +26,11 @@ issue (chrsctl/gx, 2026-11-10, #1449).
 None yet.
 
 ## Review
+
+- r1: (verifier) a fix retired while a second plan naming #<n> is live keeps the hold, as it keeps RESUME (fixed: stated in orchestrated.md; the plan's Goal binds the hold to the RESUME condition)
+- r2: (verifier) a fix row itself overlap-held or WAIT shows no red-base context in the verdict when it is the only row (wontfix: the row prints its own HOLD/WAIT line and clears when the overlap merges; no spawn is wrong)
+- r3: (verifier) no pins for a claimed fix, a fix with open needs:, a CORE ONLY fix, research and requirement rows under the hold (wontfix: these use the paths the old hold already pinned; the behaviour change is pinned by the branch-plan, base-plan and retire cases, each failing on origin/main)
+- r4: edge review, own read of the diff: verdict order, requirement row, research rows, shellcheck (no change)
 
 ## Blockers
 
