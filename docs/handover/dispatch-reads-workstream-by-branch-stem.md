@@ -21,3 +21,4 @@ section graduate it; research file deleted.
 ## Review
 
 - r1: edge review: selftest case pins both position and suffix (no change)
+- r2: (verifier) clean pass; dangling research cite is a name only (no change)
