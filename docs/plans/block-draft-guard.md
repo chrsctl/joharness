@@ -7,7 +7,7 @@ needs: none
 requirement: none
 serves: all
 issue: none
-scope: .agents/harness/handover-guard.sh, .agents/harness/selftest/handover-guard.sh, .claude/commands/manager.md, .agents/docs/manager-reference.md, .agents/docs/handover.md
+scope: .agents/harness/handover-guard.sh, .agents/harness/selftest/handover-guard.sh, .claude/commands/manager.md, .agents/docs/manager-reference.md
 ---
 
 ## Goal
@@ -27,11 +27,10 @@ and make manager.md name it.
   blocks the stop once, naming § Block on an open pull request.
 - `.agents/harness/selftest/handover-guard.sh` — cases: fires on
   retire+restore+blocked without `drafted:`; silent with `drafted: #N`;
-  silent on blocked without a retire; silent on `drafted: none`? no — fires.
+  silent on blocked without a retire; fires on `drafted: none`.
 - `.claude/commands/manager.md` §3 — the block line names `drafted:` and the guard.
 - `.agents/docs/manager-reference.md` § Block on an open pull request — write
   `drafted: <N>` after the read-back; the guard checks it.
-- `.agents/docs/handover.md` — the field, one line.
 
 ## Assumptions
 

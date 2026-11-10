@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK5qoGtaMQ4abBpkEjB
 agent: sonnet
 updated: 2026-11-10
-next: Implement the Stop-guard `drafted:` fact per docs/plans/block-draft-guard.md
+next: Wait for selftest, then ci, verify, verifier, PR
 ---
 
 ## Goal
