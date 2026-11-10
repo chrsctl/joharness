@@ -345,16 +345,25 @@ park-called clerk pushes after the park, so it never yields to a third; its
 twin check reads the same park, its own plans not counted, and passes over
 that one clerk (`joharness.sh:clerk_twin_rows`). A due cadence yields alike.
 
-Two or more parks on one issue no plan names (`PARKED`, `UNPLANNED`,
-`STUCK` or `RECHECK`; no plan on the base or a live branch names it) hold
-every spawn row: `HOLD — red base: #<n> (<k> parked)`, verdict
-`DEFECT-BOUND`. One park may be the manager's own reading; two is a base
-every new manager finishes on red. With five parked on one unplanned
-`blocking:` defect, the gx orchestrator spawned two more onto it and both
-parked within 15 minutes (chrsctl/gx, 2026-10-29, #1101; not re-taken
-here). A held row stays queued and takes no slot; a plan naming #<n>, on
-the base or a live branch, lifts it. RESUME and RECHECK rows still take
-their slots: a resume rechecks the base, a spawn would only add a park.
+Two or more parks on one issue whose fix has not retired (`PARKED`,
+`UNPLANNED`, `STUCK` or `RECHECK`, planned or not) hold every spawn row:
+`HOLD — red base: #<n> (<k> parked)`, verdict `DEFECT-BOUND`. One park may
+be the manager's own reading; two is a base every new manager finishes on
+red. With five parked on one unplanned `blocking:` defect, the gx
+orchestrator spawned two more onto it and both parked within 15 minutes
+(chrsctl/gx, 2026-10-29, #1101; not re-taken here). A held row stays queued
+and takes no slot; only the RESUME condition lifts it — the fix retired on
+the base's first parent, no plan naming #<n> left (a second plan naming it,
+live after the first retired, keeps the hold as it keeps RESUME). A plan
+naming #<n> is no fix: the base stays red until it merges. When the hold lifted on a plan,
+four managers spawned behind the planned fix of #1449 between its plan
+(clerk branch 20:30Z, base 21:08Z) and its merge (22:22Z), each parked on
+#1449 in 5 to 14 minutes (chrsctl/gx, 2026-11-10; not re-taken here). The
+fix itself is the one row the hold passes: a plan on the base whose
+`issue:` names #<n> spawns, so the hold never holds what lifts it (a fix
+whose `needs:` waits on a held row stays held: STUCK tells the human).
+RESUME and RECHECK rows still take their slots: a resume rechecks the base,
+a spawn would only add a park.
 
 A park on an issue no plan names waits on the clerk's cadence: in a run the
 clerk is the only automated path from an issue to a plan (a human or session
