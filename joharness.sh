@@ -7386,17 +7386,21 @@ defect_issue() {
 # can ever retire, so the park never clears: an invalid block, not a park.
 # The plan read at <ref>, else on the base; a path off docs/plans reads false.
 own_defect_park() {
-  local n iss
+  local n iss r
   n="$(defect_issue "$3")"
   [ -n "$n" ] || return 1
   case "$2" in docs/plans/*.md) ;; *) return 1 ;; esac
-  iss="$(git -C "$ROOT" show "${1}:${2}" </dev/null 2>/dev/null | gr_field issue)"
-  [ -n "$iss" ] || iss="$(git -C "$ROOT" show \
-    "refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}:${2}" </dev/null 2>/dev/null |
-    gr_field issue)"
-  case "$(issue_verdict "$iss")" in "ok "*) ;; *) return 1 ;; esac
-  iss="${iss#\#}"; iss="${iss#"${iss%%[!0]*}"}"
-  [ "$iss" = "$n" ]
+  # Either copy: the base's is the one the branch cannot edit away, the
+  # branch's the one a same-session plan has. Digits compared without
+  # leading zeros: `issue: 043` is lint's to red, still issue 43 here.
+  for r in "refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" "$1"; do
+    iss="$(git -C "$ROOT" show "${r}:${2}" </dev/null 2>/dev/null | gr_field issue)"
+    iss="${iss#\#}"
+    case "$iss" in '' | *[!0-9]*) continue ;; esac
+    iss="${iss#"${iss%%[!0]*}"}"
+    [ "$iss" != "$n" ] || return 0
+  done
+  return 1
 }
 # A `defect: #<n>: …` block (manager.md §3), read from git alone — never an
 # issue's state. One line, tab-separated:
@@ -8957,7 +8961,7 @@ cmd_dispatch() {
   local DISPATCH_WITHHELD=
   local printed_deferred=
   local inflight="" free="" questions="" corefree="" row mergewait=""
-  local n_parked=0 n_fixed=0 n_resume=0 n_recheck=0 parked_lines="" dst dn dplan dage di ri rtext dresume=0 bkind selfpark
+  local n_parked=0 n_fixed=0 n_resume=0 n_recheck=0 parked_lines="" dst dn dplan dage di ri rtext dresume=0 bkind selfpark n_ownpark=0
   local dpark="" dhold="" n_dhold=0
   local fx_label fx_wait fx_k fx_r fx_c fx_slot fx_lim
   local bts redge rstem rts n_release=0 release_due="" hseen hst
@@ -9419,7 +9423,10 @@ cmd_dispatch() {
             fx_lines+=("$parked_lines"); parked_lines=""
             fx_n+=("$dn"); fx_plan+=("-"); fx_di+=("$di"); fx_kind+=(MERGED)
           else
-            blocked_claims="${blocked_claims} $(lint_stem "$path")@${branch} "
+            # A self-park keeps its scope held, as a PARKED row does: the
+            # orchestrator asks it to do the work, and it comes back.
+            [ -n "$selfpark" ] ||
+              blocked_claims="${blocked_claims} $(lint_stem "$path")@${branch} "
             # On the wait line only while it truly waits: a block of known
             # age, and no merge of #<n> on the base at any time — a merge
             # that came before the block is no answer, but it is no pull
@@ -9451,6 +9458,7 @@ cmd_dispatch() {
               rel_needs="${rel_needs}release   : ${branch}  queue holds it by needs: ${rstem}  plan $(lint_stem "$path")  since ${rts}"$'\n'
             else
               if [ -n "$selfpark" ]; then
+                n_ownpark=$((n_ownpark + 1))
                 flag="  INVALID BLOCK? defect: #${selfpark} is this plan's own issue (manager.md §3): not the human's, never a park — ask it to do the plan's goal or name a real reason, order nothing"
               else
                 flag="  BLOCKED: the human's, holds no slot"
@@ -9459,7 +9467,11 @@ cmd_dispatch() {
               fi
             fi
             if [ -n "$bage" ]; then
-              flag="${flag}, parked $(dispatch_age_text "$bage") ago"
+              if [ -n "$selfpark" ]; then
+                flag="${flag}, blocked $(dispatch_age_text "$bage") ago"
+              else
+                flag="${flag}, parked $(dispatch_age_text "$bage") ago"
+              fi
             else
               flag="${flag}, parked for an unknown time: the commit that parked it is not in this clone's history"
             fi
@@ -9999,8 +10011,10 @@ cmd_dispatch() {
     printf '            %s manager(s) rewriting one file past the churn threshold: health pass FIRST\n' "$n_loop"
   [ "$n_ceiling" -eq 0 ] ||
     printf '            %s manager(s) past the ceiling with no pr: in the claim file: report, never kill on this alone\n' "$n_ceiling"
-  [ $((n_blocked - n_parked - n_release)) -eq 0 ] ||
-    printf '            %s manager(s) blocked: report to the human, never respawn\n' "$((n_blocked - n_parked - n_release))"
+  [ $((n_blocked - n_parked - n_release - n_ownpark)) -eq 0 ] ||
+    printf '            %s manager(s) blocked: report to the human, never respawn\n' "$((n_blocked - n_parked - n_release - n_ownpark))"
+  [ "$n_ownpark" -eq 0 ] ||
+    printf '            %s manager(s) parked defect: on their own plan'"'"'s issue: INVALID BLOCK?, ask each to do the work, never respawn\n' "$n_ownpark"
   [ -z "$release_due" ] ||
     printf '            release DUE:%s — ./joharness.sh release <branch>...: a needs: one at once; a stale or done one only once its session reads ARCHIVED or not found; never the human'"'"'s, never respawn\n' "$release_due"
   [ "$n_hold" -eq 0 ] ||

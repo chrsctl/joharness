@@ -1080,3 +1080,32 @@ expect "analysis reads a park on the plan's own issue as INVALID BLOCK?" \
 refute "and not as PARKED" "condition : PARKED" "$out"
 expect "analysis still reads a park on another issue as PARKED" \
   "condition : PARKED #31" "$(dfana park-other31)"
+out="$(dfx)"
+expect "self-parks are counted apart from the human's blocks" \
+  "2 manager(s) parked defect: on their own plan's issue: INVALID BLOCK?" "$out"
+refute "and never reported as the human's" "manager(s) blocked: report to the human" "$out"
+# A self-park keeps its scope held: the orchestrator asks it to do the work.
+dfplan ovl-31 none src/own-31
+dfpush 1 "a plan on own-31's scope"
+out="$(dfx)"
+expect "a plan overlapping a self-park is held" "HOLD — overlaps own-31 on src/own-31" "$out"
+refute "never spawned as if the block were the human's" "own-31 is BLOCKED on a human" "$out"
+git -C "$dfwork" rm -q docs/plans/ovl-31.md
+dfpush 1 "drop ovl-31"
+# The branch editing its copy of the plan to `issue: none` cannot hide it:
+# the base's plan still names #31.
+git -C "$dfwork" checkout -q park-own31
+sed -i 's/^issue: 31$/issue: none/' "${dfwork}/docs/plans/own-31.md"
+dfcommit 1 "own-31 drops its issue on the branch"
+git -C "$dfwork" push -q origin park-own31
+git -C "$dfwork" checkout -q main
+out="$(dfx)"
+expect "a branch editing its plan's issue: away is still INVALID BLOCK?" \
+  "INVALID BLOCK? defect: #31 is this plan's own issue" "$(dfrow own-31)"
+# `issue: 043` is lint's to red; here it is still issue 43.
+dfplan own-43 043
+dfpush 3 "own-43 serves 043"
+dfpark park-own43 own-43 'defect: #43: cannot reproduce' 2
+out="$(dfx)"
+expect "issue: 043 against defect: #43: INVALID BLOCK?" \
+  "INVALID BLOCK? defect: #43 is this plan's own issue" "$(dfrow own-43)"
