@@ -107,6 +107,8 @@ Known reachable: `registry-1.docker.io`, `mirror.gcr.io`, `raw.githubusercontent
   Docker Hub library images through Google's public mirror of them instead:
   `mirror.gcr.io/library/<image>:<tag>`; those pulls never reach Docker Hub.
   Your own `docker pull` hits a 429? Same prefix.
+  `JOHARNESS_REGISTRY_MIRROR` overrides the registry for the smoke tests (default
+  `mirror.gcr.io`; set but empty = Docker Hub itself). CI pulls the default only.
 - The dockerd start logic mirrors `.agents/env/k8s/devenv.sh` rather than calling
   it: layers are self-contained by contract ([`../README.md`](../README.md)),
   so neither layer may reference the other.
