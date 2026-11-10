@@ -7,7 +7,7 @@ needs: none
 requirement: none
 serves: all
 issue: none
-scope: joharness.sh, .agents/harness/selftest/dispatch-park.sh, .agents/harness/selftest/analysis.sh, .claude/commands/manager.md, .claude/commands/orchestrator.md, .agents/docs/manager-reference.md, .agents/docs/orchestrated.md
+scope: joharness.sh, .agents/harness/selftest/dispatch-park.sh, .claude/commands/manager.md, .claude/commands/orchestrator.md, .agents/docs/manager-reference.md, .agents/docs/orchestrated.md
 ---
 
 ## Goal
@@ -32,8 +32,8 @@ evidence.
   `INVALID BLOCK?` flag naming why; `analysis` prints the same condition.
 - `.agents/harness/selftest/dispatch-park.sh` — fixture: plan `issue: 31`,
   claim parks `defect: #31: …` → row carries `INVALID BLOCK?`, no `PARKED #31`.
-- `.agents/harness/selftest/analysis.sh` — the same through `analysis`, if its
-  fixture reaches it cheaply.
+- `analysis` cases ride the dispatch-park fixture (it already runs
+  `analysis` there); `.agents/harness/selftest/analysis.sh` untouched.
 - `.claude/commands/manager.md` §3, `.agents/docs/manager-reference.md`
   § Defect, `.agents/docs/orchestrated.md` The one stop,
   `.claude/commands/orchestrator.md` the INVALID BLOCK? row — the rule, one
@@ -59,6 +59,9 @@ evidence.
 - `./joharness.sh ci` — `ci: pass`.
 - `./joharness.sh verify` — 0 failed; the new dispatch-park cases pass and
   fail with the `joharness.sh` change reverted.
+- Consumer side (ships): after sync, `./joharness.sh dispatch` in a consumer
+  prints `INVALID BLOCK? defect: #N is this plan's own issue` on a claim whose
+  plan has `issue: N` and whose `next:` is `defect: #N: …`, never `PARKED #N`.
 
 ## Where to look
 

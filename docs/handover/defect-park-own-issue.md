@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK62r3sAH91d8NqDL3c
 agent: opus
 updated: 2026-11-10
-next: Implement own_defect_park in joharness.sh dispatch, then selftest and docs
+next: Edge review and verifier at opus, then PR
 ---
 
 ## Goal

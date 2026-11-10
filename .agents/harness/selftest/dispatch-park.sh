@@ -1046,3 +1046,37 @@ out="$(dfx)"
 expect "a base plan naming #41: the items spawn" \
   "verdict   : NOT DRAINED — 3 free item(s) now" "$out"
 refute "and no hold" "red base" "$out"
+
+# --- a defect: on the plan's OWN issue is no park --------------------------
+# chrsctl/gx, 2026-11-10: plan `issue: 1323` parked `defect: #1323: …` and sat
+# 31h a plain PARKED row. Only its own plan names the issue, so RESUME never
+# comes: an invalid block the orchestrator asks about, never a park.
+dfplan own-31 31
+dfpush 3 "own-31 serves #31"
+dfpark park-own31 own-31 'defect: #31: not reproduced on the base; needs a red under load' 2
+# Quoted next:, the plan's `issue: #33` against `defect: #33`.
+dfplan own-33 '#33'
+dfpush 3 "own-33 serves #33"
+dfpark park-own33 own-33 '"defect: #33: cannot reproduce"' 2
+# A plan naming another issue, parked on #31: a real park, unchanged.
+dfplan other-31 34
+dfpush 3 "other-31 serves #34"
+dfpark park-other31 other-31 'defect: #31: the build breaks' 2
+out="$(dfx)"
+expect "a defect: on the plan's own issue: INVALID BLOCK?, naming why" \
+  "INVALID BLOCK? defect: #31 is this plan's own issue" "$(dfrow own-31)"
+refute "and never PARKED" "PARKED" "$(dfrow own-31)"
+refute "nor the human's" "BLOCKED: the human's" "$(dfrow own-31)"
+refute "nor listed under the verdict as parked" "PARKED #31 own-31" "$out"
+expect "quoted next:, issue: spelled #33: INVALID BLOCK? too" \
+  "INVALID BLOCK? defect: #33 is this plan's own issue" "$(dfrow own-33)"
+expect "a plan on another issue parked on #31: still PARKED" \
+  "PARKED #31" "$(dfrow other-31)"
+refute "and valid" "INVALID BLOCK?" "$(dfrow other-31)"
+dfana() { ( cd "$dfwork" && JOHARNESS_CONF="$dfconf" ANALYSIS_FETCH=0 ./joharness.sh analysis "$1" 2>&1 ); }
+out="$(dfana park-own31)"
+expect "analysis reads a park on the plan's own issue as INVALID BLOCK?" \
+  "condition : INVALID BLOCK? — defect: names this plan's own issue" "$out"
+refute "and not as PARKED" "condition : PARKED" "$out"
+expect "analysis still reads a park on another issue as PARKED" \
+  "condition : PARKED #31" "$(dfana park-other31)"
