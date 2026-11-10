@@ -138,11 +138,12 @@ git; send nothing for it.
 `human-review` at merge (Loop step 7) = do not merge: ref § Label at merge.
 
 Behind again at merge? Merge `origin/main` in, push, `finish` again: a clean
-merge touching no file you changed re-certifies on `ci` (`CATCH-UP`). Behind
-after three `finish` runs in a row = STARVED: draft the pull request (ref §
-Block on an open pull request), block `conflict: base outran finish <n>
-times: reconcile, then merge by hand`, push, exit. Never end with an open,
-non-draft pull request you did not merge.
+merge touching no file you changed re-certifies on `ci` (`CATCH-UP`). Count
+each such run in the workstream file's `## Blockers` as `finish behind: <n>`,
+pushed, so a resume reads it. Behind after three = STARVED: block
+`conflict: base outran finish <n> times: reconcile, then merge by hand`,
+push, exit; the pull request is drafted first, ref § Block on an open pull request.
+Never end with an open, non-draft pull request you did not merge.
 
 Resumed head whose pull request is a draft? Un-draft it after the delete
 commit, before the merge: ref § Block on an open pull request.

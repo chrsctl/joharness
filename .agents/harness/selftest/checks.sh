@@ -629,7 +629,7 @@ kccu_main() { # <file> <line>: one commit on origin/main, pushed
 kccu_sync() { # merge origin/main into kccu, push
   git -C "$kcwork" fetch -q origin main 2>/dev/null
   git -C "$kcwork" merge -q --no-edit origin/main >/dev/null 2>&1
-  git -C "$kcwork" push -q origin kccu 2>/dev/null
+  git -C "$kcwork" push -q origin HEAD 2>/dev/null
 }
 git -C "$kcwork" checkout -q main
 seq 1 10 >"${kcwork}/docs-shared.txt"
@@ -708,6 +708,45 @@ git -C "$kcwork" merge -q --ff-only origin/main 2>/dev/null
 git -C "$kcwork" rm -q local-check docs-shared.txt docs-a.txt docs-b.txt docs-c.txt
 commit_all "$kcwork" "main: drop the catch-up fixture"
 git -C "$kcwork" push -q origin main 2>/dev/null
+
+# The base moves DURING the full run (origin/main is shared by every
+# worktree): the certificate names the tip the suites tested, never the one
+# after them, or a catch-up carries local-check over a commit that changed
+# the branch's own file and that no check ever saw.
+kccr_clone="${TMP}/kccr-clone"
+seq 1 10 >"${kcwork}/kccr.txt"
+commit_all "$kcwork" "main: a file the race edits"
+git -C "$kcwork" push -q origin main 2>/dev/null
+git clone -q -b main "$kcorigin" "$kccr_clone" 2>/dev/null
+git -C "$kccr_clone" config user.email t@example.invalid
+git -C "$kccr_clone" config user.name t
+git -C "$kcwork" checkout -qb kccr main
+printf 'if [ ! -e %q ]; then : >%q; sed -i "10s/.*/TEN/" %q/kccr.txt; git -C %q commit -qam race; git -C %q push -q origin HEAD:main; git -C %q fetch -q origin main; fi\necho ran >>%q\nexit 0\n' \
+  "${TMP}/kccr-once" "${TMP}/kccr-once" "$kccr_clone" "$kccr_clone" "$kccr_clone" "$kcwork" "$kccu_ran" \
+  >"${kcwork}/local-check"
+sed -i '1s/.*/one/' "${kcwork}/kccr.txt"
+commit_all "$kcwork" "kccr: own edit and a check that races the base"
+git -C "$kcwork" push -qu origin kccr 2>/dev/null
+: >"$kccu_ran"
+JOHARNESS_CHECKS=local HANDOVER_FETCH=0 kc_finish >/dev/null
+git -C "$kccr_clone" pull -q --no-rebase origin main 2>/dev/null
+printf 'd\n' >"${kccr_clone}/docs-d.txt"
+git -C "$kccr_clone" add docs-d.txt
+git -C "$kccr_clone" commit -qm "main: disjoint"
+git -C "$kccr_clone" push -q origin HEAD:main 2>/dev/null
+kccu_sync
+out="$(JOHARNESS_CHECKS=local kc_finish)"
+refute "catch-up: a base that moved mid-run is not certified as tested" \
+  "CATCH-UP     HEAD = certified" "$out"
+expect "catch-up: the race commit's shared file forces the full run" \
+  "a path changed on both sides: kccr.txt" "$out"
+expect "catch-up: and local-check runs on the merged head" "2" "$(kccu_count)"
+git -C "$kcwork" checkout -q main
+git -C "$kcwork" merge -q --ff-only origin/main 2>/dev/null
+git -C "$kcwork" rm -q kccr.txt docs-d.txt
+commit_all "$kcwork" "main: drop the race fixture"
+git -C "$kcwork" push -q origin main 2>/dev/null
+rm -rf "$kccr_clone" "${TMP}/kccr-once"
 rm -f "$(git -C "$kcwork" rev-parse --absolute-git-dir)/joharness-finish-cert" "$kccu_ran"
 
 # --- every run_check names a function check_call dispatches -----------------

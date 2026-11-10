@@ -45,7 +45,7 @@ ends with a green open PR it did not merge.
 - `.agents/harness/selftest/checks.sh` — catch-up cases: the allowed case
   (local-check not run, finish green), and the full run on: over the knob,
   a file changed on both sides, an own commit after the merge (tree
-  mismatch), the base changing `local-check`.
+  mismatch), the base changing `local-check`, the base moving during the run.
 - `.claude/commands/manager.md` §3 — `conflict:` also covers a base that
   outruns `finish`; §4 — starved merge: draft, block `conflict:`.
 - `.agents/docs/manager-reference.md` § Block on an open pull request — the
@@ -76,7 +76,7 @@ ends with a green open PR it did not merge.
 
 - `./joharness.sh ci` — last line `ci: pass`; anything else is red.
 - `bash .agents/harness/selftest.sh | tail -1` — `<n> passed, 0 failed`,
-  and `grep -c 'PASS catch-up:'` on its output gives 17.
+  and `grep -c 'PASS catch-up:'` on its output gives 20.
 - `git stash push joharness.sh && bash .agents/harness/selftest.sh | grep 'catch-up: a clean disjoint merge'; git stash pop`
   — prints `FAIL catch-up: a clean disjoint merge re-certifies on ci`.
 - Consumer-side: the same `checks.sh` cases ship in the selftest a consumer's

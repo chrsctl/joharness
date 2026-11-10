@@ -6836,7 +6836,7 @@ checks_catch_up() {
 # One line under 'github', the whole gate under 'local'.
 checks_gate() {
   local ref="$1" branch="$2" is_local="$3" ready="$4"
-  local rc=0 extra n=0 f pushed behind base behind_said fresh catchup=0 cf
+  local rc=0 extra n=0 f pushed behind base behind_said fresh catchup=0 cf tip=""
   if [ "$is_local" = 1 ] && [ "$ready" != 1 ]; then
     printf '\nchecks: local (JOHARNESS_CHECKS=local) — NOT run. This merge is red\n'
     printf 'above, and no suite run changes that. Fix it and run this again; the\n'
@@ -6900,6 +6900,9 @@ checks_gate() {
   fi
   behind_said="behind not measurable"
   if base="$(git -C "$ROOT" merge-base HEAD "$ref" 2>/dev/null)" && [ -n "$base" ]; then
+    # The base the suites test is this tip, read now: origin/main is shared
+    # by every worktree, and a fetch mid-run would certify an untested one.
+    tip="$(git -C "$ROOT" rev-parse "$ref" 2>/dev/null)"
     behind="$(git -C "$ROOT" rev-list --count "HEAD..${ref}" 2>/dev/null)" || behind=""
     if [ -n "$behind" ] && [ "$behind" -gt 0 ]; then
       printf '  BEHIND       %s commit(s) behind %s, and no run here ever sees that\n' \
@@ -6922,7 +6925,13 @@ checks_gate() {
   printf '  head       %s, pushed, clean, %s\n' \
     "$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null)" "$behind_said"
   catchup=0
-  checks_catch_up "$ref" && catchup=1
+  if checks_catch_up "$ref"; then
+    catchup=1
+  elif cf="$(checks_cert_file)"; then
+    # A full run supersedes any certificate; written again only on its green,
+    # so a write that fails leaves none and the verdict reads a full run.
+    rm -f "$cf"
+  fi
   printf '\n  == %s ci\n' "$0"
   if "${ROOT}/joharness.sh" ci; then
     if have shellcheck; then
@@ -6971,9 +6980,10 @@ checks_gate() {
 
   # A full green is what a later catch-up carries from; a catch-up green
   # never re-certifies, so every catch-up measures from one full run.
-  if [ "$rc" -eq 0 ] && [ "$catchup" = 0 ] && cf="$(checks_cert_file)"; then
+  if [ "$rc" -eq 0 ] && [ "$catchup" = 0 ] && [ -n "$tip" ] &&
+     cf="$(checks_cert_file)"; then
     printf 'head=%s\nbase=%s\n' "$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)" \
-      "$(git -C "$ROOT" rev-parse "$ref" 2>/dev/null)" >"$cf" 2>/dev/null || :
+      "$tip" >"$cf" 2>/dev/null || :
   fi
 
   # What a green above does NOT cover.
@@ -7073,10 +7083,12 @@ cmd_finish() {
     return 1
   elif [ "$is_local" = 1 ] &&
        git -C "$ROOT" cat-file -e "HEAD:${CHECKS_LOCAL_FILE}" 2>/dev/null; then
-    # A full green certified this very head; any other pass was a CATCH-UP.
-    if cf="$(checks_cert_file)" &&
-       [ "$(sed -n 's/^head=//p' "$cf" 2>/dev/null | head -n 1)" = \
-         "$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)" ]; then
+    # A pass leaves a certificate for an OLDER head only after a CATCH-UP: a
+    # full run removes it first and writes this head's, or none.
+    local ch=""
+    cf="$(checks_cert_file)" && ch="$(sed -n 's/^head=//p' "$cf" 2>/dev/null | head -n 1)"
+    if [ -z "$ch" ] ||
+       [ "$ch" = "$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)" ]; then
       printf 'finish: pass (ci and verify ran here, %s too: JOHARNESS_CHECKS=local)\n' \
         "$CHECKS_LOCAL_FILE"
     else

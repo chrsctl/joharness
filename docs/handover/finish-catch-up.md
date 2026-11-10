@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK5e4qFM7qu8dpzkfv1
 agent: opus
 updated: 2026-11-10
-next: Run the verifier at opus on the branch diff, record findings, then ci, finish, PR
+next: Second verifier round on the r14-r18 fixes, then ci, finish, PR
 ---
 
 ## Goal
@@ -48,6 +48,11 @@ certification) and the exit (draft + `conflict:` block).
 - r11: (plan-checker) Goal says ci only, Scope keeps verify (fixed: Goal names verify when needed)
 - r12: (plan-checker) git 2.38 floor not declared anywhere (fixed: A2 says no floor, older git fails closed to full run)
 - r13: (plan-checker) gx facts unverified here (no change: a consumer's reading, marked WEAK in manager-reference.md)
+- r14: (verifier) ci red: manager.md `ref §` pointer ended in `)` not `.` (fixed: sentence ends on the pointer)
+- r15: (verifier) certificate recorded origin/main AFTER the suites; a mid-run fetch certified an untested base, catch-up then carried local-check over a commit on the branch's own file (fixed: tip read at the BEHIND measure; selftest race case fails without it)
+- r16: (verifier) a full run whose certificate write failed printed "carried by CATCH-UP" (fixed: a full run removes the certificate first; no certificate reads as a full run)
+- r17: (verifier) AGENTS.md "cannot merge = draft" contradicted "Merge button not yours? ... asking the human" (fixed: narrowed to a base that outruns finish)
+- r18: (verifier) "three finish runs" count had no record a resume reads (fixed: `finish behind: <n>` in `## Blockers`, pushed)
 
 ## Blockers
 
