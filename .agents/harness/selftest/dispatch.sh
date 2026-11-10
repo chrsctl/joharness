@@ -396,6 +396,37 @@ expect "the loop line names both tiers and their knobs" \
 expect "past the threshold the work line names the warning" \
   "work: 7 commit(s) since main, churn 6 on code.txt (>= 5: past ci's warning, watch next:), 2 finding(s) recorded" "$out"
 refute "but the threshold alone is no LOOP?" "LOOP? code.txt" "$out"
+# A session-suffixed branch name (`<stem>-<session id>`) reads in full: the
+# file is found through what the branch OWNS, never through its name. Asked
+# from the branch itself the hook skips it (it is "this branch", not a rival),
+# so the row reads `?` and 0 findings. That is branch position, not the
+# suffix (research dispatch-reads-workstream-by-branch-stem, refuted).
+dspplan sfx
+dsppush "a plan for the suffixed branch"
+git -C "$dspwork" checkout -qb mgr-sfx-01J1YMK4
+mkdir -p "${dspwork}/docs/handover"
+printf -- '---\nworkstream: sfx\nstatus: in-progress\nbranch: mgr-sfx-01J1YMK4\nplan: sfx\nsession: https://example.invalid/session_sfx\nagent: sonnet\nupdated: 2026-01-03\nnext: Keep going\n---\n\n## Review\n\n- r1: one. (fixed)\n- r2: two. (fixed)\n- r3: three. (fixed)\n' \
+  >"${dspwork}/docs/handover/sfx.md"
+commit_all "$dspwork" "claim sfx"
+git -C "$dspwork" push -qu origin mgr-sfx-01J1YMK4
+git -C "$dspwork" checkout -q main
+out="$(dsp)"
+dspsfx="$(printf '%s\n' "$out" | grep -A1 'mgr-sfx-01J1YMK4 ')"
+expect "a suffixed branch name reads its status from the claim" \
+  "mgr-sfx-01J1YMK4  in-progress" "$dspsfx"
+expect "and its findings, from the file it owns" "3 finding(s) recorded" "$dspsfx"
+git -C "$dspwork" checkout -q mgr-sfx-01J1YMK4
+out="$( cd "$dspwork" && JOHARNESS_CONF="$dspconf" DRAIN_FETCH=0 DISPATCH_FETCH=0 ./joharness.sh dispatch 2>&1 )"
+dspsfx="$(printf '%s\n' "$out" | grep -A1 'mgr-sfx-01J1YMK4 ')"
+expect "asked from the branch itself the row is blank, by position not name" \
+  "mgr-sfx-01J1YMK4  ?" "$dspsfx"
+git -C "$dspwork" checkout -q main
+git -C "$dspwork" push -q origin --delete mgr-sfx-01J1YMK4
+git -C "$dspwork" branch -qD mgr-sfx-01J1YMK4
+fixture_rm "$dspwork" "drop the sfx plan" docs/plans/sfx.md
+git -C "$dspwork" push -q origin main
+git -C "$dspwork" update-ref -d refs/remotes/origin/mgr-sfx-01J1YMK4
+
 out="$(dsp env JOHARNESS_CHURN_LIMIT=6)"
 expect "past the limit a manager is marked" \
   "base ok  LOOP? code.txt rewritten 6 times (>= 6): record its progress, respawn with the churn rule" "$out"
