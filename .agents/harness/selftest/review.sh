@@ -976,7 +976,10 @@ write_ws routesdef.md review none "" \
   "- r2: an observation (wontfix: pre-existing, a declined design change, in PR body)" \
   "- r3: a non-bug (wontfix: pre-existing, not a defect, in PR body)" \
   "- r4: a flake (wontfix: pre-existing, does not reproduce on origin/main, in PR body)" \
-  "- r5: a lost write (wontfix: pre-existing defect, issue_write failed — defect not filed, in PR body)"
+  "- r5: a lost write (wontfix: pre-existing defect, issue_write failed — defect not filed, in PR body)" \
+  "- r6: mixed (wontfix: pre-existing, not reproduced but defect confirmed, in PR body)" \
+  "- r7: a bug (wontfix: pre-existing bug, reproducible on origin/main, in PR body)" \
+  "- r8: clean (wontfix: pre-existing, defect-free, in PR body)"
 printf 'code\n' >"${rwork}/routesdef.txt"
 commit_all "$rwork" "first defect cites only the PR body"
 out="$(ci_routes)"
@@ -986,6 +989,9 @@ refute "an observation cited PR body is routed" "r2: an observation" "$out"
 refute "not a defect is no defect" "r3: a non-bug" "$out"
 refute "does not reproduce is no defect" "r4: a flake" "$out"
 refute "defect not filed routes it" "r5: a lost write" "$out"
+expect "a negation does not reach across but: still a defect" "r6: mixed" "$out"
+expect "a bug that is reproducible is a defect" "r7: a bug" "$out"
+refute "defect-free is no defect" "r8: clean" "$out"
 git -C "$rwork" checkout -q main
 git -C "$rwork" checkout -qb routesdef2 main
 write_ws routesdef2.md review none "" \

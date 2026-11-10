@@ -1948,9 +1948,12 @@ fr_defect_unfiled() {
 # (`not a defect`, `does not reproduce`, `no ... reproduced`) is not one.
 fr_defect_claim() {
   printf '%s\n' "$1" | awk '{ t = " " tolower($0)
-    gsub(/[^a-z0-9](not|no|never|without|non)[- \t]+([a-z]+[ \t]+)?([a-z]+[ \t]+)?([a-z]+[ \t]+)?(defect|reproduc[a-z]*)/, " ", t)
-    gsub(/n.t[ \t]+([a-z]+[ \t]+)?([a-z]+[ \t]+)?([a-z]+[ \t]+)?(defect|reproduc[a-z]*)/, " ", t)
-    if (t ~ /[^a-z0-9](defects?|reproduces|reproduced)[^a-z0-9]/) exit 0
+    # A clause break ends the reach of a negation.
+    gsub(/[ \t]+(but|and|yet|however|though|although|while)[ \t]+/, " , ", t)
+    gsub(/defect[- ]free/, " ", t)
+    gsub(/[^a-z0-9](not|no|never|without|non)[- \t]+([a-z]+[ \t]+)?([a-z]+[ \t]+)?([a-z]+[ \t]+)?(defect|bug|reproduc[a-z]*)/, " ", t)
+    gsub(/n.t[ \t]+([a-z]+[ \t]+)?([a-z]+[ \t]+)?([a-z]+[ \t]+)?(defect|bug|reproduc[a-z]*)/, " ", t)
+    if (t ~ /[^a-z0-9](defects?|bugs?|reproduc[a-z]*)[^a-z0-9]/) exit 0
     exit 1 }'
 }
 # Routed: an issue; or the PR body, except that a defect that reproduces may

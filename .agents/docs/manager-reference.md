@@ -174,7 +174,7 @@ a verdict naming `canonical's file` routes through `upstream` instead.
 **The gate checks the citation, mostly; the route is yours.** It
 reads `## Review` bullets only (`fb_findings`). `fr_routed` passes a verdict
 naming `#<n>`, `defect not filed`, or `PR body`, except that a verdict saying
-the finding is a defect that reproduces (`reproduces`, `defect`, not negated)
+the finding is a defect that reproduces (`defect`, `bug`, `reproduc…`, not negated)
 cannot cite `PR body` alone unless an EARLIER wontfix line cited `#<n>` for a
 defect: a FIRST reproduced defect cited `PR body` reds. It cannot tell an
 observation worded with those keywords from a defect, and it never reads
