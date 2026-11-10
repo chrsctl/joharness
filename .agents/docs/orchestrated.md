@@ -324,6 +324,16 @@ the block `JOHARNESS_DEFECT_RECHECK_HOURS` old, the base moved = `RECHECK`
 `UNPLANNED`, `STUCK` (a stale live branch naming #<n> included),
 `UNREADABLE` (the block commit is not in the clone: no RESUME). Mechanics:
 `orchestrator-reference.md`, Resume.
+"A plan naming #<n>" = #<n> in its `issue:`, alone or in a list: one
+defect filed twice is one plan naming both (`plans.md`, `issue`). A fix
+that closed a twin it did not name resumes no park on the twin (chrsctl/gx,
+2026-11-10, #1449 and #1450: ten parks on #1449 resumed, the one on #1450
+waited on RECHECK's clock), and parks split over twins count apart toward
+the hold below (one each, no hold, two more managers spawned and parked).
+So the manager names every issue its pull request closes before the retire
+commit, the clerk folds a duplicate into the plan naming its twin, and a
+manager that files a defect searches once more and parks on the
+lowest-numbered twin (`manager-reference.md`, § Plan issue, § Defect).
 A `PARKED` row on an issue no plan names, `JOHARNESS_DEFECT_CLERK_HOURS`
 after its first park and no clerk having read the issues since, makes the clerk due now
 (`clerk DUE (PARKED #<n> unplanned, …)`), not at its cadence. A clerk in

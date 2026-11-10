@@ -180,12 +180,14 @@ expect "nor claimed" "claimed   : #13" "$out"
 # A plan on a branch is not on the base: not PLANNED until it merges.
 git -C "$clerk_work" checkout -qb unmerged-plan
 clerk_plan later '21'
+# One defect filed twice is one plan: every number of a list is PLANNED.
+clerk_plan later-twins '31, 32'
 clerk_commit "an unmerged plan" '2026-01-01T05:00:00Z'
 git -C "$clerk_work" push -qu origin unmerged-plan
 git -C "$clerk_work" checkout -q main
 out="$(clerk_run)"
 expect "a plan on an unmerged branch is PLANNED: an open clerk pull request holds its issues" \
-  "planned   : #12 #14 #21" "$out"
+  "planned   : #12 #14 #21 #31 #32" "$out"
 
 # A tip whose tree cannot be read: the lists say UNREADABLE, never none.
 clerk_broken="${TMP}/clerkbroken"
@@ -519,8 +521,30 @@ effort: high
 issue: #12
 ---
 EOF
+cat >"${lwork}/docs/plans/issue-list.md" <<'EOF'
+---
+plan: issue-list
+urgency: normal
+agent: sonnet
+effort: high
+issue: 12, 13
+---
+EOF
+cat >"${lwork}/docs/plans/issue-hashlist.md" <<'EOF'
+---
+plan: issue-hashlist
+urgency: normal
+agent: sonnet
+effort: high
+issue: #12, #13
+---
+EOF
 out="$(lint_section "$(lint_ci)")"
 expect "a plan's issue: twelve is red, with what it costs" \
   "issue-word.md: issue 'twelve' — not a number; the clerk drops it" "$out"
 refute "a plan's issue: #12 is fine" "issue-ok.md: issue" "$out"
-rm -f "${lwork}/docs/plans/issue-word.md" "${lwork}/docs/plans/issue-ok.md"
+refute "a plan's issue: 12, 13 is fine: one defect filed twice" "issue-list.md: issue" "$out"
+expect "a list's second #13 reads as a comment: the dangling comma is red" \
+  "issue-hashlist.md: issue '#12,' — empty entry" "$out"
+rm -f "${lwork}/docs/plans/issue-word.md" "${lwork}/docs/plans/issue-ok.md" \
+  "${lwork}/docs/plans/issue-list.md" "${lwork}/docs/plans/issue-hashlist.md"
