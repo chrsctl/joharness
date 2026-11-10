@@ -225,6 +225,16 @@ no retry, no second transport. Run no queue command.
 
 ## Defect
 
+0. Your plan's own `issue:` is never a `defect:` park: no fix but your own
+   branch's names it, so the park never clears (chrsctl/gx, 2026-11-10: plan
+   `issue: 1323` parked `defect: #1323` 31h; reported, not re-taken here).
+   Not reproducing your own issue is work: try the plan's own commands, then
+   harder (load, repeats) on fresh `origin/main`, and do the plan's goal. Its
+   Acceptance still cannot be met because nothing reproduces = block
+   `product:` (the requester decides whether the issue closes as not
+   reproduced), the evidence (command, runs, `origin/main` sha) in `next:`
+   or `## Blockers`. Dispatch reads such a `defect:` park `INVALID BLOCK?`
+   (`joharness.sh:own_defect_park`).
 1. It reproduces on fresh-fetched `origin/main` (run the same command on a
    checkout of it). No reproduction = it is your branch's: fix it in your item.
 2. Search this repository's open issues for the same failing command or

@@ -315,7 +315,9 @@ session writes nothing: its slot stays held and the question reaches nobody.
 question in the report, and is never respawned.
 
 One block is not a human's: `defect: #<n>: …`, a manager parked on a defect
-outside its item. `dispatch` prints it `PARKED #<n>`: no slot, not counted
+outside its item. On its own plan's `issue:` it is no park — only that branch's
+plan names #<n>, so nothing below ever clears it — and `dispatch` prints
+`INVALID BLOCK?`, its scope held, counted apart from the human's (`joharness.sh:own_defect_park`). Otherwise `dispatch` prints it `PARKED #<n>`: no slot, not counted
 as waiting, the verdict line unchanged (two on one unplanned issue aside, below). From git alone: a plan naming #<n>
 leaves the base's first parent after the block commit (a rename is no
 retire) and no plan on the base or a live branch names #<n> = `RESUME`, a slot, never DRAINED; no plan,

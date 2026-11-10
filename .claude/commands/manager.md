@@ -111,8 +111,9 @@ Your `$ARGUMENTS` carries the `rescope` block. ref § Surveyor.
   `credentials:` `product:` (direction) `interface:` `core path:`
   (`./joharness.sh protocol-paths`) `conflict:` (does not resolve clean). A
   BLOCKING defect outside your item blocks `defect: #<n>: <one line>`, the
-  one reason that is not a human's (ref § Defect.). None applies = the work
-  is yours, do it. Block form and `human-review` labelling: Loop, Decide
+  one reason that is not a human's (ref § Defect.). Never on your plan's own
+  `issue:`: dispatch reads that `INVALID BLOCK?` (ref § Defect.). None
+  applies = the work is yours, do it. Block form and `human-review` labelling: Loop, Decide
   alone (`next:` = `<reason>: <question>`). Waiting on a human PR =
   `core path: waiting on #<N>: <question>` (`#<N>` first, at most 7
   digits; any text may follow it): respawned once #<N> merges.

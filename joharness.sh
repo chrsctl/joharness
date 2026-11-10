@@ -3114,6 +3114,15 @@ analysis_one() {
     out="${out}condition : none — this claim was RELEASED (status: abandoned). Its"$'\n'
     out="${out}            plan is free; the branch is the human's to delete"$'\n'
   elif [ "$status" = "blocked" ] &&
+       case "${next#[\"\']}" in defect:*) true ;; *) false ;; esac &&
+       own_defect_park "refs/remotes/origin/${branch}" \
+         "docs/plans/$(printf '%s\n' "$doc" | gr_field plan).md" \
+         "$(printf '%s\n' "$doc" | gr_field_raw next)"; then
+    # On the plan's own issue: no fix but this branch's can retire, so no park.
+    cond="INVALID BLOCK?"
+    out="${out}condition : INVALID BLOCK? — defect: names this plan's own issue (manager.md §3): not"$'\n'
+    out="${out}            the human's, never a park; asks it to do the work, orders nothing"$'\n'
+  elif [ "$status" = "blocked" ] &&
        case "${next#[\"\']}" in defect:*) true ;; *) false ;; esac; then
     # A defect's, not a human's: dispatch reads the fix from git and resumes it.
     local dn
@@ -7412,6 +7421,31 @@ defect_issue() {
   n="${n#defect:}"; n="${n#"${n%%[! ]*}"}"; n="${n%%:*}"; n="${n%"${n##*[! ]}"}"
   case "$(issue_verdict "$n")" in "ok "*) printf '%s' "${n#\#}" ;; esac
 }
+# <ref> <plan path> <raw next:>: true when a `defect: #<n>: …` block names the
+# claim's OWN plan's `issue:`. `defect:` is a defect outside the item
+# (manager.md §3); on the item's own issue no fix but the parked branch's own
+# can ever retire, so the park never clears: an invalid block, not a park.
+# The plan read at <ref>, else on the base; a path off docs/plans reads false.
+own_defect_park() {
+  local n iss r e
+  n="$(defect_issue "$3")"
+  [ -n "$n" ] || return 1
+  case "$2" in docs/plans/*.md) ;; *) return 1 ;; esac
+  # Either copy: the base's is the one the branch cannot edit away, the
+  # branch's the one a same-session plan has. Every entry of a list
+  # (issue_list_verdict); digits compared without leading zeros: `issue: 043`
+  # is lint's to red, still issue 43 here.
+  for r in "refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" "$1"; do
+    iss="$(git -C "$ROOT" show "${r}:${2}" </dev/null 2>/dev/null | gr_field issue)"
+    while IFS= read -r e; do
+      e="${e//[[:space:]]/}"; e="${e#\#}"
+      case "$e" in '' | *[!0-9]*) continue ;; esac
+      e="${e#"${e%%[!0]*}"}"
+      [ "$e" != "$n" ] || return 0
+    done < <(printf '%s\n' "$iss" | tr ',' '\n')
+  done
+  return 1
+}
 # A `defect: #<n>: …` block (manager.md §3), read from git alone — never an
 # issue's state. One line, tab-separated:
 #   <state> <n> <retired plan stem or -> <minutes since the block commit or ->
@@ -8966,7 +9000,7 @@ cmd_dispatch() {
   local DISPATCH_WITHHELD=
   local printed_deferred=
   local inflight="" free="" questions="" corefree="" row mergewait=""
-  local n_parked=0 n_fixed=0 n_resume=0 n_recheck=0 parked_lines="" dst dn dplan dage di ri rtext dresume=0
+  local n_parked=0 n_fixed=0 n_resume=0 n_recheck=0 parked_lines="" dst dn dplan dage di ri rtext dresume=0 bkind selfpark n_ownpark=0
   local dpark="" dhold="" dhold_n="" dhn dfix n_dhold=0
   local fx_label fx_wait fx_k fx_r fx_c fx_slot fx_lim
   local bts redge rstem rts n_release=0 release_due="" hseen hst
@@ -9346,7 +9380,19 @@ cmd_dispatch() {
       # The CLAIM, not the branch: one branch can carry two workstream files,
       # and a blocked claim on one must not speak for a live claim on the
       # other.
-      case "${next#[\"\']}" in
+      bkind="${next#[\"\']}"; selfpark=""
+      case "$bkind" in
+        defect:*)
+          # A defect: on the plan's own issue is no park: only this branch's
+          # own plan names it, so RESUME never comes (own_defect_park).
+          selfpark="$(printf '%s\n' "$doc" | gr_field_raw next)"
+          if own_defect_park "refs/remotes/origin/${branch}" "$path" "$selfpark"; then
+            selfpark="$(defect_issue "$selfpark")"; bkind="own-issue"
+          else
+            selfpark=""
+          fi ;;
+      esac
+      case "$bkind" in
         defect:*)
           # A defect's, not the human's: parked until the fix retires.
           n_parked=$((n_parked + 1))
@@ -9418,7 +9464,10 @@ cmd_dispatch() {
             fx_lines+=("$parked_lines"); parked_lines=""
             fx_n+=("$dn"); fx_plan+=("-"); fx_di+=("$di"); fx_kind+=(MERGED)
           else
-            blocked_claims="${blocked_claims} $(lint_stem "$path")@${branch} "
+            # A self-park keeps its scope held, as a PARKED row does: the
+            # orchestrator asks it to do the work, and it comes back.
+            [ -n "$selfpark" ] ||
+              blocked_claims="${blocked_claims} $(lint_stem "$path")@${branch} "
             # On the wait line only while it truly waits: a block of known
             # age, and no merge of #<n> on the base at any time — a merge
             # that came before the block is no answer, but it is no pull
@@ -9449,12 +9498,21 @@ cmd_dispatch() {
               flag="  RELEASE: the queue holds it by needs: ${rstem} since ${rts}, holds no slot"
               rel_needs="${rel_needs}release   : ${branch}  queue holds it by needs: ${rstem}  plan $(lint_stem "$path")  since ${rts}"$'\n'
             else
-              flag="  BLOCKED: the human's, holds no slot"
-              block_reason_ok "$next" ||
-                flag="${flag}  INVALID BLOCK? next: opens with no reason word (manager.md §3): ask, order nothing"
+              if [ -n "$selfpark" ]; then
+                n_ownpark=$((n_ownpark + 1))
+                flag="  INVALID BLOCK? defect: #${selfpark} is this plan's own issue (manager.md §3): not the human's, never a park — ask it to do the plan's goal or name a real reason, order nothing"
+              else
+                flag="  BLOCKED: the human's, holds no slot"
+                block_reason_ok "$next" ||
+                  flag="${flag}  INVALID BLOCK? next: opens with no reason word (manager.md §3): ask, order nothing"
+              fi
             fi
             if [ -n "$bage" ]; then
-              flag="${flag}, parked $(dispatch_age_text "$bage") ago"
+              if [ -n "$selfpark" ]; then
+                flag="${flag}, blocked $(dispatch_age_text "$bage") ago"
+              else
+                flag="${flag}, parked $(dispatch_age_text "$bage") ago"
+              fi
             else
               flag="${flag}, parked for an unknown time: the commit that parked it is not in this clone's history"
             fi
@@ -10011,8 +10069,10 @@ cmd_dispatch() {
     printf '            %s manager(s) rewriting one file past the churn threshold: health pass FIRST\n' "$n_loop"
   [ "$n_ceiling" -eq 0 ] ||
     printf '            %s manager(s) past the ceiling with no pr: in the claim file: report, never kill on this alone\n' "$n_ceiling"
-  [ $((n_blocked - n_parked - n_release)) -eq 0 ] ||
-    printf '            %s manager(s) blocked: report to the human, never respawn\n' "$((n_blocked - n_parked - n_release))"
+  [ $((n_blocked - n_parked - n_release - n_ownpark)) -eq 0 ] ||
+    printf '            %s manager(s) blocked: report to the human, never respawn\n' "$((n_blocked - n_parked - n_release - n_ownpark))"
+  [ "$n_ownpark" -eq 0 ] ||
+    printf '            %s manager(s) parked defect: on their own plan'"'"'s issue: INVALID BLOCK?, ask each to do the work, never respawn\n' "$n_ownpark"
   [ -z "$release_due" ] ||
     printf '            release DUE:%s — ./joharness.sh release <branch>...: a needs: one at once; a stale or done one only once its session reads ARCHIVED or not found; never the human'"'"'s, never respawn\n' "$release_due"
   [ "$n_hold" -eq 0 ] ||
