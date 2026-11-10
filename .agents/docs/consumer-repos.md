@@ -200,6 +200,18 @@ red, never a skip. The sync never writes it. Windows with
 clone (`local-check text eol=lf` in
 `.git/info/attributes`); a pin in the root `.gitattributes` marks that file AHEAD.
 
+A full local green certifies its head and base (a file in the git dir,
+never the tree). Behind again, the manager merges `origin/main` in and runs
+`finish` once more: when HEAD is exactly that certified head merged clean
+with `origin/main` (`git merge-tree`), at most `JOHARNESS_CATCHUP_COMMITS`
+(default 20) base commits since, none touching a file the branch changed or
+`local-check` itself, it prints `CATCH-UP`, re-runs `ci` (and `verify` when
+needed) and carries `local-check`'s verdict; any other shape is the full run,
+naming why. A catch-up never re-certifies: each one measures from a full run.
+Why: a 27-minute check on a base moving 3-20 commits a run never reached 0
+behind (chrsctl/gx #1417). A semantic clash in disjoint files passes this;
+`ci` on the merged tree is the net, and the base's own gate the other.
+
 The head's copy runs so a pull request repairing a check broken on base can
 pass; a branch can therefore weaken it. A branch changing `local-check`
 against the merge base prints `CHECK CHANGED on this branch` with the diff

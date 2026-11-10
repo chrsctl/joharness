@@ -109,7 +109,7 @@ Your `$ARGUMENTS` carries the `rescope` block. ref § Surveyor.
   successor resumes from it.
 - Stuck on a decision only a human takes? Name the reason: `money:`
   `credentials:` `product:` (direction) `interface:` `core path:`
-  (`./joharness.sh protocol-paths`) `conflict:` (does not resolve clean). A
+  (`./joharness.sh protocol-paths`) `conflict:` (does not resolve clean, or a base that outruns `finish`, §4). A
   BLOCKING defect outside your item blocks `defect: #<n>: <one line>`, the
   one reason that is not a human's (ref § Defect.). None applies = the work
   is yours, do it. Block form and `human-review` labelling: Loop, Decide
@@ -136,6 +136,13 @@ Loop step 5 at your tier (`.claude/agents/verifier.md`, findings tagged
 git; send nothing for it.
 
 `human-review` at merge (Loop step 7) = do not merge: ref § Label at merge.
+
+Behind again at merge? Merge `origin/main` in, push, `finish` again: a clean
+merge touching no file you changed re-certifies on `ci` (`CATCH-UP`). Behind
+after three `finish` runs in a row = STARVED: draft the pull request (ref §
+Block on an open pull request), block `conflict: base outran finish <n>
+times: reconcile, then merge by hand`, push, exit. Never end with an open,
+non-draft pull request you did not merge.
 
 Resumed head whose pull request is a draft? Un-draft it after the delete
 commit, before the merge: ref § Block on an open pull request.

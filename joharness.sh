@@ -117,6 +117,7 @@ JOHARNESS_ENV_MD|lazy|conf|lazy = inject a pointer to the layer rules; eager = t
 JOHARNESS_REVIEW|off|conf|off = review reports only; on = ci gates the record at the edge.
 JOHARNESS_CHECKS|github|session|Environment only. github = step 7 waits for GitHub checks; local = finish runs ci, verify and local-check here, red in a consumer with none; a conf line is ignored.
 JOHARNESS_LOCAL_CHECK_MINUTES|30|session|Bound on a declared local-check under JOHARNESS_CHECKS=local; over it = red, never a skip; 0 = one second.
+JOHARNESS_CATCHUP_COMMITS|20|session|Under JOHARNESS_CHECKS=local, base commits a head certified by a full finish may merge in and re-certify on ci alone (CATCH-UP), when the merge is clean and no path changed on both sides; 0 = always the full run.
 JOHARNESS_MAX_MANAGERS|4|dispatch|Managers in flight at once; 0 pauses spawning.
 JOHARNESS_STALL_MINUTES|45|dispatch|No push this long = cross-check, nudge.
 JOHARNESS_EDGE_SLOT_HOURS|4|dispatch|A retired edge branch with no claim file and no push this long holds no slot; its items stay withheld; 0 = it holds one until merge.
@@ -6771,10 +6772,71 @@ checks_local_check() {
   [ "$rc" -eq 0 ]
 }
 
+# Where a full local green is remembered: the git dir, never the tree, so the
+# record cannot change the head it certifies. One per worktree.
+checks_cert_file() {
+  local d
+  d="$(git -C "$ROOT" rev-parse --absolute-git-dir 2>/dev/null)" && [ -n "$d" ] ||
+    return 1
+  printf '%s/joharness-finish-cert' "$d"
+}
+
+# checks_catch_up <ref>: true when HEAD is exactly a head a full local green
+# certified, merged clean with <ref>, and nothing <ref> brought in touches a
+# path that head changed. Then local-check's verdict carries; ci re-runs. Why:
+# a 27-minute local-check on a base moving 3-20 commits a run never reaches 0
+# behind (chrsctl/gx #1417). Prints one line when this head descends from the
+# certified one, saying which way it went; silent otherwise.
+checks_catch_up() {
+  local ref="$1" cf ch cb n max mt tree shared reason="" mb
+  cf="$(checks_cert_file)" && [ -r "$cf" ] || return 1
+  ch="$(sed -n 's/^head=//p' "$cf" | head -n 1)"
+  cb="$(sed -n 's/^base=//p' "$cf" | head -n 1)"
+  [[ "$ch" =~ ^[0-9a-f]{40}$ && "$cb" =~ ^[0-9a-f]{40}$ ]] || return 1
+  [ "$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)" != "$ch" ] || return 1
+  # Another line of work's certificate: not this head's business, no line.
+  git -C "$ROOT" merge-base --is-ancestor "$ch" HEAD 2>/dev/null || return 1
+  max="$(num_knob JOHARNESS_CATCHUP_COMMITS)"
+  if ! git -C "$ROOT" merge-base --is-ancestor "$cb" "$ref" 2>/dev/null; then
+    reason="its base ${cb:0:9} is not an ancestor of ${ref}"
+  elif ! n="$(git -C "$ROOT" rev-list --count "${cb}..${ref}" 2>/dev/null)" ||
+       [ "$n" -eq 0 ]; then
+    reason="${ref} has not moved since, so this head carries commits of its own"
+  elif [ "$n" -gt "$max" ]; then
+    reason="${n} commit(s) of ${ref} since, over JOHARNESS_CATCHUP_COMMITS=${max}"
+  elif ! mt="$(git -C "$ROOT" merge-tree --write-tree "$ch" "$ref" 2>/dev/null)"; then
+    reason="it does not merge clean with ${ref} (or this git has no merge-tree --write-tree)"
+  elif tree="$(git -C "$ROOT" rev-parse 'HEAD^{tree}' 2>/dev/null)" &&
+       [ "${mt%%$'\n'*}" != "$tree" ]; then
+    reason="HEAD's tree is not the clean merge of it and ${ref}: something else changed"
+  elif git -C "$ROOT" diff --no-renames --name-only "$cb" "$ref" -- 2>/dev/null |
+       grep -qxF -- "$CHECKS_LOCAL_FILE"; then
+    reason="${ref} changed ${CHECKS_LOCAL_FILE} itself since"
+  elif ! mb="$(git -C "$ROOT" merge-base "$ch" "$cb" 2>/dev/null)"; then
+    reason="no merge-base between it and its base"
+  else
+    shared="$(comm -12 \
+      <(git -C "$ROOT" diff --no-renames --name-only "$mb" "$ch" -- 2>/dev/null | sort -u) \
+      <(git -C "$ROOT" diff --no-renames --name-only "$cb" "$ref" -- 2>/dev/null | sort -u))"
+    [ -z "$shared" ] || reason="a path changed on both sides: ${shared%%$'\n'*}"
+  fi
+  if [ -n "$reason" ]; then
+    printf '  full run     certified %s found, no catch-up: %s\n' "${ch:0:9}" "$reason"
+    return 1
+  fi
+  printf '  CATCH-UP     HEAD = certified %s + %s commit(s) of %s, merged clean,\n' \
+    "${ch:0:9}" "$n" "$ref"
+  printf '               no path changed on both sides: ci re-runs, %s carries\n' \
+    "$CHECKS_LOCAL_FILE"
+  printf '               from %s (.agents/docs/consumer-repos.md § Local checks)\n' \
+    "${ch:0:9}"
+  return 0
+}
+
 # One line under 'github', the whole gate under 'local'.
 checks_gate() {
   local ref="$1" branch="$2" is_local="$3" ready="$4"
-  local rc=0 extra n=0 f pushed behind base behind_said fresh
+  local rc=0 extra n=0 f pushed behind base behind_said fresh catchup=0 cf
   if [ "$is_local" = 1 ] && [ "$ready" != 1 ]; then
     printf '\nchecks: local (JOHARNESS_CHECKS=local) — NOT run. This merge is red\n'
     printf 'above, and no suite run changes that. Fix it and run this again; the\n'
@@ -6859,6 +6921,8 @@ checks_gate() {
 
   printf '  head       %s, pushed, clean, %s\n' \
     "$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null)" "$behind_said"
+  catchup=0
+  checks_catch_up "$ref" && catchup=1
   printf '\n  == %s ci\n' "$0"
   if "${ROOT}/joharness.sh" ci; then
     if have shellcheck; then
@@ -6887,7 +6951,11 @@ checks_gate() {
       "${CHECKS_VERIFY_PATHS[*]}"
   fi
 
-  checks_local_check "$base" || rc=1
+  if [ "$catchup" = 1 ]; then
+    printf '\n  %s: carried by CATCH-UP above, NOT run on this head\n' "$CHECKS_LOCAL_FILE"
+  else
+    checks_local_check "$base" || rc=1
+  fi
   # A consumer's own suites must gate something before a merge that waits for
   # no GitHub check: gx merged ten regressions with none declared (gx #797).
   if ! is_canonical &&
@@ -6899,6 +6967,13 @@ checks_gate() {
       "$CHECKS_LOCAL_FILE"
     printf '               (.agents/docs/consumer-repos.md § Local checks).\n'
     rc=1
+  fi
+
+  # A full green is what a later catch-up carries from; a catch-up green
+  # never re-certifies, so every catch-up measures from one full run.
+  if [ "$rc" -eq 0 ] && [ "$catchup" = 0 ] && cf="$(checks_cert_file)"; then
+    printf 'head=%s\nbase=%s\n' "$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)" \
+      "$(git -C "$ROOT" rev-parse "$ref" 2>/dev/null)" >"$cf" 2>/dev/null || :
   fi
 
   # What a green above does NOT cover.
@@ -6961,7 +7036,7 @@ finish_adds() {
 }
 
 cmd_finish() {
-  local ref branch is_local=0
+  local ref branch is_local=0 cf
   check_args "$@"
   CHECK_FAILS=0; CHECK_FAILED=""; CHECK_SKIPPED=0
   ref="$(decide_ref)" || die \
@@ -6998,8 +7073,16 @@ cmd_finish() {
     return 1
   elif [ "$is_local" = 1 ] &&
        git -C "$ROOT" cat-file -e "HEAD:${CHECKS_LOCAL_FILE}" 2>/dev/null; then
-    printf 'finish: pass (ci and verify ran here, %s too: JOHARNESS_CHECKS=local)\n' \
-      "$CHECKS_LOCAL_FILE"
+    # A full green certified this very head; any other pass was a CATCH-UP.
+    if cf="$(checks_cert_file)" &&
+       [ "$(sed -n 's/^head=//p' "$cf" 2>/dev/null | head -n 1)" = \
+         "$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)" ]; then
+      printf 'finish: pass (ci and verify ran here, %s too: JOHARNESS_CHECKS=local)\n' \
+        "$CHECKS_LOCAL_FILE"
+    else
+      printf 'finish: pass (ci and verify ran here, %s carried by CATCH-UP: JOHARNESS_CHECKS=local)\n' \
+        "$CHECKS_LOCAL_FILE"
+    fi
   elif [ "$is_local" = 1 ]; then
     printf 'finish: pass (ci and verify ran here: JOHARNESS_CHECKS=local)\n'
   else

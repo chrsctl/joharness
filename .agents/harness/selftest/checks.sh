@@ -609,6 +609,107 @@ else
   pass "a timed-out check is a red finish"
 fi
 
+# --- CATCH-UP: a certified head that only merged the base in ---------------
+# chrsctl/gx #1417: a 27-minute local-check on a base moving 3-20 commits a
+# run never reached 0 behind. A full green certifies (head, base) in the git
+# dir; a head that is exactly that head merged clean with the base, sharing
+# no changed path, re-runs ci and carries local-check. Every other shape is
+# the full run, naming why. The counter proves which ran.
+kccu_ran="${TMP}/kccu-ran"
+: >"$kccu_ran"
+kccu_count() { wc -l <"$kccu_ran" | tr -d ' '; }
+kccu_main() { # <file> <line>: one commit on origin/main, pushed
+  git -C "$kcwork" checkout -q main
+  git -C "$kcwork" merge -q --ff-only origin/main 2>/dev/null
+  printf '%s\n' "$2" >>"${kcwork}/$1"
+  commit_all "$kcwork" "main: $1"
+  git -C "$kcwork" push -q origin main 2>/dev/null
+  git -C "$kcwork" checkout -q kccu
+}
+kccu_sync() { # merge origin/main into kccu, push
+  git -C "$kcwork" fetch -q origin main 2>/dev/null
+  git -C "$kcwork" merge -q --no-edit origin/main >/dev/null 2>&1
+  git -C "$kcwork" push -q origin kccu 2>/dev/null
+}
+git -C "$kcwork" checkout -q main
+seq 1 10 >"${kcwork}/docs-shared.txt"
+commit_all "$kcwork" "main: a file both sides may touch"
+git -C "$kcwork" push -q origin main 2>/dev/null
+git -C "$kcwork" checkout -qb kccu main
+printf 'echo ran >>%q\nexit 0\n' "$kccu_ran" >"${kcwork}/local-check"
+sed -i '1s/.*/one/' "${kcwork}/docs-shared.txt"
+commit_all "$kcwork" "kccu: own work and a counting check"
+git -C "$kcwork" push -qu origin kccu 2>/dev/null
+out="$(JOHARNESS_CHECKS=local kc_finish)"
+expect "catch-up: the first green is the full run" \
+  "finish: pass (ci and verify ran here, local-check too" "$out"
+expect "catch-up: and its local-check ran once" "1" "$(kccu_count)"
+
+# Over the bound is the full run, which certifies the merged head.
+kccu_main docs-a.txt a
+kccu_sync
+out="$(JOHARNESS_CATCHUP_COMMITS=0 JOHARNESS_CHECKS=local kc_finish)"
+expect "catch-up: over JOHARNESS_CATCHUP_COMMITS is the full run, named" \
+  "no catch-up: 1 commit(s) of origin/main since, over JOHARNESS_CATCHUP_COMMITS=0" "$out"
+expect "catch-up: over the bound runs local-check" "2" "$(kccu_count)"
+
+# The case this exists for: disjoint base commits, clean merge.
+kccu_main docs-b.txt b
+kccu_sync
+out="$(JOHARNESS_CHECKS=local kc_finish)"
+expect "catch-up: a clean disjoint merge re-certifies on ci" \
+  "CATCH-UP     HEAD = certified" "$out"
+expect "catch-up: ci still runs" "ci: pass" "$out"
+expect "catch-up: local-check is named carried, not run" \
+  "local-check: carried by CATCH-UP above, NOT run on this head" "$out"
+expect "catch-up: the verdict says carried, never ran" \
+  "finish: pass (ci and verify ran here, local-check carried by CATCH-UP" "$out"
+expect "catch-up: local-check did not run" "2" "$(kccu_count)"
+if JOHARNESS_CHECKS=local kc_rc; then
+  pass "catch-up: the catch-up head is a green finish"
+else
+  fail "catch-up: the catch-up head is a green finish"
+fi
+expect "catch-up: nor did the rc run" "2" "$(kccu_count)"
+
+# A path both sides changed: the merge is clean, the result is not proven.
+kccu_main docs-shared.txt eleven
+kccu_sync
+out="$(JOHARNESS_CHECKS=local kc_finish)"
+expect "catch-up: a shared path is the full run, named" \
+  "a path changed on both sides: docs-shared.txt" "$out"
+expect "catch-up: a shared path runs local-check" "3" "$(kccu_count)"
+
+# More on the head than the clean merge: a commit of its own after it.
+kccu_main docs-c.txt c
+kccu_sync
+printf 'more\n' >"${kcwork}/docs-own.txt"
+commit_all "$kcwork" "kccu: more own work"
+git -C "$kcwork" push -q origin kccu 2>/dev/null
+out="$(JOHARNESS_CHECKS=local kc_finish)"
+expect "catch-up: own work after the merge is the full run, named" \
+  "HEAD's tree is not the clean merge of it and origin/main" "$out"
+expect "catch-up: own work runs local-check" "4" "$(kccu_count)"
+
+# The base changed the check itself (an identical add merges clean).
+git -C "$kcwork" checkout -q main
+git -C "$kcwork" merge -q --ff-only origin/main 2>/dev/null
+git -C "$kcwork" show kccu:local-check >"${kcwork}/local-check"
+commit_all "$kcwork" "main: local-check"
+git -C "$kcwork" push -q origin main 2>/dev/null
+git -C "$kcwork" checkout -q kccu
+kccu_sync
+out="$(JOHARNESS_CHECKS=local kc_finish)"
+expect "catch-up: the base changing local-check is the full run, named" \
+  "origin/main changed local-check itself since" "$out"
+expect "catch-up: and local-check runs" "5" "$(kccu_count)"
+git -C "$kcwork" checkout -q main
+git -C "$kcwork" merge -q --ff-only origin/main 2>/dev/null
+git -C "$kcwork" rm -q local-check docs-shared.txt docs-a.txt docs-b.txt docs-c.txt
+commit_all "$kcwork" "main: drop the catch-up fixture"
+git -C "$kcwork" push -q origin main 2>/dev/null
+rm -f "$(git -C "$kcwork" rev-parse --absolute-git-dir)/joharness-finish-cert" "$kccu_ran"
+
 # --- every run_check names a function check_call dispatches -----------------
 # A function with no arm in check_call dies at run time with the
 # registration message; this reds before that run.
