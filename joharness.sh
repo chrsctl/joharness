@@ -7396,7 +7396,8 @@ plan_names_issue() {
     iss="$(git -C "$ROOT" show "${key}" </dev/null 2>/dev/null | gr_field issue)"
     PNI_MEMO="${PNI_MEMO}"$'\n'"${key}"$'\t'"${iss}"
   fi
-  case "$(issue_list_verdict "$iss") " in "ok "*" ${3} "*) return 0 ;; esac
+  # `ok <n> <n> ` against ` <n> `: the space after `ok` opens the first.
+  case "$(issue_list_verdict "$iss") " in "ok"*" ${3} "*) return 0 ;; esac
   return 1
 }
 # The issue number of a raw `defect: #<n>: …` next:, or nothing. One reader

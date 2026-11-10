@@ -1051,10 +1051,12 @@ refute "and no hold" "red base" "$out"
 # chrsctl/gx, 2026-11-10: #1449 and #1450 were one defect, the fix named
 # #1449 alone, and the park on #1450 never resumed. A plan's `issue:` takes a
 # list; every number on it lifts the hold and resumes its parks.
-dfplan dt-a none; dfplan dt-b none
-dfpush 3 "dt-a, dt-b"
+dfplan dt-a none; dfplan dt-b none; dfplan dt-c none
+dfpush 3 "dt-a, dt-b, dt-c"
 dfpark dt-park-a dt-a 'defect: #62: the base is red' 2
 dfpark dt-park-b dt-b 'defect: #62: the twin issue' 2
+# The list's FIRST number too: `ok 61 62` once matched only the later ones.
+dfpark dt-park-c dt-c 'defect: #61: the first twin' 2
 out="$(dfx)"
 expect "two parks on #62 hold the spawn rows" "red base: #62 (2 parked)" "$out"
 git -C "$dfwork" checkout -qb dt-clerk main
@@ -1074,3 +1076,5 @@ dfpush 0 "retire fix6162"
 out="$(dfx)"
 expect "a retired plan naming 61, 62 resumes a park on #62" \
   "PARKED #62 RESUME — the fix retired (fix6162)" "$out"
+expect "and a park on its first number, #61" \
+  "PARKED #61 RESUME — the fix retired (fix6162)" "$out"
