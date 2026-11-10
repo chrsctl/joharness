@@ -43,7 +43,9 @@ The protocol to build. Its home is `.agents/docs/orchestrated.md` Bounds
    SCOUT GATE).
 3. **An OPEN question** = `human-review` on the item AND a `decision needed:`
    comment on it with the Claude Code footer by an author with write access,
-   and no `answered:` line after it. `human-review` with no open question is a
+   and no LATER comment carrying an `answered:` line (an `answered:` line
+   answers only questions in earlier comments, never one in its own
+   comment). `human-review` with no open question is a
    FREEZE: only a human removes it; no agent posts a question onto it or
    removes it.
 4. **The answer** to an open question, read in this order:
@@ -56,27 +58,34 @@ The protocol to build. Its home is `.agents/docs/orchestrated.md` Bounds
    Known limit, as today: every session posts as the maintainer's login, so
    the footer is what separates an agent's comment from the human's.
 5. **Release.** The agent that acts on the answer removes `human-review`
-   from every item labelled for that question (a manager's pull request and
+   from every item that carries that question (a manager's pull request and
    its plan's `issue:`) and records `answered: option <N>` or `answered:
-   maintainer comment` in its next comment on the item (the clerk: a line
-   of its verdict comment; a manager: one comment).
+   maintainer comment` in its next comment on each (the clerk: the first
+   line after `clerk: <VERDICT>` of its verdict comment, before any new
+   `decision needed:`; a manager: one comment).
 6. **Who acts:**
    - an issue with an open question, whoever asked it (a clerk HUMAN or
      NARROWER verdict, a manager's `defect:` issue that needs a human,
      manager-reference § Defect step 3): the clerk. It is no longer skipped
      when an answer per 4 exists; the clerk decides it on that answer.
-   - a manager block (not `defect:`), including § Label at merge when the
-     manager itself applied the label: the manager posts the question on its
-     open pull request, else on its plan's `issue:`, else nowhere (an
-     orchestrator turn only, as today). The orchestrator's § Relay also
-     relays an answer per 4 found on that question into `next:`. Closing
-     answers no manager question.
+   - a manager block (not `defect:`): the manager posts the same question on
+     EVERY item it labels for that block (its open pull request and its
+     plan's `issue:`, each that exists), so neither reads as a freeze; an
+     answer on either counts. Neither exists = an orchestrator turn only,
+     as today. The orchestrator's § Relay also relays an answer per 4 found
+     on that question into `next:`. Closing answers no manager question.
+   - § Label at merge: an open question on the pull request (Goal 3) = the
+     manager's own, resumed on an answer; none = a freeze (who applied a
+     label cannot be read; the question's presence is the test).
    - a pull request held at merge by a FREEZE: unchanged (a human removes
      the label).
    - a scout proposal: unchanged gate (`approved` + no `scout: revision`
      open), except that the scout itself removes `approved` when it posts
      `scout: revision` (step 1 of scout.md §4), so the reviewer applies it
-     again after `scout: revised` and never removes it first.
+     again after `scout: revised` and never removes it first. A scout
+     proposal with an open CLERK question that has an answer (Goal 3, 4)
+     passes the scout gate's item 1 too: the answer is the approval, since
+     Goal 2 removed `approved` before that question.
    - `human/<stem>` pull request: unchanged, a human merges it.
    - closing an issue still declines it (scout issue or any other).
 
@@ -90,18 +99,21 @@ The protocol to build. Its home is `.agents/docs/orchestrated.md` Bounds
 - `.claude/commands/clerk.md` — §2 skip list: `human-review` skips an issue
   unless it has an open question with an answer (Goal 3, 4); A NUMBERED
   ANSWER folded into Goal 4's read; THE SCOUT GATE: the "reviewer removes
-  and re-applies" paragraph replaced by Goal 6's scout line; §3 HUMAN and
+  and re-applies" paragraph replaced by Goal 6's scout line, item 1 also
+  passed by an answered clerk question (Goal 6); §3 HUMAN and
   NARROWER comment shape per Goal 2 (closing lines "reply by hand…" and
   "remove `human-review`…" replaced), an answered issue's verdict carries
   the `answered:` line; Never: may remove `human-review` per Goal 5 and
   `approved` per Goal 2; never apply `approved`.
 - `.claude/commands/scout.md` — §4 step 1: the scout removes `approved` from
   its proposal before posting `scout: revision`, and the comment says
-  "apply `approved` again after `scout: revised`"; Never: may remove
-  `approved` on its own proposal (§4), never apply it.
+  "apply `approved` again after `scout: revised`"; Never line "Apply,
+  remove, or ask anyone to skip `approved`" becomes: never apply `approved`
+  or ask anyone to skip it; remove it only per §4 step 1.
 - `.claude/commands/manager.md` — §3: a block (not `defect:`) posts Goal 2's
-  question where Goal 6 says; Never line "Remove `human-review` from any
-  issue or pull request" gains the Goal 5 exception.
+  question on every item it labels (Goal 6), removing `approved` from each
+  first (Goal 2); Never line "Remove `human-review` from any issue or pull
+  request" gains the Goal 5 exception; new Never: apply `approved`.
 - `.agents/docs/manager-reference.md` — § Label at merge: the manager's own
   label = its question posted, resumed on an answer; a freeze = as today;
   § Defect step 3 and the "Yes, nothing found" branch: a `defect:` issue
@@ -111,7 +123,8 @@ The protocol to build. Its home is `.agents/docs/orchestrated.md` Bounds
   human: read for such an answer before notifying; "A new issue needs the
   clerk": a SECOND firing rule, independent of `last read` and `created_at`:
   an open issue with an open question (Goal 3) and an answer (Goal 4)
-  fires; the first rule's "not labelled `human-review`" stays.
+  fires (scout issues included: Goal 6 lets the clerk take an answered
+  one); the first rule's "not labelled `human-review`" stays.
 - `.agents/docs/feedback.md` — § 8: the `human-review` sentence names Goal
   2's question.
 - `.agents/harness/AGENTS.md` — Decide alone, the `human-review` bullet: one
@@ -119,8 +132,10 @@ The protocol to build. Its home is `.agents/docs/orchestrated.md` Bounds
   A human's answer" (caveman: rule only).
 - `.agents/harness/selftest/orchestrated.sh` — the clerk pins after the
   comment "A clerk HUMAN question takes a number" (needles "reply by hand
-  with the number", "selects option", "whose whole text is a", "so the next
-  pass reads it", the `clerk: HUMAN` or `clerk: NARROWER` needle): replace
+  with the number", "selects option", "whose whole text is a", the
+  "number `N` (whitespace and trailing punctuation ignored), newer than the"
+  needle, "so the next pass reads it", the `clerk: HUMAN` or `clerk:
+  NARROWER` needle): replace
   each with a pin on the new text it was rewritten to (Goal 2, 4, 5); add
   pins for "decision needed:" in clerk.md and manager.md and for "A human's
   answer" in orchestrated.md. Each new pin must fail on today's text
@@ -162,16 +177,21 @@ The protocol to build. Its home is `.agents/docs/orchestrated.md` Bounds
 
 ## Acceptance
 
-- `./joharness.sh ci` — `ci: pass`; and `./joharness.sh ci -v 2>&1 | grep human-answers-on-github` — no `warn` line.
+- `./joharness.sh ci` — `ci: pass`.
 - `./joharness.sh verify` — 0 failed.
-- `git show origin/main:.agents/harness/selftest/orchestrated.sh > /tmp/old.sh; diff <(grep -c expect /tmp/old.sh) <(grep -c expect .agents/harness/selftest/orchestrated.sh)` — new count is at least the old count (no pin dropped without a replacement).
+- `o=$(git show origin/main:.agents/harness/selftest/orchestrated.sh | grep -c '^expect '); n=$(grep -c '^expect ' .agents/harness/selftest/orchestrated.sh); [ "$n" -gt "$o" ] && echo more` — `more` (pins replaced one for one, plus the new ones).
+- `grep -c '"decision needed:"' .agents/harness/selftest/orchestrated.sh` — at least 1 (today 0).
+- `tr '\n' ' ' < .claude/commands/scout.md | tr -s ' ' | grep -c "Apply, remove, or ask anyone to skip"` — `0` (today `1`).
+- `grep -c "second firing rule\|fires too when\|open question" .agents/docs/orchestrator-reference.md` — at least 1 (today 0).
+- `grep -c "open question" .claude/commands/clerk.md` — at least 1 (today 0).
 - `for f in .claude/commands/clerk.md .claude/commands/scout.md; do tr '\n' ' ' < "$f" | tr -s ' ' | grep -c "removes and re-applies\|reply by hand with the number\|re-apply \`approved\` after \`scout: revised\`"; done` — `0` twice (today `1` twice).
 - `tr '\n' ' ' < .agents/docs/orchestrated.md | tr -s ' ' | grep -c "Only a human removes it; no session does, ever"` — `0` (today `1`).
 - `grep -c "decision needed:" .claude/commands/clerk.md .claude/commands/manager.md .agents/docs/manager-reference.md .agents/docs/orchestrated.md .agents/docs/orchestrator-reference.md README.md` — every count at least 1.
 - `grep -c "A human's answer" .agents/docs/orchestrated.md .agents/harness/AGENTS.md` — each at least 1.
 - `tr '\n' ' ' < .claude/commands/manager.md | tr -s ' ' | grep -c "Remove \`human-review\` from any issue or pull request\."` — `0` (the Never line now carries the exception).
-- Walk-through in the pull request body, each case naming the doc line that
-  decides it: (a) clerk HUMAN issue, maintainer applies `approved` → next
+- Not a command (behaviour no grep can show): a walk-through in the pull
+  request body, each case naming the doc line that decides it, checked by
+  the verifier: (a) clerk HUMAN issue, maintainer applies `approved` → next
   clerk pass plans the recommended option and removes `human-review`; (b)
   same, maintainer comments "2" → option 2; (c) issue a human labelled
   `human-review`, no question → skipped every pass; (d) a stale `approved`
@@ -180,7 +200,10 @@ The protocol to build. Its home is `.agents/docs/orchestrated.md` Bounds
   blocked `product:` with an open PR, maintainer comments → orchestrator
   relays it, manager resumes and removes the label from PR and issue; (g)
   scout proposal revised after approval → scout removed `approved`, skipped
-  until applied again.
+  until applied again; (h) approved scout proposal gets a clerk HUMAN
+  question, maintainer comments "2" → next pass takes it on option 2; (i) a
+  clerk verdict carrying both `answered:` and a new `decision needed:` →
+  the new question reads open.
 - SHIPS: the role docs reach every consumer; a consumer's `./joharness.sh ci`
   after sync runs the same selftest pins.
 
@@ -203,7 +226,7 @@ The protocol to build. Its home is `.agents/docs/orchestrated.md` Bounds
   by what a comment says: a comment reading "approved" from a session counts
   for nothing.
 - No agent applies `approved`, ever, including right after removing it.
-- An agent removes `human-review` only from items labelled for its own open
+- An agent removes `human-review` only from items carrying its own open
   question that has an answer. A freeze survives every pass.
 - A question goes on in the same action as the label; never onto a label
   already there (that would turn a freeze into a question).
