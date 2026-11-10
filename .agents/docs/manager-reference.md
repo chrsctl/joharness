@@ -171,6 +171,29 @@ went, `#<n>` or `PR body`. `ci`
 stage `finding routes` reds one that cites neither (`joharness.sh:lint_finding_routes`);
 a verdict naming `canonical's file` routes through `upstream` instead.
 
+**The gate checks the citation, not the route; the route is yours.** It
+reads `## Review` bullets only (`fb_findings`), and `fr_routed` passes any
+verdict naming `#<n>` or `PR body`. It cannot tell a defect from an
+observation, nor a first defect from a second, so a FIRST reproduced
+defect cited `PR body` passes green. Two rules follow, both the manager's
+to keep:
+
+- A defect that reproduces on `origin/main` cites `#<n>` (filed or
+  matched, § Defect steps 2–3). `PR body` is legal for it only as the
+  unmatched second or later one (§ Defect step 4).
+- A defect noticed anywhere else — `## Decisions`, `## Rejected`, a
+  worker's return, the pull request body — gets its own `## Review` line
+  too. Outside `## Review` the gate never sees it.
+
+Why: the clerk plans from issues, never pull request bodies. A defect that
+leaves only through the body drops out of the queue unless a human files
+it. Seen on a consumer edge: a reproducible 422 on every unitless invoice
+line, recorded as a `## Decisions` bullet and a PR body line, reached the
+queue only because a human filed the issue after the merge
+(`docs/research/first-defect-pr-body-route.md`, recover with
+`git log --diff-filter=D -- <that path>`). The lint closing both gaps is
+plan `finding-routes-defect-grammar`.
+
 After the merge, send it as one message on the transport your prompt
 names, in the orchestrator's grammar — `lead <stem>: <text>`, text at most
 40 characters:
