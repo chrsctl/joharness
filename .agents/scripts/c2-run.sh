@@ -41,12 +41,29 @@ work="$(mktemp -d)"
 # interrupted `worktree add` left locked; a remove that still fails (a
 # contended lock, a dying git) leaves the run's own admin entry, which goes by
 # hand: git lists a worktree while `<gitdir>/worktrees/<id>/gitdir` names it.
+# Runs share one repo, and `worktree add`/`remove` read every worktree's
+# admin entry: one another run is still writing dies with `failed to read
+# .git/worktrees/<id>/commondir`. A lost race is retried, never a verdict.
+c2_wt_add() {
+  local i
+  for i in 1 2 3 4 5; do
+    git worktree add -q --detach "$1" "$2" 2>/dev/null && return 0
+    git worktree remove --force --force "$1" >/dev/null 2>&1
+    rm -rf "$1"
+    sleep "$i"
+  done
+  git worktree add -q --detach "$1" "$2"
+}
 c2_cleanup() {
-  local t gd adm rw
+  local t gd adm rw i
   # git records the resolved path: a TMPDIR behind a symlink reads otherwise.
   rw="$(cd "$work" 2>/dev/null && pwd -P)"
   for t in fix nofix pre; do
-    [ ! -d "${work}/${t}" ] || git -C "$repo" worktree remove --force --force "${work}/${t}" 2>/dev/null
+    for i in 1 2 3; do
+      [ -d "${work}/${t}" ] || break
+      git -C "$repo" worktree remove --force --force "${work}/${t}" 2>/dev/null && break
+      sleep "$i"
+    done
   done
   gd="$(git -C "$repo" rev-parse --git-common-dir 2>/dev/null)"
   case "$gd" in '' | /*) ;; *) gd="${repo}/${gd}" ;; esac
@@ -114,9 +131,9 @@ done
 P="$(git merge-base "${mm}^1" "$fix")"
 printf 'code from: %s\n' "$(git rev-parse --short "$P")"
 
-git worktree add -q --detach "${work}/fix" "$fix" || exit 2
-git worktree add -q --detach "${work}/nofix" "$P" || exit 2
-git worktree add -q --detach "${work}/pre" "${adds[0]}^" || exit 2
+c2_wt_add "${work}/fix" "$fix" || exit 2
+c2_wt_add "${work}/nofix" "$P" || exit 2
+c2_wt_add "${work}/pre" "${adds[0]}^" || exit 2
 
 # Own commits of EARLIER pairs that P already holds: reverse-applied on top,
 # newest first, non-test paths only.

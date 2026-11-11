@@ -25,6 +25,10 @@ retires), as the requester asked ("fix all four"):
 4. `c2-run: no worktree outlives a run` failed once (2 worktrees): the
    runner's cleanup drops every `worktree remove` error, never re-checks,
    and one `--force` refuses a worktree still locked by an interrupted add.
+   Root cause, found building it: runs share one repo, and `worktree add` /
+   `remove` die on another run's half-written admin entry (`failed to read
+   .git/worktrees/pre1/commondir`): a failed remove leaks a worktree, a
+   failed add loses a verdict (`helperchar`, seen 2026-11-11).
 
 ## Scope
 
@@ -34,11 +38,13 @@ retires), as the requester asked ("fix all four"):
 - `.agents/harness/selftest/dispatch-park.sh` — pins for 1, 2, 3.
 - `.agents/docs/orchestrated.md` — The one stop: the second-plan sentence
   now says a retired fix lifts the hold; the held-fix line.
-- `.agents/scripts/c2-run.sh` — cleanup: `--force --force`, then drop the
+- `.agents/scripts/c2-run.sh` — `worktree add` retried on a lost race;
+  cleanup: remove retried with `--force --force`, then drop the
   run's own admin entry under `.git/worktrees/` if git still lists it; never
   `worktree prune` (other runs share the repo).
 - `.agents/harness/selftest/c2-run.sh` — one run whose git shim fails every
-  `worktree remove`: still no worktree left.
+  `worktree remove`: still no worktree left; one whose first `worktree add`
+  fails: the verdict stands.
 
 ## Assumptions
 
