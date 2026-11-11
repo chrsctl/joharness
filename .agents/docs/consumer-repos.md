@@ -230,10 +230,9 @@ merged (WEAK: one gx session's reading of manager transcripts, no second
 context has taken it). Renumbering ids after a merge takes a branch out of
 CATCH-UP by the no-shared-file condition, a second cause the bound does not
 touch. The knob stays in commits until a count of merged pull requests has
-evidence of its own. Plan `catch-up-print-merge-count` makes the CATCH-UP lines
-print the first-parent merge count beside the commit count, so a consumer can
-tune `JOHARNESS_CATCHUP_COMMITS` from its own history; until it lands they
-print commits only. Count yourself: `git rev-list --count --first-parent
+evidence of its own. The CATCH-UP lines print the first-parent merge count
+beside the commit count, so a consumer can tune `JOHARNESS_CATCHUP_COMMITS`
+from its own history. Count yourself: `git rev-list --count --first-parent
 --merges <base>..origin/main`.
 
 The head's copy runs so a pull request repairing a check broken on base can
