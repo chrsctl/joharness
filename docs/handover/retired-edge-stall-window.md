@@ -24,12 +24,13 @@ that does not ask for a handover.
 - A3: confirmed — `JOHARNESS_LOCAL_CHECK_MINUTES|30|session|…` is a KNOBS row; `num_knob` reads it in dispatch.
 - A4: confirmed — `selftest/dispatch.sh` comment above the aged case; table order kept, only the clock moves.
 - The aged-edge branch's mark uses the retired-row clock too (plan-checker r8): a short `JOHARNESS_EDGE_SLOT_HOURS` would otherwise mark a manager still in `finish`.
-- The retired KILL lives as its own health-table row in `orchestrator.md`, not in the ref's § KILL and LOOP (outside this plan's scope, and scoped by another plan).
+- The retired nudge and kill live in a new ref § Retired stall, pointed at from the NUDGE row and § KILL and LOOP: after merging `origin/main` the command file had 12 bytes of reading budget left, no room for two rows. `heartbeat-read-cheaper` merged, so the ref is free; the plan's scope names it.
+- The Harness bullet's "so a resync inside one session never shows there" is cut to make room: it is the why, the rule stays.
 - `selftest.sh` unsets `JOHARNESS_LOCAL_CHECK_MINUTES`: this session's environment sets it to 60, which would move the 75.
 
 ## Rejected
 
-- Editing the ref's § KILL and LOOP for the retired kill: out of scope and shared with `heartbeat-read-cheaper`.
+- Two retired rows in the command's health table: over the reading budget once `origin/main` was merged in (24083 against 23628).
 
 ## Review
 
@@ -53,7 +54,7 @@ that does not ask for a handover.
 - r18: (verifier) the aged-edge clock change has no test that fails without it (fixed: "and its mark keeps the retired-row clock: no STALL? at 60m", under JOHARNESS_EDGE_SLOT_HOURS=1)
 - r19: (verifier) the new `stall :` header text is pinned by no test (fixed: "the stall header names the retired-row window beside the plain one")
 - r20: (verifier) the branch rewrote its plan's aged-edge clause against the base text (no change: decided in ## Decisions, from plan-checker r8, now tested by r18)
-- r21: (verifier) orchestrator-reference.md no-transport row still calls JOHARNESS_STALL_MINUTES the kill threshold, untrue for retired rows (wontfix: the ref is outside this plan and scoped by heartbeat-read-cheaper; PR body)
+- r21: (verifier) orchestrator-reference.md no-transport row still calls JOHARNESS_STALL_MINUTES the kill threshold, untrue for retired rows (fixed: after the merge the ref is in scope; the row names the retired window)
 - r22: (verifier) the retired KILL row archives without checking whether the head moved after the interrupt (fixed: head moved = answered)
 
 ## Blockers

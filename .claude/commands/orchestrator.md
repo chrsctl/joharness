@@ -72,8 +72,8 @@ nothing.
 
 - **Harness.** `harness=` vs the first 12 characters of `git show
   origin/main:.claude/commands/orchestrator.md | git hash-object --stdin`.
-  Fresh-fetched `origin/main`, not the checkout: the checkout fast-forwards
-  only at "## 0. Start", so a resync inside one session never shows there.
+  Fresh-fetched `origin/main`, not the checkout: it fast-forwards only at
+  "## 0. Start".
   They differ = re-read `git show origin/main:.claude/commands/orchestrator.md`
   whole before acting, fast-forward the checkout as "## 0. Start" step 1
   does, drop ledger keys the new text no longer defines, report `harness
@@ -155,15 +155,13 @@ Act on the FIRST row that matches:
 | any | any | its row line carries `RELEASE:` | the queue absorbed the block: RELEASE → ref § Release. Never notify, never respawn |
 | any | any | status `blocked`, no `INVALID BLOCK?` | human's. Never respawn. Notify once: `PushNotification` carrying stem, branch, session link, `next:` verbatim; no ledger `notified=<stem>` yet = send and ledger it, else report only. A human's answer or delegation typed in YOUR turn, or an answer on GitHub to its `decision needed:` question → ref § Relay; else notify and stop |
 | RUNNING | under stall | any | working |
-| RUNNING | `STALL?`, `retired, no claim file` | no nudge | NUDGE: "Orchestrator health pass: no push on <branch> for <N>m since retire. Reply with where finish stands. Do NOT run /handover or commit unless finish asks for a reconcile." Rest as NUDGE below |
-| RUNNING | `STALL?`, `retired, no claim file` | nudged, head and `status_detail` unchanged | KILL sans `## Blockers`: interrupt, wait a pass; head moved = answered, else archive: `gone` |
-| RUNNING | `STALL?` | no nudge | NUDGE: "Orchestrator health pass: no push on <branch> for <N>m. Now: /handover, commit, push. Then continue, or set status blocked and stop." Ledger head, `status_detail`. No transport: send nothing, still ledger |
+| RUNNING | `STALL?` | no nudge | NUDGE (retired: ref § Retired stall): "Orchestrator health pass: no push on <branch> for <N>m. Now: /handover, commit, push. Then continue, or set status blocked and stop." Ledger head, `status_detail`. No transport: send nothing, still ledger |
 | RUNNING | `STALL?` | nudged, head and `status_detail` unchanged | KILL, below |
 | not RUNNING | any | status `blocked`, row carries `INVALID BLOCK?` | not the human's: its `next:` names no reason from the list, or parks `defect:` on its plan's own issue (its scope stays held). Treat as a stall: where a transport delivers, message it to name a reason or do the work; always report it as an invalid block. Never respawn on it alone |
 | not RUNNING, bucket FAILED | any | no `seen=` | CRASHED: no nudge; ledger `seen=<updated_at>` and head |
 | same | any | `seen=`, `updated_at` and head unchanged | dead: `archive_session`, RESPAWN |
 | ARCHIVED / COMPLETED / not found | any | claimed, branch unmerged | gone: RESPAWN on the branch |
-| IDLE/PENDING | any | branch unmerged, no nudge | NUDGE as above (retired: its own); spawn nothing for it |
+| IDLE/PENDING | any | branch unmerged, no nudge | NUDGE as above; spawn nothing for it |
 | IDLE/PENDING | any | nudged, head and `status_detail` unchanged | gone: RESPAWN on the branch |
 | RUNNING | any | `retired, no claim file` | merging; nothing |
 | gone | any | edge row naming an item | RESPAWN to FINISH the merge, never restart the plan |

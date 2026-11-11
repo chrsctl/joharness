@@ -7,7 +7,7 @@ needs: none
 requirement: none
 serves: all
 issue: none
-scope: shared:joharness.sh, shared:.claude/commands/orchestrator.md, shared:.agents/docs/orchestrated.md, shared:.agents/harness/selftest/dispatch.sh, shared:.agents/harness/selftest.sh
+scope: shared:joharness.sh, shared:.claude/commands/orchestrator.md, shared:.agents/docs/orchestrated.md, shared:.agents/harness/selftest/dispatch.sh, shared:.agents/harness/selftest.sh, shared:.agents/docs/orchestrator-reference.md
 ---
 
 ## Goal
@@ -43,10 +43,13 @@ and a nudge that does not ask for a handover.
   stands. Do NOT run /handover or commit unless finish asks for a reconcile."
   KILL on a retired row skips the `## Blockers` write (no workstream file):
   interrupt, wait one pass, archive, RESPAWN to finish the merge (the
-  existing `gone` edge row). Both are their own rows in the health table,
-  right above the plain `RUNNING | STALL?` pair; the ref's § KILL and LOOP
-  stays as it is. The `IDLE/PENDING … NUDGE as above` row names the retired
-  message for a retired row.
+  existing `gone` edge row). The command's reading budget has no room for
+  two rows: the NUDGE row points a retired row at a new ref § Retired
+  stall, which carries the message and the kill (§ KILL and LOOP points
+  there too; IDLE/PENDING's "NUDGE as above" reaches it through the NUDGE
+  row).
+- `.agents/docs/orchestrator-reference.md` — § Retired stall; the
+  no-transport row's kill threshold names the retired window.
 - `.agents/docs/orchestrated.md` — the knob table row for
   `JOHARNESS_STALL_MINUTES`: one clause naming the retired-row window.
 - `.agents/harness/selftest/dispatch.sh` — new cases: a retired edge row
@@ -95,8 +98,9 @@ and a nudge that does not ask for a handover.
 - Consumer side, after its next sync: `./joharness.sh dispatch` prints a
   `stall     :` line carrying `a retired row with no claim file: 75 min` at
   the default knobs (red: the line lacks it).
-- `grep -n "since retire" .claude/commands/orchestrator.md` — one line, the
-  retired-row nudge (red: none, as on `origin/main`).
+- `grep -n "since retire" .agents/docs/orchestrator-reference.md` — one
+  line, the retired-row nudge (red: none, as on `origin/main`);
+  `grep -c "ref § Retired stall" .claude/commands/orchestrator.md` — 1.
 
 ## Where to look
 

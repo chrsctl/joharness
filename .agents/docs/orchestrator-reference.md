@@ -8,7 +8,7 @@ lines say when to read each; its terms hold here.
 | absent | what changes |
 | --- | --- |
 | `PushNotification` (or the environment's equivalent) | a valid block, a `corewait` pull request, a FAILED SPAWN AT LIMIT, `slot held with no exit` and `spawn has no checkout` are reported in the pass report only, no push to the human: say so once. |
-| any transport that delivers | no nudge: still two passes, the first sends nothing; the KILL's interrupt does the asking. `JOHARNESS_STALL_MINUTES` becomes a kill threshold — say so. |
+| any transport that delivers | no nudge: still two passes, the first sends nothing; the KILL's interrupt does the asking. the row's `STALL?` window becomes a kill threshold (a retired row's adds `JOHARNESS_LOCAL_CHECK_MINUTES`) — say so. |
 | `interrupt_session` | cannot stop, so must not replace: write the handover from the branch, `status: blocked`, `next:` = "stalled: Stalled; the orchestrator could not stop the session that holds this.", report, no respawn. A session already gone (ARCHIVED, COMPLETED, not found, FAILED twice) is respawned anyway. An UNCLAIMED session a row would interrupt (BLOCKED BEFORE CLAIM, RUNNING nudged): FAILED SPAWN AT LIMIT at once, spawn nothing (§ Unclaimed spawn rows). |
 | `archive_session` | the stopped session is left in place; report, respawn as written. An UNCLAIMED session a row would archive, not ARCHIVED, COMPLETED or not found: FAILED SPAWN AT LIMIT at once, spawn nothing (§ Unclaimed spawn rows). |
 | `status_bucket` | crash and BLOCKED BEFORE CLAIM rows unreachable: take the IDLE path (nudge, confirm, respawn; the unratified-block row still applies); never respawn on one observation; name the managers judged this way. |
@@ -323,6 +323,8 @@ run; report it every pass. A human's word in YOUR turn naming the stem
 
 ## KILL and LOOP
 
+A `retired, no claim file` row: ref § Retired stall instead.
+
 KILL — the handover comes BEFORE the kill: `interrupt_session`, wait one
 pass. Then `git fetch origin <branch>`: head or `updated:` moved = handover
 landed. Else check out the branch and under `## Blockers` write "Killed by
@@ -342,6 +344,23 @@ it, THEN fix once." Raise `agent:` one tier (opus/fable stay, prompt adds
 `record`, push. The
 RESPAWN prompt adds "The last session looped. Read Blockers first; do the
 research step before any edit." Counts against the respawn limit.
+
+## Retired stall
+
+A `retired, no claim file` row past its `STALL?` window (dispatch's: stall
+plus local-check minutes) is a manager inside step 7's `finish`, which
+pushes nothing. Its workstream file is retired, so no handover is asked for
+and none is written.
+
+- NUDGE: "Orchestrator health pass: no push on <branch> for <N>m
+  since retire. Reply with where finish stands. Do NOT run /handover or
+  commit unless finish asks for a reconcile." Ledger head, `status_detail`. No
+  transport: send nothing, still ledger. IDLE/PENDING takes this message too.
+- KILL (nudged, head and `status_detail` unchanged): `interrupt_session`,
+  wait one pass, `git fetch origin <branch>`: head moved = it answered, drop
+  the nudge. Else no `## Blockers` write, no GUARD: `archive_session`; it is
+  `gone`, and the health table's `gone` edge row RESPAWNs to FINISH the
+  merge (a row naming `?`: report, never respawn).
 
 ## Release
 
