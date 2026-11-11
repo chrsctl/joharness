@@ -684,12 +684,13 @@ else
 fi
 expect "catch-up: nor did the rc run" "2" "$(kccu_count)"
 
-# A path both sides changed: the merge is clean, the result is not proven.
+# A path both sides changed: the merge is clean, the result is not proven,
+# so local-check re-runs on it (RETEST, "The finish loop").
 kccu_main docs-shared.txt eleven
 kccu_sync
 out="$(JOHARNESS_CHECKS=local kc_finish)"
-expect "catch-up: a shared path is the full run, named" \
-  "a path changed on both sides: docs-shared.txt" "$out"
+expect "catch-up: a shared path is a RETEST, named" \
+  "path(s) to retest, first docs-shared.txt" "$out"
 expect "catch-up: a shared path runs local-check" "3" "$(kccu_count)"
 
 # More on the head than the clean merge: a commit of its own after it.
@@ -700,7 +701,7 @@ commit_all "$kcwork" "kccu: more own work"
 git -C "$kcwork" push -q origin kccu 2>/dev/null
 out="$(JOHARNESS_CHECKS=local kc_finish)"
 expect "catch-up: own work after the merge is the full run, named" \
-  "HEAD's tree is not the clean merge of it and origin/main" "$out"
+  "HEAD changed docs-own.txt, which neither side nor the merge did" "$out"
 expect "catch-up: own work runs local-check" "4" "$(kccu_count)"
 
 # The base changed the check itself (an identical add merges clean).
@@ -750,8 +751,8 @@ kccu_sync
 out="$(JOHARNESS_CHECKS=local kc_finish)"
 refute "catch-up: a base that moved mid-run is not certified as tested" \
   "CATCH-UP     HEAD = certified" "$out"
-expect "catch-up: the race commit's shared file forces the full run" \
-  "a path changed on both sides: kccr.txt" "$out"
+expect "catch-up: the race commit's shared file forces a retest of it" \
+  "path(s) to retest, first kccr.txt" "$out"
 expect "catch-up: and local-check runs on the merged head" "2" "$(kccu_count)"
 git -C "$kcwork" checkout -q main
 git -C "$kcwork" merge -q --ff-only origin/main 2>/dev/null
@@ -995,6 +996,205 @@ commit_all "$kcwork" "main: drop the scoped fixture"
 git -C "$kcwork" push -q origin main 2>/dev/null
 rm -f "$ks_cert" "${ks_gitdir}/joharness-finish-green" \
   "${ks_gitdir}/joharness-local-check-scoped" "$ks_flag"
+
+# --- RETEST: the finish loop retests what a merge of the base could change --
+# chrsctl/gx: a path changed on both sides, or a hand-resolved conflict (a
+# criterion renumber), sent every lap back to the ~33-minute full run. A
+# head descending from the certified one, inside the CATCH-UP refusals, now
+# hands local-check the retest set R = (branch ∩ base) ∪ conflicted ∪
+# resolved, measured from the certified head every time. The fixture's
+# check records what it was handed; a flag file makes it scope.
+kr_gitdir="$(git -C "$kcwork" rev-parse --absolute-git-dir)"
+kr_cert="${kr_gitdir}/joharness-finish-cert"
+kr_file="${kr_gitdir}/joharness-retest-paths"
+kr_rec="${TMP}/kr-rec"
+kr_flag="${TMP}/kr-flag"
+kr_main() { # <file> <line no> <text>: edit one line on origin/main, pushed; back on <branch $4>
+  git -C "$kcwork" checkout -q main
+  git -C "$kcwork" merge -q --ff-only origin/main 2>/dev/null
+  if [ -e "${kcwork}/$1" ]; then
+    sed -i "$2s/.*/$3/" "${kcwork}/$1"
+  else
+    printf '%s\n' "$3" >"${kcwork}/$1"
+  fi
+  commit_all "$kcwork" "main: $1"
+  git -C "$kcwork" push -q origin main 2>/dev/null
+  git -C "$kcwork" checkout -q "$4"
+}
+kr_sync() { # merge origin/main in, push; non-zero on a conflict left open
+  git -C "$kcwork" fetch -q origin main 2>/dev/null
+  git -C "$kcwork" merge -q --no-edit origin/main >/dev/null 2>&1 || return 1
+  git -C "$kcwork" push -q origin HEAD 2>/dev/null
+}
+kr_run() { # finish, with the record of the check's last run cleared first
+  rm -f "$kr_rec" "${kr_rec}.paths"
+  JOHARNESS_CHECKS=local kc_finish
+}
+kr_paths() { { tr '\n' ' ' <"${kr_rec}.paths"; } 2>/dev/null; }
+kr_certhead() { sed -n 's/^head=//p' "$kr_cert" 2>/dev/null; }
+rm -f "$kr_cert" "${kr_gitdir}/joharness-finish-green" "$kr_file"
+printf '0\n' >"$kr_flag"
+git -C "$kcwork" checkout -q main
+git -C "$kcwork" merge -q --ff-only origin/main 2>/dev/null
+for f in kr-a.txt kr-b.txt kr-c.txt; do seq 1 10 >"${kcwork}/${f}"; done
+commit_all "$kcwork" "main: files the retest fixture edits"
+git -C "$kcwork" push -q origin main 2>/dev/null
+git -C "$kcwork" checkout -qb kcr main
+# shellcheck disable=SC2016  # the fixture's check expands these, not this shell
+printf '{ printf "paths=%%s\\n" "${JOHARNESS_RETEST_PATHS-unset}"; printf "from=%%s\\n" "${JOHARNESS_RETEST_FROM-unset}"; } >%q\n[ -z "${JOHARNESS_RETEST_PATHS:-}" ] || cp "$JOHARNESS_RETEST_PATHS" %q\n[ "$(cat %q)" = 0 ] || touch "$JOHARNESS_LOCAL_CHECK_SCOPED"\nexit 0\n' \
+  "$kr_rec" "${kr_rec}.paths" "$kr_flag" >"${kcwork}/local-check"
+sed -i '1s/.*/one/' "${kcwork}/kr-a.txt" "${kcwork}/kr-b.txt"
+seq 1 10 >"${kcwork}/kr-e.txt"
+commit_all "$kcwork" "kcr: own edits, a file only it has, and a recording check"
+git -C "$kcwork" push -qu origin kcr 2>/dev/null
+out="$(kr_run)"
+expect "retest: 0. the first run is full and green" \
+  "finish: pass (ci and verify ran here, local-check too" "$out"
+kr_h0="$(git -C "$kcwork" rev-parse HEAD)"
+expect "retest: 0. and certifies its head" "$kr_h0" "$(kr_certhead)"
+
+# 1. A clean merge with one shared path, scoped by the check.
+printf '1\n' >"$kr_flag"
+kr_main kr-a.txt 10 TEN kcr
+kr_sync
+out="$(kr_run)"
+expect "retest: 1. a clean shared path is a RETEST" \
+  "RETEST       HEAD = certified ${kr_h0:0:9} + 1 commit(s) (0 first-parent merge(s)) of origin/main, 1 path(s) to retest, first kr-a.txt" "$out"
+expect "retest: 1. the file holds that path" "kr-a.txt " "$(kr_paths)"
+expect "retest: 1. FROM is the certified head" "from=${kr_h0}" "$(cat "$kr_rec" 2>/dev/null)"
+expect "retest: 1. PATHS names the file in the git dir" "paths=${kr_file}" "$(cat "$kr_rec" 2>/dev/null)"
+expect "retest: 1. a scoped retest green says so" \
+  "local-check retested from ${kr_h0:0:9} (RETEST)" "$out"
+# 10. A scoped RETEST keeps the certificate: the chain stands on it.
+expect "retest: 10. the certificate still names the certified head" "$kr_h0" "$(kr_certhead)"
+
+# 7. A second RETEST still measures from the certified head: its set is the
+# union of both merges' sets, never the second merge's alone.
+kr_main kr-b.txt 10 TEN kcr
+kr_sync
+out="$(kr_run)"
+expect "retest: 7. a second merge is a RETEST from the same head" \
+  "RETEST       HEAD = certified ${kr_h0:0:9} + 2 commit(s)" "$out"
+expect "retest: 7. its set is both merges' paths" "kr-a.txt kr-b.txt " "$(kr_paths)"
+expect "retest: 7. FROM is still the certified head" "from=${kr_h0}" "$(cat "$kr_rec" 2>/dev/null)"
+expect "retest: 7. and the certificate still names it" "$kr_h0" "$(kr_certhead)"
+
+# 2. A conflicted merge resolved by hand in the conflicted file only: a
+# renumber's shape.
+kr_main kr-a.txt 1 MAIN kcr
+if kr_sync; then
+  fail "retest: 2. the fixture merge conflicts"
+else
+  pass "retest: 2. the fixture merge conflicts"
+fi
+{ printf 'one-MAIN\n'; seq 2 9; printf 'TEN\n'; } >"${kcwork}/kr-a.txt"
+# A renumber also edits the branch's own files, which the base never touched:
+# only the resolved term puts such a path in the set.
+sed -i '3s/.*/THREE/' "${kcwork}/kr-e.txt"
+git -C "$kcwork" add kr-a.txt kr-e.txt
+git -C "$kcwork" commit -qm "kcr: merge origin/main, renumbered by hand" --no-edit
+git -C "$kcwork" push -q origin HEAD 2>/dev/null
+out="$(kr_run)"
+expect "retest: 2. a hand-resolved conflict is a RETEST" \
+  "RETEST       HEAD = certified ${kr_h0:0:9} + 3 commit(s)" "$out"
+expect "retest: 2. the resolved file is in the set" "kr-a.txt" "$(kr_paths)"
+expect "retest: 2. a branch-only path the resolution edited is in the set" \
+  "kr-e.txt" "$(kr_paths)"
+
+# 3. The same, plus an edit to a path neither side changed: the full run,
+# naming it. Neither variable reaches the check, not even one the caller set.
+printf '0\n' >"$kr_flag"
+sed -i '5s/.*/FIVE/' "${kcwork}/kr-c.txt"
+commit_all "$kcwork" "kcr: an edit outside both sides"
+git -C "$kcwork" push -q origin HEAD 2>/dev/null
+kr_main kr-b.txt 9 NINE kcr
+kr_sync
+rm -f "$kr_rec"
+out="$(JOHARNESS_RETEST_PATHS=/leaked JOHARNESS_RETEST_FROM=leaked JOHARNESS_CHECKS=local kc_finish)"
+expect "retest: 3. a path outside both sides is the full run, named" \
+  "no catch-up: HEAD changed kr-c.txt, which neither side nor the merge did" "$out"
+refute "retest: 3. and no RETEST" "RETEST       HEAD" "$out"
+expect "retest: 3. PATHS is unset on a full run" "paths=unset" "$(cat "$kr_rec" 2>/dev/null)"
+expect "retest: 3. FROM is unset on a full run" "from=unset" "$(cat "$kr_rec" 2>/dev/null)"
+kr_h1="$(git -C "$kcwork" rev-parse HEAD)"
+expect "retest: 3. the full green certifies the new head" "$kr_h1" "$(kr_certhead)"
+
+# 6. A RETEST whose check ignores the variables runs in full: its green
+# certifies the merged head.
+kr_main kr-b.txt 8 EIGHT kcr
+kr_sync
+out="$(kr_run)"
+expect "retest: 6. a shared path is a RETEST" "RETEST       HEAD = certified ${kr_h1:0:9}" "$out"
+expect "retest: 6. an unscoped retest green certifies the merged head" \
+  "$(git -C "$kcwork" rev-parse HEAD)" "$(kr_certhead)"
+expect "retest: 6. and the verdict says local-check ran" \
+  "finish: pass (ci and verify ran here, local-check too" "$out"
+
+# 5. Past JOHARNESS_CATCHUP_COMMITS with a non-empty set: the full run.
+kr_main kr-b.txt 7 SEVEN kcr
+kr_sync
+out="$(JOHARNESS_CATCHUP_COMMITS=0 kr_run)"
+expect "retest: 5. over the bound is the full run, named" \
+  "1 commit(s) (0 first-parent merge(s)) of origin/main since, over JOHARNESS_CATCHUP_COMMITS=0" "$out"
+refute "retest: 5. and no RETEST" "RETEST       HEAD" "$out"
+expect "retest: 5. its check ran unscoped" "paths=unset" "$(cat "$kr_rec" 2>/dev/null)"
+
+# 8. A commit of the branch's own after the green, base unmoved: the full
+# run, never a RETEST of it.
+sed -i '1s/.*/uno/' "${kcwork}/kr-b.txt"
+commit_all "$kcwork" "kcr: more own work"
+git -C "$kcwork" push -q origin HEAD 2>/dev/null
+out="$(kr_run)"
+expect "retest: 8. an unmoved base is the full run, named" \
+  "origin/main has not moved since, so this head carries commits of its own" "$out"
+refute "retest: 8. and no RETEST" "RETEST       HEAD" "$out"
+
+# 4. A clean disjoint merge is CATCH-UP as before: the check does not run,
+# and a stale retest file from an earlier run is gone.
+kr_main kr-d.txt 1 d kcr
+kr_sync
+printf 'stale\n' >"$kr_file"
+out="$(kr_run)"
+expect "retest: 4. a disjoint merge is CATCH-UP" "CATCH-UP     HEAD = certified" "$out"
+refute "retest: 4. and no RETEST" "RETEST       HEAD" "$out"
+if [ -e "$kr_rec" ] || [ -e "$kr_file" ]; then
+  fail "retest: 4. no check ran and no retest file is left"
+else
+  pass "retest: 4. no check ran and no retest file is left"
+fi
+
+# 9. A certificate whose base the certified head never contained (handed in,
+# or written by an older finish): the base side runs from merge-base(head,
+# base), so a commit between it and the recorded base still counts.
+git -C "$kcwork" checkout -q main
+git -C "$kcwork" merge -q --ff-only origin/main 2>/dev/null
+seq 1 10 >"${kcwork}/kr9.txt"
+commit_all "$kcwork" "main: a file case 9 edits"
+git -C "$kcwork" push -q origin main 2>/dev/null
+git -C "$kcwork" checkout -qb kcr9 main
+git -C "$kcwork" show kcr:local-check >"${kcwork}/local-check"
+sed -i '1s/.*/one/' "${kcwork}/kr9.txt"
+commit_all "$kcwork" "kcr9: own edit"
+git -C "$kcwork" push -qu origin kcr9 2>/dev/null
+kr9_h0="$(git -C "$kcwork" rev-parse HEAD)"
+kr_main kr9.txt 10 TEN kcr9
+kr9_cb="$(git -C "$kcwork" rev-parse origin/main)"
+kr_main kr9-y.txt 1 y kcr9
+kr_sync
+printf 'head=%s\nbase=%s\n' "$kr9_h0" "$kr9_cb" >"$kr_cert"
+printf '1\n' >"$kr_flag"
+out="$(kr_run)"
+expect "retest: 9. a change before the recorded base is still a RETEST" \
+  "RETEST       HEAD = certified ${kr9_h0:0:9}" "$out"
+expect "retest: 9. its path is in the set" "kr9.txt " "$(kr_paths)"
+
+git -C "$kcwork" checkout -q main
+git -C "$kcwork" merge -q --ff-only origin/main 2>/dev/null
+git -C "$kcwork" rm -q kr-a.txt kr-b.txt kr-e.txt kr-c.txt kr-d.txt kr9.txt kr9-y.txt
+commit_all "$kcwork" "main: drop the retest fixture"
+git -C "$kcwork" push -q origin main 2>/dev/null
+rm -f "$kr_cert" "${kr_gitdir}/joharness-finish-green" "$kr_file" \
+  "$kr_rec" "${kr_rec}.paths" "$kr_flag"
 
 # --- every run_check names a function check_call dispatches -----------------
 # A function with no arm in check_call dies at run time with the

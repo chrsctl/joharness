@@ -143,8 +143,8 @@ gone holds nothing.
   into the branch (never rebase), resolve, re-run `ci`, push. Conflict does
   not resolve clean = stop, record in the workstream file's `Blockers`, ask
   human (decide-alone exception, `.agents/harness/AGENTS.md`). Local checks:
-  a clean, disjoint catch-up re-certifies on `ci` (`consumer-repos.md` §
-  Local checks); three refusals printing `OUTRUN` = starved, draft and
+  a hand resolution is a `RETEST`, not a full run (`consumer-repos.md` §
+  Local checks, "The finish loop"); three refusals printing `OUTRUN` = starved, draft and
   block (`.claude/commands/manager.md` §4).
 - **Long-running session** = re-check ahead/behind periodically during Build
   too; a conflict caught mid-build is cheap.

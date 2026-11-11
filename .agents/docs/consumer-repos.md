@@ -204,9 +204,10 @@ A full local green certifies its head and base (a file in the git dir,
 never the tree). Behind again, the manager merges `origin/main` in and runs
 `finish` once more: when HEAD is exactly that certified head merged clean
 with `origin/main` (`git merge-tree`), at most `JOHARNESS_CATCHUP_COMMITS`
-(default 20) base commits since, none touching a file the branch changed or
-`local-check` itself, it prints `CATCH-UP`, re-runs `ci` (and `verify` when
-needed) and carries `local-check`'s verdict; any other shape is the full run,
+(default 20) base commits since, none touching `local-check` itself, and no path changed on both sides, it
+prints `CATCH-UP`, re-runs `ci` (and `verify` when needed) and carries
+`local-check`'s verdict. A shared path or a hand-resolved conflict is a
+`RETEST`, not a full run ("The finish loop"); any other shape is the full run,
 naming why. A catch-up never re-certifies: each one measures from a full run.
 Why: a 27-minute check on a base moving 3-20 commits a run never reached 0
 behind (chrsctl/gx #1417, WEAK: a consumer's reading). The cost, named: `ci`
@@ -230,13 +231,66 @@ chrsctl/gx, 220 commits over 27 first-parent merges in 12 hours, 31 commits in
 --merges`, re-run by a second gx session). There the bound refuses on ordinary
 traffic, and one manager threw away seven green ~26-minute passes before it
 merged (WEAK: one gx session's reading of manager transcripts, no second
-context has taken it). Renumbering ids after a merge takes a branch out of
-CATCH-UP by the no-shared-file condition, a second cause the bound does not
-touch. The knob stays in commits until a count of merged pull requests has
+context has taken it). Renumbering ids after a merge lands in `RETEST`
+(its paths sit inside conflicted ∪ branch ∪ base); only an edit to a path
+neither side changed falls to the full run. Neither is a cause the bound
+touches. The knob stays in commits until a count of merged pull requests has
 evidence of its own. The CATCH-UP lines print the first-parent merge count
 beside the commit count, so a consumer can tune `JOHARNESS_CATCHUP_COMMITS`
 from its own history. Count yourself: `git rev-list --count --first-parent
 --merges <base>..origin/main`.
+
+**The finish loop.** One protocol: test a head in full once; after each
+merge of the base, retest only what that merge could have changed; merge when
+green and level.
+
+1. **Test.** A head 0 behind runs `finish` in full. Green = certificate
+   `C = (H0, B0)`.
+2. **Merge.** Behind at the end: merge `origin/main` in (never rebase),
+   resolving conflicts by hand if needed. New head `Hk` = the merge.
+3. **Retest.** `finish` on `Hk` measures from `C`, never from the previous
+   retest. `H0` not an ancestor of HEAD = another line of work, no line.
+   Refusals: its base not an ancestor of the base, base unmoved (`n = 0`), base changed `local-check`, `n` over
+   `JOHARNESS_CATCHUP_COMMITS`, any other non-zero `merge-tree` exit, a path
+   git quotes: full run, naming why. Else, with `mb = merge-base(H0, base)`:
+   `branch` = paths changed in `mb..H0`; `base` = paths changed in `mb..base`;
+   `auto` = tree from `git merge-tree --write-tree --name-only H0 base`
+   (exit 1 = conflicts, listed as `conflicted`); `resolved` = `git diff
+   --name-only <auto> HEAD^{tree}`. A resolved path outside `conflicted ∪
+   branch ∪ base` = full run: `HEAD changed <path>, which neither side nor the
+   merge did: something else changed`. Retest set `R = (branch ∩ base) ∪
+   conflicted ∪ resolved`, sorted, one per line, in
+   `<git-dir>/joharness-retest-paths`. An own commit after the merge that edits
+   a path the branch or base already changed is `resolved` too, so it is
+   retested, not run in full; with the base unmoved since `C` it is the full
+   run (`n = 0`).
+   - `R` empty: `CATCH-UP     HEAD = certified ...`; `ci` re-runs,
+     `local-check` carries.
+   - `R` non-empty: `RETEST       HEAD = certified <sha9> + <n> commit(s) (<m>
+     first-parent merge(s)) of <ref>, <k> path(s) to retest, first <path>`;
+     `ci` re-runs, `local-check` runs with the variables below. A scoped
+     green passes `finish: pass (ci and verify ran here, local-check retested
+     from <sha9> (RETEST): JOHARNESS_CHECKS=local)` and keeps `C`.
+4. **Bound.** `JOHARNESS_CATCHUP_COMMITS` bounds both. `R` holds no base-only
+   path the merge left as the base wrote it (a hand edit puts it in `R`). A
+   semantic clash between a base-only and a branch-only path reaches neither
+   (below, "The cost, named"), so the window stays. Past it: full run; a full
+   green starts a new chain.
+5. **Merge when green and level.** `.agents/harness/AGENTS.md` step 7. STARVED
+   counts only green runs the base outran; minutes-long retests make it rare.
+
+Consumer contract. On RETEST `local-check` gets `JOHARNESS_RETEST_PATHS`
+(absolute path of `<git-dir>/joharness-retest-paths`, sorted paths, one per
+line) and `JOHARNESS_RETEST_FROM` (the certified head sha). On every other run
+both are UNSET (not empty) and the file is absent. A scoped run must still
+re-run every suite a path in the set could feed, and touch
+`JOHARNESS_LOCAL_CHECK_SCOPED`: its green certifies nothing, `C` stays at the
+certified head. A check that ignores the variables runs in full; that full
+green certifies `Hk`. A path in the set is a hint to scope, never a licence to
+skip; a path it cannot map re-runs everything it could feed. A path git would
+quote in the set = full run. Why: a retest that removed `C` would leave the
+next retest nothing to measure from; a chain of scoped runs would stand on no
+full run.
 
 A scoped green certifies nothing. A consumer's `local-check` may run only
 part of its suites (chrsctl/gx #1499: the suites the paths changed on both
