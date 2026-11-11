@@ -747,6 +747,24 @@ git -C "$kcwork" rm -q kccr.txt docs-d.txt
 commit_all "$kcwork" "main: drop the race fixture"
 git -C "$kcwork" push -q origin main 2>/dev/null
 rm -rf "$kccr_clone" "${TMP}/kccr-once"
+
+# A commit landing on the branch mid-run is a head no suite saw: no
+# certificate names it.
+git -C "$kcwork" checkout -qb kcmid main
+printf 'if [ ! -e %q ]; then : >%q; printf x >kcmid.txt; git add kcmid.txt; git commit -qm mid; fi\nexit 0\n' \
+  "${TMP}/kcmid-once" "${TMP}/kcmid-once" >"${kcwork}/local-check"
+commit_all "$kcwork" "kcmid: a check that commits on the branch"
+git -C "$kcwork" push -qu origin kcmid 2>/dev/null
+JOHARNESS_CHECKS=local kc_finish >/dev/null
+kcmid_cert="$(git -C "$kcwork" rev-parse --absolute-git-dir)/joharness-finish-cert"
+if [ -e "$kcmid_cert" ] &&
+   grep -qx "head=$(git -C "$kcwork" rev-parse HEAD)" "$kcmid_cert"; then
+  fail "catch-up: a head committed mid-run is never certified"
+else
+  pass "catch-up: a head committed mid-run is never certified"
+fi
+git -C "$kcwork" checkout -q main
+rm -f "${TMP}/kcmid-once"
 rm -f "$(git -C "$kcwork" rev-parse --absolute-git-dir)/joharness-finish-cert" "$kccu_ran"
 
 # --- every run_check names a function check_call dispatches -----------------

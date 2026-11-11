@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK5e4qFM7qu8dpzkfv1
 agent: opus
 updated: 2026-11-10
-next: Second verifier round on the r14-r18 fixes, then ci, finish, PR
+next: ci, finish, retire commit, PR, merge; then dispatch chrsctl/gx update.yml (human asked for the sync)
 ---
 
 ## Goal
@@ -52,6 +52,12 @@ certification) and the exit (draft + `conflict:` block).
 - r15: (verifier) certificate recorded origin/main AFTER the suites; a mid-run fetch certified an untested base, catch-up then carried local-check over a commit on the branch's own file (fixed: tip read at the BEHIND measure; selftest race case fails without it)
 - r16: (verifier) a full run whose certificate write failed printed "carried by CATCH-UP" (fixed: a full run removes the certificate first; no certificate reads as a full run)
 - r17: (verifier) AGENTS.md "cannot merge = draft" contradicted "Merge button not yours? ... asking the human" (fixed: narrowed to a base that outruns finish)
+- r19: (verifier) certificate named the head read at the END of the run; a commit landing mid-run was certified unseen (fixed: HEAD pinned with the base, no certificate if it moved; selftest case fails without it)
+- r20: (verifier) consumer-repos.md said ci is the net for a disjoint semantic clash; ci runs no consumer suite (fixed: the cost named, with the off switch)
+- r21: (verifier) AGENTS.md clause narrower than the plan's general one (no change: the general form contradicts "Merge button not yours", r17; manager.md §4 carries it)
+- r22: (verifier) base-changes-local-check fixture also trips the shared-path rule (wontfix: the case still tells the guard apart by its reason line; a base-only local-check needs a fixture rebuild for one message)
+- r23: (verifier) Acceptance stash command mutates the tree; verify dropped (fixed: verify back in, stash marked no verifier alive)
+- r24: (verifier) gx numbers unlabelled outside manager-reference (fixed: consumer-repos labels WEAK; code comment cites the PR)
 - r18: (verifier) "three finish runs" count had no record a resume reads (fixed: `finish behind: <n>` in `## Blockers`, pushed)
 
 ## Blockers

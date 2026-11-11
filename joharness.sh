@@ -6836,7 +6836,7 @@ checks_catch_up() {
 # One line under 'github', the whole gate under 'local'.
 checks_gate() {
   local ref="$1" branch="$2" is_local="$3" ready="$4"
-  local rc=0 extra n=0 f pushed behind base behind_said fresh catchup=0 cf tip=""
+  local rc=0 extra n=0 f pushed behind base behind_said fresh catchup=0 cf tip="" pin=""
   if [ "$is_local" = 1 ] && [ "$ready" != 1 ]; then
     printf '\nchecks: local (JOHARNESS_CHECKS=local) — NOT run. This merge is red\n'
     printf 'above, and no suite run changes that. Fix it and run this again; the\n'
@@ -6903,6 +6903,7 @@ checks_gate() {
     # The base the suites test is this tip, read now: origin/main is shared
     # by every worktree, and a fetch mid-run would certify an untested one.
     tip="$(git -C "$ROOT" rev-parse "$ref" 2>/dev/null)"
+    pin="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)"
     behind="$(git -C "$ROOT" rev-list --count "HEAD..${ref}" 2>/dev/null)" || behind=""
     if [ -n "$behind" ] && [ "$behind" -gt 0 ]; then
       printf '  BEHIND       %s commit(s) behind %s, and no run here ever sees that\n' \
@@ -6980,10 +6981,12 @@ checks_gate() {
 
   # A full green is what a later catch-up carries from; a catch-up green
   # never re-certifies, so every catch-up measures from one full run.
-  if [ "$rc" -eq 0 ] && [ "$catchup" = 0 ] && [ -n "$tip" ] &&
+  # Both ends pinned before the suites: a commit landing on this branch
+  # mid-run is a head no check saw, so it gets no certificate.
+  if [ "$rc" -eq 0 ] && [ "$catchup" = 0 ] && [ -n "$tip" ] && [ -n "$pin" ] &&
+     [ "$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)" = "$pin" ] &&
      cf="$(checks_cert_file)"; then
-    printf 'head=%s\nbase=%s\n' "$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)" \
-      "$tip" >"$cf" 2>/dev/null || :
+    printf 'head=%s\nbase=%s\n' "$pin" "$tip" >"$cf" 2>/dev/null || :
   fi
 
   # What a green above does NOT cover.

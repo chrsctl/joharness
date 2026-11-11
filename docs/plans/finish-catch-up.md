@@ -76,8 +76,9 @@ ends with a green open PR it did not merge.
 
 - `./joharness.sh ci` — last line `ci: pass`; anything else is red.
 - `bash .agents/harness/selftest.sh | tail -1` — `<n> passed, 0 failed`,
-  and `grep -c 'PASS catch-up:'` on its output gives 20.
-- `git stash push joharness.sh && bash .agents/harness/selftest.sh | grep 'catch-up: a clean disjoint merge'; git stash pop`
+  and `grep -c 'PASS catch-up:'` on its output gives 21.
+- `./joharness.sh verify` — `0 failed`.
+- (no verifier alive: it mutates the tree) `git stash push joharness.sh && bash .agents/harness/selftest.sh | grep 'catch-up: a clean disjoint merge'; git stash pop`
   — prints `FAIL catch-up: a clean disjoint merge re-certifies on ci`.
 - Consumer-side: the same `checks.sh` cases ship in the selftest a consumer's
   `./joharness.sh ci` runs; in a consumer under `JOHARNESS_CHECKS=local`, a
