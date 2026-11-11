@@ -56,7 +56,13 @@ Frontmatter: `plan`, `urgency` (`normal` | `urgent`), `agent` (`haiku` |
   open or retired, leave a clause unserved is red
   ([`product.md`](product.md), Clauses).
 - `issue` — the GitHub issue a clerk turned into this plan (`#N`, `N` or
-  `none`); `./joharness.sh clerk` lists it PLANNED.
+  `none`); `./joharness.sh clerk` lists it PLANNED. One defect filed twice
+  = one plan naming both, bare numbers comma-separated (`issue: 1449,
+  1450`; a ` #` after the first reads as a comment and `ci` reds the
+  dangling comma). Every number counts: PLANNED, a parked manager's RESUME,
+  the fix row a DEFECT-BOUND hold spares (`orchestrated.md`, The one stop). The pull request
+  closing an issue the plan does not name resumes no park on it: name it
+  before the retire commit (`manager-reference.md` § Plan issue).
 - `scope` — path prefixes the plan will touch; `none` joins no wave. The queue hook proves
   parallel safety inside a wave of disjoint scopes and names the conflict
   across waves; `needs` alone cannot say two plans edit one file.

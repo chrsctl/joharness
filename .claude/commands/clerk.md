@@ -141,7 +141,10 @@ the pull request body with the evidence, one line each:
   each, the recommended one marked `(recommended)` (the author gate's comment
   is its one sentence, no options). Write no plan. After the comment, apply
   `human-review` to the issue.
-- **DUPLICATE** — comment naming the issue or plan it duplicates. Then
+- **DUPLICATE** — one defect filed twice, its twin planned or planned this
+  pass: never this verdict, the twin goes into that plan's `issue:` (§3,
+  "One defect filed twice"; closing it leaves a park on it unresumed).
+  Otherwise: comment naming the issue or plan it duplicates. Then
   close it `state_reason: duplicate`, `duplicate_of` that issue (for a
   plan, its `issue:`; a plan with `issue: none` = close `not_planned`,
   the comment naming the plan). Never closed: the same two as DOES NOT
@@ -169,6 +172,12 @@ A plan from a `defect:` issue carries an `## Escape` section (Entry, Gate,
 Route: `.agents/docs/plans.md`, Shape).
 
 One plan per issue, unless the issue names asks separable on its own words.
+One defect filed twice (the same failing command or test, two issues) is
+ONE plan naming both: `issue: <N>, <M>`, bare numbers comma-separated, a
+duplicate of an issue a queued plan names goes into that plan's `issue:`
+(a plan-only edit), never a second plan. A park on either number resumes
+when it retires (`.agents/docs/orchestrated.md`, The one stop). Comment
+`clerk: HOLDS — duplicate of #<N>, plan <stem> in PR #<M>` on the twin.
 A plan's `issue:` is how the issue closes: the manager's pull request says
 `Closes #<N>` when no other queued plan names that issue and the plan has no
 `## Issue remainder` section, `Refs #<N>` otherwise (`manager.md` §4).

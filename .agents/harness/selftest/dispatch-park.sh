@@ -978,9 +978,9 @@ out="$(ckx)"
 expect "a base plan names #31: the cadence only" "clerk     : not due — 3h since" "$out"
 refute "and nothing spawns" "spawn ONE clerk" "$out"
 
-# --- two parks on one issue no plan names hold every spawn row --------------
+# --- two parks on one issue whose fix has not retired hold every spawn row --------------
 # A red base every new manager hits at finish (gx, 2026-10-29): spawn none
-# onto it until a plan names the issue. Its own repo, the df helpers reused.
+# onto it until the issue's fix retires. Its own repo, the df helpers reused.
 dfwork="${TMP}/dhwork"
 dforigin="${TMP}/dhorigin.git"
 git init -q --bare "$dforigin"
@@ -1007,14 +1007,14 @@ refute "and no row reads a red base" "red base" "$out"
 dfpark dh-park-b dh-b 'defect: #41: the base is red too' 2
 out="$(dfx)"
 expect "two parks on one unplanned issue hold the spawn row, naming it" \
-  "docs/plans/dh-free.md (agent: sonnet)  HOLD — red base: #41 (2 parked), no plan names it" "$out"
+  "docs/plans/dh-free.md (agent: sonnet)  HOLD — red base: #41 (2 parked), its fix not retired" "$out"
 expect "the verdict names the issue and spawns no manager" \
-  "verdict   : DEFECT-BOUND — 1 item(s) held: red base, #41 (2 parked), no plan names it: spawn no manager" "$out"
+  "verdict   : DEFECT-BOUND — 1 item(s) held: red base, #41 (2 parked), its fix not retired: spawn no manager" "$out"
 expect "a hold is never a slot: the item stays queued" \
   "1 item(s) on HOLD behind a red base (#41 (2 parked)): not counted as free, still queued" "$out"
 refute "and never a surveyor" "OVERLAP-BOUND" "$out"
 expect "nothing in flight, nothing due: the hold exits" \
-  "no plan names it: spawn no manager, exit; the heartbeat re-seeds" "$out"
+  "its fix not retired: spawn no manager, exit; the heartbeat re-seeds" "$out"
 # An aged edge beside the hold: its pull request is unread, so no exit.
 git -C "$dfwork" checkout -qb dh-edge main
 git -C "$dfwork" rm -q docs/plans/dh-free.md
@@ -1029,20 +1029,132 @@ expect "an aged edge beside the hold: no exit, its pull request first" \
 git -C "$dfwork" push -q origin --delete dh-edge
 git -C "$dfwork" branch -qD dh-edge
 git -C "$dfwork" update-ref -d refs/remotes/origin/dh-edge
-# A plan naming #41 on a live branch lifts it; so does one on the base.
+# A plan naming #41 is no fix yet: the base stays red until it retires
+# (chrsctl/gx, 2026-11-10, #1449: four managers spawned behind a planned fix,
+# each parked within minutes). On a live branch it lifts nothing.
 git -C "$dfwork" checkout -qb dh-clerk main
 dfplan fix41 41
 dfcommit 1 "a plan naming #41"
 git -C "$dfwork" push -qu origin dh-clerk
 git -C "$dfwork" checkout -q main
 out="$(dfx)"
-refute "a branch plan naming #41 lifts the hold" "red base" "$out"
+expect "a branch plan naming #41 keeps the hold" \
+  "docs/plans/dh-free2.md (agent: sonnet)  HOLD — red base: #41 (2 parked), its fix not retired" "$out"
 git -C "$dfwork" push -q origin --delete dh-clerk
 git -C "$dfwork" branch -qD dh-clerk
 git -C "$dfwork" update-ref -d refs/remotes/origin/dh-clerk
+# On the base: the fix itself spawns, every other row stays held.
 dfplan fix41 41
 dfpush 1 "fix41 on the base"
 out="$(dfx)"
-expect "a base plan naming #41: the items spawn" \
-  "verdict   : NOT DRAINED — 3 free item(s) now" "$out"
+expect "a base plan naming #41: the fix spawns" \
+  "verdict   : NOT DRAINED — 1 free item(s) now" "$out"
+expect "and its row is free" "  docs/plans/fix41.md (agent: sonnet)"$'\n' "$out"
+expect "every other row stays held" \
+  "docs/plans/dh-free2.md (agent: sonnet)  HOLD — red base: #41 (2 parked), its fix not retired" "$out"
+refute "and no DEFECT-BOUND while the fix is free" "DEFECT-BOUND" "$out"
+# The fix retires on the base's first parent: RESUME, and the hold lifts.
+git -C "$dfwork" rm -q docs/plans/fix41.md
+dfpush 0 "retire fix41"
+out="$(dfx)"
+expect "the fix retired: the parks resume" "PARKED #41 RESUME" "$out"
 refute "and no hold" "red base" "$out"
+
+# --- one defect filed twice: a plan naming both issues ----------------------
+# chrsctl/gx, 2026-11-10: #1449 and #1450 were one defect, the fix named
+# #1449 alone, and the park on #1450 never resumed. A plan's `issue:` takes a
+# list; every number on it marks the fix row and resumes its parks.
+dfplan dt-a none; dfplan dt-b none; dfplan dt-c none
+dfpush 3 "dt-a, dt-b, dt-c"
+dfpark dt-park-a dt-a 'defect: #62: the base is red' 2
+dfpark dt-park-b dt-b 'defect: #62: the twin issue' 2
+# The list's FIRST number too: `ok 61 62` once matched only the later ones.
+dfpark dt-park-c dt-c 'defect: #61: the first twin' 2
+out="$(dfx)"
+expect "two parks on #62 hold the spawn rows" "red base: #62 (2 parked)" "$out"
+# The fix on the base names #62 second in its list: it is the fix, it spawns.
+dfplan fix6162 '61, 62'
+dfpush 1 "fix6162 on the base"
+out="$(dfx)"
+expect "a base plan naming 61, 62 is #62's fix: its row is free" \
+  "  docs/plans/fix6162.md (agent: sonnet)"$'\n' "$out"
+expect "every other row stays held" \
+  "docs/plans/dh-free2.md (agent: sonnet)  HOLD — red base: #62 (2 parked)" "$out"
+git -C "$dfwork" rm -q docs/plans/fix6162.md
+dfpush 0 "retire fix6162"
+out="$(dfx env JOHARNESS_MAX_MANAGERS=8)"
+expect "a retired plan naming 61, 62 resumes a park on #62" \
+  "PARKED #62 RESUME — the fix retired (fix6162)" "$out"
+expect "and a park on its first number, #61" \
+  "PARKED #61 RESUME — the fix retired (fix6162)" "$out"
+refute "and the hold on #62 lifts" "red base: #62" "$out"
+
+# --- a defect: on the plan's OWN issue is no park --------------------------
+# chrsctl/gx, 2026-11-10: plan `issue: 1323` parked `defect: #1323: …` and sat
+# 31h a plain PARKED row. Only its own plan names the issue, so RESUME never
+# comes: an invalid block the orchestrator asks about, never a park.
+dfplan own-31 31
+dfpush 3 "own-31 serves #31"
+dfpark park-own31 own-31 'defect: #31: not reproduced on the base; needs a red under load' 2
+# Quoted next:, the plan's `issue: #33` against `defect: #33`.
+dfplan own-33 '#33'
+dfpush 3 "own-33 serves #33"
+dfpark park-own33 own-33 '"defect: #33: cannot reproduce"' 2
+# A plan naming another issue, parked on #31: a real park, unchanged.
+dfplan other-31 34
+dfpush 3 "other-31 serves #34"
+dfpark park-other31 other-31 'defect: #31: the build breaks' 2
+out="$(dfx)"
+expect "a defect: on the plan's own issue: INVALID BLOCK?, naming why" \
+  "INVALID BLOCK? defect: #31 is this plan's own issue" "$(dfrow own-31)"
+refute "and never PARKED" "PARKED" "$(dfrow own-31)"
+refute "nor the human's" "BLOCKED: the human's" "$(dfrow own-31)"
+refute "nor listed under the verdict as parked" "PARKED #31 own-31" "$out"
+expect "quoted next:, issue: spelled #33: INVALID BLOCK? too" \
+  "INVALID BLOCK? defect: #33 is this plan's own issue" "$(dfrow own-33)"
+expect "a plan on another issue parked on #31: still PARKED" \
+  "PARKED #31" "$(dfrow other-31)"
+refute "and valid" "INVALID BLOCK?" "$(dfrow other-31)"
+dfana() { ( cd "$dfwork" && JOHARNESS_CONF="$dfconf" ANALYSIS_FETCH=0 ./joharness.sh analysis "$1" 2>&1 ); }
+out="$(dfana park-own31)"
+expect "analysis reads a park on the plan's own issue as INVALID BLOCK?" \
+  "condition : INVALID BLOCK? — defect: names this plan's own issue" "$out"
+refute "and not as PARKED" "condition : PARKED" "$out"
+expect "analysis still reads a park on another issue as PARKED" \
+  "condition : PARKED #31" "$(dfana park-other31)"
+out="$(dfx)"
+expect "self-parks are counted apart from the human's blocks" \
+  "2 manager(s) parked defect: on their own plan's issue: INVALID BLOCK?" "$out"
+refute "and never reported as the human's" "manager(s) blocked: report to the human" "$out"
+# A self-park keeps its scope held: the orchestrator asks it to do the work.
+dfplan ovl-31 none src/own-31
+dfpush 1 "a plan on own-31's scope"
+out="$(dfx)"
+expect "a plan overlapping a self-park is held" "HOLD — overlaps own-31 on src/own-31" "$out"
+refute "never spawned as if the block were the human's" "own-31 is BLOCKED on a human" "$out"
+git -C "$dfwork" rm -q docs/plans/ovl-31.md
+dfpush 1 "drop ovl-31"
+# The branch editing its copy of the plan to `issue: none` cannot hide it:
+# the base's plan still names #31.
+git -C "$dfwork" checkout -q park-own31
+sed -i 's/^issue: 31$/issue: none/' "${dfwork}/docs/plans/own-31.md"
+dfcommit 1 "own-31 drops its issue on the branch"
+git -C "$dfwork" push -q origin park-own31
+git -C "$dfwork" checkout -q main
+out="$(dfx)"
+expect "a branch editing its plan's issue: away is still INVALID BLOCK?" \
+  "INVALID BLOCK? defect: #31 is this plan's own issue" "$(dfrow own-31)"
+# `issue: 043` is lint's to red; here it is still issue 43.
+dfplan own-43 043
+dfpush 3 "own-43 serves 043"
+dfpark park-own43 own-43 'defect: #43: cannot reproduce' 2
+out="$(dfx)"
+expect "issue: 043 against defect: #43: INVALID BLOCK?" \
+  "INVALID BLOCK? defect: #43 is this plan's own issue" "$(dfrow own-43)"
+# A plan's issue: list: any number on it is its own.
+dfplan own-list '70, 71'
+dfpush 3 "own-list serves 70, 71"
+dfpark park-ownlist own-list 'defect: #71: cannot reproduce' 2
+out="$(dfx)"
+expect "issue: 70, 71 against defect: #71: INVALID BLOCK?" \
+  "INVALID BLOCK? defect: #71 is this plan's own issue" "$(dfrow own-list)"

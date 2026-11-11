@@ -92,10 +92,15 @@ Any block or park whose head already has an open pull request — a
 `defect:` park at step 7, a `hardware:` block after the retire commit, §
 Label at merge — first marks that pull request a draft
 (`update_pull_request` `draft: true`), reads it back (`pull_request_read`
-`get`: `draft: true`), then commits the workstream file, pushes, exits. The
+`get`: `draft: true`), writes `drafted: <N>` into the workstream file's
+frontmatter, then commits it, pushes, exits. Checked: the Stop guard
+(`.agents/harness/handover-guard.sh`) blocks the stop of a head whose
+workstream file this branch deleted and restored `status: blocked` without
+`drafted: <N>` (chrsctl/gx PR #1437 merged that way, 2026-11-10). The
 resume restores nothing by hand: at step 7, after the delete commit,
 `update_pull_request` `draft: false`, read it back, then merge. The draft
-call fails = say so in `next:` after the question; still push, still exit.
+call fails = say so in `next:` after the question, no `drafted:`; still
+push, still exit (the guard fires once; stop again).
 
 Why: the restore puts `docs/handover/<w>.md` back on the head, and nothing
 on GitHub stops a person merging it. No `human-review` on a `defect:` park
@@ -148,8 +153,13 @@ most 3 rounds, as §2 says for the build.
 
 Plan names `issue: N`? Plan carries a `## Issue remainder` section: body
 carries `Refs #N`, never `Closes #N`. Otherwise `Closes #N` when no other
-plan on fresh `origin/main` names it (`git grep -l -E '^issue: *#?N([^0-9]|$)'
-origin/main -- docs/plans`, yours excluded), else `Refs #N`. That issue's
+plan on fresh `origin/main` names it (`git grep -l -E '^issue: *(#?[0-9]+, *)*#?N *(,.*|( #.*)?)$'
+origin/main -- docs/plans`, yours excluded), else `Refs #N`, for each
+number of a list. Every issue the pull request closes is in the plan's
+`issue:` before the retire commit — a duplicate found while building
+included (`issue: N, M`): RESUME reads the retired plan's `issue:`, never the
+pull request body, so a `Closes #M` the plan does not name resumes no
+manager parked on #M. That issue's
 labels (`issue_read` `get_labels`, one read at pull request open) include
 `scout`, or its title starts `scout:`? Title starts `scout: ` and the pull
 request carries label `scout` (`issue_write` update on its number, labels);
@@ -223,6 +233,16 @@ no retry, no second transport. Run no queue command.
 
 ## Defect
 
+0. Your plan's own `issue:` is never a `defect:` park: no fix but your own
+   branch's names it, so the park never clears (chrsctl/gx, 2026-11-10: plan
+   `issue: 1323` parked `defect: #1323` 31h; reported, not re-taken here).
+   Not reproducing your own issue is work: try the plan's own commands, then
+   harder (load, repeats) on fresh `origin/main`, and do the plan's goal. Its
+   Acceptance still cannot be met because nothing reproduces = block
+   `product:` (the requester decides whether the issue closes as not
+   reproduced), the evidence (command, runs, `origin/main` sha) in `next:`
+   or `## Blockers`. Dispatch reads such a `defect:` park `INVALID BLOCK?`
+   (`joharness.sh:own_defect_park`).
 1. It reproduces on fresh-fetched `origin/main` (run the same command on a
    checkout of it). No reproduction = it is your branch's: fix it in your item.
 2. Search this repository's open issues for the same failing command or
@@ -236,7 +256,13 @@ no retry, no second transport. Run no queue command.
      `human-review`? Say so in `next:`; `defect-resume`'s UNPLANNED row then
      reaches the human.
    - **Yes, nothing found:** file the issue as step 3 does, its body's
-     first line `blocking: <your branch>`, then park. The clerk takes it
+     first line `blocking: <your branch>`, then search once more: a
+     lower-numbered open issue for the same failing command or test is a
+     twin filed in the same window. Twin found: M = the lowest-numbered
+     one; comment `duplicate of #M`
+     on yours, close it (`state_reason: duplicate`), park on M. None: park
+     on yours. Parks split over twins count apart
+     (`.agents/docs/orchestrated.md`, The one stop). The clerk takes it
      first and plans it urgent (`.claude/commands/clerk.md` §2, §3). Its fix
      needs a human's call (step 3)? Then it is not a `defect:` park: file it
      with `human-review` and block on that reason (`product:`, `money:`, …;

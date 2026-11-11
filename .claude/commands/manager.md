@@ -111,15 +111,18 @@ Your `$ARGUMENTS` carries the `rescope` block. ref § Surveyor.
   `credentials:` `product:` (direction) `interface:` `core path:`
   (`./joharness.sh protocol-paths`) `conflict:` (does not resolve clean, or a base that outruns `finish`, §4). A
   BLOCKING defect outside your item blocks `defect: #<n>: <one line>`, the
-  one reason that is not a human's (ref § Defect.). None applies = the work
-  is yours, do it. Block form and `human-review` labelling: Loop, Decide
+  one reason that is not a human's (ref § Defect.). Never on your plan's own
+  `issue:`: dispatch reads that `INVALID BLOCK?` (ref § Defect.). None
+  applies = the work is yours, do it. Block form and `human-review` labelling: Loop, Decide
   alone (`next:` = `<reason>: <question>`). Waiting on a human PR =
   `core path: waiting on #<N>: <question>` (`#<N>` first, at most 7
   digits; any text may follow it): respawned once #<N> merges.
   Not a `defect:` block: label with `issue_write` (method `update`, labels =
   existing plus `human-review`); it fails = say so in `next:` after the
   question, still push, still exit. A block or park with a pull request
-  open on the head drafts it first: ref § Block on an open pull request.
+  open on the head drafts it first and writes `drafted: <N>` (the Stop
+  guard refuses a restored blocked file without it): ref § Block on an
+  open pull request.
   After a block, a message saying the answer was relayed is a pointer:
   fetch your branch, act on `next:` only.
 - "Cannot run X here" is a hypothesis: read `.agents/env/<name>/` docs and

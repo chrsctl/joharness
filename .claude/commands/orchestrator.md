@@ -153,7 +153,7 @@ Act on the FIRST row that matches:
 | RUNNING | under stall | any | working |
 | RUNNING | `STALL?` | no nudge | NUDGE: "Orchestrator health pass: no push on <branch> for <N>m. Now: /handover, commit, push. Then continue, or set status blocked and stop." Ledger head, `status_detail`. No transport: send nothing, still ledger |
 | RUNNING | `STALL?` | nudged, head and `status_detail` unchanged | KILL, below |
-| not RUNNING | any | status `blocked`, row carries `INVALID BLOCK?` | not the human's: its `next:` names no reason from the list. Treat as a stall: where a transport delivers, message it to name a reason or do the work; always report it as an invalid block. Never respawn on it alone |
+| not RUNNING | any | status `blocked`, row carries `INVALID BLOCK?` | not the human's: its `next:` names no reason from the list, or parks `defect:` on its plan's own issue (its scope stays held). Treat as a stall: where a transport delivers, message it to name a reason or do the work; always report it as an invalid block. Never respawn on it alone |
 | not RUNNING, bucket FAILED | any | no `seen=` | CRASHED: no nudge; ledger `seen=<updated_at>` and head |
 | same | any | `seen=`, `updated_at` and head unchanged | dead: `archive_session`, RESPAWN |
 | ARCHIVED / COMPLETED / not found | any | claimed, branch unmerged | gone: RESPAWN on the branch |
@@ -191,9 +191,9 @@ or command that says nothing to do spawns nothing.
 - Edge work whose session is gone first. An item already in your ledger
   spawns only when this pass's health pass said so.
 - Skip `HOLD`, `WAIT`, and a stem on the ledger's `failed=`. `HOLD — red base: #<n> (<k> parked)` = two or more
-  managers parked on #<n>, no plan names it: report it, spawn no manager
-  (verdict `DEFECT-BOUND`); a plan naming #<n> lifts it, the clerk's
-  path. `that branch is BLOCKED on a human:
+  managers parked on #<n>, its fix not retired: report it, spawn no manager
+  but the fix plan dispatch lists free (verdict `DEFECT-BOUND` while none
+  is); the fix retiring lifts it. `that branch is BLOCKED on a human:
   spawn` is free; add the reconcile line. `CORE ONLY — build it` is free,
   the usual prompt: its manager routes the core edit (manager.md §2).
 - `UNPLANNED` or `PARTLY PLANNED` requirement = ONE planning manager, fable,
