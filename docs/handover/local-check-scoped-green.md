@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK6mueavH589ztpnm7E
 agent: opus
 updated: 2026-11-11
-next: Build the scoped marker in checks_local_check and checks_gate, then the selftest
+next: Run verify, the fail-on-main run of case 1, then the consumer-repos paragraph
 ---
 
 ## Goal

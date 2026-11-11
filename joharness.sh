@@ -154,6 +154,7 @@ JOHARNESS_VERBOSE|0|session|1 = ci and finish print passing checks too.
 JOHARNESS_SELFTEST||session|always = run the selftest even on a docs-only diff.
 JOHARNESS_SELFTEST_GIT_PER_CASE|28|session|Git execs per passing selftest case before the ci stage reds; canonical-only.
 JOHARNESS_SELFTEST_JOBS|computed|session|Parallel selftest workers; default the CPU count, at most 4; 1 = one topic after another; canonical-only.
+JOHARNESS_LOCAL_CHECK_SCOPED|computed|session|Set by finish for local-check only: a path in the git dir; local-check touching it = green, do not certify.
 JOHARNESS_SESSION_SOURCE||session|The SessionStart hook source (startup, resume, clear, compact), set by session-start.
 JOHARNESS_FORCE_SETUP|0|session|1 = provision at session start outside the remote sandbox.
 JOHARNESS_SHIP||session|all = ci treats every harness file as shipping.
@@ -6784,10 +6785,15 @@ checks_bounded() {
   return "$rc"
 }
 
+# Set by checks_local_check: 1 when the last run was green and SCOPED (the
+# check touched the marker), so checks_gate writes no certificate.
+CHECKS_SCOPED=0
+
 # checks_local_check <base>: runs the head's declared check, if any. Prints its
 # verdict; non-zero = red.
 checks_local_check() {
-  local base="$1" f="$CHECKS_LOCAL_FILE" mins secs log rc t0 el last stat
+  local base="$1" f="$CHECKS_LOCAL_FILE" mins secs log rc t0 el last stat sf=""
+  CHECKS_SCOPED=0
   # Review is the guard, not immutability: a branch repairing a check broken
   # on the base branch must be able to pass, so the head's copy runs. A
   # deletion is the strongest weakening, so this comes before the absence.
@@ -6811,8 +6817,18 @@ checks_local_check() {
   secs=$((mins * 60))
   [ "$secs" -gt 0 ] || secs=1
   log="$(mktemp)" || return 1
+  # The check's way to say "green, do not certify": it touches this path
+  # (.agents/docs/consumer-repos.md § Local checks). The git dir, never the
+  # tree, so the marker cannot change the head it describes. Removed first,
+  # so a stale one from a killed run says nothing about this one.
+  if sf="$(checks_cert_file)"; then
+    sf="${sf%/*}/joharness-local-check-scoped"
+    rm -f "$sf"
+  else
+    sf=""
+  fi
   t0=$SECONDS
-  checks_bounded "$secs" "$log" bash "$f"; rc=$?
+  JOHARNESS_LOCAL_CHECK_SCOPED="$sf" checks_bounded "$secs" "$log" bash "$f"; rc=$?
   el=$((SECONDS - t0))
   last="$(grep -v '^[[:space:]]*$' "$log" | tail -n 1)"
   printf '  elapsed %ss; last line: %s\n' "$el" "${last:-(no output)}"
@@ -6824,9 +6840,13 @@ checks_local_check() {
     printf '  last 20 lines:\n'
     tail -n 20 "$log" | sed 's/^/    /'
     printf '  %s: FAILED (exit %s) — not mergeable\n' "$f" "$rc"
+  elif [ -n "$sf" ] && [ -e "$sf" ]; then
+    printf '  %s: pass, SCOPED — this green certifies nothing (.agents/docs/consumer-repos.md § Local checks)\n' "$f"
+    CHECKS_SCOPED=1
   else
     printf '  %s: pass\n' "$f"
   fi
+  [ -z "$sf" ] || rm -f "$sf"
   rm -f "$log"
   [ "$rc" -eq 0 ]
 }
@@ -7059,6 +7079,7 @@ checks_gate() {
       "${CHECKS_VERIFY_PATHS[*]}"
   fi
 
+  CHECKS_SCOPED=0
   if [ "$catchup" = 1 ]; then
     printf '\n  %s: carried by CATCH-UP above, NOT run on this head\n' "$CHECKS_LOCAL_FILE"
   else
@@ -7080,8 +7101,11 @@ checks_gate() {
   # A full green is what a later catch-up carries from; a catch-up green
   # never re-certifies, so every catch-up measures from one full run.
   # Both ends pinned before the suites: a commit landing on this branch
-  # mid-run is a head no check saw, so it gets no certificate.
-  if [ "$rc" -eq 0 ] && [ "$catchup" = 0 ] && [ -n "$tip" ] && [ -n "$pin" ] &&
+  # mid-run is a head no check saw, so it gets no certificate. A SCOPED
+  # green is no full run either: still a green (the file below), never the
+  # certificate, or scoped runs chain with no full run under them.
+  if [ "$rc" -eq 0 ] && [ "$catchup" = 0 ] && [ "$CHECKS_SCOPED" = 0 ] &&
+     [ -n "$tip" ] && [ -n "$pin" ] &&
      [ "$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)" = "$pin" ] &&
      cf="$(checks_cert_file)"; then
     printf 'head=%s\nbase=%s\n' "$pin" "$tip" >"$cf" 2>/dev/null || :
