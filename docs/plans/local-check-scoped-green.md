@@ -33,12 +33,13 @@ not certify". Settled in `.agents/docs/consumer-repos.md` § Local checks
   tell `checks_gate` (a global or the return path; implementer's choice)
   so it skips the certificate write. A red run removes the file too.
 - `joharness.sh:checks_gate`, the certificate write: also require "not
-  scoped". A scoped green instead writes `<git-dir>/joharness-finish-scoped`
-  (`head=`, `base=`), which `checks_catch_up` never reads; a full run
-  removes both files before its suites. The BEHIND refusal's OUTRUN test
-  (plan `starved-counts-green-runs`) accepts either file whose `head=` is an
-  ancestor of HEAD: a scoped green is a green the base outran, never a red
-  to fix, so a scoping consumer still reaches STARVED.
+  scoped". A scoped green still writes `checks_green_file`
+  (`joharness-finish-green`, written on every green, full or CATCH-UP),
+  which the BEHIND refusal's OUTRUN test (plan `starved-counts-green-runs`,
+  merged) already reads: a scoped green is a green the base outran, never a
+  red to fix, so a scoping consumer still reaches STARVED. No second file:
+  `checks_catch_up` reads only the certificate, and the full-run path
+  already removes it before its suites.
 - `.agents/harness/selftest/checks.sh`, CATCH-UP section. Cases:
   1. A fixture `local-check` that touches `"$JOHARNESS_LOCAL_CHECK_SCOPED"`
      and exits 0 → `finish` passes, prints `SCOPED`, and no
@@ -83,9 +84,10 @@ not certify". Settled in `.agents/docs/consumer-repos.md` § Local checks
 - `./joharness.sh ci` — `ci: pass`.
 - `./joharness.sh verify` — `0 failed`, the new checks.sh cases in its
   count.
-- The new cases 1 and 5 fail on `origin/main` (no `SCOPED` line, a
-  certificate written; no `OUTRUN` after a scoped green) and pass on the
-  branch; both runs in `## Review`. Cases 2-4 are guards that pass on both.
+- The new case 1 fails on `origin/main` (no `SCOPED` line, a certificate
+  written) and passes on the branch; both runs in `## Review`. Cases 2-5
+  are guards that pass on both (case 5 guards that the not-certify path
+  keeps the green file OUTRUN reads).
 - `grep -n 'JOHARNESS_LOCAL_CHECK_SCOPED' .agents/docs/consumer-repos.md`
   — at least one hit.
 - Consumer side, after the sync: in a consumer under
