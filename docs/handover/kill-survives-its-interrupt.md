@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK623RvaZoLEwPbLFo1
 agent: opus
 updated: 2026-11-11
-next: Check assumptions A1-A3, run plan-checker, then build the killing= row
+next: Run verify, verifier at opus, then step 7
 ---
 
 ## Goal

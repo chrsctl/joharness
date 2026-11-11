@@ -340,6 +340,25 @@ if [ -n "$ptr_ln" ] && [ -n "$run_ln" ] && [ -n "$drop_ln" ] \
 else
   fail "the unclaimed pointer row precedes the push-age and record-drop rows (${ptr_ln:-none}, ${run_ln:-none}, ${drop_ln:-none})"
 fi
+# A KILL's interrupt moves `updated_at` itself: the ledger marks the kill
+# in progress, and its row sits above LOOP's and the drop-record row, or
+# either catches the wait pass first and the kill never completes.
+# shellcheck disable=SC2016 # literal backticks in the needles
+expect "orchestrator.md spells the killing=<head> ledger key" '[killing=<head>]' "$orcfold"
+for sec in 'KILL and LOOP' 'Retired stall'; do
+  sectxt="$(awk -v h="## ${sec}" '$0==h{on=1;next} on&&/^## /{on=0} on' "$refmd")"
+  expect "ref § ${sec} writes killing=<head>" 'killing=<head>' "$sectxt"
+done
+# shellcheck disable=SC2016 # literal backticks in the pattern
+kill_ln="$(grep -n '^| any | any | `killing=<head>` recorded |' "$orcmd" | head -1 | cut -d: -f1)"
+# shellcheck disable=SC2016 # literal backticks in the pattern
+loop_ln="$(grep -n '^| any | `LOOP?`' "$orcmd" | head -1 | cut -d: -f1)"
+if [ -n "$kill_ln" ] && [ -n "$loop_ln" ] && [ -n "$drop_ln" ] \
+  && [ "$kill_ln" -lt "$loop_ln" ] && [ "$kill_ln" -lt "$drop_ln" ]; then
+  pass "the killing= row precedes the LOOP and record-drop rows"
+else
+  fail "the killing= row precedes the LOOP and record-drop rows (${kill_ln:-none}, ${loop_ln:-none}, ${drop_ln:-none})"
+fi
 # shellcheck disable=SC2016 # literal backticks in the needle
 refute "no unclaimed row keeps an entry to stop a respawn" \
   'report; keep the entry' "$reffold"
