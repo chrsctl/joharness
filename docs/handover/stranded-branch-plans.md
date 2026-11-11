@@ -46,6 +46,7 @@ branch plan into the queue.
 - r13: (verifier) a stem on a code branch and a plan-only branch reads STRANDED with no word on which branch (fixed: the mark names its branches, `STRANDED <n>d on <branch>`; selftest case)
 - r14: (verifier) the verdict counted (branch, plan) rows while the block prints one line per stem (fixed: it counts the marked lines; selftest case with one stem on two branches)
 - r15: (verifier) `[ -z "$wfs" ]` is redundant with the grep and the claim-add check (no change: it is the plan's literal condition and skips two git calls on every claimed branch)
+- r16: orchestrator.md went 74 bytes over its size bound with the r12 text (fixed: the STRANDED sentence and ledger line trimmed)
 
 ## Blockers
 
