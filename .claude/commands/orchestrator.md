@@ -109,7 +109,7 @@ claimed manager. Never re-run dispatch in a pass.
 
 Every ledger entry that holds a slot leaves by a row: done, a spawn, or a
 notify and drop. Slot-holding here = an `@new` entry, counted into
-`JOHARNESS_PENDING_SPAWNS`; a claimed branch's slot is dispatch's. An `@new` entry whose session ended unclaimed is a FAILED
+`JOHARNESS_PENDING_SPAWNS`; a claimed branch's slot is dispatch's. An `@new` entry whose session ended unclaimed: FAILED
 SPAWN (ref § Unclaimed spawn rows), never the human's to find. An entry no
 row of §2 matched this pass (read at §2's end) = report `slot held with no
 exit: <stem>`; no ledger `noexit=<stem>` yet = `PushNotification` it and
@@ -164,17 +164,16 @@ Act on the FIRST row that matches:
 | IDLE/PENDING | any | branch unmerged, no nudge | NUDGE as above; spawn nothing for it |
 | IDLE/PENDING | any | nudged, head and `status_detail` unchanged | gone: RESPAWN on the branch |
 | RUNNING | any | `retired, no claim file` | merging; nothing |
-| gone | any | edge row naming an item | RESPAWN to FINISH the merge, never restart the plan |
+| gone | any | edge row naming an item | RESPAWN to FINISH the merge |
 | any | any | branch under `leftovers` | report; the human deletes it. NEVER respawn |
 | any | any | in-flight row naming `?` | holds a slot; report. NEVER respawn |
 | any | any | `CEILING?` | beside the matched row: report age and `cost_usd`. Never act on it alone |
 
-`suspect a stopped fleet` decides nothing.
-
 KILL, LOOP → ref § KILL and LOOP.
 
 RESPAWN = spawn (step 3) plus "Resume branch <branch>: check it out, read
-docs/handover/<file>.md WHOLE before anything else." An entry still `new`
+docs/handover/<file>.md WHOLE before anything else." Edge row: "Resume <branch>
+past its retire commit: no workstream file; manager-reference.md Retired resume." An entry still `new`
 has no branch: plain spawn; past the limit, FAILED SPAWN AT LIMIT (ref §
 Unclaimed spawn rows), never § Respawn limit. Past
 `JOHARNESS_RESPAWN_LIMIT` → ref § Respawn limit.

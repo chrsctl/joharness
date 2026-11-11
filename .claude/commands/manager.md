@@ -24,7 +24,7 @@ pointer fires.
    verbatim. A branch carrying its own harness edits reads NOT VERIFIABLE
    by design: a re-run mid-build is not a stop.
 2. Prompt names a branch to resume? Check it out, read its workstream file
-   WHOLE, continue from `next:`. A loop note under `## Blockers` means: do
+   WHOLE, continue from `next:`; no such file on the head = past its retire commit: ref § Retired resume. A loop note under `## Blockers` means: do
    the research step BEFORE any edit — list every requirement the churned
    file must satisfy, find the conflicting pair, resolve it, fix once
    (`.agents/docs/agent-selection.md`, review churn).

@@ -57,6 +57,20 @@ request, `status: done`, `next:` saying the overlap is real, exit. Otherwise
 one commit rewriting `scope:` lines, review at your tier, retire, pull
 request, merge, exit.
 
+## Retired resume
+
+A resumed branch whose head has no workstream file is past its retire commit
+(Loop step 7 deleted it). Nothing to read, no `next:`: finish step 7, nothing else.
+
+- Recover the file read-only, for its `## Review` and `## Decisions`: the
+  pull request body's recover command when a pull request is open on the
+  head, else `git log --diff-filter=D --format=%H -1 -- docs/handover/` and
+  `git show <that>^:docs/handover/<file>.md`.
+- Never restore it, never commit to it: the retire commit stays the last
+  commit before the pull request opens.
+- Then Loop step 7 from where it stands: no pull request = open one; open =
+  `finish`, labels, merge. Behind = reconcile as step 7 says.
+
 ## Carried plan at retire
 
 Carry the plan, never take the branch: cut your own branch from

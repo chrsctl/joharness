@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK3ESUPtSD86bcqYoBC
 agent: sonnet
 updated: 2026-11-11
-next: Build the plan's four edits (orchestrator.md, manager.md, manager-reference.md, selftest), then ci, verify, review, retire.
+next: Verifier running; record its findings in ## Review, fix, then retire commit and PR.
 ---
 
 ## Goal
@@ -16,6 +16,11 @@ next: Build the plan's four edits (orchestrator.md, manager.md, manager-referenc
 Give a retired branch's respawn a prompt and a manager rule it can follow (plan retired-respawn-prompt).
 
 ## Decisions
+
+- A1: confirmed — Loop step 7 deletes the workstream file before the PR opens.
+- A2: confirmed — only the `gone` edge row lands on a file-less branch.
+- A3: confirmed — Loop step 7 says the PR body carries the recover command.
+- Orchestrator byte bound: moved "`suspect a stopped fleet` decides nothing" into orchestrator-reference.md.
 
 ## Review
 

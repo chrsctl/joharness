@@ -327,6 +327,8 @@ run; report it every pass. A human's word in YOUR turn naming the stem
 
 A `retired, no claim file` row's KILL: ref § Retired stall instead.
 
+`suspect a stopped fleet` decides nothing (moved here from the command for its byte bound).
+
 KILL — the handover comes BEFORE the kill: `interrupt_session`, wait one
 pass. Then `git fetch origin <branch>`: head or `updated:` moved = handover
 landed. Else check out the branch and under `## Blockers` write "Killed by
