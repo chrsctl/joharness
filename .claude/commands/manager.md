@@ -140,7 +140,7 @@ git; send nothing for it.
 `human-review` at merge (Loop step 7) = do not merge: ref § Label at merge.
 
 Behind again at merge? `finish` as is first, then merge `origin/main` in,
-`finish` again (`CATCH-UP` re-certifies a clean, disjoint merge on `ci`).
+`finish` again (`CATCH-UP`/`RETEST`: `consumer-repos.md` "The finish loop").
 Count only `OUTRUN` refusals, one per green head, as `finish behind: <n>`
 (`## Blockers`; retired: the PR body), pushed. Three = STARVED: under its
 bound, block `resume <k>/<max>` unasked. ref § Starved.

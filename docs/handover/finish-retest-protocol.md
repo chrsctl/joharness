@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK5ir4zBQWg9RLmp1Uh
 agent: opus
 updated: 2026-11-11
-next: Read selftest run, commit docs worker output, run verifier
+next: ci and verify green, then verifier at opus, then finish
 ---
 
 ## Goal
