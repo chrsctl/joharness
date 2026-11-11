@@ -85,8 +85,9 @@ ONE spelling: [`.agents/docs/glossary.md`](../../.agents/docs/glossary.md); `ci`
 - Block ONLY for a reason your role command allows (a manager: `.claude/commands/manager.md`
   §3); each is in the one list dispatch accepts, `joharness.sh:block_reason_ok`. Block =
   `status: blocked`, `next:` = `<reason>: <question>`, push, exit; never wait in session.
-  Not `defect:`? Also label `human-review` on this branch's open PR and the plan's
-  `issue:`, if set; never remove it (`.agents/docs/orchestrated.md`, Bounds).
+  Not `defect:`? Also ask on GitHub: the question, then `human-review` (items:
+  `.claude/commands/manager.md` §3); answer and release: `.agents/docs/orchestrated.md`,
+  A human's answer.
 - Consumer repo: no harness upkeep in a session holding product work; a sync
   opens its own pull request (`.agents/docs/consumer-repos.md`).
 

@@ -904,25 +904,49 @@ expect "named human/<stem>, cut from a separate worktree" \
 expect "and the session never merges it" "never merge it" "$mgrreftext"
 refute "and no longer files an issue describing the edit" \
   "remainder issue not filed" "$mgrtext $mgrreftext"
-# A clerk HUMAN question takes a number: options, a recommendation, and the
-# hand-typed reply rule. Read as manager.md is read.
-clerktext="$(cat "${ROOT}/.claude/commands/clerk.md")"
-expect "a clerk HUMAN comment asks for a hand-typed number" \
-  "reply by hand with the number" "$clerktext"
+# A clerk HUMAN question takes a number, or the label: options, a
+# recommendation, and the one answer rule (orchestrated.md, A human's
+# answer). Read as manager.md is read, one space per run of whitespace.
+clerktext="$(tr '\n' ' ' <"${ROOT}/.claude/commands/clerk.md" | tr -s ' ')"
+expect "a clerk question opens decision needed: on its second line" \
+  "second line opening \`decision needed:\`" "$clerktext"
 expect "and marks the recommended option" "(recommended)" "$clerktext"
 expect "and the clerk reads a numbered reply as that option" \
-  "selects option" "$clerktext"
-expect "only a reply that is just the number" "whose whole text is a" "$clerktext"
-expect "and only one newer than the question" \
-  "number \`N\` (whitespace and trailing punctuation ignored), newer than the" "$clerktext"
-expect "and the comment says the label must come off" \
-  "so the next pass reads it" "$clerktext"
+  "selects option \`N\` of that question" "$clerktext"
+expect "only a reply that is just the number, newer than the question" \
+  "counting comment newer than it, where a bare number" "$clerktext"
+expect "and the label approved alone is the recommended option" \
+  "else the label \`approved\` = the" "$clerktext"
+expect "and the clerk releases the label on the answer it decides" \
+  "\`human-review\` (\`issue_write\` \`update\`, labels = the existing minus it)." "$clerktext"
+expect "and the comment closes on the one-gesture answer" \
+  "\"approve = the recommended option; or reply with a" "$clerktext"
+expect "and removes approved before the question" \
+  "remove \`approved\` from the issue if present, then post the comment" "$clerktext"
+expect "a held issue is taken once its open question has an answer" \
+  "unless it carries an open question" "$clerktext"
 expect "a clerk NARROWER verdict with a human remainder applies human-review" \
   "apply \`human-review\` to the issue (visibility only" "$clerktext"
 expect "and gives numbered options for the part needing a human" \
   "sorting each part not planned into one of two kinds" "$clerktext"
-expect "and a numbered answer covers a NARROWER comment" \
-  "\`clerk: HUMAN\` or \`clerk: NARROWER\` comment carrying numbered options," "$clerktext"
+expect "and a NARROWER part needing a human asks the same question" \
+  "HUMAN reasons): a question, as a HUMAN comment's (below)." "$clerktext"
+expect "manager.md: a block posts the decision needed: question" \
+  "post the \`decision needed:\` question and label:" "$(tr '\n' ' ' <"$mgrmd" | tr -s ' ')"
+expect "manager-reference.md: a manager question opens its first line" \
+  "first line \`decision needed:" "$mgrreftext"
+expect "orchestrated.md names the decision needed: comment" \
+  "decision needed:" "$(cat "${ROOT}/.agents/docs/orchestrated.md")"
+expect "orchestrated.md: one paragraph holds A human's answer" \
+  "**A human's answer.**" "$(cat "${ROOT}/.agents/docs/orchestrated.md")"
+expect "orchestrated.md: a freeze is only a human's to remove" \
+  "with no open question it is a FREEZE, and only a human removes it." \
+  "$(tr '\n' ' ' <"${ROOT}/.agents/docs/orchestrated.md" | tr -s ' ')"
+expect "orchestrator-reference.md: an answered question fires a clerk" \
+  "A second firing rule, independent of" "$reffold"
+expect "scout.md: a revision removes approved before it is posted" \
+  "FIRST remove \`approved\` from the issue if present" \
+  "$(tr '\n' ' ' <"${ROOT}/.claude/commands/scout.md" | tr -s ' ')"
 expect "and the plan carries an Issue remainder section" \
   "the plan carries a" "$clerktext"
 expect "and an Issue remainder plan says Refs, never Closes" \
