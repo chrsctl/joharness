@@ -135,8 +135,8 @@ Cluster looks healthy — node `Ready`, control plane runs — but every pod stu
 `ContainerCreating` forever. Reproducible direct:
 
 ```bash
-docker run --rm --oom-score-adj=-998 mirror.gcr.io/library/alpine true   # fails as above
-docker run --rm --oom-score-adj=0     mirror.gcr.io/library/alpine true  # works
+docker run --rm --oom-score-adj=-998 alpine true   # fails as above
+docker run --rm --oom-score-adj=0     alpine true  # works
 ```
 
 Fix: containerd `restrict_oom_score_adj`, clamps value to one kernel accepts.
