@@ -1403,6 +1403,23 @@ refute "and never says it is released" "scope released" "$out"
 out="$(hpx)"
 expect "readable again: released again" \
   "            PARKED #111 own-p (park-p): no plan names #111 yet, scope released, report only" "$out"
+# Fail closed on a live row too: its plan file cannot be read (cat-file
+# fails) — whether it names #111 is unproven, so the park holds.
+git -C "$dfwork" checkout -qb other-111 main
+dfplan side111 none src/side111
+dfcommit 0 "a live plan naming no issue"
+git -C "$dfwork" push -qu origin other-111
+git -C "$dfwork" checkout -q main
+out="$(hpx)"
+expect "a readable live plan not naming #111: released" \
+  "            PARKED #111 own-p (park-p): no plan names #111 yet, scope released, report only" "$out"
+# shellcheck disable=SC2016 # the $a and $@ are the stub's own, unexpanded here
+printf '#!/bin/sh\nfor a; do [ "$a" = refs/remotes/origin/other-111:docs/plans/side111.md ] && [ "$1" = -C ] && [ "$3" = cat-file ] && exit 1; done\nexec "%s" "$@"\n' "$dfgit" >"${dfbin}/git"
+out="$(dfx env JOHARNESS_DEFECT_RECHECK_HOURS=0 PATH="${dfbin}:${PATH}")"
+expect "an unreadable live plan holds the scope (fails closed)" \
+  "HOLD — overlaps own-p on src/own-p (claimed on park-p)" "$(overp_row "$out")"
+refute "and never says it is released" "scope released" "$out"
+hpdrop other-111
 hpdrop park-p
 git -C "$dfwork" rm -q docs/plans/own-p.md docs/plans/over-p.md docs/plans/fix111.md
 dfpush 0 "drop own-p, over-p and fix111"

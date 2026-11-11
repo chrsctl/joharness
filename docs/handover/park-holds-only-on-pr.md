@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK4dqucWtcTNf81wHy8
 agent: opus
 updated: 2026-11-11
-next: Run ci and verify, then the verifier at the review tier
+next: Retire commit (RETIRED.md, delete plan+workstream), open PR, finish, merge
 ---
 
 ## Goal
@@ -28,6 +28,7 @@ plan/core-only-spawns-manager (owner branch; nothing pushed there).
 - Fail closed: `dispatch_defect_state` exports `DS_NAMED` = 1 / 0 / ? (base or live-branch plan scan unreadable). Only 0 releases; classification (UNPLANNED, RECHECK) keeps reading its own `named`, unchanged.
 - Build done inline, not by workers: one function pair and one case arm in one file, the selftest depends on the exact row text.
 - Fail-closed test proven: with `[ "$BASE_ISSUES_ERR" -eq 0 ] || unk=1` mutated away, selftest 2026-11-11 read `4302 passed, 2 failed` (the two fail-closed cases); restored, `4304 passed, 0 failed, 1 skipped`.
+- r20 test proven: live-row gate mutated to `|| true`, selftest 2026-11-11 `4305 passed, 2 failed`; restored `4307 passed, 0 failed, 1 skipped`.
 
 ## Review
 
@@ -49,6 +50,10 @@ plan/core-only-spawns-manager (owner branch; nothing pushed there).
 - r16: (plan-checker) round 2: selftest prints `… 0 failed, N skipped`, not ending `0 failed` (fixed: "prints")
 - r17: (plan-checker) round 2: needs: none beside starved-counts-green-runs on joharness.sh (wontfix: as r9, shared: marks the reconcile)
 - r18: (plan-checker) round 2: anchor joharness.sh:dispatch names no function (fixed: cmd_dispatch)
+- r20: (verifier) live-row cat-file fail-closed gate untested; unprimed rev-parse dead for DS_NAMED (fixed: a git stub failing cat-file on one live plan pins the hold; unprimed path reads `?` always)
+- r21: (verifier) self-park comment still says "as a PARKED row does" (fixed: "a planned PARKED row")
+- r22: (verifier) orchestrator-reference says a released park comes back at RESUME, but with no plan only RECHECK or a new plan brings it back (fixed: both named)
+- r23: (verifier) orchestrated.md "verdict line unchanged" contradicts the changed PARKED lines; long unwrapped line (fixed: "verdict word", wrapped)
 - r19: (plan-checker) round 2: gx incidents and requester quote unverifiable here (wontfix: the requester's record, outside this checkout; the code path is verified)
 
 ## Blockers

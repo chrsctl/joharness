@@ -7696,9 +7696,9 @@ dispatch_defect_state() {
     case "$BASE_ISSUES" in *" ${n} "*) named=1 ;; esac
     [ "$BASE_ISSUES_ERR" -eq 0 ] || unk=1
   else
-    git -C "$ROOT" rev-parse -q --verify \
-      "refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}^{commit}" >/dev/null 2>&1 </dev/null ||
-      unk=1
+    # Unprimed (analysis, not dispatch): plan_names_issue fails open, so
+    # "not named" is never proven here.
+    unk=1
     while IFS= read -r p; do
       [ -n "$p" ] || continue
       plan_names_issue "refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" "$p" "$n" &&
@@ -9653,7 +9653,7 @@ cmd_dispatch() {
             fx_lines+=("$parked_lines"); parked_lines=""
             fx_n+=("$dn"); fx_plan+=("-"); fx_di+=("$di"); fx_kind+=(MERGED)
           else
-            # A self-park keeps its scope held, as a PARKED row does: the
+            # A self-park keeps its scope held, as a planned PARKED row does: the
             # orchestrator asks it to do the work, and it comes back.
             [ -n "$selfpark" ] ||
               blocked_claims="${blocked_claims} $(lint_stem "$path")@${branch} "
