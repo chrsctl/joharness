@@ -285,16 +285,74 @@ The rules that bind every session.
 - **Nothing is invented at the edge** (The one stop). Work enters only as an
   issue, a requirement or a plan through a pull request. A scout proposal
   enters as an issue and becomes a plan only through the clerk, after the
-  reviewer's `approved` label, re-applied after the scout's newest
-  `scout: revised`; closing the issue declines it.
+  reviewer's `approved` label or an answer to a clerk question on it (A
+  human's answer, below). The scout removes `approved` when it posts
+  `scout: revision`; the reviewer applies it again after `scout: revised`,
+  never removing it first. Closing the issue declines it.
 - **`human-review` label.** An agent applies it when it blocks on a human (never a `defect:` block),
   after a clerk HUMAN verdict or a clerk NARROWER verdict with a human
   remainder, to a `defect:` issue a manager files whose fix needs a human's
   call (`.agents/docs/manager-reference.md` § Defect step 3), and to the `human/<stem>` pull request holding its plan's human remainder
   (`.agents/docs/plans.md`, "A human remainder"); a human applies it
-  to hold an issue or pull request. It stops the clerk
-  planning that issue and any session merging that pull request. Only a human
-  removes it; no session does, ever.
+  to hold an issue or pull request. Except on a `human/<stem>` pull
+  request and the clerk's author-gate HUMAN verdict (both freezes: a
+  merge, a re-filing answers them), an agent applies it only in the same pass as, and after, a
+  `decision needed:` question (A human's answer), never onto a label
+  already there.
+  It stops the clerk planning that issue and any session merging that pull
+  request. An agent removes it only from an item carrying its own open
+  question that has an answer (A human's answer, Release); with no open
+  question it is a FREEZE, and only a human removes it.
+- **A human's answer.** One gesture answers any agent's question, on
+  GitHub (requester, 2026-11-10: `human-review` stays the one hold label,
+  no new label).
+  - **Inbox.** Two filters: `label:human-review` (questions and freezes)
+    and `label:scout -label:approved is:open` (scout proposals). README
+    names both.
+  - **Question.** An agent that needs a human, in one pass: removes
+    `approved` from the item if present, posts ONE comment whose first line
+    opens `decision needed:` (the clerk: first line `clerk: <VERDICT>`,
+    second line `decision needed:`), THEN applies `human-review` (a label
+    whose comment failed would read as a freeze for good). Body: what is decided (1-2 lines), the evidence,
+    2 to 4 numbered options with one `(recommended)`, and the closing line
+    "approve = the recommended option; or reply with a number or your own
+    answer". A label carries no author or time through the MCP tools: the
+    removal first makes any `approved` read later newer than the question.
+  - **Open question** = `human-review` on the item AND a `decision
+    needed:` comment on it (one of its first two lines opens `decision
+    needed:`) with the Claude Code footer, by an author with write access,
+    and no LATER such comment carrying an `answered:` line (an `answered:`
+    line answers only questions in earlier comments, never one in its own
+    comment). `human-review` with no open question is a FREEZE:
+    no agent posts a question onto it or removes it.
+  - **Answer**, read in this order: (1) the newest COUNTING comment newer
+    than the question (author gate and footer rule, `.claude/commands/clerk.md`
+    §2): a bare number selects that option, any other text is the decision
+    as written; (2) else the label `approved`: the recommended option; (3)
+    else none: still waiting. No agent ever applies `approved`. A footed
+    comment answers nothing; every session posts as the maintainer's login,
+    so the footer is what separates an agent from the human.
+  - **Release.** The agent acting on the answer removes `human-review` from
+    every item carrying that question and records `answered: option <N>` or
+    `answered: maintainer comment` in its next comment on each (the clerk:
+    the line after `clerk: <VERDICT>`, before any new `decision needed:`).
+  - **Who acts.** An issue with an open question, not under `planned` or
+    `claimed` (`./joharness.sh clerk`), whoever asked: the clerk, which
+    takes it once it has an answer. A manager block (not `defect:`): the
+    manager posts the question on its open pull request and its plan's
+    `issue:`, each that exists and carries no `human-review` yet (one that
+    does is a freeze or another's question: none there, and its answer
+    resumes nothing); an answer on either counts. A block whose decision is
+    a `defect:` issue it filed for a human: that issue is the one item. The the
+    orchestrator relays the answer (`orchestrator-reference.md` § Relay); neither
+    exists = an orchestrator turn only. Closing answers no manager
+    question. A pull request held at merge: an open question = the
+    manager's, resumed on an answer; none = a freeze
+    (`manager-reference.md` § Label at merge). A `human/<stem>` pull
+    request: a human merges it. A scout proposal: THE SCOUT GATE
+    (`clerk.md`), where an answered clerk question passes the label half
+    of item 1; a counting comment newer than an open clerk question is the
+    clerk's, never the scout's. Closing an issue still declines it.
 
 ### Bounds, orchestrator
 

@@ -117,14 +117,23 @@ nothing is lost but the work since its last push.
 
 ## When you're needed
 
-- **Decisions.** A blocked session says why — money, credentials, a product
-  call, and a few others. Answer and the work resumes.
+- **Your inbox** is two GitHub filters: `label:human-review` (questions
+  and freezes) and `label:scout -label:approved is:open` (scout ideas).
+- **Decisions.** An agent that needs you — a blocked session (money,
+  credentials, a product call, and a few others) or the clerk — labels
+  the issue or pull request `human-review` and posts one comment opening
+  `decision needed:`, with numbered options and one `(recommended)`.
+  Answer with one gesture: add the `approved` label (= the recommended
+  option), or reply with a number or your own answer. Closing an issue
+  declines it. The agent removes the label once it acts on your answer.
 - **Protected files.** If a plan needs a change to a file only you may
   edit, the manager prepares it as a separate pull request labelled
   `human-review`. You review and merge that one yourself.
-- **Approvals.** Scout ideas wait for your `approved` label.
+- **Approvals.** Scout ideas wait for your `approved` label; a revision
+  removes it, and you apply it again once the scout posts `scout: revised`.
 - **Stopping things.** Revert a merge you don't want. Add the
-  `human-review` label to freeze an issue or pull request. Set the manager
+  `human-review` label to freeze an issue or pull request; no agent posts a
+  question onto your label or removes it, so only you undo a freeze. Set the manager
   budget to 0 to pause everything, or pause the hourly heartbeat to stop
   restarts.
 

@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK6L8MbE3uRqJ6F9WyS
 agent: opus
 updated: 2026-11-11
-next: Rewrite the role docs and selftest pins per the plan's Scope
+next: Run ci and verify on the rewritten docs and pins, then verifier, walk-through, PR
 ---
 
 ## Goal
@@ -40,6 +40,17 @@ gesture, whoever asked: `human-review` stays the one hold label, a
 - r11: (plan-checker) "so the next pass reads it" anchor matches twice (fixed: Scope says the new pin's needle must not match the DOES NOT HOLD line)
 - r12: (plan-checker) dispatch.sh pins § Label at merge commands (fixed: Scope and trap keep them verbatim)
 - r13: (plan-checker) A1 names `cmd_role` for the `cmd_session_start` message (fixed)
+- r15: (plan-checker) round 2: pin-fail acceptance counts FAIL lines twice plus the header (fixed: matched by pin name, `all-fail`)
+- r16: (plan-checker) harness AGENTS.md keeps "never remove it" (fixed: Scope replaces it)
+- r17: (plan-checker) orchestrator.md blocked row never reaches § Relay for a GitHub answer (fixed: added to scope)
+- r18: (plan-checker) "a `decision needed:` comment" vs the clerk's second line; who may carry `answered:` (fixed: first two lines; footed write-access comment)
+- r19: (plan-checker) label/comment order unstated; label first can freeze for good (fixed: comment first, then label)
+- r20: (plan-checker) manager question onto an item already labelled (fixed: none there, its answer resumes nothing)
+- r21: (plan-checker) scout trigger's "An approved or planned issue waits on the clerk" left (fixed: Scope rewrites it)
+- r22: (plan-checker) defect issue filed for a human plus a manager block = two questions (fixed: that issue is the one item)
+- r23: (plan-checker) freeze `next:` wording claimed pinned by dispatch.sh (fixed: claim dropped)
+- r24: (plan-checker) walk-through and SHIPS items not commands (no change: marked not a command; the verifier checks the walk-through)
+- r25: (plan-checker) selftest-fail-stderr plan may change the FAIL format the acceptance parses (no change: matched by pin name after `FAIL `, its plan keeps counts)
 - r14: (plan-checker) A3, A4 and gx history not checked against GitHub (no change: recorded as stated, no rule rests on re-reading them)
 
 ## Blockers

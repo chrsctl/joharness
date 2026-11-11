@@ -117,9 +117,8 @@ Your `$ARGUMENTS` carries the `rescope` block. ref § Surveyor.
   alone (`next:` = `<reason>: <question>`). Waiting on a human PR =
   `core path: waiting on #<N>: <question>` (`#<N>` first, at most 7
   digits; any text may follow it): respawned once #<N> merges.
-  Not a `defect:` block: label with `issue_write` (method `update`, labels =
-  existing plus `human-review`); it fails = say so in `next:` after the
-  question, still push, still exit. A block or park with a pull request
+  Not a `defect:` block: post the `decision needed:` question and label:
+  ref § Question. A block or park with a pull request
   open on the head drafts it first and writes `drafted: <N>` (the Stop
   guard refuses a restored blocked file without it): ref § Block on an
   open pull request.
@@ -193,6 +192,6 @@ each with the command and output that produced it.
 - Wait in the session for a human's answer, any ask tool included
   (AskUserQuestion). A question is a block (§3): `next:` = `<reason>: <question>`.
 - Wait in the session for GitHub to come back at step 7.
-- Remove `human-review` from any issue or pull request.
+- Apply `approved`; remove `human-review` but per ref § Question.
 
 $ARGUMENTS

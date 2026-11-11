@@ -69,9 +69,46 @@ already done? Still a pull request: the ledger line, the plan copy's and the
 workstream file's deletion, step 7 whole — never `pr: none` and exit, which
 leaves the retire on a branch only.
 
+## Question
+
+A block that is not `defect:` (manager.md §3) asks on GitHub, so the
+human answers there with one gesture (`.agents/docs/orchestrated.md`, A
+human's answer). On EVERY item that exists of this head's open pull
+request and the plan's `issue:`, so neither reads as a freeze. An item
+already carrying `human-review` (a freeze, or another's question) gets
+nothing; say so in `next:`. A block whose decision is a `defect:` issue
+you file for a human (§ Defect, "Yes, nothing found"; step 3): that issue
+is the one item, the steps run at filing.
+
+1. `approved` on the item: remove it (`issue_write` `update`, labels =
+   the existing minus it).
+2. ONE comment (`add_issue_comment`), first line `decision needed:
+   <reason>: <question>`; what is decided (1-2 lines), the evidence, 2 to 4
+   numbered options one line each, `(recommended)` on one, the closing line
+   "approve = the recommended option; or reply with a number or your own
+   answer", the attribution footer.
+3. THEN label it `human-review` (labels = the existing plus it): a label
+   whose comment failed would read as a freeze for good.
+
+Neither item exists = an orchestrator turn only (orchestrator-reference.md,
+Relay). A call fails = say so in `next:` after the question; still push,
+still exit. Never apply `approved`.
+
+Resumed on an answer (Relay writes it into `next:`): act on it, then
+release: remove `human-review` from each item still carrying your open
+question (the clerk may have released a `defect:` issue first) and
+post one comment on each, `answered: option <N>` or `answered: maintainer
+comment`, plus the footer. Only those items: a freeze stays.
+
 ## Label at merge
 
-The pull request carries `human-review` at merge. The retire commit already
+The pull request carries `human-review` at merge. Read its comments first:
+an open question of yours on it (`.agents/docs/orchestrated.md`, A human's
+answer) with an answer = act on it, release (§ Question), merge under Loop
+step 7; unanswered = block on it again below, `next:` = its reason and
+question. No open question = a FREEZE, a human's: block as below.
+
+The retire commit already
 deleted your workstream file, and a branch past it holds a slot until it
 merges. Restore the file from before that commit:
 
@@ -265,7 +302,7 @@ no retry, no second transport. Run no queue command.
      (`.agents/docs/orchestrated.md`, The one stop). The clerk takes it
      first and plans it urgent (`.claude/commands/clerk.md` §2, §3). Its fix
      needs a human's call (step 3)? Then it is not a `defect:` park: file it
-     with `human-review` and block on that reason (`product:`, `money:`, …;
+     with `human-review` and its question (step 3) and block on that reason (`product:`, `money:`, …;
      `.claude/commands/manager.md` §3).
    - **Park** = `status: blocked`, `next:` = `defect: #<n>: <one line>`, push,
      exit. No `human-review` on the pull request or the plan's issue. An
@@ -279,8 +316,9 @@ no retry, no second transport. Run no queue command.
    most 20 lines of output, the `origin/main` sha, your branch; no labels.
    The clerk verifies and plans it like any issue; a defect is not a human's
    call. Its fix needs money, credentials, hardware or product direction
-   (Loop, Decide alone)? Name that question in the body and label it
-   `human-review`. Pull request body: `Refs #N`, never `Closes`.
+   (Loop, Decide alone)? Its `decision needed:` question and
+   `human-review` go on it at filing (§ Question, steps 2 and 3); the clerk
+   plans on the answer (`.agents/docs/orchestrated.md`, A human's answer). Pull request body: `Refs #N`, never `Closes`.
 4. A second defect in the same session: step 2 runs for EVERY defect. A
    match = step 2's `Refs #M` line. Only an unmatched second or later defect
    is pull request body only, one line each.

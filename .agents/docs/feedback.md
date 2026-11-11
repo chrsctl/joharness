@@ -155,7 +155,8 @@ without (`wontfix`, no-change) no path-keyed destination can reach. A defect
 OUTSIDE the edge's change = a `defect:` issue on the consumer's repo
 (`.claude/commands/manager.md`, "A DEFECT"), filed unlabelled so the clerk
 plans it; a BLOCKING one opens `blocking: <branch>`, so the clerk plans it urgent.
-`human-review` only when its fix needs a human's call (Loop, Decide alone).
+`human-review` only when its fix needs a human's call (Loop, Decide alone),
+and then with its `decision needed:` question (`.agents/docs/orchestrated.md`, A human's answer).
 
 ## What this cannot see
 
