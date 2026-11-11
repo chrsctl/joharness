@@ -91,16 +91,18 @@ not certify". Settled in `.agents/docs/consumer-repos.md` § Local checks
 
 - `./joharness.sh ci` — `ci: pass` (red: `ci: FAILED`, e.g. the glossary
   stage).
-- `./joharness.sh verify` — `0 failed` (red: `no KNOBS row:
-  JOHARNESS_LOCAL_CHECK_SCOPED` or a `scoped:` case failing); `grep -c
-  'scoped:' .agents/harness/selftest/checks.sh` counts the new cases.
+- `./joharness.sh verify` — `0 failed` (the layer smoke; red: a FAIL).
+- `JOHARNESS_VERBOSE=1 ./joharness.sh ci | grep -c 'PASS scoped:'` — every
+  new case (the selftest runs under `ci`; red: `no KNOBS row:
+  JOHARNESS_LOCAL_CHECK_SCOPED` or a `FAIL scoped:` line).
 - The new case 1 fails against `origin/main`'s `joharness.sh` (no `SCOPED`
   line, a certificate written) and passes on the branch; both runs in
   `## Review`. Procedure: `git worktree add --detach <dir> origin/main`,
   copy this branch's `checks.sh` into it, run
-  `.agents/harness/selftest.sh checks` there. Cases 2-5 are guards that
-  pass on both (case 5 guards that the not-certify path keeps the green
-  file OUTRUN reads).
+  `.agents/harness/selftest.sh checks` there. Case 4 fails on main too,
+  as a knock-on: main certifies the scoped run, so case 4's head is a
+  CATCH-UP. Cases 2, 3 and 5 are guards that pass on both (case 5 guards
+  that the not-certify path keeps the green file OUTRUN reads).
 - `grep -n 'JOHARNESS_LOCAL_CHECK_SCOPED' .agents/docs/consumer-repos.md`
   — at least one hit (red: none).
 - Post-merge, outside this branch's done condition: in a consumer under

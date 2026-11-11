@@ -6823,7 +6823,7 @@ checks_local_check() {
   # so a stale one from a killed run says nothing about this one.
   if sf="$(checks_cert_file)"; then
     sf="${sf%/*}/joharness-local-check-scoped"
-    rm -f "$sf"
+    rm -rf "$sf"
   else
     sf=""
   fi
@@ -6840,13 +6840,13 @@ checks_local_check() {
     printf '  last 20 lines:\n'
     tail -n 20 "$log" | sed 's/^/    /'
     printf '  %s: FAILED (exit %s) — not mergeable\n' "$f" "$rc"
-  elif [ -n "$sf" ] && [ -e "$sf" ]; then
+  elif [ -n "$sf" ] && [ -f "$sf" ]; then
     printf '  %s: pass, SCOPED — this green certifies nothing (.agents/docs/consumer-repos.md § Local checks)\n' "$f"
     CHECKS_SCOPED=1
   else
     printf '  %s: pass\n' "$f"
   fi
-  [ -z "$sf" ] || rm -f "$sf"
+  [ -z "$sf" ] || rm -rf "$sf"
   rm -f "$log"
   [ "$rc" -eq 0 ]
 }

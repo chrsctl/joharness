@@ -921,7 +921,7 @@ git -C "$kcwork" checkout -q main
 git -C "$kcwork" merge -q --ff-only origin/main 2>/dev/null
 git -C "$kcwork" checkout -qb kcs main
 # shellcheck disable=SC2016  # the fixture's check expands it, not this shell
-printf 'if [ "$(cat %q)" = 1 ]; then touch "$JOHARNESS_LOCAL_CHECK_SCOPED"; fi\nexit 0\n' \
+printf 'f="$(cat %q)"; [ "$f" = 0 ] || touch "$JOHARNESS_LOCAL_CHECK_SCOPED"; [ "$f" != 2 ]\n' \
   "$ks_flag" >"${kcwork}/local-check"
 commit_all "$kcwork" "kcs: a check a flag scopes"
 git -C "$kcwork" push -qu origin kcs 2>/dev/null
@@ -952,6 +952,18 @@ if [ -e "${ks_gitdir}/joharness-local-check-scoped" ]; then
 else
   pass "scoped: the marker is removed after the run"
 fi
+
+# A red run that touched the marker: red, and the marker gone with it.
+printf '2\n' >"$ks_flag"
+out="$(JOHARNESS_CHECKS=local kc_finish)"
+expect "scoped: a red scoped run is red" "local-check: FAILED" "$out"
+if [ -e "${ks_gitdir}/joharness-local-check-scoped" ]; then
+  fail "scoped: a red run removes the marker too"
+else
+  pass "scoped: a red run removes the marker too"
+fi
+printf '1\n' >"$ks_flag"
+JOHARNESS_CHECKS=local kc_finish >/dev/null
 
 # 5. Scoped green, then the base moves: a green the base outran, OUTRUN.
 ks_main docs-s1.txt
