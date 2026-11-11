@@ -64,8 +64,9 @@ A resumed branch whose head has no workstream file is past its retire commit
 
 - Recover the file read-only, for its `## Review` and `## Decisions`: the
   pull request body's recover command when a pull request is open on the
-  head, else `git log --diff-filter=D --format=%H -1 -- docs/handover/` and
-  `git show <that>^:docs/handover/<file>.md`.
+  head, else `git log --diff-filter=D --format=%H -1 -- docs/handover/<stem>.md`
+  (`<stem>` = this branch's workstream, never another's) and
+  `git show <that>^:docs/handover/<stem>.md`.
 - Never restore it, never commit to it: the retire commit stays the last
   commit before the pull request opens.
 - Then Loop step 7 from where it stands: no pull request = open one; open =

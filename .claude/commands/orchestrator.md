@@ -109,7 +109,7 @@ claimed manager. Never re-run dispatch in a pass.
 
 Every ledger entry that holds a slot leaves by a row: done, a spawn, or a
 notify and drop. Slot-holding here = an `@new` entry, counted into
-`JOHARNESS_PENDING_SPAWNS`; a claimed branch's slot is dispatch's. An `@new` entry whose session ended unclaimed: FAILED
+`JOHARNESS_PENDING_SPAWNS`; a claimed branch's slot is dispatch's. An `@new` entry whose session ended unclaimed is a FAILED
 SPAWN (ref § Unclaimed spawn rows), never the human's to find. An entry no
 row of §2 matched this pass (read at §2's end) = report `slot held with no
 exit: <stem>`; no ledger `noexit=<stem>` yet = `PushNotification` it and
@@ -141,7 +141,7 @@ Act on the FIRST row that matches:
 | --- | --- | --- | --- |
 | any | any | branch merged (dispatch no longer lists it), or a plan/research/requirement entry still `new` whose item file is gone from fresh `origin/main` (merged between passes; never a `rescope-<key>` entry, which has no item file) | done: drop the ledger entry. A message carrying `lead <stem>: <text>` is the one exception that is never nothing: carry it and print it |
 | any | any | a `rescope-<key>` entry whose dispatch row reads `done: finished rescope, holds no slot — never nudge` (genuine holds: it merges nothing, ever) | done: drop the entry, keep `rescoped=<key>`. Nudge nothing, respawn nothing |
-| any | any | `new` from a previous pass, no claimed in-flight row for its stem on this pass's dispatch, whatever `seen=`, `held=` or nudge it carries | UNCLAIMED → ref § Unclaimed spawn rows, which decide it whole: an ended unclaimed session is a FAILED SPAWN, archived and spawned again, counted; past the limit archived, notified once and dropped |
+| any | any | `new` from a previous pass, no claimed in-flight row for its stem on this pass's dispatch, whatever `seen=`, `held=` or nudge it carries | UNCLAIMED → ref § Unclaimed spawn rows, which decide it whole: an ended unclaimed session is a FAILED SPAWN |
 | any | `LOOP?`, or head moved and `next:` unchanged with `same=2` already | any | LOOP, below. No nudge |
 | IDLE | any | `retired, no claim file`, last turn asks a human to merge or grant merge permission (`status_detail` / needs-action) | HELD BY HUMAN → ref § Held by human |
 | any | any | edge row reading `a human/ branch` | a human merges it: confirm its pull request is open, none = report to the human. Never nudge, NEVER respawn |
@@ -164,7 +164,7 @@ Act on the FIRST row that matches:
 | IDLE/PENDING | any | branch unmerged, no nudge | NUDGE as above; spawn nothing for it |
 | IDLE/PENDING | any | nudged, head and `status_detail` unchanged | gone: RESPAWN on the branch |
 | RUNNING | any | `retired, no claim file` | merging; nothing |
-| gone | any | edge row naming an item | RESPAWN to FINISH the merge |
+| gone | any | edge row naming an item | RESPAWN to FINISH the merge, never restart the plan |
 | any | any | branch under `leftovers` | report; the human deletes it. NEVER respawn |
 | any | any | in-flight row naming `?` | holds a slot; report. NEVER respawn |
 | any | any | `CEILING?` | beside the matched row: report age and `cost_usd`. Never act on it alone |
@@ -172,8 +172,9 @@ Act on the FIRST row that matches:
 KILL, LOOP → ref § KILL and LOOP.
 
 RESPAWN = spawn (step 3) plus "Resume branch <branch>: check it out, read
-docs/handover/<file>.md WHOLE before anything else." Edge row: "Resume <branch>
-past its retire commit: no workstream file; manager-reference.md Retired resume." An entry still `new`
+docs/handover/<file>.md WHOLE before anything else." Edge row, instead: "Resume
+branch <branch> past its retire commit: no workstream file; finish step 7
+(manager-reference.md, Retired resume)." An entry still `new`
 has no branch: plain spawn; past the limit, FAILED SPAWN AT LIMIT (ref §
 Unclaimed spawn rows), never § Respawn limit. Past
 `JOHARNESS_RESPAWN_LIMIT` → ref § Respawn limit.

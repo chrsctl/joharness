@@ -27,6 +27,8 @@ refused with no confirmed interrupt (dead row, FAILED SPAWN) follows the
 
 ## Control plane fields
 
+`suspect a stopped fleet` decides nothing: read the control plane for each manager.
+
 | field | says |
 | --- | --- |
 | `session_status` | `RUNNING` working; `IDLE` between turns; `PENDING` starting; `COMPLETED` ended; `ARCHIVED` gone |
@@ -326,8 +328,6 @@ run; report it every pass. A human's word in YOUR turn naming the stem
 ## KILL and LOOP
 
 A `retired, no claim file` row's KILL: ref § Retired stall instead.
-
-`suspect a stopped fleet` decides nothing (moved here from the command for its byte bound).
 
 KILL — the handover comes BEFORE the kill: `interrupt_session`, wait one
 pass. Then `git fetch origin <branch>`: head or `updated:` moved = handover
