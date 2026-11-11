@@ -23,6 +23,10 @@ Plan selftest-fail-stderr (issue #729): read the flake's log above the first FAI
 
 ## Review
 
+- r1: dfstep dropped stdout, so a `git commit` "nothing to commit" printed an empty stderr (verifier) (fixed)
+- r2: mkdir/cp/printf in dfsetup unchecked; plan scopes only git init, symbolic-ref, dfcommit (verifier) (wontfix: out of plan scope; a later failure surfaces in the checked commit step)
+- r3: boom case stops at the first step, so local dfwork scoping into dfcommit is only exercised on the healthy path (verifier) (no change: healthy path passes ci)
+
 ## Blockers
 
 None.

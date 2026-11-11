@@ -40,7 +40,7 @@ dfplan() {
 dfstep() {
   local name="$1" err rc=0
   shift
-  err="$("$@" 2>&1 >/dev/null)" || rc=$?
+  err="$("$@" 2>&1)" || rc=$?
   [ "$rc" -eq 0 ] && return 0
   printf 'dispatch-park: setup step failed: %s (exit %s)\n  stderr: %s\n  git: %s\n' \
     "$name" "$rc" "$err" "$(git --version 2>&1)"
