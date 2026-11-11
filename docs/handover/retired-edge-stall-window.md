@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK3Z2R5D8EtAQqikw7t
 agent: opus
 updated: 2026-11-11
-next: Run ./joharness.sh ci and verify, then the verifier at opus
+next: Run ./joharness.sh verify, then the verifier at opus, then PR and finish
 ---
 
 ## Goal
@@ -43,6 +43,13 @@ that does not ask for a handover.
 - r8: (plan-checker) aged-edge branch still marks at the plain window under a short slot window (fixed)
 - r9: (plan-checker) the claimed 60-minute case overlaps mgr-alpha's stall case (no change)
 - r10: (plan-checker) the chrsctl/gx incident is not checkable from this checkout (no change)
+- r11: (plan-checker) round 2: the plan does not warn of orchestrator.md's reading budget, which the build first broke (fixed)
+- r12: (plan-checker) round 2: "fails on origin/main" still names no command (fixed)
+- r13: (plan-checker) round 2: a SHIPS plan's Acceptance names no consumer-side check (fixed)
+- r14: (plan-checker) round 2: the verify item states no red form (fixed)
+- r15: (plan-checker) round 2: A1's evidence points at a doc that does not say unpushed (fixed)
+- r16: (plan-checker) round 2: Traps omit the orchestrated.md overlap with stranded-branch-plans (fixed)
+- r17: (plan-checker) round 2: the chrsctl/gx incident is unverifiable here (no change)
 
 ## Blockers
 

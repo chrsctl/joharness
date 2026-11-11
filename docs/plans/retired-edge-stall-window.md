@@ -61,8 +61,9 @@ and a nudge that does not ask for a handover.
 ## Assumptions
 
 - A1: a retired manager pushes nothing while `finish` runs — evidence:
-  `.agents/docs/consumer-repos.md` (Local checks: `finish` refuses an
-  unpushed tip) — confidence: high
+  `joharness.sh` finish's `UNPUSHED` refusal (push before certifying) and
+  `.agents/docs/consumer-repos.md` Local checks (local-check after ci and
+  verify) — confidence: high
 - A2: the edge-row `STALL?` is the `elif [ "$eage" -ge "$stall" ]` branch
   after `n_edge=$((n_edge + 1))` in the dispatch edge loop — evidence:
   `joharness.sh:dispatch_retired_edges` feeds it — confidence: high
@@ -85,11 +86,15 @@ and a nudge that does not ask for a handover.
 ## Acceptance
 
 - `./joharness.sh ci` — `ci: pass` (red: `ci: FAIL` naming the case); the
-  new dispatch cases PASS. With `git show origin/main:joharness.sh` swapped
-  into a copy of this branch, the dispatch topic prints `FAIL and carries NO
-  STALL? inside the retired-row window` and `FAIL past the retired-row window
-  it stalls, naming the window and both knobs`.
-- `./joharness.sh verify` — `0 failed`.
+  new dispatch cases PASS. Without the change: `cp -r . "$T" && git show
+  origin/main:joharness.sh >"$T/joharness.sh" && (cd "$T" && ./joharness.sh
+  ci)` prints `FAIL and carries NO STALL? inside the retired-row window` and
+  `FAIL past the retired-row window it stalls, naming the window and both
+  knobs`.
+- `./joharness.sh verify` — `0 failed` (red: a non-zero failed count).
+- Consumer side, after its next sync: `./joharness.sh dispatch` prints a
+  `stall     :` line carrying `a retired row with no claim file: 75 min` at
+  the default knobs (red: the line lacks it).
 - `grep -n "since retire" .claude/commands/orchestrator.md` — one line, the
   retired-row nudge (red: none, as on `origin/main`).
 
@@ -104,7 +109,9 @@ and a nudge that does not ask for a handover.
 ## Traps
 
 - NEVER skip, disable or quarantine a test to get green.
-- Shares `joharness.sh` with `stranded-branch-plans` and `orchestrator.md`
-  with `stranded-branch-plans` and `heartbeat-read-cheaper`: reconcile, do
-  not overwrite.
+- Shares `joharness.sh` and `.agents/docs/orchestrated.md` with
+  `stranded-branch-plans`, and `orchestrator.md` with `stranded-branch-plans`
+  and `heartbeat-read-cheaper`: reconcile, do not overwrite.
+- `orchestrator.md` has a reading budget (`selftest/reading-budget.sh`,
+  bound 23628 bytes, 472 free on `origin/main`): the new rows must fit it.
 - `joharness.conf` is a core path: do not touch it.
