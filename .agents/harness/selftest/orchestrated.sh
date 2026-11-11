@@ -918,7 +918,7 @@ expect "only a reply that is just the number, newer than the question" \
 expect "and the label approved alone is the recommended option" \
   "else the label \`approved\` = the" "$clerktext"
 expect "and the clerk releases the label on the answer it decides" \
-  "\`human-review\` (\`issue_write\` \`update\`, labels = the existing minus it);" "$clerktext"
+  "\`human-review\` (\`issue_write\` \`update\`, labels = the existing minus it)." "$clerktext"
 expect "and the comment closes on the one-gesture answer" \
   "\"approve = the recommended option; or reply with a" "$clerktext"
 expect "and removes approved before the question" \

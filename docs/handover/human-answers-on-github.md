@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK6L8MbE3uRqJ6F9WyS
 agent: opus
 updated: 2026-11-11
-next: Re-run ci on the verifier fixes, then retire commit and PR with walk-through
+next: Retire commit, PR with walk-through, finish, merge
 ---
 
 ## Goal
