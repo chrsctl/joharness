@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK6E2zwtx5Lt8Mtzzk1
 agent: opus
 updated: 2026-11-11
-next: Run ci, then verifier at review tier, then retire and open the PR
+next: Retire, open the PR, finish, merge
 ---
 
 ## Goal
@@ -39,7 +39,13 @@ human. Graduate the answer to `.agents/docs/consumer-repos.md`, delete the file.
 
 ## Review
 
-None yet.
+- r1: (verifier) scoped green leaves no certificate, so starved-counts' NOT OUTRUN sends a green head to "fix the red" (fixed: scoped green writes a separate record OUTRUN reads, catch-up ignores; case 5)
+- r2: (verifier) case 4 passes on origin/main, cannot fail without the fix (fixed: case 4 is a stale-marker guard, acceptance names 1 and 5 as the failing cases)
+- r3: (verifier) resume bound read from the manager's own next: text, resettable; JOHARNESS_RESPAWN_LIMIT is per run (fixed: dispatch counts block commits in git, own knob)
+- r4: (verifier) doc claimed a verifier re-read before one had (fixed: now cites this verifier's r4, which re-read checks_gate and checks_local_check)
+- r5: (verifier) plan named dispatch-order.sh, the waiting-on cases are in dispatch-park.sh (fixed)
+- r6: (verifier) 33 of 69 is not most (fixed: about half or more)
+- r7: (verifier) consumer interface written as decided (fixed: doc says proposed, human may veto; PR body flags it)
 
 ## Blockers
 

@@ -7,7 +7,7 @@ needs: starved-counts-green-runs
 requirement: none
 serves: all
 issue: none
-scope: shared:joharness.sh, .agents/harness/selftest/dispatch-order.sh, .claude/commands/manager.md, .agents/docs/manager-reference.md, shared:.agents/docs/consumer-repos.md
+scope: shared:joharness.sh, .agents/harness/selftest/dispatch-park.sh, .claude/commands/manager.md, .agents/docs/manager-reference.md, shared:.agents/docs/consumer-repos.md
 ---
 
 ## Goal
@@ -28,14 +28,20 @@ Settled in `.agents/docs/consumer-repos.md` § Local checks (research
   § Question. A STARVED block whose resume count (below) is under the bound:
   draft the pull request (`drafted: <N>`), post no question, apply no
   `human-review`, `next:` = `conflict: base outran finish: resume <k>/<max>:
-  <the starved-counts-green-runs text>`. At the bound: the question and the
+  <the starved-counts-green-runs text>`. Dispatch counts k itself, never
+  from the manager's text: the number of commits on the claim's branch
+  whose workstream file went to `status: blocked` with `next:` starting
+  `conflict: base outran finish` (git history, across orchestrator runs).
+  A new knob `JOHARNESS_STARVED_RESUMES` (default 2) in `joharness.sh`'s
+  knob table bounds it; never `JOHARNESS_RESPAWN_LIMIT`, which is per run.
+  At the bound: the question and the
   label, with `starved-counts-green-runs`' human choices.
 - `joharness.sh` dispatch: a claim blocked `conflict: base outran finish:
   resume <k>/<max>` with k < max, whose base (`origin/main`) has a commit
   newer than the block commit, is offered for respawn like a `core path:
   waiting on #<N>` claim on its merge, not counted blocked. `block_reason_ok`
   unchanged (`conflict:` stays valid).
-- `.agents/harness/selftest/dispatch-order.sh`: a STARVED claim under the
+- `.agents/harness/selftest/dispatch-park.sh`: a STARVED claim under the
   bound with a moved base is offered; with an unmoved base it is not; at the
   bound it is counted blocked.
 - `.agents/docs/consumer-repos.md` § Local checks: one line on the resume.
@@ -48,10 +54,12 @@ Settled in `.agents/docs/consumer-repos.md` § Local checks (research
 - A2: `starved-counts-green-runs` has landed and fixed the STARVED `next:`
   text and the OUTRUN count; this plan builds on that text. — evidence:
   `needs:` edge — confidence: high.
-- A3: The bound defaults to 2 (`JOHARNESS_RESPAWN_LIMIT`'s default) unless
-  the implementer finds a reason; a new knob lives in `joharness.sh`'s knob
-  table, never `joharness.conf`. — evidence: `joharness.sh` knob table
-  (`JOHARNESS_RESPAWN_LIMIT|2|dispatch`) — confidence: medium.
+- A3: The bound must be counted from git, across orchestrator runs: a
+  manager-written count can be reset (gx's relayed answer reset it), and
+  `JOHARNESS_RESPAWN_LIMIT` is per run (`joharness.sh` knob table). The
+  new knob lives in the knob table, never `joharness.conf`. — evidence:
+  `joharness.sh` knob table (`JOHARNESS_RESPAWN_LIMIT|2|dispatch`) —
+  confidence: high.
 
 ## Out of scope
 
@@ -63,7 +71,7 @@ Settled in `.agents/docs/consumer-repos.md` § Local checks (research
 ## Acceptance
 
 - `./joharness.sh ci` — `ci: pass`.
-- `./joharness.sh verify` — `0 failed`, the new dispatch-order cases in its
+- `./joharness.sh verify` — `0 failed`, the new dispatch-park cases in its
   count.
 - The new "offered" case fails on `origin/main` and passes on the branch;
   both runs in `## Review`.
@@ -77,7 +85,7 @@ Settled in `.agents/docs/consumer-repos.md` § Local checks (research
 
 - `joharness.sh:block_reason_ok` — the reason list.
 - `joharness.sh:dispatch_block_ts` — block commit time.
-- `.agents/harness/selftest/dispatch-order.sh` — the `core path: waiting on`
+- `.agents/harness/selftest/dispatch-park.sh` — the `core path: waiting on`
   respawn cases to mirror.
 - `.claude/commands/manager.md` — §4, "Behind again at merge?".
 

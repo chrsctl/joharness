@@ -242,14 +242,15 @@ plans:
 - **A scoped green is certified as full.** `checks_gate` writes the
   certificate on `rc=0` and its own `catchup=0`; from `local-check` it reads
   the exit code and nothing else (`joharness.sh:checks_local_check`, GROUNDED:
-  read from source, re-read by a verifier). A consumer that makes
+  read from source, re-read by this answer's verifier, its r4). A consumer that makes
   `local-check` re-run only the suites the both-sides paths feed (chrsctl/gx
   #1499, measured from its own last full green) gets that partial green
   certified, and the next `CATCH-UP` carries from it: scoped runs chain with
   no full run under them. The contract today has no word for "green, do not
   certify"; a reserved exit code would let a real failure that happens to
-  exit with it pass, so the fix is a marker the harness hands `local-check`
-  (plan `local-check-scoped-green`).
+  exit with it pass, so the plan proposes a marker the harness hands
+  `local-check` (plan `local-check-scoped-green`; a consumer interface, a
+  human may veto it).
 - **STARVED asks a human a question with one answer.** It blocks `conflict:
   base outran finish`, and every block but `defect:` posts `decision needed:`
   and labels `human-review` (manager.md §3, manager-reference.md §
@@ -266,7 +267,7 @@ Why a full run never lands there, measured in gx over the 12 hours before
 2026-11-11T13:50Z (WEAK: gx's reading, `git rev-list --count --since --until`
 over 69 33-minute windows 600 s apart): `main` was still in 0 of 69; a path
 changed on both sides in 47 and 33 of 69 for two branches, so CATCH-UP
-refused most of them. Scoping turned 47 -> 20 and 33 -> 10 of those into full
+refused about half of them or more. Scoping turned 47 -> 20 and 33 -> 10 of those into full
 runs and most of the rest into a 25 s one.
 
 The head's copy runs so a pull request repairing a check broken on base can

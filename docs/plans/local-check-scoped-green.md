@@ -33,7 +33,12 @@ not certify". Settled in `.agents/docs/consumer-repos.md` § Local checks
   tell `checks_gate` (a global or the return path; implementer's choice)
   so it skips the certificate write. A red run removes the file too.
 - `joharness.sh:checks_gate`, the certificate write: also require "not
-  scoped".
+  scoped". A scoped green instead writes `<git-dir>/joharness-finish-scoped`
+  (`head=`, `base=`), which `checks_catch_up` never reads; a full run
+  removes both files before its suites. The BEHIND refusal's OUTRUN test
+  (plan `starved-counts-green-runs`) accepts either file whose `head=` is an
+  ancestor of HEAD: a scoped green is a green the base outran, never a red
+  to fix, so a scoping consumer still reaches STARVED.
 - `.agents/harness/selftest/checks.sh`, CATCH-UP section. Cases:
   1. A fixture `local-check` that touches `"$JOHARNESS_LOCAL_CHECK_SCOPED"`
      and exits 0 → `finish` passes, prints `SCOPED`, and no
@@ -42,8 +47,10 @@ not certify". Settled in `.agents/docs/consumer-repos.md` § Local checks
      (the full-run path already removes it before running; assert it).
   3. A `local-check` that does not touch the file → certificate written,
      as today.
-  4. A `local-check` that touches the file and exits 1 → red, no marker
-     left in the git dir.
+  4. A stale marker pre-created in the git dir, then a `local-check` that
+     does not touch it and exits 0 → certificate written, no `SCOPED`.
+  5. Scoped green, then the base moves, then `finish` → `OUTRUN`, not
+     `NOT OUTRUN`.
 - `.agents/docs/consumer-repos.md` § Local checks: the contract, one
   paragraph: the variable, what a scoped green does and does not buy, and
   why a reserved exit code was rejected (a real failure exiting with it
@@ -76,8 +83,9 @@ not certify". Settled in `.agents/docs/consumer-repos.md` § Local checks
 - `./joharness.sh ci` — `ci: pass`.
 - `./joharness.sh verify` — `0 failed`, the new checks.sh cases in its
   count.
-- The new cases 1 and 4 fail on `origin/main` (no `SCOPED` line, a
-  certificate written) and pass on the branch; both runs in `## Review`.
+- The new cases 1 and 5 fail on `origin/main` (no `SCOPED` line, a
+  certificate written; no `OUTRUN` after a scoped green) and pass on the
+  branch; both runs in `## Review`. Cases 2-4 are guards that pass on both.
 - `grep -n 'JOHARNESS_LOCAL_CHECK_SCOPED' .agents/docs/consumer-repos.md`
   — at least one hit.
 - Consumer side, after the sync: in a consumer under
