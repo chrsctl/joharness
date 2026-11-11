@@ -215,7 +215,10 @@ across disjoint files (base renames a function, the branch adds a call in
 another file) passes a catch-up and lands red; the next `finish` cut from
 that base is what sees it. The bound (20 commits, no shared file) keeps that
 window small; the status quo it replaces merged 172 commits stale with no
-check at all. `JOHARNESS_CATCHUP_COMMITS=0` turns it off.
+check at all. `JOHARNESS_CATCHUP_COMMITS=0` turns it off. A BEHIND refusal
+prints `OUTRUN` when a green run (full or catch-up) covers the head, base
+merged in at most since, else `NOT OUTRUN`; only `OUTRUN` counts toward
+STARVED (`.claude/commands/manager.md` §4).
 
 Why the bound counts commits, and what that costs. It is a count of commits,
 not of merged pull requests, so it measures how far the base moved only where

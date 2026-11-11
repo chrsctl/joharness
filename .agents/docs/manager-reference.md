@@ -185,6 +185,31 @@ and non-draft "for a human", a human merged it 172 commits stale at
 (`consumer-repos.md` § Local checks) makes starving rare; the draft makes the
 remainder no one's accident.
 
+## Starved
+
+Count a `finish` refusal toward STARVED only when it prints `OUTRUN`: a
+green run (full or `CATCH-UP`) covers this head and the base outran it.
+`NOT OUTRUN` = no green run covers it (last run red, unfinished, never ran,
+or own commits since): fix it on the ordinary red path, or block
+`defect:`/`hardware:` with the real cause, never `conflict:`. On the third
+`OUTRUN`, draft the pull request first (§ Block on an open pull request),
+then block with `next:` exactly:
+
+`conflict: base outran finish: <n> green runs outrun (behind <b1>,<b2>,<b3>); human: hold merges until this one lands, or merge it as-is <k> behind, or raise JOHARNESS_CATCHUP_COMMITS`
+
+`<bi>` = the BEHIND count each `OUTRUN` refusal printed, `<k>` = the latest.
+Never `next:` text telling the human to merge `origin/main` and run `finish`
+again: that is the loop the manager already ran, with no human judgement in
+it.
+
+Why: a count of BEHIND refusals also counts red runs. chrsctl/gx, 2026-11-11
+(WEAK: a consumer's reading, from `list_events`):
+
+- gx #1495: blocked STARVED with no green run at all; both full runs ended
+  `local-check: FAILED`, the three counted refusals each followed a red.
+- gx #1488: three runs outrun as written; the relayed human answer was the
+  same merge-and-finish loop with the counter reset.
+
 ## Challenge
 
 Before `/plan` on a requirement, spawn `.claude/agents/challenger.md` four

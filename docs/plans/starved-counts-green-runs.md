@@ -54,45 +54,62 @@ from that line.
 
 ## Scope
 
+- `joharness.sh:checks_gate`. A second record beside the certificate,
+  `checks_green_file` (git dir, `joharness-finish-green`, one `head=` line):
+  removed when any suite run starts (full or CATCH-UP), written with the
+  pinned head when that run ends green. Amended on the branch (plan-checker
+  r2): the certificate alone is not "the last run was green" — a red
+  CATCH-UP keeps it, and an ancestor test passes a head carrying own
+  commits no run saw. The certificate and CATCH-UP's rules are unchanged.
 - `joharness.sh:checks_gate`, in the BEHIND branch. When HEAD is behind,
   print one more line saying which case this is:
-  - When `checks_cert_file` exists and its `head=` is an ancestor of HEAD
-    (`merge-base --is-ancestor`), print
-    `  OUTRUN       a green full run certified <short>: merge origin/main, finish again (counts as finish behind)`.
+  - When the green record exists, its `head=` is an ancestor of HEAD, and
+    HEAD is that head or its tree is the clean merge
+    (`merge-tree --write-tree`) of that head with `merge-base HEAD <ref>`
+    (only base merged in since), print
+    `  OUTRUN       a green run at <short> was outrun by <ref>: merge it in, finish again`
+    and, indented under it, `(counts as finish behind)`.
   - Otherwise print
-    `  NOT OUTRUN   no green full run certifies this line (the last full run was red, unfinished, or never ran): not a finish behind: count — fix the red`.
-  - Read the certificate only; never write or remove it on this path. The
-    BEHIND refusal already returns before `checks_catch_up` runs, so the
-    certificate survives to the next run.
-- `.agents/harness/selftest/checks.sh`, CATCH-UP section. Add cases:
+    `  NOT OUTRUN   no green run covers this head (last run red, unfinished, never ran, or own commits since): fix that; not a finish behind`
+    (wrapped over two lines).
+  - Read only; never write or remove either record on this path.
+- `.agents/harness/selftest/checks.sh`, CATCH-UP section. Add cases, each
+  run on `origin/main`'s `joharness.sh` first (must fail) and on the branch:
   1. Full green, then the base moves one commit, then `finish` →
-     `OUTRUN`.
-  2. Full red local-check (make the fixture's local-check fail), then the
-     base moves, then `finish` → `NOT OUTRUN`, and no `OUTRUN`.
+     `OUTRUN       a green run at`.
+  2. Full red local-check, then the base moves, then `finish` →
+     `NOT OUTRUN`, and refute the prefix `OUTRUN       a green run`.
   3. No run ever on this branch, base moved → `NOT OUTRUN`.
-  4. Certificate from another line of work (cert head not an ancestor of
-     HEAD) → `NOT OUTRUN`.
+  4. Another branch's green in the same worktree (its head not an ancestor
+     of HEAD) → `NOT OUTRUN`.
+  5. Green, then an own commit, base moved → `NOT OUTRUN`.
+  6. Green, merge base in, `finish` a CATCH-UP whose ci goes red, base
+     moved → `NOT OUTRUN`.
+  7. Green, base merged in (no run), base moved again → `OUTRUN`.
 - `.claude/commands/manager.md` §4, the STARVED paragraph. Count only runs
-  that print `OUTRUN` (`finish behind: <n>`). A `NOT OUTRUN` run is a red
-  or missing green: take the ordinary red path, which is to fix it or block
-  `defect:`/`hardware:` with the real cause, never `conflict:`. On three
-  OUTRUN runs, the block's `next:` must offer the human a choice that only
-  they can make. Use exactly:
-  `conflict: base outran finish: <n> green runs outrun (<commits per run>); human: hold merges until this one lands, or merge it as-is <k> behind, or raise JOHARNESS_CATCHUP_COMMITS`.
-  Never write `next:` text that tells the human to re-run finish.
-- `.agents/docs/manager-reference.md`, the STARVED paragraph near "chrsctl/gx
-  PR #1417". Add the 2026-11-11 evidence (gx #1495 and #1488, one line
-  each) and the why: a count of BEHIND refusals also counts red runs.
-- `.agents/docs/consumer-repos.md` § Local checks and `.agents/docs/product.md`,
-  "Conflict at finish". Change "still behind after three" to three
-  `OUTRUN` runs. Wording only.
+  that print `OUTRUN` (`finish behind: <n>`); `NOT OUTRUN` is a red to fix
+  on the ordinary path. The rest goes to a new `## Starved` in
+  `manager-reference.md`: manager.md's reading budget
+  (`selftest/reading-budget.sh`, 54 bytes free) is not raised.
+- `.agents/docs/manager-reference.md`, new `## Starved`: the counting rule,
+  the NOT OUTRUN path (fix it, or block `defect:`/`hardware:` with the real
+  cause, never `conflict:`), the block's `next:` exactly
+  `conflict: base outran finish: <n> green runs outrun (behind <b1>,<b2>,<b3>); human: hold merges until this one lands, or merge it as-is <k> behind, or raise JOHARNESS_CATCHUP_COMMITS`
+  (`<bi>` = the BEHIND count each OUTRUN refusal printed, `<k>` = the
+  latest), never `next:` text telling the human to re-run finish; the
+  2026-11-11 evidence (gx #1495 and #1488, one line each) and the why.
+- `.agents/docs/consumer-repos.md` § Local checks: one sentence naming the
+  OUTRUN / NOT OUTRUN line (the phrase "still behind after three" is not
+  there). `.agents/docs/product.md`, "Conflict at finish": "still behind
+  after three" becomes three `OUTRUN` runs. Wording only.
 
 ## Assumptions
 
 - A1: The certificate exists if and only if the last full run on this
   worktree was green. The `rm -f "$cf"` call happens before a full run's
   suites; the write happens only at `rc -eq 0 && catchup = 0`; a CATCH-UP
-  green leaves it in place.
+  green leaves it in place, and so does a red CATCH-UP (plan-checker r2:
+  hence the green record).
   — evidence: `joharness.sh:checks_gate` (`rm -f "$cf"`, `printf 'head=%s\nbase=%s\n'`)
   — confidence: high.
 - A2: A BEHIND refusal returns before the catch-up/rm step, so a
@@ -128,13 +145,14 @@ from that line.
 
 ## Acceptance
 
-- `./joharness.sh ci` — `ci: pass`.
-- `./joharness.sh verify` — `0 failed`, and the new checks.sh cases appear
-  in its count.
-- The new selftest cases fail on `origin/main` (no OUTRUN/NOT OUTRUN line)
-  and pass on the branch. Record both runs in `## Review`.
-- `grep -n "OUTRUN" .claude/commands/manager.md` — at least one hit, inside
-  §4.
+- `./joharness.sh ci` — prints `ci: pass`; `ci: FAILED` = not done.
+- `./joharness.sh verify` — `0 failed`, passed count at least 7 above
+  `origin/main`'s (the new cases); any failed count above 0 = not done.
+- `bash .agents/harness/selftest.sh` in a `git worktree` of `origin/main`
+  with the branch's `checks.sh` copied in — the new cases print `FAIL`; on
+  the branch they pass. Both counts in `## Review`.
+- `grep -n "OUTRUN" .claude/commands/manager.md` — at least one hit, between
+  `## 4. Finish` and `## Never`; none = not done.
 - `grep -n "still behind after three" .agents/docs/product.md` — no hit.
 
 ## Where to look

@@ -6840,6 +6840,40 @@ checks_cert_file() {
   printf '%s/joharness-finish-cert' "$d"
 }
 
+# Where the last suite run's green is remembered, full or CATCH-UP: removed
+# when any run starts, written with the pinned head when it ends green. The
+# certificate cannot answer this: a red CATCH-UP keeps it.
+checks_green_file() {
+  local d
+  d="$(git -C "$ROOT" rev-parse --absolute-git-dir 2>/dev/null)" && [ -n "$d" ] ||
+    return 1
+  printf '%s/joharness-finish-green' "$d"
+}
+
+# checks_outrun <ref>: on a BEHIND refusal, one line saying whether a green
+# run covers this head (HEAD is the green head, or that head with only <ref>
+# merged in since) — the one refusal a STARVED count counts (manager.md §4).
+# Why: chrsctl/gx #1495 counted refusals after red runs as outrun. Reads only.
+checks_outrun() {
+  local ref="$1" gf gh mb mt tree
+  if gf="$(checks_green_file)" && [ -r "$gf" ] &&
+     gh="$(sed -n 's/^head=//p' "$gf" | head -n 1)" &&
+     [[ "$gh" =~ ^[0-9a-f]{40}$ ]] &&
+     git -C "$ROOT" merge-base --is-ancestor "$gh" HEAD 2>/dev/null &&
+     { [ "$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)" = "$gh" ] ||
+       { mb="$(git -C "$ROOT" merge-base HEAD "$ref" 2>/dev/null)" &&
+         mt="$(git -C "$ROOT" merge-tree --write-tree "$gh" "$mb" 2>/dev/null)" &&
+         tree="$(git -C "$ROOT" rev-parse 'HEAD^{tree}' 2>/dev/null)" &&
+         [ "${mt%%$'\n'*}" = "$tree" ]; }; }; then
+    printf '  OUTRUN       a green run at %s was outrun by %s: merge it in, finish again\n' \
+      "${gh:0:9}" "$ref"
+    printf '               (counts as finish behind)\n'
+  else
+    printf '  NOT OUTRUN   no green run covers this head (last run red, unfinished, never\n'
+    printf '               ran, or own commits since): fix that; not a finish behind\n'
+  fi
+}
+
 # checks_catch_up <ref>: true when HEAD is exactly a head a full local green
 # certified, merged clean with <ref>, and nothing <ref> brought in touches a
 # path that head changed. Then local-check's verdict carries; ci re-runs. Why:
@@ -6970,6 +7004,7 @@ checks_gate() {
         "$behind" "$ref"
       printf '               merge. Reconcile first: git fetch origin %s\n' \
         "${HANDOVER_BASE_BRANCH:-main}"
+      checks_outrun "$ref"
       rc=1
     fi
     [ -n "$behind" ] && behind_said="${behind} behind ${ref} (${fresh})"
@@ -6985,6 +7020,8 @@ checks_gate() {
 
   printf '  head       %s, pushed, clean, %s\n' \
     "$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null)" "$behind_said"
+  # Any run supersedes the last green; written again only on this one's.
+  if cf="$(checks_green_file)"; then rm -f "$cf"; fi
   catchup=0
   if checks_catch_up "$ref"; then
     catchup=1
@@ -7047,6 +7084,11 @@ checks_gate() {
      [ "$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)" = "$pin" ] &&
      cf="$(checks_cert_file)"; then
     printf 'head=%s\nbase=%s\n' "$pin" "$tip" >"$cf" 2>/dev/null || :
+  fi
+  if [ "$rc" -eq 0 ] && [ -n "$pin" ] &&
+     [ "$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)" = "$pin" ] &&
+     cf="$(checks_green_file)"; then
+    printf 'head=%s\n' "$pin" >"$cf" 2>/dev/null || :
   fi
 
   # What a green above does NOT cover.

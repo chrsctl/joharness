@@ -779,6 +779,124 @@ git -C "$kcwork" checkout -q main
 rm -f "${TMP}/kcmid-once"
 rm -f "$(git -C "$kcwork" rev-parse --absolute-git-dir)/joharness-finish-cert" "$kccu_ran"
 
+# --- OUTRUN: which BEHIND refusal a STARVED count may count ------------------
+# chrsctl/gx #1495: a manager counted three BEHIND refusals as "outrun" when
+# no run on the branch was ever green, and blocked a human on it. The
+# refusal says which case it is: OUTRUN only when a green run (full or
+# CATCH-UP) covers this head, the base merged in at most since.
+ko_gitdir="$(git -C "$kcwork" rev-parse --absolute-git-dir)"
+ko_flag="${TMP}/ko-flag"
+ko_outrun="OUTRUN       a green run at"
+ko_main() { # <file>: one commit on origin/main, pushed; back on kco
+  git -C "$kcwork" checkout -q main
+  git -C "$kcwork" merge -q --ff-only origin/main 2>/dev/null
+  printf 'x\n' >>"${kcwork}/$1"
+  commit_all "$kcwork" "main: $1"
+  git -C "$kcwork" push -q origin main 2>/dev/null
+  git -C "$kcwork" checkout -q kco
+}
+ko_sync() { # merge origin/main into kco, push
+  git -C "$kcwork" fetch -q origin main 2>/dev/null
+  git -C "$kcwork" merge -q --no-edit origin/main >/dev/null 2>&1
+  git -C "$kcwork" push -q origin HEAD 2>/dev/null
+}
+rm -f "${ko_gitdir}/joharness-finish-cert" "${ko_gitdir}/joharness-finish-green"
+printf '0\n' >"$ko_flag"
+git -C "$kcwork" checkout -q main
+git -C "$kcwork" merge -q --ff-only origin/main 2>/dev/null
+git -C "$kcwork" checkout -qb kco main
+# shellcheck disable=SC2016  # the fixture's check expands it, not this shell
+printf 'exit "$(cat %q)"\n' "$ko_flag" >"${kcwork}/local-check"
+commit_all "$kcwork" "kco: a check a flag turns red"
+git -C "$kcwork" push -qu origin kco 2>/dev/null
+
+# No run ever on this branch.
+ko_main docs-o1.txt
+out="$(JOHARNESS_CHECKS=local kc_finish)"
+expect "outrun: a branch with no run is NOT OUTRUN" "NOT OUTRUN   no green run covers this head" "$out"
+refute "outrun: and never OUTRUN" "$ko_outrun" "$out"
+
+# A full green, then the base moves: the case STARVED counts.
+ko_sync
+out="$(JOHARNESS_CHECKS=local kc_finish)"
+expect "outrun: the full run is green" "finish: pass" "$out"
+ko_main docs-o2.txt
+out="$(JOHARNESS_CHECKS=local kc_finish)"
+expect "outrun: a green head the base outran is OUTRUN" "$ko_outrun" "$out"
+expect "outrun: and the line says it counts" "(counts as finish behind)" "$out"
+expect "outrun: the refusal still runs nothing" "ci and verify NOT run" "$out"
+
+# The base merged in with no run since, then moved again: still that green.
+ko_sync
+ko_main docs-o3.txt
+out="$(JOHARNESS_CHECKS=local kc_finish)"
+expect "outrun: base merged in since the green is OUTRUN" "$ko_outrun" "$out"
+
+# A CATCH-UP whose ci goes red: the certificate stays, the green does not.
+git -C "$kcwork" checkout -q main
+git -C "$kcwork" merge -q --ff-only origin/main 2>/dev/null
+mkdir -p "${kcwork}/.agents/scripts"
+printf '#!/usr/bin/env bash\nif [ 1 = 1 ; then\n' >"${kcwork}/.agents/scripts/ko-broken.sh"
+commit_all "$kcwork" "main: a script that does not parse"
+git -C "$kcwork" push -q origin main 2>/dev/null
+git -C "$kcwork" checkout -q kco
+ko_sync
+out="$(JOHARNESS_CHECKS=local kc_finish)"
+expect "outrun: the fixture's catch-up runs" "CATCH-UP     HEAD = certified" "$out"
+expect "outrun: and its ci is red" "ci: FAILED" "$out"
+ko_main docs-o4.txt
+out="$(JOHARNESS_CHECKS=local kc_finish)"
+expect "outrun: a red CATCH-UP is NOT OUTRUN" "NOT OUTRUN   no green run covers this head" "$out"
+refute "outrun: a red CATCH-UP is never OUTRUN" "$ko_outrun" "$out"
+
+# A green CATCH-UP, then a commit of the branch's own no run saw.
+git -C "$kcwork" checkout -q main
+git -C "$kcwork" merge -q --ff-only origin/main 2>/dev/null
+git -C "$kcwork" rm -q .agents/scripts/ko-broken.sh
+commit_all "$kcwork" "main: drop the broken script"
+git -C "$kcwork" push -q origin main 2>/dev/null
+git -C "$kcwork" checkout -q kco
+ko_sync
+out="$(JOHARNESS_CHECKS=local kc_finish)"
+expect "outrun: the fixed catch-up is green" "finish: pass" "$out"
+printf 'own\n' >"${kcwork}/docs-own-o.txt"
+commit_all "$kcwork" "kco: own work no run saw"
+git -C "$kcwork" push -q origin kco 2>/dev/null
+ko_main docs-o5.txt
+out="$(JOHARNESS_CHECKS=local kc_finish)"
+expect "outrun: own commits since the green are NOT OUTRUN" "NOT OUTRUN   no green run covers this head" "$out"
+refute "outrun: own commits since the green are never OUTRUN" "$ko_outrun" "$out"
+
+# A full run that ends red.
+ko_sync
+printf '1\n' >"$ko_flag"
+out="$(JOHARNESS_CHECKS=local kc_finish)"
+expect "outrun: the full run is red" "local-check: FAILED" "$out"
+ko_main docs-o6.txt
+out="$(JOHARNESS_CHECKS=local kc_finish)"
+expect "outrun: a red full run is NOT OUTRUN" "NOT OUTRUN   no green run covers this head" "$out"
+refute "outrun: a red full run is never OUTRUN" "$ko_outrun" "$out"
+
+# Another branch's green in the same worktree is not this head's.
+printf '0\n' >"$ko_flag"
+git -C "$kcwork" checkout -qb kco2 origin/main
+printf 'exit 0\n' >"${kcwork}/local-check"
+commit_all "$kcwork" "kco2: another line of work"
+git -C "$kcwork" push -qu origin kco2 2>/dev/null
+out="$(JOHARNESS_CHECKS=local kc_finish)"
+expect "outrun: the other branch is green" "finish: pass" "$out"
+git -C "$kcwork" checkout -q kco
+out="$(JOHARNESS_CHECKS=local kc_finish)"
+expect "outrun: another branch's green is NOT OUTRUN" "NOT OUTRUN   no green run covers this head" "$out"
+refute "outrun: another branch's green is never OUTRUN" "$ko_outrun" "$out"
+
+git -C "$kcwork" checkout -q main
+git -C "$kcwork" merge -q --ff-only origin/main 2>/dev/null
+git -C "$kcwork" rm -q docs-o1.txt docs-o2.txt docs-o3.txt docs-o4.txt docs-o5.txt docs-o6.txt
+commit_all "$kcwork" "main: drop the outrun fixture"
+git -C "$kcwork" push -q origin main 2>/dev/null
+rm -f "${ko_gitdir}/joharness-finish-cert" "${ko_gitdir}/joharness-finish-green" "$ko_flag"
+
 # --- every run_check names a function check_call dispatches -----------------
 # A function with no arm in check_call dies at run time with the
 # registration message; this reds before that run.
