@@ -238,22 +238,24 @@ beside the commit count, so a consumer can tune `JOHARNESS_CATCHUP_COMMITS`
 from its own history. Count yourself: `git rev-list --count --first-parent
 --merges <base>..origin/main`.
 
-What the certificate cannot tell, and what STARVED costs (research
-`scoped-local-check-certificate`, settled here). Two defects, both open as
-plans:
+A scoped green certifies nothing. A consumer's `local-check` may run only
+part of its suites (chrsctl/gx #1499: the suites the paths changed on both
+sides feed, measured from its own last full green). That green is real for
+this head, but certified it would be what the next `CATCH-UP` carries from,
+and scoped runs would chain with no full run under them. So `finish` hands
+the check a path in the git dir, `JOHARNESS_LOCAL_CHECK_SCOPED`, removed
+before each run: a check that touches it and exits 0 is green and prints
+`local-check: pass, SCOPED`, but writes no certificate, and the full run
+already removed the old one, so the next behind head runs `local-check` again
+(`joharness.sh:checks_local_check`, `checks_gate`). It still counts as a green
+for `OUTRUN`: a scoped green the base outran is a green, never a red to fix,
+so a scoping consumer still reaches STARVED. Why not a reserved exit code: a
+real failure that happens to exit with it would pass. The variable is a
+consumer interface a human may veto (research `scoped-local-check-certificate`).
 
-- **A scoped green is certified as full.** `checks_gate` writes the
-  certificate on `rc=0` and its own `catchup=0`; from `local-check` it reads
-  the exit code and nothing else (`joharness.sh:checks_local_check`, GROUNDED:
-  read from source, re-read by this answer's verifier, its r4). A consumer that makes
-  `local-check` re-run only the suites the both-sides paths feed (chrsctl/gx
-  #1499, measured from its own last full green) gets that partial green
-  certified, and the next `CATCH-UP` carries from it: scoped runs chain with
-  no full run under them. The contract today has no word for "green, do not
-  certify"; a reserved exit code would let a real failure that happens to
-  exit with it pass, so the plan proposes a marker the harness hands
-  `local-check` (plan `local-check-scoped-green`; a consumer interface, a
-  human may veto it).
+What STARVED costs (research `scoped-local-check-certificate`, settled here),
+open as a plan:
+
 - **STARVED asks a human a question with one answer.** It blocks `conflict:
   base outran finish`, and every block but `defect:` posts `decision needed:`
   and labels `human-review` (manager.md §3, manager-reference.md §

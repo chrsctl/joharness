@@ -1344,6 +1344,85 @@ out="$(hpx)"
 expect "the last plan retired: the parks resume" "PARKED #51 RESUME" "$out"
 refute "and the hold lifts" "red base" "$out"
 
+# --- a park holds its scope only while a plan names its issue ---------------
+# Nothing fixes an issue no plan names: holding the park's scope then only
+# starves the overlap (plan park-holds-only-on-pr). Once a plan names it, on
+# the base or a live branch, the park holds again; an unreadable scan holds.
+dfplan own-p none src/own-p
+dfplan over-p none src/own-p
+dfpush 2 "own-p and over-p"
+dfpark park-p own-p 'defect: #111: the loader breaks' 1
+# over-p's spawn row alone.
+overp_row() { printf '%s\n' "$1" | grep '^  docs/plans/over-p.md'; }
+out="$(hpx)"
+expect "a park on an unplanned issue releases its scope" \
+  "overlaps own-p on src/own-p (claimed on park-p) — that branch is BLOCKED on a human: spawn" "$(overp_row "$out")"
+refute "and the overlap is not held" "HOLD" "$(overp_row "$out")"
+expect "its verdict line says the scope is released" \
+  "            PARKED #111 own-p (park-p): no plan names #111 yet, scope released, report only" "$out"
+expect "and its row too" "PARKED #111: a defect's, holds no slot, parked " "$out"
+expect "naming the release" "ago: no plan names #111 yet — scope released" "$out"
+# A plan naming #111 on a live branch: a fix is coming, the park holds.
+git -C "$dfwork" checkout -qb fixer-111 main
+dfplan fix111 111 src/fix111
+dfcommit 0 "a plan naming #111"
+git -C "$dfwork" push -qu origin fixer-111
+git -C "$dfwork" checkout -q main
+out="$(hpx)"
+expect "a live branch plan naming the issue holds the scope again" \
+  "HOLD — overlaps own-p on src/own-p (claimed on park-p)" "$(overp_row "$out")"
+expect "and the park reads as waiting for the fix" \
+  "            PARKED #111 own-p (park-p): waits for the fix, report only" "$out"
+hpdrop fixer-111
+# The same plan on the base.
+dfplan fix111 111 src/fix111
+dfpush 0 "fix111 on the base"
+out="$(hpx)"
+expect "a base plan naming the issue holds the scope again" \
+  "HOLD — overlaps own-p on src/own-p (claimed on park-p)" "$(overp_row "$out")"
+refute "and nothing says it is released" "scope released" "$out"
+# Unnamed in place, not deleted: a delete of a plan naming #111 is a retire
+# (RESUME), which is not this case.
+sed -i 's/^issue: 111$/issue: none/' "${dfwork}/docs/plans/fix111.md"
+dfpush 0 "fix111 no longer names #111"
+out="$(hpx)"
+expect "no plan names it again: released again" \
+  "            PARKED #111 own-p (park-p): no plan names #111 yet, scope released, report only" "$out"
+# Fail closed: the base's plan scan fails (git grep exits 2) — not named is
+# unproven, so the park holds.
+dfbin="${TMP}/dfgitfail"
+mkdir -p "$dfbin"
+dfgit="$(command -v git)"
+# shellcheck disable=SC2016 # the $a and $@ are the stub's own, unexpanded here
+printf '#!/bin/sh\nfor a; do [ "$a" = grep ] && exit 2; done\nexec "%s" "$@"\n' "$dfgit" >"${dfbin}/git"
+chmod +x "${dfbin}/git"
+out="$(dfx env JOHARNESS_DEFECT_RECHECK_HOURS=0 PATH="${dfbin}:${PATH}")"
+expect "an unreadable plan scan holds the scope (fails closed)" \
+  "HOLD — overlaps own-p on src/own-p (claimed on park-p)" "$(overp_row "$out")"
+refute "and never says it is released" "scope released" "$out"
+out="$(hpx)"
+expect "readable again: released again" \
+  "            PARKED #111 own-p (park-p): no plan names #111 yet, scope released, report only" "$out"
+# Fail closed on a live row too: its plan file cannot be read (cat-file
+# fails) — whether it names #111 is unproven, so the park holds.
+git -C "$dfwork" checkout -qb other-111 main
+dfplan side111 none src/side111
+dfcommit 0 "a live plan naming no issue"
+git -C "$dfwork" push -qu origin other-111
+git -C "$dfwork" checkout -q main
+out="$(hpx)"
+expect "a readable live plan not naming #111: released" \
+  "            PARKED #111 own-p (park-p): no plan names #111 yet, scope released, report only" "$out"
+# shellcheck disable=SC2016 # the $a and $@ are the stub's own, unexpanded here
+printf '#!/bin/sh\nfor a; do [ "$a" = refs/remotes/origin/other-111:docs/plans/side111.md ] && [ "$1" = -C ] && [ "$3" = cat-file ] && exit 1; done\nexec "%s" "$@"\n' "$dfgit" >"${dfbin}/git"
+out="$(dfx env JOHARNESS_DEFECT_RECHECK_HOURS=0 PATH="${dfbin}:${PATH}")"
+expect "an unreadable live plan holds the scope (fails closed)" \
+  "HOLD — overlaps own-p on src/own-p (claimed on park-p)" "$(overp_row "$out")"
+refute "and never says it is released" "scope released" "$out"
+hpdrop other-111
+hpdrop park-p
+git -C "$dfwork" rm -q docs/plans/own-p.md docs/plans/over-p.md docs/plans/fix111.md
+dfpush 0 "drop own-p, over-p and fix111"
 # --- a STARVED block under JOHARNESS_STARVED_RESUMES resumes, unasked --------
 # manager.md §4: green, drafted, the base only outran finish. dispatch counts
 # the blocks from the branch's history, never from the number next: carries.

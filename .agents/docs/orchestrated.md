@@ -382,7 +382,11 @@ One block is not a human's: `defect: #<n>: …`, a manager parked on a defect
 outside its item. On its own plan's `issue:` it is no park — only that branch's
 plan names #<n>, so nothing below ever clears it — and `dispatch` prints
 `INVALID BLOCK?`, its scope held, counted apart from the human's (`joharness.sh:own_defect_park`). Otherwise `dispatch` prints it `PARKED #<n>`: no slot, not counted
-as waiting, the verdict line unchanged (two on one unplanned issue aside, below). From git alone: a plan naming #<n>
+as waiting, the verdict word unchanged (two on one unplanned issue aside, below).
+It holds its scope only while a fix is planned — a plan on the base or a live
+branch naming #<n>; with none, its lines read `no plan names #<n> yet — scope
+released` and an overlapping plan spawns (an unreadable scan holds; RESUME and
+RECHECK hold). From git alone: a plan naming #<n>
 leaves the base's first parent after the block commit (a rename is no
 retire) and no plan on the base or a live branch names #<n> = `RESUME`, a slot, never DRAINED; no plan,
 the block `JOHARNESS_DEFECT_RECHECK_HOURS` old, the base moved = `RECHECK`

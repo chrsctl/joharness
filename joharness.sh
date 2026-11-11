@@ -155,6 +155,7 @@ JOHARNESS_VERBOSE|0|session|1 = ci and finish print passing checks too.
 JOHARNESS_SELFTEST||session|always = run the selftest even on a docs-only diff.
 JOHARNESS_SELFTEST_GIT_PER_CASE|28|session|Git execs per passing selftest case before the ci stage reds; canonical-only.
 JOHARNESS_SELFTEST_JOBS|computed|session|Parallel selftest workers; default the CPU count, at most 4; 1 = one topic after another; canonical-only.
+JOHARNESS_LOCAL_CHECK_SCOPED|computed|session|Set by finish for local-check only: a path in the git dir; local-check touching it = green, do not certify.
 JOHARNESS_SESSION_SOURCE||session|The SessionStart hook source (startup, resume, clear, compact), set by session-start.
 JOHARNESS_FORCE_SETUP|0|session|1 = provision at session start outside the remote sandbox.
 JOHARNESS_SHIP||session|all = ci treats every harness file as shipping.
@@ -6785,10 +6786,15 @@ checks_bounded() {
   return "$rc"
 }
 
+# Set by checks_local_check: 1 when the last run was green and SCOPED (the
+# check touched the marker), so checks_gate writes no certificate.
+CHECKS_SCOPED=0
+
 # checks_local_check <base>: runs the head's declared check, if any. Prints its
 # verdict; non-zero = red.
 checks_local_check() {
-  local base="$1" f="$CHECKS_LOCAL_FILE" mins secs log rc t0 el last stat
+  local base="$1" f="$CHECKS_LOCAL_FILE" mins secs log rc t0 el last stat sf=""
+  CHECKS_SCOPED=0
   # Review is the guard, not immutability: a branch repairing a check broken
   # on the base branch must be able to pass, so the head's copy runs. A
   # deletion is the strongest weakening, so this comes before the absence.
@@ -6812,8 +6818,18 @@ checks_local_check() {
   secs=$((mins * 60))
   [ "$secs" -gt 0 ] || secs=1
   log="$(mktemp)" || return 1
+  # The check's way to say "green, do not certify": it touches this path
+  # (.agents/docs/consumer-repos.md § Local checks). The git dir, never the
+  # tree, so the marker cannot change the head it describes. Removed first,
+  # so a stale one from a killed run says nothing about this one.
+  if sf="$(checks_cert_file)"; then
+    sf="${sf%/*}/joharness-local-check-scoped"
+    rm -rf "$sf"
+  else
+    sf=""
+  fi
   t0=$SECONDS
-  checks_bounded "$secs" "$log" bash "$f"; rc=$?
+  JOHARNESS_LOCAL_CHECK_SCOPED="$sf" checks_bounded "$secs" "$log" bash "$f"; rc=$?
   el=$((SECONDS - t0))
   last="$(grep -v '^[[:space:]]*$' "$log" | tail -n 1)"
   printf '  elapsed %ss; last line: %s\n' "$el" "${last:-(no output)}"
@@ -6825,9 +6841,13 @@ checks_local_check() {
     printf '  last 20 lines:\n'
     tail -n 20 "$log" | sed 's/^/    /'
     printf '  %s: FAILED (exit %s) — not mergeable\n' "$f" "$rc"
+  elif [ -n "$sf" ] && [ -f "$sf" ]; then
+    printf '  %s: pass, SCOPED — this green certifies nothing (.agents/docs/consumer-repos.md § Local checks)\n' "$f"
+    CHECKS_SCOPED=1
   else
     printf '  %s: pass\n' "$f"
   fi
+  [ -z "$sf" ] || rm -rf "$sf"
   rm -f "$log"
   [ "$rc" -eq 0 ]
 }
@@ -7060,6 +7080,7 @@ checks_gate() {
       "${CHECKS_VERIFY_PATHS[*]}"
   fi
 
+  CHECKS_SCOPED=0
   if [ "$catchup" = 1 ]; then
     printf '\n  %s: carried by CATCH-UP above, NOT run on this head\n' "$CHECKS_LOCAL_FILE"
   else
@@ -7081,8 +7102,11 @@ checks_gate() {
   # A full green is what a later catch-up carries from; a catch-up green
   # never re-certifies, so every catch-up measures from one full run.
   # Both ends pinned before the suites: a commit landing on this branch
-  # mid-run is a head no check saw, so it gets no certificate.
-  if [ "$rc" -eq 0 ] && [ "$catchup" = 0 ] && [ -n "$tip" ] && [ -n "$pin" ] &&
+  # mid-run is a head no check saw, so it gets no certificate. A SCOPED
+  # green is no full run either: still a green (the file below), never the
+  # certificate, or scoped runs chain with no full run under them.
+  if [ "$rc" -eq 0 ] && [ "$catchup" = 0 ] && [ "$CHECKS_SCOPED" = 0 ] &&
+     [ -n "$tip" ] && [ -n "$pin" ] &&
      [ "$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)" = "$pin" ] &&
      cf="$(checks_cert_file)"; then
     printf 'head=%s\nbase=%s\n' "$pin" "$tip" >"$cf" 2>/dev/null || :
@@ -7522,15 +7546,24 @@ release_edge() {
 # asked every base plan once. BASE_ISSUES_READ=0 = not primed, ask git.
 BASE_ISSUES=""
 BASE_ISSUES_READ=0
+# 1 = the base's plan grep failed (no base ref, or git grep exit > 1): the
+# scan proves nothing, and DS_NAMED reads `?` (fails closed).
+BASE_ISSUES_ERR=0
 base_issues_prime() {
-  local over="refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" iss v
-  BASE_ISSUES=" "
+  local over="refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" iss v raw rc=0
+  BASE_ISSUES=" "; BASE_ISSUES_ERR=0
   # `-a`: a plan git calls binary is still read line by line, as `show` does.
+  # Read whole first: exit 1 is "no match", above 1 a failed read.
+  raw="$(git -C "$ROOT" grep -a -z -n -e '^---$' -e '^issue:' "$over" \
+      -- docs/plans </dev/null 2>/dev/null | tr '\000' '\001'
+    exit "${PIPESTATUS[0]}")" || rc=$?
+  { [ "$rc" -le 1 ] &&
+    git -C "$ROOT" rev-parse -q --verify "${over}^{commit}" >/dev/null 2>&1 </dev/null; } ||
+    BASE_ISSUES_ERR=1
   while IFS= read -r iss; do
     v="$(issue_list_verdict "$iss")"
     case "$v" in "ok "*) BASE_ISSUES="${BASE_ISSUES}${v#ok } " ;; esac
-  done < <(git -C "$ROOT" grep -a -z -n -e '^---$' -e '^issue:' "$over" \
-      -- docs/plans </dev/null 2>/dev/null | tr '\000' '\001' |
+  done < <(printf '%s' "$raw" |
     awk -F'\001' -v pre="${over}:docs/plans/" '
       # The files ls-tree lists at docs/plans/ and gr_docs keeps.
       substr($1, 1, length(pre)) != pre { next }
@@ -7626,8 +7659,11 @@ own_defect_park() {
 # The minutes column is since the block commit for RESUME and RECHECK, since
 # the first park otherwise.
 # args: <branch> <workstream path> <merge base> <next:> <branch-plan rows>
-# The line lands in DEFECT_STATE, never on stdout.
+# The line lands in DEFECT_STATE, never on stdout. DS_NAMED: does a plan on
+# the base or a `live` branch row name #<n> now — 1, 0 (every read
+# succeeded), or ? (a read failed, or none was made: UNREADABLE).
 DEFECT_STATE=""
+DS_NAMED="?"
 # <commit>: DS_NEXT = the raw next: of dispatch_defect_state's file <ws> at
 # <commit>, kept in its local `nx` (dynamic scope): one `show` per commit
 # though both of its walks read it.
@@ -7644,7 +7680,8 @@ dispatch_defect_state() {
   local branch="$1" ws="$2" base="$3" next="$4" bprows="$5"
   local ref n h cur prev bh="" bt now age phours fhours rhours retired="" named=0
   local ft fage hist hct nx=""
-  local line rh rt p kind b st
+  local line rh rt p kind b st unk
+  DS_NAMED="?"
   ref="refs/remotes/origin/${branch}"
   # The caller's next: went through gr_fields, which cut ` #<n>…` as a comment:
   # the raw line, from the claim file the caller read ($6) or from git.
@@ -7720,10 +7757,16 @@ dispatch_defect_state() {
     --diff-merges=first-parent -M90% --diff-filter=D --name-only \
     --format='C %H %ct' "refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" \
     "^${bh}" </dev/null 2>/dev/null)
-  # Named now: on the base, or on a `live` branch row.
+  # Named now: on the base, or on a `live` branch row. `unk` = a read
+  # failed, so "not named" is unproven: DS_NAMED `?`, never `0`.
+  unk=0
   if [ "$BASE_ISSUES_READ" -eq 1 ]; then
     case "$BASE_ISSUES" in *" ${n} "*) named=1 ;; esac
+    [ "$BASE_ISSUES_ERR" -eq 0 ] || unk=1
   else
+    # Unprimed (analysis, not dispatch): plan_names_issue fails open, so
+    # "not named" is never proven here.
+    unk=1
     while IFS= read -r p; do
       [ -n "$p" ] || continue
       plan_names_issue "refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" "$p" "$n" &&
@@ -7737,7 +7780,13 @@ dispatch_defect_state() {
       [ "$kind" = live ] || continue
       plan_names_issue "refs/remotes/origin/${b}" "docs/plans/${st}.md" "$n" &&
         { named=1; break; }
+      git -C "$ROOT" cat-file -e "refs/remotes/origin/${b}:docs/plans/${st}.md" \
+        </dev/null 2>/dev/null || unk=1
     done <<<"$bprows"
+  fi
+  if [ "$named" -eq 1 ]; then DS_NAMED=1
+  elif [ "$unk" -eq 1 ]; then DS_NAMED="?"
+  else DS_NAMED=0
   fi
   if [ -n "$retired" ] && [ "$named" -eq 0 ]; then
     printf -v DEFECT_STATE 'RESUME\t%s\t%s\t%s' "$n" "$retired" "$age"; return 0
@@ -9678,15 +9727,26 @@ cmd_dispatch() {
               flag="  PARKED #${dn} UNPLANNED: no plan names #${dn} $(dispatch_age_text "$dage") after the first park (>= JOHARNESS_DEFECT_PLAN_HOURS), holds no slot: notify the human once"
               parked_lines="${parked_lines}            PARKED #${dn} UNPLANNED ${di}: no plan names #${dn}: notify the human once"$'\n' ;;
             *)
-              flag="  PARKED #${dn}: a defect's, holds no slot, parked $(dispatch_age_text "$dage") ago: waits for a plan naming #${dn} to retire, or the base to move"
-              parked_lines="${parked_lines}            PARKED #${dn} ${di}: waits for the fix, report only"$'\n' ;;
+              if [ "$DS_NAMED" = 0 ]; then
+                flag="  PARKED #${dn}: a defect's, holds no slot, parked $(dispatch_age_text "$dage") ago: no plan names #${dn} yet — scope released"
+                parked_lines="${parked_lines}            PARKED #${dn} ${di}: no plan names #${dn} yet, scope released, report only"$'\n'
+              else
+                flag="  PARKED #${dn}: a defect's, holds no slot, parked $(dispatch_age_text "$dage") ago: waits for a plan naming #${dn} to retire, or the base to move"
+                parked_lines="${parked_lines}            PARKED #${dn} ${di}: waits for the fix, report only"$'\n'
+              fi ;;
           esac
-          # PARKED, RESUME and RECHECK keep their scope held: the item comes back,
-          # and a manager spawned on its overlap now would race it. Once a
-          # human is told, it is released as a human's block is.
+          # RESUME and RECHECK keep their scope held: the item comes back this
+          # pass, and a manager spawned on its overlap now would race it.
+          # PARKED holds it only while a plan names #<n> (a fix is coming):
+          # with none, nothing fixes it and holding only starves the overlap.
+          # An unreadable answer (DS_NAMED `?`) holds. Once a human is told,
+          # it is released as a human's block is.
           case "$dst" in
             UNREADABLE | STUCK | UNPLANNED)
               blocked_claims="${blocked_claims} $(lint_stem "$path")@${branch} " ;;
+            PARKED)
+              [ "$DS_NAMED" != 0 ] ||
+                blocked_claims="${blocked_claims} $(lint_stem "$path")@${branch} " ;;
           esac
           ;;
         *)
@@ -9732,7 +9792,7 @@ cmd_dispatch() {
             fx_lines+=("$parked_lines"); parked_lines=""
             fx_n+=("$dn"); fx_plan+=("-"); fx_di+=("$di"); fx_kind+=(MERGED)
           else
-            # A self-park keeps its scope held, as a PARKED row does: the
+            # A self-park keeps its scope held, as a planned PARKED row does: the
             # orchestrator asks it to do the work, and it comes back.
             [ -n "$selfpark" ] ||
               blocked_claims="${blocked_claims} $(lint_stem "$path")@${branch} "
