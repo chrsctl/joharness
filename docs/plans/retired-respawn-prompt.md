@@ -83,6 +83,9 @@ prompt and a manager rule it can follow: finish step 7, nothing else.
   (red: 0).
 - `wc -c .claude/commands/orchestrator.md .claude/commands/manager.md` —
   at most 23628 and 10172 (red: a `reading-budget` FAIL line).
+- Consumer side, after its next sync: `grep -c "^## Retired resume"
+  .agents/docs/manager-reference.md` — 1 (red: 0, the sync did not carry
+  it).
 
 ## Where to look
 

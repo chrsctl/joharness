@@ -86,6 +86,9 @@ survive its own interrupt and finish.
   (red: 0).
 - `wc -c .claude/commands/orchestrator.md` — at most 23628 (red: the
   `reading-budget` FAIL line).
+- Consumer side, after its next sync: `grep -c 'killing=<head>'
+  .claude/commands/orchestrator.md` — at least 1 (red: 0, the sync did not
+  carry it).
 
 ## Where to look
 
