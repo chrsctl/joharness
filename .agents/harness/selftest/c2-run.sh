@@ -164,3 +164,24 @@ expect "c2-run: a run's cleanup never prunes the shared repo's worktrees" "prune
 expect "c2-run: no worktree outlives a run" "worktrees 1" \
   "worktrees $(git -C "$c2r_fx" worktree list | wc -l | tr -d ' ')"
 refute "c2-run: the runner prints no diff body" "@@ " "$(cat "${c2r_out}"/*.out)"
+
+# Every `worktree remove` fails (a contended lock, an add interrupted mid-way):
+# the run still leaves no worktree behind, and still never prunes.
+c2r_rmshim="${TMP}/c2rmshim"
+mkdir -p "$c2r_rmshim"
+printf '#!/bin/sh
+case "$*" in *"worktree remove"*) exit 1 ;; *"worktree prune"*) echo prune >>"%s/prunes" ;; esac
+exec "%s" "$@"
+' \
+  "$c2r_out" "$(command -v git)" >"${c2r_rmshim}/git"
+chmod +x "${c2r_rmshim}/git"
+( cd "$c2r_fx" && PATH="${c2r_rmshim}:$PATH" timeout 600 bash "$c2r_script" fx-fix main ) \
+  >"${c2r_out}/rmfail.log" 2>&1
+expect "c2-run: with every worktree remove failing, the verdict stands" "[FLIP 1]" \
+  "[$(grep -v '^c2-run: worktree' "${c2r_out}/rmfail.log" | tail -1)]"
+expect "c2-run: and it says which remove fails" "c2-run: worktree nofix: remove failed" \
+  "$(cat "${c2r_out}/rmfail.log")"
+expect "c2-run: no worktree outlives a run whose remove fails" "worktrees 1" \
+  "worktrees $(git -C "$c2r_fx" worktree list | wc -l | tr -d ' ')"
+expect "c2-run: and that run never prunes either" "prunes 0" \
+  "prunes $(wc -l <"${c2r_out}/prunes" 2>/dev/null | tr -d ' ' || true)"

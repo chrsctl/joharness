@@ -1158,3 +1158,107 @@ dfpark park-ownlist own-list 'defect: #71: cannot reproduce' 2
 out="$(dfx)"
 expect "issue: 70, 71 against defect: #71: INVALID BLOCK?" \
   "INVALID BLOCK? defect: #71 is this plan's own issue" "$(dfrow own-list)"
+
+# --- a red-base hold: the rows it holds and the fix it passes --------------
+# Its own repo again. Every pass reads with RECHECK off: the base moves under
+# the parks here, and a RECHECK row is not what these cases ask.
+dfwork="${TMP}/hpwork"
+dforigin="${TMP}/hporigin.git"
+git init -q --bare "$dforigin"
+git init -q "$dfwork"
+git -C "$dfwork" symbolic-ref HEAD refs/heads/main
+mkdir -p "${dfwork}/docs/plans" "${dfwork}/docs/handover" "${dfwork}/docs/research" \
+  "${dfwork}/docs/product" "${dfwork}/.agents/harness" "${dfwork}/.agents/env/none"
+cp "${ROOT}/joharness.sh" "${dfwork}/joharness.sh"
+cp "${ROOT}/.agents/harness/queue-context.sh" \
+   "${ROOT}/.agents/harness/handover-context.sh" "${dfwork}/.agents/harness/"
+printf '# none\n' >"${dfwork}/.agents/env/none/AGENTS.md"
+dfconf="${dfwork}/joharness.conf"
+printf 'JOHARNESS_ENV=none\n' >"$dfconf"
+dfcommit 200 "base"
+git -C "$dfwork" remote add origin "$dforigin"
+git -C "$dfwork" push -qu origin main
+hpx() { dfx env JOHARNESS_DEFECT_RECHECK_HOURS=0; }
+# <branch> <stem> <hours>: a manager in flight on <stem>, not parked.
+hpclaim() {
+  git -C "$dfwork" checkout -qb "$1" origin/main
+  mkdir -p "${dfwork}/docs/handover"
+  printf -- '---\nworkstream: %s\nstatus: in-progress\nbranch: %s\nplan: %s\nsession: https://example.invalid/session_%s\nagent: sonnet\nupdated: 2026-01-02\nnext: Build it\n---\n\n## Goal\nFixture.\n' \
+    "$2" "$1" "$2" "$2" >"${dfwork}/docs/handover/${2}.md"
+  dfcommit "$3" "claim $2"
+  git -C "$dfwork" push -qu origin "$1"
+  git -C "$dfwork" checkout -q main
+}
+hpdrop() {
+  git -C "$dfwork" push -q origin --delete "$1"
+  git -C "$dfwork" branch -qD "$1"
+  git -C "$dfwork" update-ref -d "refs/remotes/origin/$1"
+}
+dfplan hp-a none; dfplan hp-b none; dfplan hp-free none
+printf -- '---\nresearch: hp-q\nurgency: normal\nagent: opus\neffort: high\ngraduates: .agents/docs/caveman.md\n---\n\n## Question\nFixture.\n' \
+  >"${dfwork}/docs/research/hp-q.md"
+printf -- '---\nrequirement: hp-req\npriority: normal\n---\n\n## Goal\nFixture.\n\n## Satisfied when\n\n- something observable.\n' \
+  >"${dfwork}/docs/product/hp-req.md"
+dfpush 4 "hp-a, hp-b, hp-free, a question, a requirement"
+dfpark hp-park-a hp-a 'defect: #51: the base is red' 2
+dfpark hp-park-b hp-b 'defect: #51: the base is red too' 2
+out="$(hpx)"
+expect "a held research row" \
+  "docs/research/hp-q.md (agent: opus)  HOLD — red base: #51 (2 parked), its fix not retired" "$out"
+expect "a held requirement: no planning manager" \
+  "docs/product/hp-req.md  HOLD — red base: #51 (2 parked), its fix not retired: spawn its planning manager once it retires" "$out"
+expect "both count as held" "verdict   : DEFECT-BOUND — 3 item(s) held" "$out"
+git -C "$dfwork" rm -q docs/research/hp-q.md docs/product/hp-req.md
+dfpush 1 "drop the question and the requirement"
+# A CORE ONLY fix is still the fix: it spawns, in the CORE ONLY list.
+dfplan fix51 51 joharness.conf
+dfpush 1 "fix51, core only"
+out="$(hpx)"
+expect "a CORE ONLY fix spawns" "CORE ONLY — build it" \
+  "$(printf '%s\n' "$out" | grep '^  docs/plans/fix51.md (agent: sonnet)')"
+expect "while the rest stays held" \
+  "docs/plans/hp-free.md (agent: sonnet)  HOLD — red base: #51 (2 parked)" "$out"
+expect "and it is the one free item" "verdict   : NOT DRAINED — 1 free item(s) now" "$out"
+# A fix behind an open needs: on a held row is not free: the hold stands, and
+# STUCK tells the human in time (orchestrated.md, The one stop).
+sed -i 's/^issue: 51$/issue: 51\nneeds: hp-free/; s/^scope: joharness.conf$/scope: src\/fix51/' \
+  "${dfwork}/docs/plans/fix51.md"
+dfpush 1 "fix51 needs hp-free"
+out="$(hpx)"
+refute "a fix behind an open needs: does not spawn" "docs/plans/fix51.md (agent:" "$out"
+expect "and the hold stands" "verdict   : DEFECT-BOUND — 1 item(s) held" "$out"
+sed -i '/^needs: hp-free$/d' "${dfwork}/docs/plans/fix51.md"
+dfpush 1 "fix51 needs nothing"
+# A claimed fix: its manager is in flight, every other row stays held.
+hpclaim hp-fixer fix51 1
+out="$(hpx)"
+refute "a claimed fix is not offered again" "docs/plans/fix51.md (agent:" "$out"
+expect "the other rows stay held while it builds" \
+  "verdict   : DEFECT-BOUND — 1 item(s) held: red base, #51 (2 parked), its fix not retired: spawn no manager; 1 manager(s) in flight" "$out"
+hpdrop hp-fixer
+# The fix itself overlap-held (its scope is a parked item's): the verdict is
+# the overlap's, and one line says the red base waits on it.
+sed -i 's/^scope: src\/fix51$/scope: src\/hp-a/' "${dfwork}/docs/plans/fix51.md"
+dfpush 1 "fix51 on hp-a's scope"
+out="$(hpx)"
+expect "a fix held by an overlap keeps the red base in view" \
+  "red base (#51 (2 parked)) waits on its own fix, itself held: docs/plans/fix51.md (overlap HOLD)" "$out"
+sed -i 's/^scope: src\/hp-a$/scope: src\/fix51/' "${dfwork}/docs/plans/fix51.md"
+dfpush 1 "fix51 back on its own scope"
+out="$(hpx)"
+refute "a free fix: no such line" "waits on its own fix" "$out"
+# The fix retires while a clerk branch carries a second plan naming #51: the
+# parks wait for it (no RESUME), but the base holds the known fix, so a
+# retired fix lifts the hold.
+git -C "$dfwork" checkout -qb hp-clerk main
+dfplan fix51b 51
+dfcommit 0 "a second plan naming #51"
+git -C "$dfwork" push -qu origin hp-clerk
+git -C "$dfwork" checkout -q main
+git -C "$dfwork" rm -q docs/plans/fix51.md
+dfpush 0 "retire fix51"
+out="$(hpx)"
+refute "a retired fix lifts the hold, a second plan open" "red base" "$out"
+refute "the parks still wait for the second plan" "PARKED #51 RESUME" "$out"
+expect "hp-free spawns" "  docs/plans/hp-free.md (agent: sonnet)"$'\n' "$out"
+hpdrop hp-clerk

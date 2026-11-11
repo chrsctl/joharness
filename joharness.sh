@@ -9001,7 +9001,7 @@ cmd_dispatch() {
   local printed_deferred=
   local inflight="" free="" questions="" corefree="" row mergewait=""
   local n_parked=0 n_fixed=0 n_resume=0 n_recheck=0 parked_lines="" dst dn dplan dage di ri rtext dresume=0 bkind selfpark n_ownpark=0
-  local dpark="" dhold="" dhold_n="" dhn dfix n_dhold=0
+  local dpark="" dhold="" dhold_n="" dhn dfix dfix_held="" n_dhold=0
   local fx_label fx_wait fx_k fx_r fx_c fx_slot fx_lim
   local bts redge rstem rts n_release=0 release_due="" hseen hst
   local -a fx_rows=() fx_lines=() fx_n=() fx_plan=() fx_di=() fx_kind=()
@@ -9409,11 +9409,13 @@ cmd_dispatch() {
           di="$(lint_stem "$path") (${branch})"
           # A park whose fix has not retired on the base's first parent,
           # planned or not: the base every new manager finishes on is red
-          # with it until that fix merges (RESUME). A plan naming #<n> is no
-          # fix yet (chrsctl/gx, 2026-11-10, #1449).
+          # with it until that fix merges. A plan naming #<n> is no fix yet
+          # (chrsctl/gx, 2026-11-10, #1449). Once one retired after the block
+          # ($dplan), the known fix is on the base: a second plan naming #<n>
+          # still waits RESUME, never the queue.
           case "$dst" in
             PARKED | UNPLANNED | STUCK | RECHECK)
-              dpark="${dpark}${dn}"$'\n' ;;
+              [ "$dplan" != - ] || dpark="${dpark}${dn}"$'\n' ;;
           esac
           case "$dst" in
             RESUME | RECHECK)
@@ -9784,12 +9786,14 @@ cmd_dispatch() {
         if [ -n "$note" ]; then
           n_wait=$((n_wait + 1))
           row="${row}  WAIT — overlaps ${note} in this pass: spawn it only after that one"
+          [ "$dfix" -eq 0 ] || dfix_held="${dfix_held} ${path} (WAIT)"
         elif [ -n "$hold" ] && [ "$hold_live" -eq 0 ]; then
           n_free=$((n_free + 1))
           row="${row}  overlaps ${hold} — that branch is BLOCKED on a human: spawn, reconcile expected at step 7"
         elif [ -n "$hold" ]; then
           n_hold=$((n_hold + 1))
           row="${row}  HOLD — overlaps ${hold}: spawn once that branch merges"
+          [ "$dfix" -eq 0 ] || dfix_held="${dfix_held} ${path} (overlap HOLD)"
         else
           n_free=$((n_free + 1))
         fi
@@ -10079,6 +10083,10 @@ cmd_dispatch() {
     printf '            %s plan(s) on HOLD behind work in flight: not counted as free\n' "$n_hold"
   [ "$n_dhold" -eq 0 ] ||
     printf '            %s item(s) on HOLD behind a red base (%s): not counted as free, still queued; its fix retiring lifts the hold\n' "$n_dhold" "$dhold"
+  # The fix itself held by an overlap: the red base waits on that overlap,
+  # whatever verdict the overlap printed.
+  [ -z "$dfix_held" ] ||
+    printf '            red base (%s) waits on its own fix, itself held:%s — the hold lifts only after it spawns and merges\n' "$dhold" "$dfix_held"
   # Roles run beyond the cap: a full fleet of managers holds none of them.
   # JOHARNESS_MAX_MANAGERS=0 is the human's pause, and holds every one.
   if [ "$clerk_due" -eq 1 ] && [ "$fetch_failed" -eq 1 ]; then
