@@ -348,8 +348,11 @@ summary: <status_detail>. `git diff --stat origin/main...HEAD`: <output>.",
 commit "Orchestrator handover after kill", GUARD `record`, push, back to main.
 Then `archive_session`, RESPAWN, drop `killing=`.
 
-LOOP — same steps and the same `killing=<head>` key, record instead: "Looped, killed by the orchestrator
-<date>: <N> commits since main, <file> rewritten <M> times, `next:`
+LOOP — same steps and the same `killing=<head>` key, but LOOP's second
+half never reads a head move: `LOOP?` counts rewrites, which a handover
+push does not lower, so dropping on it would interrupt again next pass.
+Always the record, `archive_session`, RESPAWN, drop `killing=`. Record:
+"Looped, killed by the orchestrator <date>: <N> commits since main, <file> rewritten <M> times, `next:`
 unchanged since <date>. Commits: <`git log --oneline origin/main..HEAD`>."
 `next:` = "Research step FIRST (agent-selection.md, review churn): list
 every requirement <file> must satisfy, find the conflicting pair, resolve
@@ -374,9 +377,10 @@ and none is written.
   ledger `killing=<head>`, wait one pass. The second half, from the
   `killing=` row: `git fetch origin <branch>`: head moved past `killing=` =
   it answered, drop `killing=` and the nudge. Else no `## Blockers` write,
-  no GUARD: `archive_session`, drop `killing=`; it is `gone`, and the
-  health table's `gone` edge row RESPAWNs to FINISH the merge (a row
-  naming `?`: report, never respawn).
+  no GUARD: `archive_session`, drop `killing=` and the nudge (kept, the
+  drop-record row reads the archive as working, one pass late); it is
+  `gone`, and the health table's `gone` edge row RESPAWNs to FINISH the
+  merge (a row naming `?`: report, never respawn).
 
 ## Release
 

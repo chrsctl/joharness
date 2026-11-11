@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK623RvaZoLEwPbLFo1
 agent: opus
 updated: 2026-11-11
-next: Run verify, verifier at opus, then step 7
+next: Wait for ci on head, verify, then step 7 (PR, finish, merge)
 ---
 
 ## Goal
@@ -23,6 +23,7 @@ interrupt and finish (ledger key `killing=<head>`, a row above drop-record).
 - A2: confirmed — `grep -n` gives drop-record at 150 and `KILL, below` at 159 on origin/main.
 - A3: confirmed — the ledger format line (orchestrator.md §4) has no kill-in-progress key; no `killing` anywhere under `.claude` or `.agents`.
 - The `killing=` row sits directly below the UNCLAIMED row, above LOOP: LOOP's `LOOP?` survives the interrupt (dispatch counts file rewrites), so a row below LOOP would let LOOP re-interrupt for ever; merged/done rows stay above so a merge still drops the entry.
+- Claimed second half compares the head to `killing=<head>` only: `updated:` lives in a committed file, so it never moves without the head.
 - Budget: the INVALID BLOCK row's detail moves to new ref § Invalid block (no selftest pins its text, only the `INVALID BLOCK?` token, which stays).
 
 ## Review
@@ -35,6 +36,10 @@ interrupt and finish (ledger key `killing=<head>`, a row above drop-record).
 - r6: (plan-checker) `wc -c` red output named a FAIL line it never prints (fixed)
 - r7: (plan-checker) "by its ledger cell" misdescribes the other row checks (fixed)
 - r8: (plan-checker) A1 unobserved (no change)
+- r9: (verifier) LOOP's second half dropped the kill on a head move; a handover push leaves `LOOP?` set, so LOOP still cycled interrupt-push-drop (fixed: LOOP always records, archives, respawns; selftest pins it)
+- r10: (verifier) retired second half kept the nudge, so drop-record read the archive as working and the gone row respawned a pass late (fixed: drop the nudge with `killing=`; selftest pins it)
+- r11: (verifier) claimed second half reads only the head, no longer `updated:` (no change: `updated:` moves only with a commit, which moves the head; recorded in Decisions)
+- r12: (verifier) LOOP paragraph not wrapped like its neighbours (fixed)
 
 ## Blockers
 

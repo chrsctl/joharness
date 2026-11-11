@@ -349,6 +349,13 @@ for sec in 'KILL and LOOP' 'Retired stall'; do
   sectxt="$(awk -v h="## ${sec}" '$0==h{on=1;next} on&&/^## /{on=0} on' "$refmd")"
   expect "ref § ${sec} writes killing=<head>" 'killing=<head>' "$sectxt"
 done
+# A head move ends a stall's kill (the handover landed), never a loop's:
+# a handover push leaves `LOOP?` set, and dropping would interrupt again.
+expect "ref § KILL and LOOP: a head move never ends a LOOP's kill" \
+  "LOOP's second half never reads a head move" "$reffold"
+# shellcheck disable=SC2016 # literal backticks in the needle
+expect "ref § Retired stall: the archive drops the nudge with killing=" \
+  'drop `killing=` and the nudge (kept,' "$reffold"
 # shellcheck disable=SC2016 # literal backticks in the pattern
 kill_ln="$(grep -n '^| any | any | `killing=<head>` recorded |' "$orcmd" | head -1 | cut -d: -f1)"
 # shellcheck disable=SC2016 # literal backticks in the pattern
