@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK73dTDFMFdY1DpQZNt
 agent: opus
 updated: 2026-11-11
-next: Measure the offered case on origin/main's joharness.sh, ci + verify green, then verifier at opus
+next: Verifier at opus running on 1a07d872; record its findings in ## Review, fix, ci + verify, then finish
 ---
 
 ## Goal
