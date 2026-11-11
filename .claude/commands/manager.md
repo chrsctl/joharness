@@ -142,7 +142,8 @@ git; send nothing for it.
 Behind again at merge? `finish` as is first, then merge `origin/main` in,
 `finish` again (`CATCH-UP` re-certifies a clean, disjoint merge on `ci`).
 Count only `OUTRUN` refusals, one per green head, as `finish behind: <n>`
-(`## Blockers`; retired: the PR body), pushed. Three = STARVED. Both: ref § Starved.
+(`## Blockers`; retired: the PR body), pushed. Three = STARVED: under its
+bound, block `resume <k>/<max>` unasked. ref § Starved.
 
 Resumed head whose pull request is a draft? Un-draft it after the delete
 commit, before the merge: ref § Block on an open pull request.

@@ -273,6 +273,18 @@ item". This wording is no defect resume: STUCK and UNPLANNED never count
 it. `PARKED #<n>: #<n> merged, resume waits for a slot` is no RESUME: next
 pass.
 
+A `PARKED #<n> RESUME — STARVED` row: a STARVED block under
+`JOHARNESS_STARVED_RESUMES` (`next:` = `conflict: base outran finish:
+resume <k>/<max>: …`, manager.md §4), #<n> its drafted pull request, and
+the base's first parent moved since the block. k is dispatch's count from
+the branch's history, never the text. The same mechanics, `next:` =
+`Resume: STARVED resume <k>/<max>, the base moved; merge origin/main, finish,
+un-draft #<n>, merge`, commit "Orchestrator resumes a parked item". Never a
+question, never `human-review`: a STARVED block past the bound is the
+human's (BLOCKED). `PARKED #<n>: STARVED resume …, resume waits for a slot`
+and `PARKED #<n> STARVED …: waits for the base to move` are no RESUME: next
+pass.
+
 A `PARKED #<n> RECHECK` row: no plan on the base or a live branch names
 #<n>, the block is `JOHARNESS_DEFECT_RECHECK_HOURS` old, the base's first
 parent moved since it: maybe fixed with no plan. RESUME mechanics, `next:` = `Recheck: the base moved since you

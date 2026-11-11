@@ -1423,3 +1423,73 @@ hpdrop other-111
 hpdrop park-p
 git -C "$dfwork" rm -q docs/plans/own-p.md docs/plans/over-p.md docs/plans/fix111.md
 dfpush 0 "drop own-p, over-p and fix111"
+# --- a STARVED block under JOHARNESS_STARVED_RESUMES resumes, unasked --------
+# manager.md §4: green, drafted, the base only outran finish. dispatch counts
+# the blocks from the branch's history, never from the number next: carries.
+# <file stem> <branch> <status> <next:> [drafted]: the workstream file whole.
+dfws() {
+  { printf -- '---\nworkstream: %s\nstatus: %s\nbranch: %s\nplan: %s\n' "$1" "$3" "$2" "$1"
+    printf 'session: https://example.invalid/session_%s\nagent: sonnet\nupdated: 2026-01-02\nnext: %s\n' "$1" "$4"
+    [ -z "${5:-}" ] || printf 'drafted: %s\n' "$5"
+    printf -- '---\n\n## Goal\nFixture.\n'
+  } >"${dfwork}/docs/handover/${1}.md"
+}
+dfstarvetext='conflict: base outran finish: resume 1/2: 3 green runs outrun (behind 4,5,6); human: hold merges until this one lands, or merge it as-is 6 behind, or raise JOHARNESS_CATCHUP_COMMITS'
+# <branch> <own plan> <hours ago, last block> <blocks> <pr>: claim, then
+# <blocks> STARVED blocks, the orchestrator resuming each but the last. Every
+# block's next: says `resume 1/2`: the count is git's.
+dfstarve() {
+  local i h
+  git -C "$dfwork" checkout -qb "$1" origin/main
+  mkdir -p "${dfwork}/docs/handover"
+  dfws "$2" "$1" in-progress 'Build it'
+  dfcommit "$(($3 + $4 * 2 + 1))" "claim $2"
+  for ((i = 1; i <= $4; i++)); do
+    h=$(($3 + ($4 - i) * 2))
+    dfws "$2" "$1" blocked "$dfstarvetext" "$5"
+    dfcommit "$h" "park $2 STARVED $i"
+    if [ "$i" -lt "$4" ]; then
+      dfws "$2" "$1" in-progress 'Resume: base moved past the STARVED block; merge origin/main, finish, merge'
+      dfcommit "$((h - 1))" "Orchestrator resumes a parked item"
+    fi
+  done
+  git -C "$dfwork" push -qu origin "$1"
+  git -C "$dfwork" checkout -q main
+}
+dfplan own-s none; dfplan own-t none; dfplan own-q none; dfplan own-r none
+dfpush 0 "own-s, own-t, own-q, own-r"
+# Blocks 2 hours old: the base (0 hours) moved past them. own-t blocks an
+# hour from now: no base commit is newer.
+dfstarve park-s own-s 2 1 901
+dfstarve park-t own-t -1 1 902
+dfstarve park-q own-q 2 3 903
+dfstarve park-r own-r 2 2 904
+out="$(dfx)"
+expect "STARVED under the bound, base moved: offered as a RESUME, no human" \
+  "PARKED #901 RESUME — STARVED, the base moved past the block (resume 1/2, JOHARNESS_STARVED_RESUMES)" "$out"
+expect "and listed under the verdict" \
+  "            PARKED #901 RESUME own-s (park-s): STARVED resume 1/2, the base moved, resume it this pass" "$out"
+expect "the second STARVED block is still under the bound: resume 2/2" \
+  "PARKED #904 RESUME — STARVED, the base moved past the block (resume 2/2" "$out"
+refute "STARVED under the bound, base unmoved: not offered" "PARKED #902 RESUME" "$out"
+expect "and it waits, not the human's" \
+  "            PARKED #902 STARVED own-t (park-t): resume 1/2, waits for the base to move" "$out"
+if printf '%s\n' "$out" | grep '^  docs/plans/own-q.md' | grep -q 'BLOCKED: the human'"'"'s' &&
+   ! printf '%s\n' "$out" | grep -q 'PARKED #903'; then
+  pass "STARVED past the bound (3 blocks, next: says 1/2): the human's, git counts"
+else
+  fail "STARVED past the bound (3 blocks, next: says 1/2): the human's, git counts"; printf '%s\n' "$out" | indent
+fi
+expect "and flagged: no question was posted" \
+  "STARVED UNASKED: resume form past JOHARNESS_STARVED_RESUMES" \
+  "$(grep '^  docs/plans/own-q.md' <<<"$out")"
+out="$(dfx env JOHARNESS_STARVED_RESUMES=0)"
+refute "JOHARNESS_STARVED_RESUMES=0: never offered" "PARKED #901 RESUME" "$out"
+# The at-bound form asks the human: no `resume <k>/<max>` in next:, never offered.
+git -C "$dfwork" checkout -q park-s
+dfws own-s park-s blocked 'conflict: base outran finish: 3 green runs outrun (behind 4,5,6); human: hold merges' 901
+dfcommit 2 "park own-s, asked"
+git -C "$dfwork" push -q origin park-s
+git -C "$dfwork" checkout -q main
+out="$(dfx)"
+refute "a STARVED block that asked the human: never offered" "PARKED #901 RESUME" "$out"

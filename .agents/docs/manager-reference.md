@@ -86,7 +86,8 @@ leaves the retire on a branch only.
 
 ## Question
 
-A block that is not `defect:` (manager.md §3) asks on GitHub, so the
+A block that is not `defect:`, nor a STARVED block under its bound (`resume
+<k>/<max>`, § Starved), (manager.md §3) asks on GitHub, so the
 human answers there with one gesture (`.agents/docs/orchestrated.md`, A
 human's answer). On EVERY item that exists of this head's open pull
 request and the plan's `issue:`, so neither reads as a freeze. An item
@@ -208,11 +209,26 @@ Blockers`, pushed; after the retire commit, a `finish behind: <n>` line in
 the pull request body — a workstream file back on the head reds
 `finish_adds`, and a red `finish` measures no behind. On the third
 `OUTRUN`, draft the pull request first (§ Block on an open pull request),
-then block with `next:` exactly:
+then block. `<k>` = this block's number on the claim: 1 plus the commits on
+this branch that wrote a `next:` opening `conflict: base outran finish`:
 
-`conflict: base outran finish: <n> green runs outrun (behind <b1>,<b2>,<b3>); human: hold merges until this one lands, or merge it as-is <k> behind, or raise JOHARNESS_CATCHUP_COMMITS`
+`git log --first-parent -p origin/main..HEAD -- docs/handover/<workstream>.md | grep -c '^+next: *.\?conflict: base outran finish'`, plus 1
 
-`<bi>` = the BEHIND count each `OUTRUN` refusal printed, `<k>` = the latest.
+`<max>` = `JOHARNESS_STARVED_RESUMES` (`./joharness.sh conf`). `<k>` at or
+under `<max>`: `next:` exactly
+
+`conflict: base outran finish: resume <k>/<max>: <n> green runs outrun (behind <b1>,<b2>,<b3>); human: hold merges until this one lands, or merge it as-is <b3> behind, or raise JOHARNESS_CATCHUP_COMMITS`
+
+and NO question, NO `human-review` (§ Question does not apply): the head is
+green and drafted, and dispatch resumes it once the base moves (`PARKED #<n>
+RESUME — STARVED`, orchestrator-reference.md § Resume). Dispatch counts `<k>`
+itself from the same history and ignores the number you write. Resumed:
+start the `finish behind` count at 0, merge `origin/main`, `finish`, merge.
+`<k>` over `<max>`, or no `drafted: <N>` (the draft failed): the bound is spent; `next:` exactly the same text
+without `resume <k>/<max>: `, then § Question with the human choices it
+names. Dispatch counts that block the human's.
+
+`<bi>` = the BEHIND count each `OUTRUN` refusal printed, `<b3>` the latest.
 Never `next:` text telling the human to merge `origin/main` and run `finish`
 again: that is the loop the manager already ran, with no human judgement in
 it.
