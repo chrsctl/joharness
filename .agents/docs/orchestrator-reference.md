@@ -27,6 +27,8 @@ refused with no confirmed interrupt (dead row, FAILED SPAWN) follows the
 
 ## Control plane fields
 
+`suspect a stopped fleet` decides nothing: read the control plane for each manager.
+
 | field | says |
 | --- | --- |
 | `session_status` | `RUNNING` working; `IDLE` between turns; `PENDING` starting; `COMPLETED` ended; `ARCHIVED` gone |

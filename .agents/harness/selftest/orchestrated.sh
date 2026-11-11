@@ -502,6 +502,14 @@ mgrfold="$(tr '\n' ' ' <"$mgrmd" | tr -s ' ')"
 # shellcheck disable=SC2016 # literal backticks in the needle
 expect "manager.md says where a ref § pointer reads" \
   '`ref § <name>` = `## <name>` of `git show origin/main:.agents/docs/manager-reference.md`: read it whole when its pointer fires.' "$mgrfold"
+# A respawn onto a retired branch (no workstream file) gets a prompt it can obey.
+expect "the RESPAWN paragraph spells a retired branch's prompt" \
+  "past its retire commit" "$orctext"
+expect "manager.md routes a file-less resume to ref § Retired resume" \
+  "ref § Retired resume" "$mgrfold"
+expect "manager-reference.md has ## Retired resume" "## Retired resume" "$mgrreftext"
+expect "Retired resume recovers the deleted file by --diff-filter=D" \
+  "--diff-filter=D" "$mgrreftext"
 mgrsections=()
 while IFS= read -r sect; do
   [ -n "$sect" ] && mgrsections+=("$sect")
