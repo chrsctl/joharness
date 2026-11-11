@@ -354,16 +354,26 @@ be the manager's own reading; two is a base every new manager finishes on
 red. With five parked on one unplanned `blocking:` defect, the gx
 orchestrator spawned two more onto it and both parked within 15 minutes
 (chrsctl/gx, 2026-10-29, #1101; not re-taken here). A held row stays queued
-and takes no slot; only the RESUME condition lifts it — the fix retired on
-the base's first parent, no plan naming #<n> left (a second plan naming it,
-live after the first retired, keeps the hold as it keeps RESUME). A plan
-naming #<n> is no fix: the base stays red until it merges. When the hold lifted on a plan,
+and takes no slot; only the RESUME condition lifts it — a plan naming #<n>
+left the base's first parent after the block, and none names #<n> now. A
+plan naming #<n> is no fix: the base stays red until it merges. Nor is one
+plan retired while a second still names #<n>: a plan leaves the base
+unbuilt too (abandoned, superseded), so the hold waits for the second. On
+the base it is the fix row and spawns; on a branch, the hold lasts until
+that branch merges, or STUCK or UNPLANNED tells the human: a wait, never a
+park. When the hold lifted on a plan,
 four managers spawned behind the planned fix of #1449 between its plan
 (clerk branch 20:30Z, base 21:08Z) and its merge (22:22Z), each parked on
 #1449 in 5 to 14 minutes (chrsctl/gx, 2026-11-10; not re-taken here). The
 fix itself is the one row the hold passes: a plan on the base whose
 `issue:` names #<n> spawns, so the hold never holds what lifts it (a fix
-whose `needs:` waits on a held row stays held: STUCK tells the human).
+whose `needs:` waits on a held row stays held: STUCK tells the human). A fix
+itself held by an overlap with work in flight prints `red base (…) waits on
+its own fix, itself held`, so the red base stays in view whatever verdict
+the overlap gives. Under the hold only fixes spawn, so waves order fixes
+alone: the earliest wave holding a fix spawns (a wave never overlaps
+itself), a later fix waits for it, and no fix waits on a held row, which
+never spawns while the hold stands.
 RESUME and RECHECK rows still take their slots: a resume rechecks the base,
 a spawn would only add a park.
 
