@@ -17,17 +17,7 @@ step "joharness.sh dispatch: parked claims"
 # question (block commit against retire commit, and against the two knobs).
 dfwork="${TMP:?sourced by selftest.sh}/dfxwork"
 dforigin="${TMP}/dfxorigin.git"
-git init -q --bare "$dforigin"
-git init -q "$dfwork"
-git -C "$dfwork" symbolic-ref HEAD refs/heads/main
-mkdir -p "${dfwork}/docs/plans" "${dfwork}/docs/handover" \
-  "${dfwork}/.agents/harness" "${dfwork}/.agents/env/none"
-cp "${ROOT}/joharness.sh" "${dfwork}/joharness.sh"
-cp "${ROOT}/.agents/harness/queue-context.sh" \
-   "${ROOT}/.agents/harness/handover-context.sh" "${dfwork}/.agents/harness/"
-printf '# none\n' >"${dfwork}/.agents/env/none/AGENTS.md"
 dfconf="${dfwork}/joharness.conf"
-printf 'JOHARNESS_ENV=none\n' >"$dfconf"
 dfnow="$(date +%s)"
 # <hours ago> <message>: a commit dated in the past, both dates.
 dfcommit() {
@@ -45,17 +35,47 @@ dfplan() {
     printf '## Goal\nFixture line one.\nFixture line two.\nFixture line three.\nFixture line four.\n'
   } >"${dfwork}/docs/plans/${1}.md"
 }
-dfcommit 200 "base"
-git -C "$dfwork" remote add origin "$dforigin"
-git -C "$dfwork" push -qu origin main
-# A twin branch cut before the fix plan exists, carrying the same plan: once
-# the base adds and retires it, its row reads `leftover`, never `live`.
-git -C "$dfwork" checkout -qb twin-c main
-dfplan fix21 21 src/twin
-mkdir -p "${dfwork}/src"; printf 'code\n' >"${dfwork}/src/twin.txt"
-dfcommit 199 "a twin carries fix21"
-git -C "$dfwork" push -qu origin twin-c
-git -C "$dfwork" checkout -q main
+# <step name> <command>...: run one setup step; on failure print the step,
+# its stderr and the git version, return 1. Prints nothing when it passes.
+dfstep() {
+  local name="$1" err rc=0
+  shift
+  err="$("$@" 2>&1 >/dev/null)" || rc=$?
+  [ "$rc" -eq 0 ] && return 0
+  printf 'dispatch-park: setup step failed: %s (exit %s)\n  stderr: %s\n  git: %s\n' \
+    "$name" "$rc" "$err" "$(git --version 2>&1)"
+  return 1
+}
+# The scratch repo and the twin branch; stops at the first failing step.
+dfsetup() {
+  local dfwork="${1:-$dfwork}" dforigin="${2:-$dforigin}"
+  # A repo already there means a second writer shares this TMP.
+  [ ! -e "${dfwork}/.git" ] || {
+    printf 'dispatch-park: setup step failed: %s already exists (pid %s)\n' "$dfwork" "$$"
+    return 1
+  }
+  dfstep "git init bare" git init -q --bare "$dforigin" || return 1
+  dfstep "git init work" git init -q "$dfwork" || return 1
+  dfstep "symbolic-ref main" git -C "$dfwork" symbolic-ref HEAD refs/heads/main || return 1
+  mkdir -p "${dfwork}/docs/plans" "${dfwork}/docs/handover" \
+    "${dfwork}/.agents/harness" "${dfwork}/.agents/env/none"
+  cp "${ROOT}/joharness.sh" "${dfwork}/joharness.sh"
+  cp "${ROOT}/.agents/harness/queue-context.sh" \
+     "${ROOT}/.agents/harness/handover-context.sh" "${dfwork}/.agents/harness/"
+  printf '# none\n' >"${dfwork}/.agents/env/none/AGENTS.md"
+  printf 'JOHARNESS_ENV=none\n' >"${dfwork}/joharness.conf"
+  dfstep "commit base" dfcommit 200 "base" || return 1
+  dfstep "remote add" git -C "$dfwork" remote add origin "$dforigin" || return 1
+  dfstep "push main" git -C "$dfwork" push -qu origin main || return 1
+  # A twin branch cut before the fix plan exists, carrying the same plan: once
+  # the base adds and retires it, its row reads `leftover`, never `live`.
+  dfstep "twin checkout" git -C "$dfwork" checkout -qb twin-c main || return 1
+  dfplan fix21 21 src/twin
+  mkdir -p "${dfwork}/src"; printf 'code\n' >"${dfwork}/src/twin.txt"
+  dfstep "commit twin" dfcommit 199 "a twin carries fix21" || return 1
+  dfstep "push twin" git -C "$dfwork" push -qu origin twin-c || return 1
+  dfstep "back to main" git -C "$dfwork" checkout -q main || return 1
+}
 # <branch> <own plan> <next:> <hours ago>: claim, then park.
 dfpark() {
   git -C "$dfwork" checkout -qb "$1" origin/main
@@ -72,6 +92,28 @@ dfpark() {
 dfpush() { dfcommit "$1" "$2"; git -C "$dfwork" push -q origin main; }
 dfx() { ( cd "$dfwork" && JOHARNESS_CONF="$dfconf" DRAIN_FETCH=0 \
   DISPATCH_FETCH=0 "$@" ./joharness.sh dispatch 2>&1 ); }
+
+# The setup helper itself, with `git` shadowed to fail: the diagnostics must
+# name the step and carry git's stderr. A subshell with its own counters and
+# its own paths, so nothing of the real fixture is touched.
+dfboom="$(
+  mkdir -p "${TMP}/dfboom"
+  git() { case "$1" in --version) printf 'git version 0\n' ;; *) echo boom >&2; return 1 ;; esac; }
+  dfsetup "${TMP}/dfboom/w" "${TMP}/dfboom/o.git" 2>&1
+)"
+expect "a failing setup step prints git's stderr" "boom" "$dfboom"
+expect "and names the step" "setup step failed: git init bare" "$dfboom"
+expect "and the git version" "git: git version 0" "$dfboom"
+mkdir -p "${TMP}/dfdup/.git"
+dfdup="$(dfsetup "${TMP}/dfdup" 2>&1)"
+expect "a scratch repo already there is named, with the pid" "dfdup already exists (pid " "$dfdup"
+
+# The real fixture: one counted FAIL, not ~50, when its setup breaks.
+if ! dfout="$(dfsetup 2>&1)"; then
+  fail "dispatch-park fixture setup broke; the topic's cases are skipped"
+  printf '%s\n' "$dfout"
+  return 0
+fi
 
 dfplan fix21 21; dfplan own-a none; dfplan own-a2 none
 dfpush 3 "fix21, own-a, own-a2"

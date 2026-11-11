@@ -8,7 +8,7 @@ issue: 729
 session: https://claude.ai/code/session_01J1YMK7GYLjHVhxbfgdkEEw
 agent: sonnet
 updated: 2026-11-11
-next: Wrap dispatch-park setup in a checked helper, add the boom case, ci+verify, PR
+next: Await verifier, record ## Review, rerun mutation check, delete workstream+plan, PR (Refs #729, no cause found, diagnostics only)
 ---
 
 ## Goal
