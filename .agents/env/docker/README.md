@@ -109,6 +109,11 @@ Known reachable: `registry-1.docker.io`, `mirror.gcr.io`, `raw.githubusercontent
   Your own `docker pull` hits a 429? Same prefix.
   `JOHARNESS_REGISTRY_MIRROR` overrides the registry for the smoke tests (default
   `mirror.gcr.io`; set but empty = Docker Hub itself). CI pulls the default only.
+  `setup.sh` also starts `dockerd` with `--registry-mirror` for the same registry, so
+  a plain `docker pull alpine` goes through it too (a mirror that is down falls
+  back to Docker Hub; skipped when `/etc/docker/daemon.json` sets its own, and
+  not applied to a dockerd that was already running). The k8s layer does the
+  same for dockerd and passes k3d a `registries.yaml` mirroring `docker.io`.
 - The dockerd start logic mirrors `.agents/env/k8s/devenv.sh` rather than calling
   it: layers are self-contained by contract ([`../README.md`](../README.md)),
   so neither layer may reference the other.

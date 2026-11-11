@@ -23,6 +23,21 @@ die()  { printf '[docker-env] ERROR: %s\n' "$*" >&2; exit 1; }
 
 have() { command -v "$1" >/dev/null 2>&1; }
 
+# Docker Hub rate-limits anonymous pulls (429) per egress IP, and a shared
+# sandbox or runner IP trips it. JOHARNESS_REGISTRY_MIRROR names a pull-through
+# cache dockerd tries for every Docker Hub image, so no image reference needs a
+# prefix (default mirror.gcr.io; set but empty = none). A mirror that is down
+# falls back to Docker Hub. Skipped when daemon.json already sets one.
+registry_mirror_args() {
+  local m="${JOHARNESS_REGISTRY_MIRROR-mirror.gcr.io}"
+  m="${m#https://}"; m="${m%/}"
+  [ -n "$m" ] || return 0
+  if grep -qs 'registry-mirrors' /etc/docker/daemon.json 2>/dev/null; then
+    return 0
+  fi
+  printf '%s\n' "--registry-mirror=https://${m}"
+}
+
 docker_ready() { docker info >/dev/null 2>&1; }
 
 if ! have docker; then
@@ -30,14 +45,16 @@ if ! have docker; then
 fi
 
 if docker_ready; then
-  log "docker already running ($(docker version --format '{{.Server.Version}}' 2>/dev/null))"
+  log "docker already running ($(docker version --format '{{.Server.Version}}' 2>/dev/null)); registry mirror applies only to a daemon this script starts"
 else
   have dockerd || die "dockerd is not installed in this image"
   mkdir -p "$LOG_DIR"
   log "starting dockerd (log: ${DOCKERD_LOG})"
   # setsid detaches dockerd from this script's process group so it survives
   # the hook exiting.
-  setsid dockerd >>"$DOCKERD_LOG" 2>&1 &
+  mirror_args=()
+  while IFS= read -r a; do [ -n "$a" ] && mirror_args+=("$a"); done < <(registry_mirror_args)
+  setsid dockerd "${mirror_args[@]}" >>"$DOCKERD_LOG" 2>&1 &
   disown || true
 
   waited=0
