@@ -321,7 +321,8 @@ The rules that bind every session.
   - **Open question** = `human-review` on the item AND a `decision
     needed:` comment on it (one of its first two lines opens `decision
     needed:`) with the Claude Code footer, by an author with write access,
-    and no LATER such comment carrying an `answered:` line (an `answered:`
+    and no LATER footed comment by such an author carrying an `answered:`
+    line (an `answered:`
     line answers only questions in earlier comments, never one in its own
     comment). `human-review` with no open question is a FREEZE:
     no agent posts a question onto it or removes it.
@@ -332,9 +333,11 @@ The rules that bind every session.
     else none: still waiting. No agent ever applies `approved`. A footed
     comment answers nothing; every session posts as the maintainer's login,
     so the footer is what separates an agent from the human.
-  - **Release.** The agent acting on the answer removes `human-review` from
-    every item carrying that question and records `answered: option <N>` or
-    `answered: maintainer comment` in its next comment on each (the clerk:
+  - **Release.** The agent acting on the answer records `answered: option
+    <N>` or `answered: maintainer comment` in its next comment on each item
+    carrying that question, THEN removes `human-review` from it (a label
+    gone while the question reads open would let a later freeze read as
+    answered) (the clerk:
     the line after `clerk: <VERDICT>`, before any new `decision needed:`).
   - **Who acts.** An issue with an open question, not under `planned` or
     `claimed` (`./joharness.sh clerk`), whoever asked: the clerk, which
@@ -343,7 +346,7 @@ The rules that bind every session.
     `issue:`, each that exists and carries no `human-review` yet (one that
     does is a freeze or another's question: none there, and its answer
     resumes nothing); an answer on either counts. A block whose decision is
-    a `defect:` issue it filed for a human: that issue is the one item. The the
+    a `defect:` issue it filed for a human: that issue is the one item. The
     orchestrator relays the answer (`orchestrator-reference.md` § Relay); neither
     exists = an orchestrator turn only. Closing answers no manager
     question. A pull request held at merge: an open question = the

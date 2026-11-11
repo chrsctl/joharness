@@ -95,10 +95,10 @@ Relay). A call fails = say so in `next:` after the question; still push,
 still exit. Never apply `approved`.
 
 Resumed on an answer (Relay writes it into `next:`): act on it, then
-release: remove `human-review` from each item still carrying your open
-question (the clerk may have released a `defect:` issue first) and
-post one comment on each, `answered: option <N>` or `answered: maintainer
-comment`, plus the footer. Only those items: a freeze stays.
+release, on each item still carrying your open question (the clerk may
+have released a `defect:` issue first): post one comment, `answered:
+option <N>` or `answered: maintainer comment`, plus the footer, THEN
+remove `human-review`. Only those items: a freeze stays.
 
 ## Label at merge
 

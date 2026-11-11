@@ -934,7 +934,9 @@ expect "and a NARROWER part needing a human asks the same question" \
 expect "manager.md: a block posts the decision needed: question" \
   "post the \`decision needed:\` question and label:" "$(tr '\n' ' ' <"$mgrmd" | tr -s ' ')"
 expect "manager-reference.md: a manager question opens its first line" \
-  "decision needed:" "$mgrreftext"
+  "first line \`decision needed:" "$mgrreftext"
+expect "orchestrated.md names the decision needed: comment" \
+  "decision needed:" "$(cat "${ROOT}/.agents/docs/orchestrated.md")"
 expect "orchestrated.md: one paragraph holds A human's answer" \
   "**A human's answer.**" "$(cat "${ROOT}/.agents/docs/orchestrated.md")"
 expect "orchestrated.md: a freeze is only a human's to remove" \

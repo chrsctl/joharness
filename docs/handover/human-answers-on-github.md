@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK6L8MbE3uRqJ6F9WyS
 agent: opus
 updated: 2026-11-11
-next: Run ci and verify on the rewritten docs and pins, then verifier, walk-through, PR
+next: Re-run ci on the verifier fixes, then retire commit and PR with walk-through
 ---
 
 ## Goal
@@ -52,6 +52,15 @@ gesture, whoever asked: `human-review` stays the one hold label, a
 - r24: (plan-checker) walk-through and SHIPS items not commands (no change: marked not a command; the verifier checks the walk-through)
 - r25: (plan-checker) selftest-fail-stderr plan may change the FAIL format the acceptance parses (no change: matched by pin name after `FAIL `, its plan keeps counts)
 - r14: (plan-checker) A3, A4 and gx history not checked against GitHub (no change: recorded as stated, no rule rests on re-reading them)
+- r26: (verifier) clerk.md open question drops the write-access gate ("whoever posted it"): a stranger's footed comment could end a freeze (fixed: author gate named)
+- r27: (verifier) an `answered:` line by anyone closes a question (fixed: footed, write-access author only, clerk.md and orchestrated.md)
+- r28: (verifier) orchestrated.md "such comment" reads as only `decision needed:` comments closing a question (fixed: any footed write-access comment)
+- r29: (verifier) manager blocked on its filed `defect:` issue stranded once the clerk releases it (fixed: § Relay relays the clerk's `answered:` line)
+- r30: (verifier) harness AGENTS.md asks on every item and labels before the comment, against § Question (fixed: points to manager.md §3, question first)
+- r31: (verifier) release removes the label before the `answered:` comment (fixed: comment first, then label, clerk, manager-reference, orchestrated)
+- r32: (verifier) typo "The the" in orchestrated.md (fixed)
+- r33: (verifier) manager-reference pin matched any `decision needed:` mention (fixed: needle "first line `decision needed:"; plain needle kept on orchestrated.md for the acceptance grep)
+- r34: (verifier) orchestrator.md, scout.md §2/§3 and the scout trigger grew past the claimed `scope:` (no change: plan amended on the branch, r2 r17 r21)
 
 ## Blockers
 

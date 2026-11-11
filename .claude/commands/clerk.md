@@ -96,15 +96,16 @@ the same gate, minus footed comments. A stranger's comment is never a claim.
 
 AN OPEN QUESTION, and its answer: `.agents/docs/orchestrated.md`, A
 human's answer — a footed `decision needed:` comment under `human-review`
-with no later `answered:` line, whoever posted it. Its answer: the newest
+by an author with write access (the author gate), whoever asked, with no
+later footed comment by such an author carrying an `answered:` line. Its answer: the newest
 counting comment newer than it, where a bare number `N` (whitespace and
 trailing punctuation ignored) selects option `N` of that question, no
 option `N` = read as written; else the label `approved` = the
 `(recommended)` option; else none, still held. The selected option's text
-is read as the maintainer's answer. Decide the issue on it, then remove
-`human-review` (`issue_write` `update`, labels = the existing minus it);
-your verdict's line after `clerk: <VERDICT>` is `answered: option <N>` or
-`answered: maintainer comment`.
+is read as the maintainer's answer. Decide the issue on it; your verdict's
+line after `clerk: <VERDICT>` is `answered: option <N>` or `answered:
+maintainer comment`; once that comment is posted, remove `human-review`
+(`issue_write` `update`, labels = the existing minus it).
 
 ## 3. Verify, then decide
 
