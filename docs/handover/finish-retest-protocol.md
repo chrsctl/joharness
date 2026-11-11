@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK5ir4zBQWg9RLmp1Uh
 agent: opus
 updated: 2026-11-11
-next: ci and verify green, then verifier at opus, then finish
+next: ci green on head, then retire commit, PR, finish, merge
 ---
 
 ## Goal
@@ -53,6 +53,9 @@ each merge of the base, retest only what that merge could have changed
 - r23: plan-checker round 2 read a moving tree (build started meanwhile) though handed a detached worktree; it judged against HEAD (no change: round 2 found nothing blocking, count fell in severity; no round 3, all settled in build)
 - r24: mechanism-removal runs (checks.sh alone, a driver over selftest.sh's helpers, 190 cases green unmutated; 2026-11-11): base side from cb..ref reds case 9; RETEST removing the certificate reds 1, 2, 3, 7, 10; no variables handed reds 1, 2, 7, 9; gate keeping a stale retest file reds 4; no `env -u` reds 3; conflict as refusal reds 2, 3; no stray-path rule reds 3; unscoped retest green not certifying reds 5, 6; no bound reds 5; no n=0 refusal reds 8 (no change)
 - r25: on origin/main with this branch's checks.sh (`selftest.sh`, 2026-11-11, 4363 passed, 22 failed): cases 1, 2, 7, 9, 10 FAIL, plus 3, 4, 6 and the three rewritten CATCH-UP expectations; branch run `./joharness.sh ci` = `ci: pass`, `verify` = `6 passed, 0 failed` (no change)
+- r26: (verifier) nothing pins the `conflicted ∪ resolved` term: case 2's resolved file is already in branch ∩ base, so dropping the term left the selftest green (fixed: case 2's resolution also edits kr-e.txt, a branch-only path; checks.sh driver 191 passed unmutated, 1 failed with the term removed, 2026-11-11)
+- r27: (verifier) the base plan's "ten cases in verify's count" was unsatisfiable: verify runs the layer smoke test, the selftest runs under ci (fixed: plan's Acceptance rewritten on this branch before the build, plan-checker r8; met as rewritten, not as first written)
+- r28: (verifier) an own commit after a merge editing a branch or base path reads as RETEST, while the same commit with the base unmoved is the full run (fixed: consumer-repos.md "The finish loop" step 3 says so; plan-intended, gx renumber shape)
 
 ## Blockers
 

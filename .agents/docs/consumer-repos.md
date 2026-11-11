@@ -260,7 +260,10 @@ green and level.
    branch ∪ base` = full run: `HEAD changed <path>, which neither side nor the
    merge did: something else changed`. Retest set `R = (branch ∩ base) ∪
    conflicted ∪ resolved`, sorted, one per line, in
-   `<git-dir>/joharness-retest-paths`.
+   `<git-dir>/joharness-retest-paths`. An own commit after the merge that edits
+   a path the branch or base already changed is `resolved` too, so it is
+   retested, not run in full; with the base unmoved since `C` it is the full
+   run (`n = 0`).
    - `R` empty: `CATCH-UP     HEAD = certified ...`; `ci` re-runs,
      `local-check` carries.
    - `R` non-empty: `RETEST       HEAD = certified <sha9> + <n> commit(s) (<m>

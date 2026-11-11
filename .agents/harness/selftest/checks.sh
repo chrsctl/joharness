@@ -1044,7 +1044,8 @@ git -C "$kcwork" checkout -qb kcr main
 printf '{ printf "paths=%%s\\n" "${JOHARNESS_RETEST_PATHS-unset}"; printf "from=%%s\\n" "${JOHARNESS_RETEST_FROM-unset}"; } >%q\n[ -z "${JOHARNESS_RETEST_PATHS:-}" ] || cp "$JOHARNESS_RETEST_PATHS" %q\n[ "$(cat %q)" = 0 ] || touch "$JOHARNESS_LOCAL_CHECK_SCOPED"\nexit 0\n' \
   "$kr_rec" "${kr_rec}.paths" "$kr_flag" >"${kcwork}/local-check"
 sed -i '1s/.*/one/' "${kcwork}/kr-a.txt" "${kcwork}/kr-b.txt"
-commit_all "$kcwork" "kcr: own edits and a recording check"
+seq 1 10 >"${kcwork}/kr-e.txt"
+commit_all "$kcwork" "kcr: own edits, a file only it has, and a recording check"
 git -C "$kcwork" push -qu origin kcr 2>/dev/null
 out="$(kr_run)"
 expect "retest: 0. the first run is full and green" \
@@ -1087,13 +1088,18 @@ else
   pass "retest: 2. the fixture merge conflicts"
 fi
 { printf 'one-MAIN\n'; seq 2 9; printf 'TEN\n'; } >"${kcwork}/kr-a.txt"
-git -C "$kcwork" add kr-a.txt
+# A renumber also edits the branch's own files, which the base never touched:
+# only the resolved term puts such a path in the set.
+sed -i '3s/.*/THREE/' "${kcwork}/kr-e.txt"
+git -C "$kcwork" add kr-a.txt kr-e.txt
 git -C "$kcwork" commit -qm "kcr: merge origin/main, renumbered by hand" --no-edit
 git -C "$kcwork" push -q origin HEAD 2>/dev/null
 out="$(kr_run)"
 expect "retest: 2. a hand-resolved conflict is a RETEST" \
   "RETEST       HEAD = certified ${kr_h0:0:9} + 3 commit(s)" "$out"
 expect "retest: 2. the resolved file is in the set" "kr-a.txt" "$(kr_paths)"
+expect "retest: 2. a branch-only path the resolution edited is in the set" \
+  "kr-e.txt" "$(kr_paths)"
 
 # 3. The same, plus an edit to a path neither side changed: the full run,
 # naming it. Neither variable reaches the check, not even one the caller set.
@@ -1184,7 +1190,7 @@ expect "retest: 9. its path is in the set" "kr9.txt " "$(kr_paths)"
 
 git -C "$kcwork" checkout -q main
 git -C "$kcwork" merge -q --ff-only origin/main 2>/dev/null
-git -C "$kcwork" rm -q kr-a.txt kr-b.txt kr-c.txt kr-d.txt kr9.txt kr9-y.txt
+git -C "$kcwork" rm -q kr-a.txt kr-b.txt kr-e.txt kr-c.txt kr-d.txt kr9.txt kr9-y.txt
 commit_all "$kcwork" "main: drop the retest fixture"
 git -C "$kcwork" push -q origin main 2>/dev/null
 rm -f "$kr_cert" "${kr_gitdir}/joharness-finish-green" "$kr_file" \
