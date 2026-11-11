@@ -7,7 +7,7 @@ needs: none
 requirement: none
 serves: all
 issue: none
-scope: .claude/commands/clerk.md, .claude/commands/scout.md, .claude/commands/manager.md, .agents/docs/manager-reference.md, .agents/docs/orchestrated.md, .agents/docs/orchestrator-reference.md, .agents/docs/feedback.md, .agents/harness/AGENTS.md, .agents/harness/selftest/orchestrated.sh, README.md
+scope: .claude/commands/clerk.md, .claude/commands/scout.md, .claude/commands/manager.md, .agents/docs/manager-reference.md, .agents/docs/orchestrated.md, .agents/docs/orchestrator-reference.md, .agents/docs/feedback.md, .agents/harness/AGENTS.md, .agents/harness/selftest/orchestrated.sh, README.md, .claude/commands/orchestrator.md
 ---
 
 ## Goal
@@ -30,8 +30,9 @@ The protocol to build. Its home is `.agents/docs/orchestrated.md` Bounds
 1. **Inbox.** Two GitHub filters: `label:human-review` (questions and
    freezes) and `label:scout -label:approved is:open` (scout proposals,
    unchanged from today). README names both.
-2. **A question.** An agent that needs a human, in the SAME action that
-   applies `human-review`, posts ONE comment whose first line opens
+2. **A question.** An agent that needs a human, in the SAME pass that
+   applies `human-review` and before it (the comment first: a label whose
+   comment failed would read as a freeze for good), posts ONE comment whose first line opens
    `decision needed:` (the clerk: first line `clerk: <VERDICT>`, second line
    `decision needed:`, so the clerk's prefix rule and one-comment-per-pass
    rule hold). Body: what is decided (1-2 lines), the evidence, 2 to 4
@@ -42,10 +43,11 @@ The protocol to build. Its home is `.agents/docs/orchestrated.md` Bounds
    question (a label carries no time through the MCP tools: clerk.md, THE
    SCOUT GATE).
 3. **An OPEN question** = `human-review` on the item AND a `decision needed:`
-   comment on it with the Claude Code footer by an author with write access,
+   comment on it (one of its first two lines opens `decision needed:`) with the Claude Code footer by an author with write access,
    and no LATER comment carrying an `answered:` line (an `answered:` line
    answers only questions in earlier comments, never one in its own
-   comment). `human-review` with no open question is a
+   comment; the `answered:` line counts in a footed comment by an author
+   with write access). `human-review` with no open question is a
    FREEZE: only a human removes it; no agent posts a question onto it or
    removes it.
 4. **The answer** to an open question, read in this order:
@@ -70,8 +72,14 @@ The protocol to build. Its home is `.agents/docs/orchestrated.md` Bounds
      when an answer per 4 exists; the clerk decides it on that answer.
    - a manager block (not `defect:`): the manager posts the same question on
      EVERY item it labels for that block (its open pull request and its
-     plan's `issue:`, each that exists), so neither reads as a freeze; an
-     answer on either counts. Neither exists = an orchestrator turn only,
+     plan's `issue:`, each that exists and does not carry `human-review`
+     already: one that does (a freeze, or another's question) gets no
+     question and its answer resumes nothing), so neither reads as a
+     freeze; an answer on either counts. A block whose decision is a
+     `defect:` issue it filed for a human (manager-reference § Defect, "Yes,
+     nothing found"): that issue is the one item, its question posted at
+     filing; the clerk plans on its answer and § Relay relays the same
+     answer. Neither exists = an orchestrator turn only,
      as today. The orchestrator's § Relay also relays an answer per 4 found
      on that question into `next:`. Closing answers no manager question.
    - § Label at merge: an open question on the pull request (Goal 3) = the
@@ -139,8 +147,9 @@ The protocol to build. Its home is `.agents/docs/orchestrated.md` Bounds
   item it labels (Goal 6), the `issue_write` mechanics moved from manager.md
   §3; on resume, Goal 5's release. § Label at merge: the manager's own
   label = its question posted, resumed on an answer; a freeze = as today,
-  the two `git` commands and the freeze `next:` wording kept verbatim
-  (`.agents/harness/selftest/dispatch.sh` pins them, not in scope);
+  the two `git` commands kept verbatim (`.agents/harness/selftest/dispatch.sh`
+  pins them, not in scope) and the freeze `next:` wording kept (the
+  dispatch fixture writes it);
   § Defect step 3 and the "Yes, nothing found" branch: a `defect:` issue
   filed with `human-review` carries Goal 2's question.
 - `.agents/docs/orchestrator-reference.md` — § Relay: an answer per Goal 4
@@ -151,13 +160,18 @@ The protocol to build. Its home is `.agents/docs/orchestrated.md` Bounds
   fires (scout issues included: Goal 6 lets the clerk take an answered
   one); the `planned` and `claimed` exclusions hold for it too (Goal 6);
   the first rule's "not labelled `human-review`" stays. The scout trigger
-  ("A scout issue needs the scout"): drop "NOT approved"; (i) excludes a
+  ("A scout issue needs the scout"): drop "NOT approved", and "An approved
+  or planned issue waits on the clerk" becomes a planned one, or an
+  approved one with nothing newer to answer; (i) excludes a
   counting comment newer than an open clerk question (Goal 6). § Relay
   names the `decision needed:` comment.
+- `.claude/commands/orchestrator.md` — the blocked row's "A human's answer
+  or delegation typed in YOUR turn → ref § Relay" also routes an answer on
+  GitHub to its question to § Relay (531 bytes of budget left).
 - `.agents/docs/feedback.md` — § 8: the `human-review` sentence names Goal
   2's question.
-- `.agents/harness/AGENTS.md` — Decide alone, the `human-review` bullet: one
-  clause "posts the question; the answer and release: `.agents/docs/orchestrated.md`,
+- `.agents/harness/AGENTS.md` — Decide alone, the `human-review` bullet:
+  "never remove it" replaced by one clause "posts the question; the answer and release: `.agents/docs/orchestrated.md`,
   A human's answer" (caveman: rule only).
 - `.agents/harness/selftest/orchestrated.sh` — the clerk pins after the
   comment "A clerk HUMAN question takes a number" (needles "reply by hand
@@ -212,7 +226,7 @@ The protocol to build. Its home is `.agents/docs/orchestrated.md` Bounds
 - `./joharness.sh ci` — `ci: pass` (red = a pin or budget broken).
 - `./joharness.sh verify` — 0 failed (any other count is red).
 - `o=$(git show origin/main:.agents/harness/selftest/orchestrated.sh | grep -c '^expect '); n=$(grep -c '^expect ' .agents/harness/selftest/orchestrated.sh); [ "$n" -ge $((o + 3)) ] && echo more || echo fewer` — `more` (today `fewer`, 112 and 112: pins replaced one for one, plus at least the three new ones).
-- `d=$(mktemp -d); git worktree add -q --detach "$d" origin/main; cp .agents/harness/selftest/orchestrated.sh "$d/.agents/harness/selftest/"; (cd "$d" && bash .agents/harness/selftest.sh 2>&1 | grep -c '^ *FAIL '); git worktree remove --force "$d"` — at least 3 (every new or rewritten pin fails on today's text; with today's selftest it prints 0).
+- `d=$(mktemp -d); git worktree add -q --detach "$d" origin/main; cp .agents/harness/selftest/orchestrated.sh "$d/.agents/harness/selftest/"; (cd "$d" && bash .agents/harness/selftest.sh >"$d.out" 2>&1); git diff origin/main -- .agents/harness/selftest/orchestrated.sh | sed -n 's/^+expect "\([^"]*\)".*/\1/p' | sort -u >"$d.new"; f=$(sed -n 's/^  FAIL //p' "$d.out" | sort -u | grep -cxFf "$d.new"); n=$(wc -l <"$d.new"); [ "$n" -ge 3 ] && [ "$f" -eq "$n" ] && echo all-fail || echo "only $f of $n"; git worktree remove --force "$d"` — `all-fail` (every new or rewritten pin, by name, fails on today's text; today `only 0 of 0`).
 - `grep -c '"decision needed:"' .agents/harness/selftest/orchestrated.sh` — at least 1 (today 0).
 - `tr '\n' ' ' < .claude/commands/scout.md | tr -s ' ' | grep -c "Apply, remove, or ask anyone to skip"` — `0` (today `1`).
 - `grep -c "second firing rule\|fires too when\|open question" .agents/docs/orchestrator-reference.md` — at least 1 (today 0).
@@ -265,8 +279,8 @@ The protocol to build. Its home is `.agents/docs/orchestrated.md` Bounds
   already there (that would turn a freeze into a question).
 - `.claude/commands/manager.md` sits 46 bytes under its reading budget:
   move text to manager-reference.md, never raise the bound.
-- `.agents/harness/selftest/dispatch.sh` pins § Label at merge's commands
-  and freeze wording; keep them.
+- `.agents/harness/selftest/dispatch.sh` pins § Label at merge's two `git`
+  commands; keep them.
 - `.agents/harness/AGENTS.md` is caveman: rule lines only, the why in
   `.agents/docs/`. Glossary spellings: `ci` reds others.
 - A selftest pin is changed only to follow the text it pins, and each new
