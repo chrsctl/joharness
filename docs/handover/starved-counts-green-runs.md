@@ -46,7 +46,12 @@ only OUTRUN and offers the human a real choice.
 - r8: (plan-checker) verify count delta unstated (fixed: at least 7 new passes)
 - r9: (plan-checker) acceptance items lack a failure statement (fixed)
 - r10: (plan-checker) case 4 construction unstated (fixed: a second branch's green in the same worktree)
-- r11: paired run: `bash .agents/harness/selftest.sh` on origin/main aae714c0 with this branch's checks.sh, 2026-11-11: 4303 passed, 8 failed, all 8 the new `outrun:` expects (no change)
+- r11: paired run: `bash .agents/harness/selftest.sh` on aae714c0 (origin/main ac4086b2 + the claim's handover file) with this branch's checks.sh, 2026-11-11: 4303 passed, 8 failed, all 8 the new `outrun:` expects (no change)
+- r12: (verifier) in the documented loop (see behind, merge, finish) every finish starts 0 behind, so OUTRUN never prints and STARVED never fires (fixed: manager.md §4 and § Starved say run `finish` as is first; its refusal is the measurement)
+- r13: (verifier) github mode measures no behind, so STARVED became unreachable there (fixed: § Starved keeps the old count when JOHARNESS_CHECKS is not local)
+- r14: (verifier) NOT OUTRUN advice "block defect:" contradicts §3's defect = outside the item (fixed: own red is fixed; outside cause blocks per §3)
+- r15: (verifier) r11 named a branch commit as origin/main (fixed)
+- r16: branch selftest 2026-11-11: `bash .agents/harness/selftest.sh` 4313 passed, 0 failed, 1 skipped; `./joharness.sh verify` (docker layer) 6 passed, 0 failed (no change)
 
 ## Blockers
 

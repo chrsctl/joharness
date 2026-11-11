@@ -139,10 +139,10 @@ git; send nothing for it.
 
 `human-review` at merge (Loop step 7) = do not merge: ref § Label at merge.
 
-Behind again at merge? Merge `origin/main` in, `finish` again (`CATCH-UP`
-re-certifies a clean, disjoint merge on `ci`). Count only refusals printing
-`OUTRUN` as `finish behind: <n>` in `## Blockers`, pushed; `NOT OUTRUN` = a
-red to fix. Three = STARVED: ref § Starved.
+Behind again at merge? `finish` as is first, then merge `origin/main` in,
+`finish` again (`CATCH-UP` re-certifies a clean, disjoint merge on `ci`).
+Count per ref § Starved (`OUTRUN` only) as `finish behind: <n>` in
+`## Blockers`, pushed. Three = STARVED.
 
 Resumed head whose pull request is a draft? Un-draft it after the delete
 commit, before the merge: ref § Block on an open pull request.

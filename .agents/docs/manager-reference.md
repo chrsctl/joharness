@@ -187,11 +187,20 @@ remainder no one's accident.
 
 ## Starved
 
+Behind, seen any way (a `git fetch`, the pull request page, a `finish` that
+passed while the base moved): run `finish` once AS IS, before merging
+`origin/main` in. Its BEHIND refusal costs no suite run (seconds) and is the
+measurement: it prints `OUTRUN` or `NOT OUTRUN`. Merging first skips it, and
+the run after the merge starts 0 behind and prints neither.
+
 Count a `finish` refusal toward STARVED only when it prints `OUTRUN`: a
 green run (full or `CATCH-UP`) covers this head and the base outran it.
 `NOT OUTRUN` = no green run covers it (last run red, unfinished, never ran,
-or own commits since): fix it on the ordinary red path, or block
-`defect:`/`hardware:` with the real cause, never `conflict:`. On the third
+or own commits since): a red to fix, the branch's own work. A cause outside
+the item blocks per manager.md §3 (`defect: #<n>: …`, `hardware:`), never
+`conflict:`. `JOHARNESS_CHECKS` not `local`: `finish` measures no behind
+and prints neither line; count `finish` runs after which the branch is
+behind, as before this rule. On the third
 `OUTRUN`, draft the pull request first (§ Block on an open pull request),
 then block with `next:` exactly:
 
