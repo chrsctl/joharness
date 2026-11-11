@@ -7,7 +7,7 @@ needs: none
 requirement: none
 serves: all
 issue: none
-scope: shared:joharness.sh, shared:.agents/harness/selftest/dispatch-park.sh, shared:.agents/docs/orchestrated.md, .agents/docs/orchestrate-reference.md
+scope: shared:joharness.sh, shared:.agents/harness/selftest/dispatch-park.sh, shared:.agents/docs/orchestrated.md, .agents/docs/orchestrator-reference.md
 ---
 
 ## Goal
@@ -21,13 +21,13 @@ Today a `defect: #<n>` park in state `PARKED` keeps its scope held (`joharness.s
 - `joharness.sh` (dispatch, parked-row loop): a `PARKED` claim whose `#<n>` no plan names, on the base or on a live branch row, holds no scope. The check is the one `dispatch_defect_state` already runs for UNPLANNED (`plan_names_issue`). Today only `UNREADABLE`, `STUCK` and `UNPLANNED` join `blocked_claims`; this case joins it too. From the moment a plan names `#<n>`, the park holds its scope as today, until that plan retires and RESUME fires.
   - The claim itself is untouched. Its `status: blocked`, its `next:`, and its RESUME and RECHECK still work. It already holds no slot.
   - The row text says which case applies, e.g. `PARKED #<n>: no plan names #<n> yet — scope released` versus `PARKED #<n>: waits for <plan> — scope held`.
-  - A `core path: waiting on #<N>` block (a human PR exists by construction) keeps holding its scope, unchanged.
+  - A `core path: waiting on #<N>` block is unchanged. (Corrected on the build branch: today it does NOT hold its scope while #<N> is open — dispatch releases it as any human block, `overlaps … — that branch is BLOCKED on a human: spawn, reconcile expected`; it holds again only once #<N> merges and it RESUMEs. This plan leaves that as it is.)
 - `.agents/harness/selftest/dispatch-park.sh`:
   - Park on an unplanned issue → its scope is free to another plan.
   - A plan naming the issue lands → the scope is held again.
   - RESUME is unchanged.
-  - A `core path: waiting on #N` block still holds its scope.
-- `.agents/docs/orchestrated.md` and `.agents/docs/orchestrate-reference.md`: the parked-on-a-defect lifecycle, one sentence each: a park holds its scope only while a fix is planned.
+  - A `core path: waiting on #N` block is unchanged: released while #N is open, held after its RESUME.
+- `.agents/docs/orchestrated.md` and `.agents/docs/orchestrator-reference.md`: the parked-on-a-defect lifecycle, one sentence each: a park holds its scope only while a fix is planned.
 
 ## Assumptions
 
@@ -57,4 +57,5 @@ Today a `defect: #<n>` park in state `PARKED` keeps its scope held (`joharness.s
 ## Traps
 
 - Fail closed: an unreadable plan scan is "planned", so the park keeps holding its scope. Never release on an unreadable answer.
+- Two or more parks on one issue hold every spawn row anyway (`HOLD — red base`, orchestrated.md, The one stop). Releasing a single park's scope does not touch that hold.
 - A released scope can be taken by another plan whose work then collides with the parked branch at RESUME. That is the existing `conflict:` / reconcile path, not a reason to keep holding.
