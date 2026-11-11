@@ -1247,9 +1247,20 @@ sed -i 's/^scope: src\/hp-a$/scope: src\/fix51/' "${dfwork}/docs/plans/fix51.md"
 dfpush 1 "fix51 back on its own scope"
 out="$(hpx)"
 refute "a free fix: no such line" "waits on its own fix" "$out"
-# The fix retires while a clerk branch carries a second plan naming #51: the
-# parks wait for it (no RESUME), but the base holds the known fix, so a
-# retired fix lifts the hold.
+# The fix in a wave behind a row the red base holds: that row never spawns
+# while the hold stands, so the fix does not wait for it.
+sed -i 's/^scope: src\/fix51$/scope: src\/hp-free/' "${dfwork}/docs/plans/fix51.md"
+dfpush 1 "fix51 on hp-free's scope"
+out="$(hpx)"
+expect "a fix never waits on a row the red base holds" \
+  "overlaps hp-free, held by the red base: the fix spawns first" "$(printf '%s\n' "$out" | grep '^  docs/plans/fix51.md')"
+refute "no WAIT on it" "fix51.md (agent: sonnet)  wave 2  WAIT" "$out"
+expect "it is the one free item" "verdict   : NOT DRAINED — 1 free item(s) now" "$out"
+sed -i 's/^scope: src\/hp-free$/scope: src\/fix51/' "${dfwork}/docs/plans/fix51.md"
+dfpush 1 "fix51 back on its own scope"
+# The fix retires while a clerk branch carries a second plan naming #51: a
+# plan leaves the base unbuilt too, so the hold stands until the second
+# retires (orchestrated.md, The one stop); the parks wait the same.
 git -C "$dfwork" checkout -qb hp-clerk main
 dfplan fix51b 51
 dfcommit 0 "a second plan naming #51"
@@ -1258,7 +1269,20 @@ git -C "$dfwork" checkout -q main
 git -C "$dfwork" rm -q docs/plans/fix51.md
 dfpush 0 "retire fix51"
 out="$(hpx)"
-refute "a retired fix lifts the hold, a second plan open" "red base" "$out"
-refute "the parks still wait for the second plan" "PARKED #51 RESUME" "$out"
-expect "hp-free spawns" "  docs/plans/hp-free.md (agent: sonnet)"$'\n' "$out"
+expect "one plan retired, a second open: the hold stands" \
+  "docs/plans/hp-free.md (agent: sonnet)  HOLD — red base: #51 (2 parked)" "$out"
+refute "and the parks wait for the second plan" "PARKED #51 RESUME" "$out"
 hpdrop hp-clerk
+# On the base, the second plan is the fix: it spawns, the rest stays held.
+dfplan fix51b 51
+dfpush 0 "fix51b on the base"
+out="$(hpx)"
+expect "the second plan spawns as the fix" "  docs/plans/fix51b.md (agent: sonnet)" "$out"
+expect "while the rest stays held" \
+  "docs/plans/hp-free.md (agent: sonnet)  HOLD — red base: #51 (2 parked)" "$out"
+# It retires, no plan names #51: RESUME, and the hold lifts.
+git -C "$dfwork" rm -q docs/plans/fix51b.md
+dfpush 0 "retire fix51b"
+out="$(hpx)"
+expect "the last plan retired: the parks resume" "PARKED #51 RESUME" "$out"
+refute "and the hold lifts" "red base" "$out"

@@ -36,11 +36,6 @@ git -C "$repo" rev-parse -q --verify "${base}^{commit}" >/dev/null || {
 cd "$repo" || exit 2
 
 work="$(mktemp -d)"
-# Every worktree this run added goes, and only those: other runs share the
-# repo, so never `worktree prune`. `--force` twice also takes a worktree an
-# interrupted `worktree add` left locked; a remove that still fails (a
-# contended lock, a dying git) leaves the run's own admin entry, which goes by
-# hand: git lists a worktree while `<gitdir>/worktrees/<id>/gitdir` names it.
 # Runs share one repo, and `worktree add`/`remove` read every worktree's
 # admin entry: one another run is still writing dies with `failed to read
 # .git/worktrees/<id>/commondir`. A lost race is retried, never a verdict.
@@ -48,38 +43,47 @@ c2_wt_add() {
   local i
   for i in 1 2 3 4 5; do
     git worktree add -q --detach "$1" "$2" 2>/dev/null && return 0
-    git worktree remove --force --force "$1" >/dev/null 2>&1
+    git worktree remove --force --force "$1" >/dev/null 2>&1 || c2_drop_admin "$1"
     rm -rf "$1"
     sleep "$i"
   done
   git worktree add -q --detach "$1" "$2"
 }
+# <path>: delete this run's own admin entry for <path>, if git still lists
+# it: git lists a worktree while `<gitdir>/worktrees/<id>/gitdir` names it.
+# Matched on the full path under this run's fresh `$work`, so never another
+# run's entry. git records the resolved path: a TMPDIR behind a symlink
+# reads otherwise.
+c2_drop_admin() {
+  local gd adm rp
+  rp="$(cd "${1%/*}" 2>/dev/null && pwd -P)/${1##*/}"
+  gd="$(git -C "$repo" rev-parse --git-common-dir 2>/dev/null)"
+  case "$gd" in '' | /*) ;; *) gd="${repo}/${gd}" ;; esac
+  [ -n "$gd" ] && [ -d "${gd}/worktrees" ] || return 0
+  for adm in "${gd}"/worktrees/*/gitdir; do
+    [ -f "$adm" ] || continue
+    case "$(cat "$adm" 2>/dev/null)" in
+      "${1}/.git" | "${rp}/.git")
+        rm -rf "${adm%/gitdir}"
+        printf 'c2-run: worktree %s: remove failed, its admin entry removed\n' "${1##*/}" >&2 ;;
+    esac
+  done
+}
+# Every worktree this run added goes, and only those: other runs share the
+# repo, so never `worktree prune`. `--force` twice also takes a worktree an
+# interrupted `worktree add` left locked; a remove that still fails leaves
+# the run's own admin entry, which c2_drop_admin takes.
 c2_cleanup() {
-  local t gd adm rw i
-  # git records the resolved path: a TMPDIR behind a symlink reads otherwise.
-  rw="$(cd "$work" 2>/dev/null && pwd -P)"
+  local t i
   for t in fix nofix pre; do
     for i in 1 2 3; do
       [ -d "${work}/${t}" ] || break
       git -C "$repo" worktree remove --force --force "${work}/${t}" 2>/dev/null && break
-      sleep "$i"
+      # No sleep after the last try: the admin entry goes below.
+      [ "$i" -eq 3 ] || sleep "$i"
     done
+    c2_drop_admin "${work}/${t}"
   done
-  gd="$(git -C "$repo" rev-parse --git-common-dir 2>/dev/null)"
-  case "$gd" in '' | /*) ;; *) gd="${repo}/${gd}" ;; esac
-  if [ -n "$gd" ] && [ -d "${gd}/worktrees" ]; then
-    for adm in "${gd}"/worktrees/*/gitdir; do
-      [ -f "$adm" ] || continue
-      for t in fix nofix pre; do
-        case "$(cat "$adm" 2>/dev/null)" in
-          "${work}/${t}/.git" | "${rw:-${work}}/${t}/.git") ;;
-          *) continue ;;
-        esac
-        rm -rf "${adm%/gitdir}"
-        printf 'c2-run: worktree %s: remove failed, its admin entry removed\n' "$t" >&2
-      done
-    done
-  fi
   rm -rf "$work"
 }
 trap c2_cleanup EXIT

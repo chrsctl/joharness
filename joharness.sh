@@ -9001,7 +9001,7 @@ cmd_dispatch() {
   local printed_deferred=
   local inflight="" free="" questions="" corefree="" row mergewait=""
   local n_parked=0 n_fixed=0 n_resume=0 n_recheck=0 parked_lines="" dst dn dplan dage di ri rtext dresume=0 bkind selfpark n_ownpark=0
-  local dpark="" dhold="" dhold_n="" dhn dfix dfix_held="" n_dhold=0
+  local dpark="" dhold="" dhold_n="" dhn dfix dfix_held="" wave_moot dpart dpfix n_dhold=0
   local fx_label fx_wait fx_k fx_r fx_c fx_slot fx_lim
   local bts redge rstem rts n_release=0 release_due="" hseen hst
   local -a fx_rows=() fx_lines=() fx_n=() fx_plan=() fx_di=() fx_kind=()
@@ -9409,13 +9409,13 @@ cmd_dispatch() {
           di="$(lint_stem "$path") (${branch})"
           # A park whose fix has not retired on the base's first parent,
           # planned or not: the base every new manager finishes on is red
-          # with it until that fix merges. A plan naming #<n> is no fix yet
-          # (chrsctl/gx, 2026-11-10, #1449). Once one retired after the block
-          # ($dplan), the known fix is on the base: a second plan naming #<n>
-          # still waits RESUME, never the queue.
+          # with it until that fix merges (RESUME). A plan naming #<n> is no
+          # fix yet (chrsctl/gx, 2026-11-10, #1449), nor is one plan retired
+          # while another still names #<n>: a plan leaves the base unbuilt
+          # too, and the hold passes the fix row, so it costs a wait only.
           case "$dst" in
             PARKED | UNPLANNED | STUCK | RECHECK)
-              [ "$dplan" != - ] || dpark="${dpark}${dn}"$'\n' ;;
+              dpark="${dpark}${dn}"$'\n' ;;
           esac
           case "$dst" in
             RESUME | RECHECK)
@@ -9776,6 +9776,20 @@ cmd_dispatch() {
       free="${free}  ${path} (agent: ${tier:-unreadable})  HOLD — red base: ${dhold}, its fix not retired: spawn once it retires"$'\n'
       continue
     fi
+    # A fix in a wave behind a row the red base holds would wait for a row
+    # that never spawns while the hold stands: its partner is moot. A partner
+    # that is itself a fix still orders the two.
+    wave_moot=""
+    if [ "$dfix" -eq 1 ] && [ -n "$note" ]; then
+      dpart="${note%% *}"
+      dpfix=0
+      while IFS= read -r dhn; do
+        [ -n "$dhn" ] || continue
+        plan_names_issue "refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" "docs/plans/${dpart}.md" "$dhn" &&
+          { dpfix=1; break; }
+      done <<<"$dhold_n"
+      [ "$dpfix" -eq 1 ] || { wave_moot="$dpart"; note=""; }
+    fi
     case "$path" in
       docs/research/*)
         n_free=$((n_free + 1))
@@ -9783,6 +9797,8 @@ cmd_dispatch() {
       *)
         row="  ${path} (agent: ${tier:-unreadable})"
         [ -z "$wave" ] || row="${row}  wave ${wave}"
+        [ -z "$wave_moot" ] ||
+          row="${row}  overlaps ${wave_moot}, held by the red base: the fix spawns first"
         if [ -n "$note" ]; then
           n_wait=$((n_wait + 1))
           row="${row}  WAIT — overlaps ${note} in this pass: spawn it only after that one"

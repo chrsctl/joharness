@@ -15,11 +15,14 @@ scope: joharness.sh, .agents/harness/selftest/dispatch-park.sh, .agents/docs/orc
 Close the four findings reported on PR #734 (red-base HOLD until the fix
 retires), as the requester asked ("fix all four"):
 
-1. A park whose fix already retired after its block (`dplan` set) still
-   counted toward the hold when a second plan naming #<n> was live, so a
-   green base stayed held until that second plan merged.
+1. A park whose fix already retired after its block still counted toward
+   the hold when a second plan naming #<n> was live. Settled (review r1): a
+   plan leaves the base unbuilt too, so lifting there re-opens #1449; the
+   hold stays, stated and pinned.
 2. A fix row that is itself WAIT or overlap-HOLD lost the red-base context:
-   no line said the red base waits on it.
+   no line said the red base waits on it. Worse, found building it: a fix in
+   a wave behind a held row WAITs on a row that never spawns while the hold
+   stands, so nothing moves until STUCK.
 3. No selftest pins for a claimed fix, a fix behind an open `needs:`, a
    CORE ONLY fix, research and requirement rows under the hold.
 4. `c2-run: no worktree outlives a run` failed once (2 worktrees): the
@@ -32,12 +35,12 @@ retires), as the requester asked ("fix all four"):
 
 ## Scope
 
-- `joharness.sh` (cmd_dispatch) — 1: a park counts toward the hold only
-  while its fix has not retired (`dplan` = `-`). 2: a fix row held by WAIT or
-  an overlap prints one summary line naming it and the red base.
+- `joharness.sh` (cmd_dispatch) — 1: comment only. 2: a fix row's wave
+  partner that the red base holds is moot (the fix spawns); a fix row held
+  by an overlap or a fix partner prints one summary line naming it.
 - `.agents/harness/selftest/dispatch-park.sh` — pins for 1, 2, 3.
 - `.agents/docs/orchestrated.md` — The one stop: the second-plan sentence
-  now says a retired fix lifts the hold; the held-fix line.
+  and why; the held-fix line; the moot wave partner.
 - `.agents/scripts/c2-run.sh` — `worktree add` retried on a lost race;
   cleanup: remove retried with `--force --force`, then drop the
   run's own admin entry under `.git/worktrees/` if git still lists it; never
@@ -61,7 +64,8 @@ retires), as the requester asked ("fix all four"):
 
 - `./joharness.sh ci` — `ci: pass`.
 - `./joharness.sh verify` — 0 failed.
-- `grep -c "a retired fix lifts the hold" .agents/harness/selftest/dispatch-park.sh` — `1` (today `0`).
+- `grep -c "one plan retired, a second open: the hold stands" .agents/harness/selftest/dispatch-park.sh` — `1` (today `0`).
+- `grep -c "a fix never waits on a row the red base holds" .agents/harness/selftest/dispatch-park.sh` — `1` (today `0`).
 - `grep -c "remove fails" .agents/harness/selftest/c2-run.sh` — at least `1` (today `0`).
 - SHIPS: dispatch, c2-run and their selftests reach every consumer on sync.
 
