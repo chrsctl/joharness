@@ -154,6 +154,9 @@ from that line.
 - `grep -n "OUTRUN" .claude/commands/manager.md` — at least one hit, between
   `## 4. Finish` and `## Never`; none = not done.
 - `grep -n "still behind after three" .agents/docs/product.md` — no hit.
+- Consumer-side (SHIPS): in a consumer at its next sync, a head behind
+  `origin/main` with `JOHARNESS_CHECKS=local ./joharness.sh finish` prints
+  `OUTRUN` after a green run there, `NOT OUTRUN` after a red one.
 
 ## Where to look
 

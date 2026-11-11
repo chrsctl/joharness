@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK3ThwWNCgDW9ez1fyc
 agent: opus
 updated: 2026-11-11
-next: Run verify, spawn the opus verifier, then finish and merge
+next: Retire commit, open the PR, JOHARNESS_CHECKS=local finish, merge
 ---
 
 ## Goal
@@ -51,6 +51,12 @@ only OUTRUN and offers the human a real choice.
 - r13: (verifier) github mode measures no behind, so STARVED became unreachable there (fixed: § Starved keeps the old count when JOHARNESS_CHECKS is not local)
 - r14: (verifier) NOT OUTRUN advice "block defect:" contradicts §3's defect = outside the item (fixed: own red is fixed; outside cause blocks per §3)
 - r15: (verifier) r11 named a branch commit as origin/main (fixed)
+- r17: (verifier) pushing the count to `## Blockers` after the retire puts the workstream file back, `finish_adds` reds, and the next finish measures no behind (fixed: after retire the count goes in the PR body, § Starved)
+- r18: (verifier) refusals of one green head count three times, "3 green runs" with one green run (fixed: one count per green head, manager.md §4 and § Starved)
+- r19: (verifier) NOT OUTRUN says "fix that"/"a red" when never-ran or own commits have nothing red (fixed: "fix the red, or merge and finish")
+- r20: (verifier) SHIPS plan names no consumer-side check (fixed: plan Acceptance names one)
+- r21: (verifier) green record replaces the base plan's certificate-only mechanism (no change: needed by the Goal, red CATCH-UP case; plan amended on the branch)
+- r22: (verifier) spawn prompt carried a head sha besides the worktree path (no change: a pointer, not an explanation)
 - r16: branch selftest 2026-11-11: `bash .agents/harness/selftest.sh` 4313 passed, 0 failed, 1 skipped; `./joharness.sh verify` (docker layer) 6 passed, 0 failed (no change)
 
 ## Blockers

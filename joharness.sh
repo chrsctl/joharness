@@ -6870,7 +6870,8 @@ checks_outrun() {
     printf '               (counts as finish behind)\n'
   else
     printf '  NOT OUTRUN   no green run covers this head (last run red, unfinished, never\n'
-    printf '               ran, or own commits since): fix that; not a finish behind\n'
+    printf '               ran, or own commits since): fix the red, or merge and finish;\n'
+    printf '               not a finish behind\n'
   fi
 }
 

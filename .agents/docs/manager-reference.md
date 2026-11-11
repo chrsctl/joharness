@@ -196,11 +196,17 @@ the run after the merge starts 0 behind and prints neither.
 Count a `finish` refusal toward STARVED only when it prints `OUTRUN`: a
 green run (full or `CATCH-UP`) covers this head and the base outran it.
 `NOT OUTRUN` = no green run covers it (last run red, unfinished, never ran,
-or own commits since): a red to fix, the branch's own work. A cause outside
+or own commits since): fix the red, or merge and run `finish` when nothing
+is red (never ran, own commits). A cause outside
 the item blocks per manager.md §3 (`defect: #<n>: …`, `hardware:`), never
 `conflict:`. `JOHARNESS_CHECKS` not `local`: `finish` measures no behind
 and prints neither line; count `finish` runs after which the branch is
-behind, as before this rule. On the third
+behind, as before this rule. One count per green head: a refusal naming the
+head `OUTRUN` already counted (base merged in, no run since) is the gap
+between merge and `finish`, not a run lost. Where the count lives: `##
+Blockers`, pushed; after the retire commit, a `finish behind: <n>` line in
+the pull request body — a workstream file back on the head reds
+`finish_adds`, and a red `finish` measures no behind. On the third
 `OUTRUN`, draft the pull request first (§ Block on an open pull request),
 then block with `next:` exactly:
 
