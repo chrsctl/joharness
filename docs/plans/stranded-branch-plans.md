@@ -36,8 +36,8 @@ one who lets a branch plan into the queue, but make sure the human is told.
   `JOHARNESS_STRANDED_DAYS` (new knob, default 2; 0 = off) gets the mark
   `STRANDED <n>d`, a suffix after `held <n>d`. A printed line (one per
   stem) carries it when any of its branches is stranded, `<n>` the largest
-  held days among those. The verdict block counts the stranded (branch,
-  plan) rows: `<k> stranded branch plan(s): a human carries or closes them`.
+  held days among those, and names those branches (`STRANDED <n>d on
+  <branch>`). The verdict block counts the marked lines: `<k> stranded branch plan(s): a human carries or closes them`.
 - `joharness.sh` knob table — declare `JOHARNESS_STRANDED_DAYS` the way
   `JOHARNESS_EDGE_SLOT_HOURS` is declared (scope `dispatch`), plus its row
   in `.agents/docs/orchestrated.md`'s knob table (`knobs-declared.sh`).

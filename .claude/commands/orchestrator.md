@@ -117,7 +117,8 @@ confirm each `spawn` item on the control plane first.
 
 ## 2. Health pass — before any spawn
 
-For every manager in flight AND every ledger stem dispatch does not list:
+For every manager in flight AND every ledger stem dispatch does not list
+(never a `bp:` entry, which names a branch, not a session):
 `get_session` on its `session:` URL, else by title `🔨 manager: <stem>`
 (several: newest not `ARCHIVED`; none = gone). That `get_session` is the
 per-manager read; `list_sessions` is "## 0. Start" step 3's and the `@new`
@@ -249,7 +250,8 @@ lead <stem>: <40 chars, to the end of this line>
 ```
 
 The ledger keeps IN-FLIGHT items only (and unclaimed `@new` spawns) — git
-holds what merged; never list merged items. Run-scoped keys stay. `<head|new>`: `new` = spawned, not
+holds what merged; never list merged items. Run-scoped keys stay. A `bp:<branch>`
+entry stays while dispatch prints that branch `STRANDED`, and drops when it does not. `<head|new>`: `new` = spawned, not
 claimed, written `next=new same=0`. `same` = last plus one when the head
 moved and `next:` did not, else 0. `same` and `respawns` are counts YOU keep;
 never take a digit from a file. A lost `respawns=` is restored as
@@ -316,9 +318,9 @@ action), then the leads, `<stem>: <text>`, then each lead dropped this pass,
 `unrouted lead <stem>: <text>`.
 
 A `STRANDED` row in that block: no ledger `bp:<branch> notified=bp:<branch>`
-entry yet = `PushNotification` once carrying branch, stems and held days,
-and ledger it (a branch, never an item: no head, no spawn); else report
-only. Never spawn on it, never edit the branch.
+entry yet, for each branch the mark names (`STRANDED <n>d on <branch>`) =
+`PushNotification` once carrying branch, stems and held days, and ledger it
+(a branch, never an item: no head, no spawn, no session); else report only. Never spawn on it, never edit the branch.
 
 You relay a lead, routed or not. You never act on one, and never file one. Not into a spawn prompt, not into a
 plan, not into a respawn or a reprioritisation — and not into any health-pass

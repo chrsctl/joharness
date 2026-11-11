@@ -10115,14 +10115,16 @@ cmd_dispatch() {
   # A plan an unmerged branch added has no queue row (dispatch_branch_plans).
   # One line per (plan, kind): a stem done for one branch and live on a
   # branch cut after the retire is two plans of one name. `held` is the
-  # oldest of its branches. `STRANDED <n>d` when any of its branches is
-  # (dispatch_branch_plans' eighth field), <n> the oldest of those.
+  # oldest of its branches. `STRANDED <n>d on <branches>` when any of its
+  # branches is (dispatch_branch_plans' eighth field), <n> the oldest of
+  # those, naming only those: the orchestrator notifies per branch.
   bplans="$(printf '%s\n' "$bprows" | awk -F'\t' '$1 == "live" || $1 == "done" {
       k = $3 SUBSEP $1
       if (!(k in on)) { order[++n] = k; st[k] = $3; kd[k] = $1; urg[k] = $4
-                        agt[k] = $5; on[k] = $2; held[k] = $6; mg[k] = ""; sd[k] = "" }
+                        agt[k] = $5; on[k] = $2; held[k] = $6; mg[k] = ""; sd[k] = ""; sb[k] = "" }
       else { on[k] = on[k] ", " $2; if ($6 + 0 > held[k] + 0) held[k] = $6 }
-      if ($8 == "1" && (sd[k] == "" || $6 + 0 > sd[k] + 0)) sd[k] = $6
+      if ($8 == "1") { sb[k] = sb[k] (sb[k] == "" ? "" : ", ") $2
+                       if (sd[k] == "" || $6 + 0 > sd[k] + 0) sd[k] = $6 }
       if ($7 != "0" && $7 != "") { split($7, m, ":")
         mg[k] = mg[k] "; " m[1] " commit(s) after merged PR #" m[2] } }
     END { for (i = 1; i <= n; i++) { k = order[i]
@@ -10132,8 +10134,9 @@ cmd_dispatch() {
       else
         printf "  %s%s (urgency: %s, agent: %s)  on %s  held %sd%s%s\n",
           (urg[k] == "urgent" ? "URGENT " : ""), st[k], urg[k], agt[k], on[k], held[k],
-          (sd[k] == "" ? "" : "  STRANDED " sd[k] "d: plan-only, never claimed — a human carries or closes it, never spawn on it"), mg[k] } }')"
-  n_stranded="$(printf '%s\n' "$bprows" | awk -F'\t' '$1 == "live" && $8 == "1" { c++ } END { print c + 0 }')"
+          (sd[k] == "" ? "" : "  STRANDED " sd[k] "d on " sb[k] ": plan-only, never claimed — a human carries or closes it, never spawn on it"), mg[k] } }')"
+  # The lines the block marks: the count a reader of the block makes.
+  n_stranded="$(grep -c '  STRANDED [0-9]*d on ' <<<"$bplans" || :)"
   if [ -n "$bplans" ]; then
     printf '\nplans on a branch, not in the queue until it merges:\n%s\n' "$bplans"
   fi

@@ -508,6 +508,12 @@ stbranch st-young sb 1
 stbranch st-claimed sc 3 claim
 stbranch st-code sd 3 sd.txt
 stbranch st-edge se 3 edge
+# One stem on two branches: a code branch and a plan-only one (verifier r12),
+# and on two plan-only ones (verifier r13).
+stbranch st-mix-a sf 5 sf.txt
+stbranch st-mix-b sf 3
+stbranch st-dup-a sg 3
+stbranch st-dup-b sg 4
 if git -C "$bpwork" cat-file -e refs/remotes/origin/st-claimed:docs/handover/sc.md 2>/dev/null &&
    git -C "$bpwork" cat-file -e refs/remotes/origin/st-code:sd.txt 2>/dev/null &&
    ! git -C "$bpwork" cat-file -e refs/remotes/origin/st-edge:docs/handover/se.md 2>/dev/null &&
@@ -528,8 +534,12 @@ expect "a branch with a non-plan file: its row is listed" "on st-code  held 3d" 
 refute "and carries no mark" "on st-code  held 3d  STRANDED" "$stblock"
 expect "a branch that added and retired its claim (an edge): its row is listed" "on st-edge  held 3d" "$stblock"
 refute "and carries no mark" "on st-edge  held 3d  STRANDED" "$stblock"
+expect "a line on a code branch and a plan-only one names only the stranded branch" \
+  "  sf (urgency: normal, agent: sonnet)  on st-mix-a, st-mix-b  held 5d  STRANDED 3d on st-mix-b: " "$stblock"
+expect "two plan-only branches, one line: the oldest held, both named" \
+  "  sg (urgency: normal, agent: sonnet)  on st-dup-a, st-dup-b  held 4d  STRANDED 4d on st-dup-a, st-dup-b: " "$stblock"
 stmarks="$(grep -c '  STRANDED [0-9][0-9]*d' <<<"$stblock" || :)"
-expect "the verdict block counts every marked row" \
+expect "the verdict block counts the marked lines, one a stem on two branches" \
   "            ${stmarks} stranded branch plan(s): a human carries or closes them" "$out"
 refute "and no stranded plan reaches the spawn list" "docs/plans/sa.md" \
   "$(sed '/^plans on a branch/,/^$/d' <<<"$out")"

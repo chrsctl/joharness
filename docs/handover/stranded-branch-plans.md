@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK5JiVnb6MHweCHr34Q
 agent: opus
 updated: 2026-11-11
-next: Run ci and verify; then the verifier at opus tier
+next: Re-run selftest and ci after verifier fixes, then finish
 ---
 
 ## Goal
@@ -42,6 +42,10 @@ branch plan into the queue.
 - r9: (plan-checker) acceptance lacks a command for the origin/main failure and a failure shape (fixed: both written; this repo's expected row named)
 - r10: (plan-checker) Traps names a retired plan and misses shared files (fixed)
 - r11: (plan-checker) "the clerk reads no other branch" is half wrong (fixed)
+- r12: (verifier) a `bp:` ledger entry fits neither the in-flight-only ledger rule nor the health walk, so "once" fails on a prune (fixed: orchestrator.md keeps it while dispatch prints the branch STRANDED, and the health walk skips it)
+- r13: (verifier) a stem on a code branch and a plan-only branch reads STRANDED with no word on which branch (fixed: the mark names its branches, `STRANDED <n>d on <branch>`; selftest case)
+- r14: (verifier) the verdict counted (branch, plan) rows while the block prints one line per stem (fixed: it counts the marked lines; selftest case with one stem on two branches)
+- r15: (verifier) `[ -z "$wfs" ]` is redundant with the grep and the claim-add check (no change: it is the plan's literal condition and skips two git calls on every claimed branch)
 
 ## Blockers
 
