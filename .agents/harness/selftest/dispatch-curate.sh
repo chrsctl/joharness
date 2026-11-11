@@ -224,6 +224,8 @@ refute "a plan whose requirement a peer also serves is no declutter candidate" \
   "peer_a: its requirement 'vanished2' is gone" "$out"
 refute "whichever way the peer spelled it" \
   "peer_b: its requirement 'vanished2' is gone" "$out"
+expect "two plans on a gone requirement: one re-point line naming both" \
+  "requirement 'vanished2' is gone and 2 plans still name it: peer_a, peer_b" "$out"
 fixture_rm "$cwwork" "drop one peer, leaving the last plan serving it" \
   docs/plans/peer_b.md
 git -C "$cwwork" push -q origin main

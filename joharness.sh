@@ -1047,12 +1047,22 @@ lint_serves_of() {
 # plan ever, or one reading `all`, is today's behaviour. Shallow = warn: the
 # plans retired before may be past the cut.
 lint_req_deleted() {
-  local over="origin/${HANDOVER_BASE_BRANCH:-main}" base rel r count sv miss
+  local over="origin/${HANDOVER_BASE_BRANCH:-main}" base rel r count sv miss open f
   base="$(git -C "$ROOT" merge-base HEAD "$over" 2>/dev/null)"
   [ -n "$base" ] || return 0
   while IFS= read -r rel; do
     [ -n "$rel" ] || continue
     r="$(lint_stem "$rel")"
+    # Open plans (HEAD's tree: a plan this diff deletes is gone) still naming
+    # it: the requirement outlives them, or they are re-pointed here.
+    open=""
+    while IFS= read -r f; do
+      [ -n "$f" ] || continue
+      [ "$(lint_stem "$(gr_field requirement <"${ROOT}/${f}")")" = "$r" ] &&
+        open="${open}${open:+, }$(lint_stem "$f")"
+    done < <(lint_nodes docs/plans)
+    [ -z "$open" ] ||
+      lint_red "${rel}: deleted while open plan(s) ${open} name it — retire or re-point them in this pull request (.agents/docs/product.md)"
     count="$(git -C "$ROOT" show "${base}:${rel}" 2>/dev/null | req_clause_count)"
     [ "${count:-0}" -gt 0 ] || continue
     sv="$(lint_serves_of "$r")"
@@ -8306,7 +8316,7 @@ cmd_curate() {
   local regthr splitthr layersthr layers bullets reqstem hit s p
   local n_plans=0 n_held=0 n_repair=0 n_mech=0 n_declutter=0 n_propose=0 n_fixed=0
   local pass n_pass
-  local repair="" declutter="" propose="" held_rows="" counts="" line plans_for kind text
+  local reqseen="" stems="" repair="" declutter="" propose="" held_rows="" counts="" line plans_for kind text
 
   case "${1:-}" in
     '') ;;
@@ -8396,6 +8406,18 @@ cmd_curate() {
       if [ "$plans_for" -le 1 ]; then
         n_declutter=$((n_declutter + 1))
         declutter="${declutter}  ${stem}: its requirement '${reqstem}' is gone and no other plan serves it — satisfied? confirm in merged history, then delete"$'\n'
+      elif ! printf '%s' "$reqseen" | grep -qxF "$reqstem"; then
+        # Peers are not each offered for deletion (r5): one line per
+        # requirement, naming the stragglers.
+        reqseen="${reqseen}${reqstem}"$'\n'
+        n_declutter=$((n_declutter + 1))
+        stems=""
+        while IFS= read -r prel; do
+          [ -n "$prel" ] || continue
+          [ "$(lint_stem "$(gr_field requirement <"${ROOT}/${prel}")")" = "$reqstem" ] &&
+            stems="${stems}${stems:+, }$(lint_stem "$prel")"
+        done < <(lint_nodes docs/plans)
+        declutter="${declutter}  requirement '${reqstem}' is gone and ${plans_for} plans still name it: ${stems} — satisfied or retired? re-point their requirement: lines"$'\n'
       fi
     fi
     if [ -n "$scope" ]; then
