@@ -11,3 +11,6 @@
 | 2026-11-09 | merge-notice-reach | https://claude.ai/code/session_01G751FjhA159aSUbvtRUqDW | nothing |
 | 2026-11-09 | refusal-is-not-credentials | https://claude.ai/code/session_01GCgdvphDZPwKLGLRQsdZxt | nothing |
 | 2026-11-09 | scout-evaluated-on-gx | https://claude.ai/code/session_01PY8QHhhujX8mVvVzbwp2GK | nothing |
+| 2026-11-11 | pm-dispatch | https://claude.ai/code/session_019M7ypRKWMGi2oaM3XEmGcC | nothing |
+| 2026-11-11 | bash-guard-reads-prose-as-a-loop | https://claude.ai/code/session_01X7MYq6kL1CgciaSW4PW2fv | nothing |
+| 2026-11-11 | unsupervised-goal | https://claude.ai/code/session_0126bZYruEVL7vNBLb7RXF4v | nothing |
