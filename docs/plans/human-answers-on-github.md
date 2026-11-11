@@ -79,13 +79,24 @@ The protocol to build. Its home is `.agents/docs/orchestrated.md` Bounds
      label cannot be read; the question's presence is the test).
    - a pull request held at merge by a FREEZE: unchanged (a human removes
      the label).
+   - an issue a plan's `issue:` names (`planned`) or a workstream file
+     claims (`claimed`): never the clerk's, whoever asked; a manager-block
+     question there reaches the manager through § Relay only.
    - a scout proposal: unchanged gate (`approved` + no `scout: revision`
      open), except that the scout itself removes `approved` when it posts
      `scout: revision` (step 1 of scout.md §4), so the reviewer applies it
      again after `scout: revised` and never removes it first. A scout
      proposal with an open CLERK question that has an answer (Goal 3, 4)
-     passes the scout gate's item 1 too: the answer is the approval, since
-     Goal 2 removed `approved` before that question.
+     passes the scout gate's item 1's label half too (the `reviewer  :`
+     login half still holds): the answer is the approval, since Goal 2
+     removed `approved` before that question.
+   - the scout trigger and scout.md §3: a counting comment newer than an
+     OPEN clerk question (Goal 3) is that question's answer, the clerk's,
+     never a scout trigger or a change request. Any other counting comment
+     newer than the scout comment needs the scout, approved or not; the
+     scout's revision removes `approved` (above). Until it does the clerk
+     may take the proposal as approved; a reviewer who wants it held
+     removes `approved` by hand.
    - `human/<stem>` pull request: unchanged, a human merges it.
    - closing an issue still declines it (scout issue or any other).
 
@@ -97,25 +108,39 @@ The protocol to build. Its home is `.agents/docs/orchestrated.md` Bounds
   it: the reviewer re-applies `approved` after `scout: revised`, the scout
   having removed it.
 - `.claude/commands/clerk.md` — §2 skip list: `human-review` skips an issue
-  unless it has an open question with an answer (Goal 3, 4); A NUMBERED
+  unless it has an open question with an answer (Goal 3, 4), and the
+  "NEWEST counting comment is a clerk verdict" bullet gains the same
+  exception (the clerk's own question is newest when the answer is the
+  label alone); A NUMBERED
   ANSWER folded into Goal 4's read; THE SCOUT GATE: the "reviewer removes
   and re-applies" paragraph replaced by Goal 6's scout line, item 1 also
-  passed by an answered clerk question (Goal 6); §3 HUMAN and
+  passed by an answered clerk question (Goal 6, label half only); §3 HUMAN and
   NARROWER comment shape per Goal 2 (closing lines "reply by hand…" and
   "remove `human-review`…" replaced), an answered issue's verdict carries
   the `answered:` line; Never: may remove `human-review` per Goal 5 and
   `approved` per Goal 2; never apply `approved`.
 - `.claude/commands/scout.md` — §4 step 1: the scout removes `approved` from
   its proposal before posting `scout: revision`, and the comment says
-  "apply `approved` again after `scout: revised`"; Never line "Apply,
+  "apply `approved` again after `scout: revised`"; §3 "An approved or
+  planned issue is never answered" and §4 "Every `scout:` comment of yours
+  needs the reviewer to re-apply `approved`" rewritten to Goal 6's scout
+  lines; Never line "Apply,
   remove, or ask anyone to skip `approved`" becomes: never apply `approved`
   or ask anyone to skip it; remove it only per §4 step 1.
-- `.claude/commands/manager.md` — §3: a block (not `defect:`) posts Goal 2's
-  question on every item it labels (Goal 6), removing `approved` from each
-  first (Goal 2); Never line "Remove `human-review` from any issue or pull
-  request" gains the Goal 5 exception; new Never: apply `approved`.
-- `.agents/docs/manager-reference.md` — § Label at merge: the manager's own
-  label = its question posted, resumed on an answer; a freeze = as today;
+- `.claude/commands/manager.md` — 46 bytes under its reading budget
+  (`.agents/harness/selftest/reading-budget.sh`, bound never raised here):
+  §3's "Not a `defect:` block: label with `issue_write` …" sentence becomes
+  a pointer "post the `decision needed:` question and label: ref §
+  Question." (the mechanics move out); Never line "Remove `human-review`
+  from any issue or pull request" becomes "Apply `approved`; remove
+  `human-review` but per ref § Question." Net size must not grow past the bound.
+- `.agents/docs/manager-reference.md` — new § Question: a block (not
+  `defect:`) removes `approved`, labels and posts Goal 2's question on every
+  item it labels (Goal 6), the `issue_write` mechanics moved from manager.md
+  §3; on resume, Goal 5's release. § Label at merge: the manager's own
+  label = its question posted, resumed on an answer; a freeze = as today,
+  the two `git` commands and the freeze `next:` wording kept verbatim
+  (`.agents/harness/selftest/dispatch.sh` pins them, not in scope);
   § Defect step 3 and the "Yes, nothing found" branch: a `defect:` issue
   filed with `human-review` carries Goal 2's question.
 - `.agents/docs/orchestrator-reference.md` — § Relay: an answer per Goal 4
@@ -124,7 +149,11 @@ The protocol to build. Its home is `.agents/docs/orchestrated.md` Bounds
   clerk": a SECOND firing rule, independent of `last read` and `created_at`:
   an open issue with an open question (Goal 3) and an answer (Goal 4)
   fires (scout issues included: Goal 6 lets the clerk take an answered
-  one); the first rule's "not labelled `human-review`" stays.
+  one); the `planned` and `claimed` exclusions hold for it too (Goal 6);
+  the first rule's "not labelled `human-review`" stays. The scout trigger
+  ("A scout issue needs the scout"): drop "NOT approved"; (i) excludes a
+  counting comment newer than an open clerk question (Goal 6). § Relay
+  names the `decision needed:` comment.
 - `.agents/docs/feedback.md` — § 8: the `human-review` sentence names Goal
   2's question.
 - `.agents/harness/AGENTS.md` — Decide alone, the `human-review` bullet: one
@@ -139,17 +168,20 @@ The protocol to build. Its home is `.agents/docs/orchestrated.md` Bounds
   each with a pin on the new text it was rewritten to (Goal 2, 4, 5); add
   pins for "decision needed:" in clerk.md and manager.md and for "A human's
   answer" in orchestrated.md. Each new pin must fail on today's text
-  (check by running it against `git show origin/main:<file>`).
+  (Acceptance runs it). The replacement for the "so the next pass reads
+  it" pin uses a needle from the rewritten closing line only, never one
+  that also matches the DOES NOT HOLD reopen rule (clerk.md §3).
 - `README.md` — "When you're needed": the Decisions, Approvals and Stopping
-  bullets become the two-filter inbox and the answer (approve, comment, or
-  close an issue); a freeze is adding `human-review`, undone only by you.
+  bullets become the two-filter inbox and the answer to a `decision
+  needed:` comment (approve, comment, or close an issue); a freeze is
+  adding `human-review`, undone only by you.
 
 ## Assumptions
 
 - A1: no code under `joharness.sh` gates on either label; prose and the
   selftest pins read the rules — evidence: `grep -n "human-review\|approved"
   joharness.sh` (2026-11-10: the `JOHARNESS_SCOUT_REVIEWER` conf, scout
-  status lines and the human-remainder message near `cmd_role`) and
+  status lines and the `human/<stem>` message in `cmd_session_start`) and
   `.agents/harness/selftest/orchestrated.sh` clerk pins — confidence: high
 - A2: none of the scoped files is a core path — evidence: `./joharness.sh
   protocol-paths` (2026-11-10: joharness.conf, .claude/settings.json,
@@ -177,18 +209,19 @@ The protocol to build. Its home is `.agents/docs/orchestrated.md` Bounds
 
 ## Acceptance
 
-- `./joharness.sh ci` — `ci: pass`.
-- `./joharness.sh verify` — 0 failed.
-- `o=$(git show origin/main:.agents/harness/selftest/orchestrated.sh | grep -c '^expect '); n=$(grep -c '^expect ' .agents/harness/selftest/orchestrated.sh); [ "$n" -gt "$o" ] && echo more` — `more` (pins replaced one for one, plus the new ones).
+- `./joharness.sh ci` — `ci: pass` (red = a pin or budget broken).
+- `./joharness.sh verify` — 0 failed (any other count is red).
+- `o=$(git show origin/main:.agents/harness/selftest/orchestrated.sh | grep -c '^expect '); n=$(grep -c '^expect ' .agents/harness/selftest/orchestrated.sh); [ "$n" -ge $((o + 3)) ] && echo more || echo fewer` — `more` (today `fewer`, 112 and 112: pins replaced one for one, plus at least the three new ones).
+- `d=$(mktemp -d); git worktree add -q --detach "$d" origin/main; cp .agents/harness/selftest/orchestrated.sh "$d/.agents/harness/selftest/"; (cd "$d" && bash .agents/harness/selftest.sh 2>&1 | grep -c '^ *FAIL '); git worktree remove --force "$d"` — at least 3 (every new or rewritten pin fails on today's text; with today's selftest it prints 0).
 - `grep -c '"decision needed:"' .agents/harness/selftest/orchestrated.sh` — at least 1 (today 0).
 - `tr '\n' ' ' < .claude/commands/scout.md | tr -s ' ' | grep -c "Apply, remove, or ask anyone to skip"` — `0` (today `1`).
 - `grep -c "second firing rule\|fires too when\|open question" .agents/docs/orchestrator-reference.md` — at least 1 (today 0).
 - `grep -c "open question" .claude/commands/clerk.md` — at least 1 (today 0).
 - `for f in .claude/commands/clerk.md .claude/commands/scout.md; do tr '\n' ' ' < "$f" | tr -s ' ' | grep -c "removes and re-applies\|reply by hand with the number\|re-apply \`approved\` after \`scout: revised\`"; done` — `0` twice (today `1` twice).
 - `tr '\n' ' ' < .agents/docs/orchestrated.md | tr -s ' ' | grep -c "Only a human removes it; no session does, ever"` — `0` (today `1`).
-- `grep -c "decision needed:" .claude/commands/clerk.md .claude/commands/manager.md .agents/docs/manager-reference.md .agents/docs/orchestrated.md .agents/docs/orchestrator-reference.md README.md` — every count at least 1.
-- `grep -c "A human's answer" .agents/docs/orchestrated.md .agents/harness/AGENTS.md` — each at least 1.
-- `tr '\n' ' ' < .claude/commands/manager.md | tr -s ' ' | grep -c "Remove \`human-review\` from any issue or pull request\."` — `0` (the Never line now carries the exception).
+- `grep -c "decision needed:" .claude/commands/clerk.md .claude/commands/manager.md .agents/docs/manager-reference.md .agents/docs/orchestrated.md .agents/docs/orchestrator-reference.md README.md` — every count at least 1 (today 0 in all six).
+- `grep -c "A human's answer" .agents/docs/orchestrated.md .agents/harness/AGENTS.md` — each at least 1 (today 0 and 0).
+- `tr '\n' ' ' < .claude/commands/manager.md | tr -s ' ' | grep -c "Remove \`human-review\` from any issue or pull request\."` — `0` (today `1`; the Never line now carries the exception).
 - Not a command (behaviour no grep can show): a walk-through in the pull
   request body, each case naming the doc line that decides it, checked by
   the verifier: (a) clerk HUMAN issue, maintainer applies `approved` → next
@@ -204,7 +237,7 @@ The protocol to build. Its home is `.agents/docs/orchestrated.md` Bounds
   question, maintainer comments "2" → next pass takes it on option 2; (i) a
   clerk verdict carrying both `answered:` and a new `decision needed:` →
   the new question reads open.
-- SHIPS: the role docs reach every consumer; a consumer's `./joharness.sh ci`
+- Not a command, SHIPS: the role docs reach every consumer; a consumer's `./joharness.sh ci`
   after sync runs the same selftest pins.
 
 ## Where to look
@@ -230,6 +263,10 @@ The protocol to build. Its home is `.agents/docs/orchestrated.md` Bounds
   question that has an answer. A freeze survives every pass.
 - A question goes on in the same action as the label; never onto a label
   already there (that would turn a freeze into a question).
+- `.claude/commands/manager.md` sits 46 bytes under its reading budget:
+  move text to manager-reference.md, never raise the bound.
+- `.agents/harness/selftest/dispatch.sh` pins § Label at merge's commands
+  and freeze wording; keep them.
 - `.agents/harness/AGENTS.md` is caveman: rule lines only, the why in
   `.agents/docs/`. Glossary spellings: `ci` reds others.
 - A selftest pin is changed only to follow the text it pins, and each new
