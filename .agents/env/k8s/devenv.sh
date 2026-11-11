@@ -226,6 +226,21 @@ cmd_install() {
 # Docker
 # ---------------------------------------------------------------------------
 
+# Docker Hub rate-limits anonymous pulls (429) per egress IP, and a shared
+# sandbox or runner IP trips it. JOHARNESS_REGISTRY_MIRROR names a pull-through
+# cache dockerd tries for every Docker Hub image, so no image reference needs a
+# prefix (default mirror.gcr.io; set but empty = none). A mirror that is down
+# falls back to Docker Hub. Skipped when daemon.json already sets one.
+registry_mirror_args() {
+  local m="${JOHARNESS_REGISTRY_MIRROR-mirror.gcr.io}"
+  m="${m#https://}"; m="${m%/}"
+  [ -n "$m" ] || return 0
+  if grep -qs 'registry-mirrors' /etc/docker/daemon.json 2>/dev/null; then
+    return 0
+  fi
+  printf '%s\n' "--registry-mirror=https://${m}"
+}
+
 docker_ready() { docker info >/dev/null 2>&1; }
 
 docker_start() {
@@ -234,7 +249,9 @@ docker_start() {
   log "starting dockerd (log: ${DOCKERD_LOG})"
   # setsid detaches dockerd from this script's process group so it survives the
   # hook exiting.
-  setsid dockerd >>"$DOCKERD_LOG" 2>&1 &
+  mirror_args=()
+  while IFS= read -r a; do [ -n "$a" ] && mirror_args+=("$a"); done < <(registry_mirror_args)
+  setsid dockerd "${mirror_args[@]}" >>"$DOCKERD_LOG" 2>&1 &
   disown || true
 }
 
@@ -276,6 +293,24 @@ cmd_docker_up() {
 # restrict_oom_score_adj makes containerd clamp the value to something this
 # kernel accepts. Without it the cluster comes up but no pod ever starts.
 #
+# k3s reads registries.yaml for containerd's per-registry mirrors. Same
+# JOHARNESS_REGISTRY_MIRROR as dockerd's, here for the cluster's own pulls
+# (k3d passes the file in with --registry-config); k3s falls back to the
+# original registry when the mirror fails. Writes nothing when it is empty.
+render_registries_yaml() {
+  local out="$1" m="${JOHARNESS_REGISTRY_MIRROR-mirror.gcr.io}"
+  m="${m#https://}"; m="${m%/}"
+  [ -n "$m" ] || return 1
+  mkdir -p "$(dirname "$out")"
+  cat >"$out" <<EOF
+# Managed by .agents/env/k8s/devenv.sh - see .agents/env/k8s/README.md
+mirrors:
+  docker.io:
+    endpoint:
+      - "https://${m}"
+EOF
+}
+
 # This is written as a containerd drop-in because k3s renders its own
 # config-v3.toml and imports config-v3.toml.d/*.toml. Overriding the whole
 # template instead would redefine the CRI table and fail to parse
@@ -407,6 +442,10 @@ create_cluster() {
   render_containerd_dropin "$dropin"
   local kubelet_dropin="${STATE_DIR}/kubelet/99-cgroupv1.conf"
   render_kubelet_dropin "$kubelet_dropin"
+  local registries="${STATE_DIR}/containerd/registries.yaml" registry_args=()
+  if render_registries_yaml "$registries"; then
+    registry_args=(--registry-config "$registries")
+  fi
 
   local ca_mount=()
   if [ -r "$CA_BUNDLE" ]; then
@@ -438,6 +477,7 @@ create_cluster() {
       --volume "${dropin}:/var/lib/rancher/k3s/agent/etc/containerd/config-v3.toml.d/10-oom-score.toml@server:*" \
       --volume "${kubelet_dropin}:/var/lib/rancher/k3s/agent/etc/kubelet.conf.d/99-cgroupv1.conf@server:*" \
       "${ca_mount[@]}" \
+      "${registry_args[@]}" \
       --k3s-arg "--disable=traefik@server:*" \
       --k3s-arg "--disable=servicelb@server:*" \
       --k3s-arg "--disable=metrics-server@server:*" \
