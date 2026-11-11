@@ -200,7 +200,7 @@ Removing the line, on the base first, is the human override.
 | Knob | Default | Means | Basis |
 | --- | --- | --- | --- |
 | `JOHARNESS_MAX_MANAGERS` | 4 | managers in flight at once — money | p90 of branches active in one clock hour on `main` |
-| `JOHARNESS_STALL_MINUTES` | 45 | no push this long = cross-check, nudge | p95 gap between commits on one branch (44m) |
+| `JOHARNESS_STALL_MINUTES` | 45 | no push this long = cross-check, nudge; a retired edge row (no claim file) waits this plus `JOHARNESS_LOCAL_CHECK_MINUTES`, since `finish` pushes nothing | p95 gap between commits on one branch (44m) |
 | `JOHARNESS_EDGE_SLOT_HOURS` | 4 | a retired edge branch (no claim file) with no push this long holds no slot; its items stay withheld and the health pass looks its pull request up; 0 = it holds one until merge | under the 5 h one held while 5 items starved (issue #701) |
 | `JOHARNESS_STRANDED_DAYS` | 2 | a plan-only branch that never claimed, its plan filed this many days ago, reads `STRANDED`: the human is told once; 0 = off | four plans sat 3 days on two unclaimed branches until a human noticed |
 | `JOHARNESS_HEALTH_MINUTES` | 10 | one orchestrator pass every this many | between median commit gap (4) and its p75 (12) |

@@ -9123,6 +9123,7 @@ cmd_dispatch() {
   local gh_head gh_ts gh_tip gh_base n_inflight=0 n_slots n_free=0 n_stall=0 n_blocked=0 n_hold=0 n_wait=0 n_loop=0
   local pending pending_used
   local n_edge=0 n_edge_stall=0 n_edge_aged=0 n_human_edge=0 n_leftover=0 n_leftover_noitem=0 edge_hours
+  local estall elocal
   local leftover_rows="" estate="" fleet_age stall_young=""
   local rel_stale rel_needs="" rel_line
   local scout_inflight="" n_scout=0 sstate sreason sb sw ss spend
@@ -9147,6 +9148,11 @@ cmd_dispatch() {
 
   cap="$(num_knob JOHARNESS_MAX_MANAGERS)"
   stall="$(num_knob JOHARNESS_STALL_MINUTES)"
+  # A retired edge row's manager is inside step 7's `finish`, which pushes
+  # nothing while ci, verify and the consumer's local-check run: its stall
+  # window is the plain one plus local-check's own budget.
+  elocal="$(num_knob JOHARNESS_LOCAL_CHECK_MINUTES)"
+  estall=$((stall + elocal))
   health="$(num_knob JOHARNESS_HEALTH_MINUTES)"
   passes="$(num_knob JOHARNESS_ORCHESTRATOR_PASSES)"
   respawn="$(num_knob JOHARNESS_RESPAWN_LIMIT)"
@@ -9181,7 +9187,7 @@ cmd_dispatch() {
   fi
   mb_prime
   printf 'cap       : %s manager(s) at once (JOHARNESS_MAX_MANAGERS)\n' "$cap"
-  printf 'stall     : %s min without a push = cross-check the control plane (JOHARNESS_STALL_MINUTES)\n' "$stall"
+  printf 'stall     : %s min without a push = cross-check the control plane (JOHARNESS_STALL_MINUTES); a retired row with no claim file: %s min (+ JOHARNESS_LOCAL_CHECK_MINUTES, finish pushes nothing)\n' "$stall" "$estall"
   printf 'health    : one pass every %s min (JOHARNESS_HEALTH_MINUTES)\n' "$health"
   # Lifted like the ceiling: 0 would otherwise retire on every pass.
   if [ "$passes" -gt 0 ]; then
@@ -9386,10 +9392,11 @@ cmd_dispatch() {
         edge_rows="${edge_rows} (and $((emore - 1)) more item(s) retired here: ${eitem#* })"
       edge_rows="${edge_rows}"$'\n'
       # The mark stays, uncounted: the health table nudges and kills a hung
-      # RUNNING session by it, and an aged row is past any window that matters.
-      if [ "$eage" -ge "$stall" ]; then
+      # RUNNING session by it. Same retired-row clock as the row below, so a
+      # short JOHARNESS_EDGE_SLOT_HOURS does not mark a manager still in finish.
+      if [ "$eage" -ge "$estall" ]; then
         estem="${efirst##*/}"; estem="${estem%.md}"
-        edge_rows="${edge_rows}    STALL? no push for ${eagetext} (>= ${stall}m): cross-check the control plane by TITLE (🔨 manager: ${estem}) — this row carries no session line to read; the verdict is the health table's (.claude/commands/orchestrator.md, step 2), never this row's"$'\n'
+        edge_rows="${edge_rows}    STALL? no push for ${eagetext} (>= ${estall}m retired-row window: JOHARNESS_STALL_MINUTES ${stall} + JOHARNESS_LOCAL_CHECK_MINUTES ${elocal}, since step 7 runs finish): cross-check the control plane by TITLE (🔨 manager: ${estem}) — this row carries no session line to read; the verdict is the health table's (.claude/commands/orchestrator.md, step 2), never this row's"$'\n'
       fi
       continue
     fi
@@ -9402,20 +9409,22 @@ cmd_dispatch() {
     # A genuinely abandoned branch has already been separated out above, and
     # the difference IS in git — the item's presence on the base branch, not
     # push age.
+    # Its clock is the retired-row window, not the claimed one: past the
+    # retire commit the manager runs `finish`, which pushes nothing.
     if [ -z "$eage" ]; then
       edge_rows="${edge_rows}    push age unknown: ref not here — fetch, then cross-check the control plane"$'\n'
-    elif [ "$eage" -ge "$stall" ]; then
+    elif [ "$eage" -ge "$estall" ]; then
       # The SAME count the claimed rows feed.
       n_stall=$((n_stall + 1))
       n_edge_stall=$((n_edge_stall + 1))
       [ -n "$stall_young" ] && [ "$stall_young" -le "$eage" ] || stall_young="$eage"
       estem="${efirst##*/}"; estem="${estem%.md}"
       if [ -n "$efirst" ]; then
-        edge_rows="${edge_rows}    STALL? no push for ${eagetext} (>= ${stall}m): cross-check the control plane by TITLE (🔨 manager: ${estem}) — this row carries no session line to read; the verdict is the health table's (.claude/commands/orchestrator.md, step 2), never this row's"$'\n'
+        edge_rows="${edge_rows}    STALL? no push for ${eagetext} (>= ${estall}m retired-row window: JOHARNESS_STALL_MINUTES ${stall} + JOHARNESS_LOCAL_CHECK_MINUTES ${elocal}, since step 7 runs finish): cross-check the control plane by TITLE (🔨 manager: ${estem}) — this row carries no session line to read; the verdict is the health table's (.claude/commands/orchestrator.md, step 2), never this row's"$'\n'
       else
         # No item, no title to look up, so no respawn: a successor spawned
         # blind onto a branch nobody can name is two sessions on one branch.
-        edge_rows="${edge_rows}    STALL? no push for ${eagetext} (>= ${stall}m): this row names no item, so there is no title to look up and no successor to spawn. REPORT it to the human — merging or retiring that branch is what frees the slot"$'\n'
+        edge_rows="${edge_rows}    STALL? no push for ${eagetext} (>= ${estall}m retired-row window: JOHARNESS_STALL_MINUTES ${stall} + JOHARNESS_LOCAL_CHECK_MINUTES ${elocal}, since step 7 runs finish): this row names no item, so there is no title to look up and no successor to spawn. REPORT it to the human — merging or retiring that branch is what frees the slot"$'\n'
       fi
     fi
   done <<<"$(dispatch_retired_edges)"
