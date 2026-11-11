@@ -358,8 +358,10 @@ and takes no slot; only the RESUME condition lifts it — a plan naming #<n>
 left the base's first parent after the block, and none names #<n> now. A
 plan naming #<n> is no fix: the base stays red until it merges. Nor is one
 plan retired while a second still names #<n>: a plan leaves the base
-unbuilt too (abandoned, superseded), so the hold waits for the second; it
-costs a wait, never a park, since the fix row spawns. When the hold lifted on a plan,
+unbuilt too (abandoned, superseded), so the hold waits for the second. On
+the base it is the fix row and spawns; on a branch, the hold lasts until
+that branch merges, or STUCK or UNPLANNED tells the human: a wait, never a
+park. When the hold lifted on a plan,
 four managers spawned behind the planned fix of #1449 between its plan
 (clerk branch 20:30Z, base 21:08Z) and its merge (22:22Z), each parked on
 #1449 in 5 to 14 minutes (chrsctl/gx, 2026-11-10; not re-taken here). The
@@ -368,8 +370,10 @@ fix itself is the one row the hold passes: a plan on the base whose
 whose `needs:` waits on a held row stays held: STUCK tells the human). A fix
 itself held by an overlap with work in flight prints `red base (…) waits on
 its own fix, itself held`, so the red base stays in view whatever verdict
-the overlap gives. A fix in a wave behind a held row does not wait: that row
-never spawns while the hold stands, so the fix goes first.
+the overlap gives. Under the hold only fixes spawn, so waves order fixes
+alone: the earliest wave holding a fix spawns (a wave never overlaps
+itself), a later fix waits for it, and no fix waits on a held row, which
+never spawns while the hold stands.
 RESUME and RECHECK rows still take their slots: a resume rechecks the base,
 a spawn would only add a park.
 

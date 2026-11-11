@@ -35,9 +35,10 @@ retires), as the requester asked ("fix all four"):
 
 ## Scope
 
-- `joharness.sh` (cmd_dispatch) — 1: comment only. 2: a fix row's wave
-  partner that the red base holds is moot (the fix spawns); a fix row held
-  by an overlap or a fix partner prints one summary line naming it.
+- `joharness.sh` (cmd_dispatch) — 1: comment only. 2: under the hold,
+  waves order fix rows alone (the earliest fix wave spawns, a later fix
+  waits); a fix row held by an overlap or by an earlier fix prints one
+  summary line naming it.
 - `.agents/harness/selftest/dispatch-park.sh` — pins for 1, 2, 3.
 - `.agents/docs/orchestrated.md` — The one stop: the second-plan sentence
   and why; the held-fix line; the moot wave partner.

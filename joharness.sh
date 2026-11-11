@@ -9001,7 +9001,7 @@ cmd_dispatch() {
   local printed_deferred=
   local inflight="" free="" questions="" corefree="" row mergewait=""
   local n_parked=0 n_fixed=0 n_resume=0 n_recheck=0 parked_lines="" dst dn dplan dage di ri rtext dresume=0 bkind selfpark n_ownpark=0
-  local dpark="" dhold="" dhold_n="" dhn dfix dfix_held="" wave_moot dpart dpfix n_dhold=0
+  local dpark="" dhold="" dhold_n="" dhn dfix dfix_held="" wave_moot dwv dfix_minw n_dhold=0
   local fx_label fx_wait fx_k fx_r fx_c fx_slot fx_lim
   local bts redge rstem rts n_release=0 release_due="" hseen hst
   local -a fx_rows=() fx_lines=() fx_n=() fx_plan=() fx_di=() fx_kind=()
@@ -9412,7 +9412,9 @@ cmd_dispatch() {
           # with it until that fix merges (RESUME). A plan naming #<n> is no
           # fix yet (chrsctl/gx, 2026-11-10, #1449), nor is one plan retired
           # while another still names #<n>: a plan leaves the base unbuilt
-          # too, and the hold passes the fix row, so it costs a wait only.
+          # too. The hold waits for that plan: on the base it is the fix row
+          # and spawns; on a branch, until that branch merges or STUCK or
+          # UNPLANNED tells the human.
           case "$dst" in
             PARKED | UNPLANNED | STUCK | RECHECK)
               dpark="${dpark}${dn}"$'\n' ;;
@@ -9724,6 +9726,30 @@ cmd_dispatch() {
     awk '$1 >= 2 { printf "%s#%s (%s parked)", (n++ ? ", " : ""), $2, $1 }')"
   dhold_n="$(printf '%s' "$dpark" | grep -v '^$' | sort -n | uniq -c |
     awk '$1 >= 2 { print $2 }')"
+  # Under a red-base hold only fix rows spawn, so waves order fixes among
+  # themselves alone: the earliest wave holding a free fix spawns (one wave
+  # never overlaps itself), a later fix waits. A wave's note names the first
+  # conflict the wave hit, not each row's, so it cannot say this.
+  dfix_minw=""
+  if [ -n "$dhold" ]; then
+    while IFS='|' read -r path label; do
+      case "$path" in docs/plans/*) ;; *) continue ;; esac
+      case "$label" in *'claimed on '* | *'blocked by'*) continue ;; esac
+      case "$edge_items" in *" ${path}@"*) continue ;; esac
+      st="${path##*/}"; st="${st%.md}"
+      tab_rows "$wavemap" "$st"
+      read -r wave <<<"$TR_F2"
+      dfix=0
+      while IFS= read -r dhn; do
+        [ -n "$dhn" ] || continue
+        plan_names_issue "refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" "$path" "$dhn" &&
+          { dfix=1; break; }
+      done <<<"$dhold_n"
+      [ "$dfix" -eq 1 ] || continue
+      case "$wave" in '' | *[!0-9]*) wave=1 ;; esac
+      { [ -z "$dfix_minw" ] || [ "$wave" -lt "$dfix_minw" ]; } && dfix_minw="$wave"
+    done <<<"$rows"
+  fi
   # Free = neither claimed nor blocked, every row. A CORE ONLY plan is free
   # too, listed after every other item: its manager builds the core edit in
   # a human/<stem> pull request a human merges.
@@ -9776,19 +9802,17 @@ cmd_dispatch() {
       free="${free}  ${path} (agent: ${tier:-unreadable})  HOLD — red base: ${dhold}, its fix not retired: spawn once it retires"$'\n'
       continue
     fi
-    # A fix in a wave behind a row the red base holds would wait for a row
-    # that never spawns while the hold stands: its partner is moot. A partner
-    # that is itself a fix still orders the two.
+    # A fix in the earliest fix wave would otherwise wait on rows the red
+    # base holds, which never spawn while it stands: it goes first. A later
+    # fix waits for the earlier fixes, never for a held row.
     wave_moot=""
     if [ "$dfix" -eq 1 ] && [ -n "$note" ]; then
-      dpart="${note%% *}"
-      dpfix=0
-      while IFS= read -r dhn; do
-        [ -n "$dhn" ] || continue
-        plan_names_issue "refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" "docs/plans/${dpart}.md" "$dhn" &&
-          { dpfix=1; break; }
-      done <<<"$dhold_n"
-      [ "$dpfix" -eq 1 ] || { wave_moot="$dpart"; note=""; }
+      case "$wave" in '' | *[!0-9]*) dwv=1 ;; *) dwv="$wave" ;; esac
+      if [ "$dwv" -le "${dfix_minw:-$dwv}" ]; then
+        wave_moot=1; note=""
+      else
+        note="an earlier-wave fix for the red base"
+      fi
     fi
     case "$path" in
       docs/research/*)
@@ -9798,7 +9822,7 @@ cmd_dispatch() {
         row="  ${path} (agent: ${tier:-unreadable})"
         [ -z "$wave" ] || row="${row}  wave ${wave}"
         [ -z "$wave_moot" ] ||
-          row="${row}  overlaps ${wave_moot}, held by the red base: the fix spawns first"
+          row="${row}  its wave waits only on rows the red base holds: the fix spawns first"
         if [ -n "$note" ]; then
           n_wait=$((n_wait + 1))
           row="${row}  WAIT — overlaps ${note} in this pass: spawn it only after that one"

@@ -1253,9 +1253,24 @@ sed -i 's/^scope: src\/fix51$/scope: src\/hp-free/' "${dfwork}/docs/plans/fix51.
 dfpush 1 "fix51 on hp-free's scope"
 out="$(hpx)"
 expect "a fix never waits on a row the red base holds" \
-  "overlaps hp-free, held by the red base: the fix spawns first" "$(printf '%s\n' "$out" | grep '^  docs/plans/fix51.md')"
-refute "no WAIT on it" "fix51.md (agent: sonnet)  wave 2  WAIT" "$out"
+  "its wave waits only on rows the red base holds: the fix spawns first" "$(printf '%s\n' "$out" | grep '^  docs/plans/fix51.md')"
+refute "no WAIT on its row" "WAIT" "$(printf '%s\n' "$out" | grep '^  docs/plans/fix51.md')"
 expect "it is the one free item" "verdict   : NOT DRAINED — 1 free item(s) now" "$out"
+# Two fixes, three waves: the wave note names the first conflict its wave
+# hit (hp-free), never fix51c's own (fix51). The earlier fix spawns, the
+# later one waits for it, never both.
+sed -i 's/^scope: src\/hp-free$/scope: src\/hp-free\/x/' "${dfwork}/docs/plans/fix51.md"
+dfplan fix51c 51 src/hp-free/x/y
+dfpush 1 "fix51 and fix51c, nested under hp-free"
+out="$(hpx)"
+expect "the earlier fix spawns" "its wave waits only on rows the red base holds: the fix spawns first" \
+  "$(printf '%s\n' "$out" | grep '^  docs/plans/fix51.md')"
+expect "the later fix waits for it" "WAIT — overlaps an earlier-wave fix for the red base" \
+  "$(printf '%s\n' "$out" | grep '^  docs/plans/fix51c.md')"
+expect "one spawn, not two" "verdict   : NOT DRAINED — 1 free item(s) now" "$out"
+git -C "$dfwork" rm -q docs/plans/fix51c.md
+sed -i 's/^scope: src\/hp-free\/x$/scope: src\/hp-free/' "${dfwork}/docs/plans/fix51.md"
+dfpush 1 "drop fix51c"
 sed -i 's/^scope: src\/hp-free$/scope: src\/fix51/' "${dfwork}/docs/plans/fix51.md"
 dfpush 1 "fix51 back on its own scope"
 # The fix retires while a clerk branch carries a second plan naming #51: a
