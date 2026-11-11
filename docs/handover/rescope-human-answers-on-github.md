@@ -5,7 +5,7 @@ branch: rescope-human-answers-on-github
 pr: none
 plan: none
 issue: none
-session: https://claude.ai/code/session_01J1YMK2w7gTovJxWnFLkzcr
+session: https://claude.ai/code/session_01J1YMK4cNN6dxSYL1Fa37hL
 agent: sonnet
 updated: 2026-11-11
 next: none — the overlap on orchestrated.md and orchestrator-reference.md is real; the 3 held plans wait for human-answers-on-github to merge
