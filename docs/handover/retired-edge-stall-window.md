@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK3Z2R5D8EtAQqikw7t
 agent: opus
 updated: 2026-11-11
-next: Confirm A1-A4, run plan-checker, then build the dispatch window change
+next: Run ./joharness.sh ci and verify, then the verifier at opus
 ---
 
 ## Goal
@@ -19,15 +19,30 @@ that does not ask for a handover.
 
 ## Decisions
 
-- None yet.
+- A1: confirmed — `.agents/docs/consumer-repos.md` Local checks: `finish` refuses an unpushed tip and runs local-check after ci and verify, so a retired manager pushes nothing while it runs.
+- A2: confirmed — `joharness.sh` dispatch edge loop: `n_edge=$((n_edge + 1))` then `elif [ "$eage" -ge "$stall" ]`, fed by `dispatch_retired_edges`.
+- A3: confirmed — `JOHARNESS_LOCAL_CHECK_MINUTES|30|session|…` is a KNOBS row; `num_knob` reads it in dispatch.
+- A4: confirmed — `selftest/dispatch.sh` comment above the aged case; table order kept, only the clock moves.
+- The aged-edge branch's mark uses the retired-row clock too (plan-checker r8): a short `JOHARNESS_EDGE_SLOT_HOURS` would otherwise mark a manager still in `finish`.
+- The retired KILL lives as its own health-table row in `orchestrator.md`, not in the ref's § KILL and LOOP (outside this plan's scope, and scoped by another plan).
+- `selftest.sh` unsets `JOHARNESS_LOCAL_CHECK_MINUTES`: this session's environment sets it to 60, which would move the 75.
 
 ## Rejected
 
-- None yet.
+- Editing the ref's § KILL and LOOP for the retired kill: out of scope and shared with `heartbeat-read-cheaper`.
 
 ## Review
 
-- None yet.
+- r1: (plan-checker) existing cases forcing a retired STALL? with JOHARNESS_STALL_MINUTES=0 break under the summed window (fixed)
+- r2: (plan-checker) where the retired KILL goes is unclear; the ref is out of scope (fixed)
+- r3: (plan-checker) "NUDGE as above" on the IDLE/PENDING row is ambiguous once two nudges exist (fixed)
+- r4: (plan-checker) acceptance "fails on origin/main" names no command or output (fixed)
+- r5: (plan-checker) acceptance items state no red form (fixed)
+- r6: (plan-checker) STALL? text for the 80-minute case undefined (fixed)
+- r7: (plan-checker) dispatch `stall :` header goes stale for retired rows (fixed)
+- r8: (plan-checker) aged-edge branch still marks at the plain window under a short slot window (fixed)
+- r9: (plan-checker) the claimed 60-minute case overlaps mgr-alpha's stall case (no change)
+- r10: (plan-checker) the chrsctl/gx incident is not checkable from this checkout (no change)
 
 ## Blockers
 

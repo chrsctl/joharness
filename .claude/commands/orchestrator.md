@@ -151,13 +151,15 @@ Act on the FIRST row that matches:
 | any | any | its row line carries `RELEASE:` | the queue absorbed the block: RELEASE → ref § Release. Never notify, never respawn |
 | any | any | status `blocked`, no `INVALID BLOCK?` | human's. Never respawn. Notify once: `PushNotification` carrying stem, branch, session link, `next:` verbatim; no ledger `notified=<stem>` yet = send and ledger it, else report only. A human's answer or delegation typed in YOUR turn, or an answer on GitHub to its `decision needed:` question → ref § Relay; else notify and stop |
 | RUNNING | under stall | any | working |
+| RUNNING | `STALL?` on a `retired, no claim file` row | no nudge | RETIRED NUDGE: "Orchestrator health pass: no push on <branch> for <N>m since retire. Reply with where finish stands. Do NOT run /handover or commit unless finish asks for a reconcile." Ledger head, `status_detail`. No transport: send nothing, still ledger |
+| RUNNING | `STALL?` on a `retired, no claim file` row | nudged, head and `status_detail` unchanged | RETIRED KILL: no workstream file to write `## Blockers` into, so `interrupt_session`, wait one pass, `archive_session`, then it is `gone`: the `gone` edge row RESPAWNs to FINISH the merge; a row naming `?` is reported, never respawned. Never the ref's handover write |
 | RUNNING | `STALL?` | no nudge | NUDGE: "Orchestrator health pass: no push on <branch> for <N>m. Now: /handover, commit, push. Then continue, or set status blocked and stop." Ledger head, `status_detail`. No transport: send nothing, still ledger |
 | RUNNING | `STALL?` | nudged, head and `status_detail` unchanged | KILL, below |
 | not RUNNING | any | status `blocked`, row carries `INVALID BLOCK?` | not the human's: its `next:` names no reason from the list, or parks `defect:` on its plan's own issue (its scope stays held). Treat as a stall: where a transport delivers, message it to name a reason or do the work; always report it as an invalid block. Never respawn on it alone |
 | not RUNNING, bucket FAILED | any | no `seen=` | CRASHED: no nudge; ledger `seen=<updated_at>` and head |
 | same | any | `seen=`, `updated_at` and head unchanged | dead: `archive_session`, RESPAWN |
 | ARCHIVED / COMPLETED / not found | any | claimed, branch unmerged | gone: RESPAWN on the branch |
-| IDLE/PENDING | any | branch unmerged, no nudge | NUDGE as above; spawn nothing for it |
+| IDLE/PENDING | any | branch unmerged, no nudge | NUDGE as above (RETIRED NUDGE on a `retired, no claim file` row); spawn nothing for it |
 | IDLE/PENDING | any | nudged, head and `status_detail` unchanged | gone: RESPAWN on the branch |
 | RUNNING | any | `retired, no claim file` | merging; nothing |
 | gone | any | edge row naming an item | RESPAWN to FINISH the merge, never restart the plan |

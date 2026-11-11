@@ -7,7 +7,7 @@ needs: none
 requirement: none
 serves: all
 issue: none
-scope: shared:joharness.sh, shared:.claude/commands/orchestrator.md, shared:.agents/docs/orchestrated.md, shared:.agents/harness/selftest/dispatch.sh
+scope: shared:joharness.sh, shared:.claude/commands/orchestrator.md, shared:.agents/docs/orchestrated.md, shared:.agents/harness/selftest/dispatch.sh, shared:.agents/harness/selftest.sh
 ---
 
 ## Goal
@@ -32,19 +32,31 @@ and a nudge that does not ask for a handover.
   least the retired-row window: `JOHARNESS_STALL_MINUTES +
   JOHARNESS_LOCAL_CHECK_MINUTES` (defaults 45 + 30 = 75 min). Name the window
   and both knobs in the `STALL?` text. Claimed rows keep the plain stall
-  window. The aged-edge branch (`holds NO slot`) keeps its mark as today.
+  window. The aged-edge branch (`holds NO slot`) keeps its mark, on the same
+  retired-row clock (at the default 4h slot window that changes nothing). The
+  text is `(>= <W>m retired-row window: JOHARNESS_STALL_MINUTES <S> +
+  JOHARNESS_LOCAL_CHECK_MINUTES <L>, since step 7 runs finish)`. The `stall :`
+  header line names the retired-row window beside the plain one.
 - `.claude/commands/orchestrator.md` — the `RUNNING | STALL?` NUDGE row: when
   the row is `retired, no claim file`, the message is "Orchestrator health
   pass: no push on <branch> for <N>m since retire. Reply with where finish
   stands. Do NOT run /handover or commit unless finish asks for a reconcile."
   KILL on a retired row skips the `## Blockers` write (no workstream file):
   interrupt, wait one pass, archive, RESPAWN to finish the merge (the
-  existing `gone` edge row).
+  existing `gone` edge row). Both are their own rows in the health table,
+  right above the plain `RUNNING | STALL?` pair; the ref's § KILL and LOOP
+  stays as it is. The `IDLE/PENDING … NUDGE as above` row names the retired
+  message for a retired row.
 - `.agents/docs/orchestrated.md` — the knob table row for
   `JOHARNESS_STALL_MINUTES`: one clause naming the retired-row window.
 - `.agents/harness/selftest/dispatch.sh` — new cases: a retired edge row
   pushed 60 min ago carries NO `STALL?`; pushed 80 min ago carries one naming
-  the 75-minute window; a claimed row at 60 min still stalls.
+  the 75-minute window; a claimed row at 60 min still stalls. Existing cases
+  that force a retired row's `STALL?` with `JOHARNESS_STALL_MINUTES=0` add
+  `JOHARNESS_LOCAL_CHECK_MINUTES=0` (the window is the sum): same assertion,
+  same strength.
+- `.agents/harness/selftest.sh` — unset `JOHARNESS_LOCAL_CHECK_MINUTES` with
+  the other knobs, so a session's own value cannot move the 75.
 
 ## Assumptions
 
@@ -72,11 +84,14 @@ and a nudge that does not ask for a handover.
 
 ## Acceptance
 
-- `./joharness.sh ci` — `ci: pass`; the new dispatch cases PASS and the
-  60-minute retired case FAILS on `origin/main` without the change.
+- `./joharness.sh ci` — `ci: pass` (red: `ci: FAIL` naming the case); the
+  new dispatch cases PASS. With `git show origin/main:joharness.sh` swapped
+  into a copy of this branch, the dispatch topic prints `FAIL and carries NO
+  STALL? inside the retired-row window` and `FAIL past the retired-row window
+  it stalls, naming the window and both knobs`.
 - `./joharness.sh verify` — `0 failed`.
 - `grep -n "since retire" .claude/commands/orchestrator.md` — one line, the
-  retired-row nudge.
+  retired-row nudge (red: none, as on `origin/main`).
 
 ## Where to look
 

@@ -697,6 +697,20 @@ expect "with its workstream file present it is an ordinary claim" \
 refute "and no retired row is invented for it" "mgr-eta  retired" "$out"
 expect "it holds a slot" "slots     : 3 of 8 free" "$out"
 refute "and its plan is not offered" "  docs/plans/eta.md (agent" "$out"
+# The claimed half of the retired-row window (docs/plans/retired-edge-stall-
+# window.md): a claim keeps the plain stall clock, so the same branch with its
+# workstream file still present, quiet 60 minutes, is marked at the default
+# 45. The claim commit is backdated on its own push; the retire commit below
+# is built on it with a fresh date.
+git -C "$dspwork" checkout -q mgr-eta
+GIT_COMMITTER_DATE="$(( $(date +%s) - 3600 )) +0000" \
+  git -C "$dspwork" commit -q --amend --no-edit
+git -C "$dspwork" push -qf origin mgr-eta
+git -C "$dspwork" checkout -q main
+out="$(dsp env JOHARNESS_MAX_MANAGERS=8)"
+expect "a claimed row quiet 60 minutes still stalls on the plain window" \
+  "STALL? no push for 60m (>= 45m): cross-check the control plane" \
+  "$(printf '%s\n' "$out" | grep 'mgr-eta')"
 
 # The retire commit itself: step 7's last commit before the pull request
 # opens, deleting the workstream file and the finished plan file together.
@@ -755,6 +769,31 @@ expect "0 = never ages: the slot is held" "slots     : 3 of 8 free" "$out"
 expect "with the old row" "retired, no claim file — a pull request is expected" "$out"
 git -C "$dspwork" branch -qf mgr-eta "$eta_tip"
 git -C "$dspwork" push -qf origin mgr-eta
+# A retired row's manager is inside step 7's `finish`, which pushes nothing
+# while ci, verify and local-check run: its clock is JOHARNESS_STALL_MINUTES +
+# JOHARNESS_LOCAL_CHECK_MINUTES (45 + 30 = 75), so 60 minutes quiet is not a
+# stall and 80 is (docs/plans/retired-edge-stall-window.md).
+git -C "$dspwork" checkout -q mgr-eta
+GIT_COMMITTER_DATE="$(( $(date +%s) - 3600 )) +0000" \
+  git -C "$dspwork" commit -q --amend --no-edit
+git -C "$dspwork" push -qf origin mgr-eta
+git -C "$dspwork" checkout -q main
+out="$(dsp env JOHARNESS_MAX_MANAGERS=8)"
+expect "a retired row quiet 60 minutes is still a retired row" \
+  "docs/plans/eta.md  mgr-eta  retired  pushed 60m" "$out"
+refute "and carries NO STALL? inside the retired-row window" "STALL? no push" \
+  "$(printf '%s\n' "$out" | grep -A1 'mgr-eta')"
+git -C "$dspwork" checkout -q mgr-eta
+GIT_COMMITTER_DATE="$(( $(date +%s) - 4800 )) +0000" \
+  git -C "$dspwork" commit -q --amend --no-edit
+git -C "$dspwork" push -qf origin mgr-eta
+git -C "$dspwork" checkout -q main
+out="$(dsp env JOHARNESS_MAX_MANAGERS=8)"
+expect "past the retired-row window it stalls, naming the window and both knobs" \
+  "(>= 75m retired-row window: JOHARNESS_STALL_MINUTES 45 + JOHARNESS_LOCAL_CHECK_MINUTES 30, since step 7 runs finish)" \
+  "$(printf '%s\n' "$out" | grep -A1 'mgr-eta')"
+git -C "$dspwork" branch -qf mgr-eta "$eta_tip"
+git -C "$dspwork" push -qf origin mgr-eta
 # An aged edge and nothing else: its own repo, because the shared one always
 # has a manager in flight or an item free, and either keeps the verdict off
 # DRAINED with or without the fix. An unread pull request is no reason to
@@ -792,7 +831,8 @@ refute "and never reads DRAINED on it" "verdict   : DRAINED" "$out"
 # says so and sends the verdict to the health table. It used to order the
 # respawn itself, and printed that over three RUNNING managers an 18-day
 # suspension had frozen (issue #283): git cannot tell those from dead ones.
-out="$(dsp env JOHARNESS_MAX_MANAGERS=8 JOHARNESS_STALL_MINUTES=0)"
+# Both knobs at 0: the retired-row window is their sum.
+out="$(dsp env JOHARNESS_MAX_MANAGERS=8 JOHARNESS_STALL_MINUTES=0 JOHARNESS_LOCAL_CHECK_MINUTES=0)"
 expect "past the stall window the row is marked" "STALL? no push for" \
   "$(printf '%s\n' "$out" | grep -A1 'mgr-eta')"
 expect "and sends the reader to the control plane, by the item's own stem" \
@@ -1029,7 +1069,7 @@ fixture_rm "$dspwork" "retire both, record names xi" \
   docs/handover/ord.md docs/plans/nu.md docs/plans/xi.md
 git -C "$dspwork" push -qu origin mgr-order
 git -C "$dspwork" checkout -q main
-out="$(dsp env JOHARNESS_MAX_MANAGERS=8 JOHARNESS_STALL_MINUTES=0)"
+out="$(dsp env JOHARNESS_MAX_MANAGERS=8 JOHARNESS_STALL_MINUTES=0 JOHARNESS_LOCAL_CHECK_MINUTES=0)"
 expect "the row names the item the retired record names" \
   "docs/plans/xi.md  mgr-order  retired  pushed" "$out"
 expect "and the alphabetically first item rides behind it" \
