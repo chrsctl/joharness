@@ -244,7 +244,7 @@ Ledger every spawn as `<stem>@new` the moment it passes the Source check
 ```
 /orchestrator pass
 harness=<first 12 chars of git hash-object of origin/main:.claude/commands/orchestrator.md> pass=<this pass's number plus one> [retire=yes]
-ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] [held=<updated_at>] [unratified=<head>] [notified=<stem>] [released=<stem>[,<stem>]] [held-human=<pr>] respawns=<n> [rescoped=<key>] [corewait=<stem>#<N>[,<stem>#<N>]] [failed=<stem>[,<stem>]] [noexit=<stem>[,<stem>]] [clerked=<stamp>[+human|+issue]] [scouted=<stamp>[+human]] [conducted=<stamp>[+human]] [retroed=<stamp>[+human]]; ...
+ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] [held=<updated_at>] [unratified=<head>] [notified=<stem>] [released=<stem>[,<stem>]] [held-human=<pr>] respawns=<n> [rescoped=<key>] [corewait=<stem>#<N>[,<stem>#<N>]] [failed=<stem>[,<stem>]] [noexit=<stem>[,<stem>]] [clerked=<stamp>[+human|+issue]] [scouted=<stamp>[+human]] [conducted=<stamp>[+human]] [retroed=<stamp>[+human]]; ...; bp:<branch> notified=bp:<branch>; ...
 lead <stem>: <40 chars, to the end of this line>
 ```
 
@@ -314,6 +314,11 @@ Then the lines of ref § Report: `context:`, the served model, the `plans
 on a branch` block. Then one line per manager (item, session, state,
 action), then the leads, `<stem>: <text>`, then each lead dropped this pass,
 `unrouted lead <stem>: <text>`.
+
+A `STRANDED` row in that block: no ledger `bp:<branch> notified=bp:<branch>`
+entry yet = `PushNotification` once carrying branch, stems and held days,
+and ledger it (a branch, never an item: no head, no spawn); else report
+only. Never spawn on it, never edit the branch.
 
 You relay a lead, routed or not. You never act on one, and never file one. Not into a spawn prompt, not into a
 plan, not into a respawn or a reprioritisation — and not into any health-pass

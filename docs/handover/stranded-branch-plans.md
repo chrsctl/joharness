@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK5JiVnb6MHweCHr34Q
 agent: opus
 updated: 2026-11-11
-next: Read the plan-checker findings, then build the STRANDED mark in joharness.sh:dispatch_branch_plans and its printer
+next: Run ci and verify; then the verifier at opus tier
 ---
 
 ## Goal

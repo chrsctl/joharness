@@ -121,6 +121,7 @@ JOHARNESS_CATCHUP_COMMITS|20|session|Under JOHARNESS_CHECKS=local, base commits 
 JOHARNESS_MAX_MANAGERS|4|dispatch|Managers in flight at once; 0 pauses spawning.
 JOHARNESS_STALL_MINUTES|45|dispatch|No push this long = cross-check, nudge.
 JOHARNESS_EDGE_SLOT_HOURS|4|dispatch|A retired edge branch with no claim file and no push this long holds no slot; its items stay withheld; 0 = it holds one until merge.
+JOHARNESS_STRANDED_DAYS|2|dispatch|A plan-only branch that never claimed, its plan filed this many days ago, is STRANDED: a human carries or closes it; 0 = off.
 JOHARNESS_HEALTH_MINUTES|10|dispatch|One orchestrator pass every this many minutes.
 JOHARNESS_RESPAWN_LIMIT|2|dispatch|Respawns per item per orchestrator run.
 JOHARNESS_ORCHESTRATOR_PASSES|6|dispatch|Orchestrator passes a session makes before it retires and the keeper starts a successor.
@@ -8854,6 +8855,11 @@ dispatch_tip_holds() {
 # A seventh field, `0` or `<n>:<pr>`: the branch's workstream `pr:` has its
 # first-parent `Merge pull request #<pr> from` commit on the base and the tip
 # is <n> > 0 commits ahead of the base (the hook's edge_facts, from git alone).
+# An eighth, `1` or `0`: STRANDED — a `live` row held at least
+# JOHARNESS_STRANDED_DAYS on a branch whose whole diff is under docs/plans/
+# and that never added a workstream file since its merge base (as
+# release_noclaim_rows reads it: an edge that retired its claim is driven).
+# Git cannot see a pull request; this is the proxy for nobody driving it.
 # kind `leftover`: the base added and retired the path; `done`: DONE ON MAIN,
 # the stem retired elsewhere (the base's ledger, or a `status: done`
 # workstream file on any other ref); `live`: neither.
@@ -8863,8 +8869,10 @@ dispatch_branch_plans() {
   local base_branch="${HANDOVER_BASE_BRANCH:-main}" only="${1:-}"
   local refs r name base plans wfs wf doc own wplan wstat abandoned p stem urg agt retired rc
   local addh addt abase kind days now ev evh evs ledger evcache="" wpr mpr npr
-  local bmerges="" bmread=0
+  local bmerges="" bmread=0 sdays strand
   now_s now
+  sdays=0
+  [ -n "$only" ] || sdays="$(num_knob JOHARNESS_STRANDED_DAYS)"
   refs="$(refs_unmerged "refs/remotes/origin/${base_branch}")"
   while IFS= read -r r; do
     [ -n "$r" ] || continue
@@ -8912,6 +8920,16 @@ dispatch_branch_plans() {
       [ -z "$wplan" ] || [ "$wplan" = none ] || own="${own}${wplan} "
     done <<<"$wfs"
     [ "$abandoned" -eq 0 ] || [ -n "$only" ] || continue
+    # Plans alone, never claimed: a candidate for STRANDED (header above).
+    # A here-string, never a pipe: `grep -q` under pipefail (see above).
+    strand=0
+    if [ "$sdays" -gt 0 ] && [ -z "$wfs" ] &&
+       ! grep -qv '^docs/plans/' <<<"$(git -c core.quotePath=false -C "$ROOT" \
+         diff --no-renames --name-only "$base" "$r" </dev/null 2>/dev/null)" &&
+       [ -z "$(git -C "$ROOT" log --no-renames --diff-filter=A --format=%H \
+         "${base}..${r}" -- docs/handover </dev/null 2>/dev/null)" ]; then
+      strand=1
+    fi
     while IFS= read -r p; do
       [ -n "$p" ] || continue
       stem="$(lint_stem "$p" | tr -cd 'A-Za-z0-9._-')"
@@ -8986,9 +9004,10 @@ dispatch_branch_plans() {
         </dev/null 2>/dev/null | gr_fields urgency agent)"
       urg="$(printf '%s' "$urg" | tr -cd 'A-Za-z0-9._-')"
       agt="$(printf '%s' "$agt" | tr -cd 'A-Za-z0-9._-')"
-      printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$kind" \
+      printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$kind" \
         "$(printf '%s' "$name" | tr -cd 'A-Za-z0-9._/-')" \
-        "$stem" "${urg:-?}" "${agt:-?}" "$days" "$mpr"
+        "$stem" "${urg:-?}" "${agt:-?}" "$days" "$mpr" \
+        "$([ "$kind" = live ] && [ "$strand" -eq 1 ] && [ "$days" -ge "$sdays" ] && printf 1 || printf 0)"
     done <<<"$plans"
   done <<<"$refs"
 }
@@ -9111,7 +9130,7 @@ cmd_dispatch() {
   local conduct_due=0 role_spawned=0 n_conduct=0 odue ostate oreason orate ob oa conduct_inflight=""
   local retro_due=0 n_retro=0 rtstate rtreason rtb rta retro_inflight="" conduct_spawned=0
   local fetch_failed=0
-  local bplans
+  local bplans n_stranded
   local rescope_key="" rescope_paths="" rescope_inflight="" rescope_holders=""
   local n_rescope_inflight=0 n_rescope_holders=0 rescope_settled=0
   local rescope_held="" rescope_merged="" msha mkey mheld mchanged
@@ -10096,12 +10115,14 @@ cmd_dispatch() {
   # A plan an unmerged branch added has no queue row (dispatch_branch_plans).
   # One line per (plan, kind): a stem done for one branch and live on a
   # branch cut after the retire is two plans of one name. `held` is the
-  # oldest of its branches.
+  # oldest of its branches. `STRANDED <n>d` when any of its branches is
+  # (dispatch_branch_plans' eighth field), <n> the oldest of those.
   bplans="$(printf '%s\n' "$bprows" | awk -F'\t' '$1 == "live" || $1 == "done" {
       k = $3 SUBSEP $1
       if (!(k in on)) { order[++n] = k; st[k] = $3; kd[k] = $1; urg[k] = $4
-                        agt[k] = $5; on[k] = $2; held[k] = $6; mg[k] = "" }
+                        agt[k] = $5; on[k] = $2; held[k] = $6; mg[k] = ""; sd[k] = "" }
       else { on[k] = on[k] ", " $2; if ($6 + 0 > held[k] + 0) held[k] = $6 }
+      if ($8 == "1" && (sd[k] == "" || $6 + 0 > sd[k] + 0)) sd[k] = $6
       if ($7 != "0" && $7 != "") { split($7, m, ":")
         mg[k] = mg[k] "; " m[1] " commit(s) after merged PR #" m[2] } }
     END { for (i = 1; i <= n; i++) { k = order[i]
@@ -10109,8 +10130,10 @@ cmd_dispatch() {
         printf "  DONE ON MAIN %s (urgency: %s, agent: %s)  on %s  held %sd%s: retired elsewhere — drop it, never spawn on it\n",
           st[k], urg[k], agt[k], on[k], held[k], mg[k]
       else
-        printf "  %s%s (urgency: %s, agent: %s)  on %s  held %sd%s\n",
-          (urg[k] == "urgent" ? "URGENT " : ""), st[k], urg[k], agt[k], on[k], held[k], mg[k] } }')"
+        printf "  %s%s (urgency: %s, agent: %s)  on %s  held %sd%s%s\n",
+          (urg[k] == "urgent" ? "URGENT " : ""), st[k], urg[k], agt[k], on[k], held[k],
+          (sd[k] == "" ? "" : "  STRANDED " sd[k] "d: plan-only, never claimed — a human carries or closes it, never spawn on it"), mg[k] } }')"
+  n_stranded="$(printf '%s\n' "$bprows" | awk -F'\t' '$1 == "live" && $8 == "1" { c++ } END { print c + 0 }')"
   if [ -n "$bplans" ]; then
     printf '\nplans on a branch, not in the queue until it merges:\n%s\n' "$bplans"
   fi
@@ -10310,6 +10333,9 @@ cmd_dispatch() {
         "$n_leftover_noitem"
     printf '. Nothing is committed on any of them. The human deletes them; never respawn on one\n'
   fi
+  [ "$n_stranded" -eq 0 ] ||
+    printf '            %s stranded branch plan(s): a human carries or closes them — plan-only, never claimed, held >= %sd (JOHARNESS_STRANDED_DAYS); the orchestrator notifies once, never spawns on one\n' \
+      "$n_stranded" "$(num_knob JOHARNESS_STRANDED_DAYS)"
   # On the VERDICT, not only above the slots line.
 
   # Push age is the FLEET's before it is any manager's.
