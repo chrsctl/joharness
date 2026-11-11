@@ -783,6 +783,15 @@ expect "a retired row quiet 60 minutes is still a retired row" \
   "docs/plans/eta.md  mgr-eta  retired  pushed 60m" "$out"
 refute "and carries NO STALL? inside the retired-row window" "STALL? no push" \
   "$(printf '%s\n' "$out" | grep -A1 'mgr-eta')"
+expect "the stall header names the retired-row window beside the plain one" \
+  "a retired row with no claim file: 75 min (+ JOHARNESS_LOCAL_CHECK_MINUTES" "$out"
+# Aged under a 1h JOHARNESS_EDGE_SLOT_HOURS, the same row gives its slot back,
+# and its mark keeps the retired-row clock: 60 minutes is no STALL? there either.
+out="$(dsp env JOHARNESS_MAX_MANAGERS=8 JOHARNESS_EDGE_SLOT_HOURS=1)"
+expect "under a 1h slot window the 60-minute row is aged" \
+  "retired, no claim file, no push for 60m (>= 1h JOHARNESS_EDGE_SLOT_HOURS)" "$out"
+refute "and its mark keeps the retired-row clock: no STALL? at 60m" "STALL? no push" \
+  "$(printf '%s\n' "$out" | grep -A1 'mgr-eta')"
 git -C "$dspwork" checkout -q mgr-eta
 GIT_COMMITTER_DATE="$(( $(date +%s) - 4800 )) +0000" \
   git -C "$dspwork" commit -q --amend --no-edit

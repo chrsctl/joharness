@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK3Z2R5D8EtAQqikw7t
 agent: opus
 updated: 2026-11-11
-next: Run ./joharness.sh verify, then the verifier at opus, then PR and finish
+next: ci again, then the retire commit, PR and finish
 ---
 
 ## Goal
@@ -50,6 +50,11 @@ that does not ask for a handover.
 - r15: (plan-checker) round 2: A1's evidence points at a doc that does not say unpushed (fixed)
 - r16: (plan-checker) round 2: Traps omit the orchestrated.md overlap with stranded-branch-plans (fixed)
 - r17: (plan-checker) round 2: the chrsctl/gx incident is unverifiable here (no change)
+- r18: (verifier) the aged-edge clock change has no test that fails without it (fixed: "and its mark keeps the retired-row clock: no STALL? at 60m", under JOHARNESS_EDGE_SLOT_HOURS=1)
+- r19: (verifier) the new `stall :` header text is pinned by no test (fixed: "the stall header names the retired-row window beside the plain one")
+- r20: (verifier) the branch rewrote its plan's aged-edge clause against the base text (no change: decided in ## Decisions, from plan-checker r8, now tested by r18)
+- r21: (verifier) orchestrator-reference.md no-transport row still calls JOHARNESS_STALL_MINUTES the kill threshold, untrue for retired rows (wontfix: the ref is outside this plan and scoped by heartbeat-read-cheaper; PR body)
+- r22: (verifier) the retired KILL row archives without checking whether the head moved after the interrupt (fixed: head moved = answered)
 
 ## Blockers
 
