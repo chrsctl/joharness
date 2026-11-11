@@ -13,60 +13,62 @@ scope: .agents/harness/selftest.sh, .agents/harness/selftest/dispatch-park.sh
 ## Goal
 
 Issue #729: `./joharness.sh ci` "harness selftest" fails intermittently on the
-GitHub `lint` job (whole `dispatch-park` topic red at once, 52 or 140 FAILs),
-green locally and green on re-run. A red run says only `FAIL <label>`, never
-why. Make a red run print the first failing command's stderr and the fixture's
-git state, so the next flake is diagnosable; then fix the fixture if that
-evidence (or the code read below) names a cause.
+GitHub `lint` job (whole `dispatch-park` topic red at once), green locally and
+on re-run. Setup stderr and each case's `wanted:`/`got:` already reach the CI
+log (topics run with `2>&1`, `selftest.sh:selftest_unit`); only the "FAIL lines
+by topic" summary is bare. The gap is that nobody has read what the log shows
+ABOVE the first FAIL. Find that, then fix the fixture if it names a cause.
 
 ## Scope
 
-- `.agents/harness/selftest/dispatch-park.sh` — the fixture build (`git init`,
-  `symbolic-ref`, `dfcommit`) must fail loudly: check each setup step, and on
-  a failed step print its stderr plus `git --version`.
-- `.agents/harness/selftest.sh` — `fail()` prints the captured stderr of the
-  last fixture command (bounded to 20 lines) when one was recorded.
+- `.agents/harness/selftest/dispatch-park.sh` — check each setup step
+  (`git init`, `symbolic-ref`, `dfcommit`) and on failure print the step name,
+  its stderr and `git --version`, then skip the topic's cases as ONE counted
+  FAIL instead of ~50.
+- `.agents/harness/selftest.sh` — only if the evidence needs it.
+- A new case in `.agents/harness/selftest/dispatch-park.sh` itself (no new
+  topic file, so no `SELFTEST_TOPICS` edit): run the setup helper with `git`
+  shadowed by a shell function that prints `boom` and returns 1, in a subshell
+  with its own counters; assert `boom` and the step name appear.
 
 ## Assumptions
 
 - A1: the flake is real — evidence: run 42783980756 on PR #738 has
-  `run_attempt: 2`, `conclusion: success`; the issue reports attempt 1 red
-  with 52 FAILs under `dispatch-park`; attempt 1's logs are not readable
-  here, so the FAIL counts are unchecked — confidence: medium
-- A2: the cause is a fixture setup step failing on the runner (git 2.56.0
-  there, 2.43.0 here) — evidence: issue's reading only; not reproduced —
-  confidence: low. Research it first: diff `dispatch-park.sh` fixture
-  commands against behaviours that changed between those git versions.
-- A3: `fail()` is defined at `.agents/harness/selftest.sh:fail` and topics are
-  sourced, so a change there reaches every topic — confidence: high
+  `run_attempt: 2`, `conclusion: success`; attempt 1's logs and the 52 FAIL
+  count are unchecked from here — confidence: medium
+- A2: a fixture setup step fails on the runner (git 2.56.0 there, 2.43.0
+  here) — evidence: the issue's reading only — confidence: low. First action:
+  read attempt 1's job log (`get_job_logs`, or `gh run view --log` for run
+  42783980756) above the first FAIL. Log gone = say so.
+- A3: #724's merge changed only docs (`git diff --stat 43b8bd22^1 43b8bd22`),
+  so run 42730168302 is a flake, not a regression — confidence: high
 
 ## Out of scope
 
-- Other topics' fixtures: fix only what evidence from this topic names.
-- Retrying failed topics in CI: that would hide the flake (never kick CI).
+- Other topics' fixtures: fix only what evidence names.
+- Retrying failed topics in CI (hides the flake).
 - Editing `.github` (core path).
 
 ## Acceptance
 
-- Selftest case: with a fixture command forced to fail (e.g. `git` shimmed to
-  exit 1 with stderr `boom`), the run prints `boom` next to the FAIL line.
+- `./joharness.sh ci 2>&1 | grep -c "setup step failed"` — `0` on a healthy
+  tree; the new case's own PASS lines show the forced failure prints `boom`.
   The case must FAIL without the change.
 - `./joharness.sh ci` — `ci: pass`.
 - `./joharness.sh verify` — `0 failed`.
-- Plan's `## Review` records, for A2, what was found: a named cause fixed in
-  this PR, or `no cause found, diagnostics only`. In the latter case the PR
-  body says `Refs #729`, not `Closes`.
+- PR body states A2's outcome: cause found and fixed (`Closes #729`) or
+  `no cause found, diagnostics only` (`Refs #729`).
 
 ## Escape
 
-Entry, Gate and Route are answered in the PR body, each with its command:
-Entry — bisect or say why not (first red `main` run 42730168302, merge of
-#724); Gate — `ci` selftest should have caught a setup failure but only
-counts asserts; Route — this repo owns the gate, fixed here.
+Answered in the PR body: Entry — #724 is docs-only (A3), so a flake, not a
+merge; Gate — selftest asserts cases but not that fixture setup succeeded;
+Route — this repo owns the gate, fixed here.
 
 ## Where to look
 
-- `.agents/harness/selftest.sh:fail` — the failure printer.
+- `.agents/harness/selftest.sh:selftest_unit` — where topic output is captured with `2>&1`.
+- `.agents/harness/selftest.sh:fail()` — the failure printer.
 - `.agents/harness/selftest/dispatch-park.sh:dfcommit` — fixture commit helper.
 - `.agents/harness/selftest.sh:SELFTEST_FIRST` — dispatch-park starts first on
   a worker; check whether start-time contention matters.
