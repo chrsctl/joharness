@@ -6847,7 +6847,7 @@ checks_cert_file() {
 # behind (chrsctl/gx #1417). Prints one line when this head descends from the
 # certified one, saying which way it went; silent otherwise.
 checks_catch_up() {
-  local ref="$1" cf ch cb n max mt tree shared reason="" mb
+  local ref="$1" cf ch cb n m max mt tree shared reason="" mb
   cf="$(checks_cert_file)" && [ -r "$cf" ] || return 1
   ch="$(sed -n 's/^head=//p' "$cf" | head -n 1)"
   cb="$(sed -n 's/^base=//p' "$cf" | head -n 1)"
@@ -6856,13 +6856,14 @@ checks_catch_up() {
   # Another line of work's certificate: not this head's business, no line.
   git -C "$ROOT" merge-base --is-ancestor "$ch" HEAD 2>/dev/null || return 1
   max="$(num_knob JOHARNESS_CATCHUP_COMMITS)"
+  m="$(git -C "$ROOT" rev-list --count --first-parent --merges "${cb}..${ref}" 2>/dev/null)" || m=0
   if ! git -C "$ROOT" merge-base --is-ancestor "$cb" "$ref" 2>/dev/null; then
     reason="its base ${cb:0:9} is not an ancestor of ${ref}"
   elif ! n="$(git -C "$ROOT" rev-list --count "${cb}..${ref}" 2>/dev/null)" ||
        [ "$n" -eq 0 ]; then
     reason="${ref} has not moved since, so this head carries commits of its own"
   elif [ "$n" -gt "$max" ]; then
-    reason="${n} commit(s) of ${ref} since, over JOHARNESS_CATCHUP_COMMITS=${max}"
+    reason="${n} commit(s) (${m} first-parent merge(s)) of ${ref} since, over JOHARNESS_CATCHUP_COMMITS=${max}"
   elif ! mt="$(git -C "$ROOT" merge-tree --write-tree "$ch" "$ref" 2>/dev/null)"; then
     reason="it does not merge clean with ${ref} (or this git has no merge-tree --write-tree)"
   elif tree="$(git -C "$ROOT" rev-parse 'HEAD^{tree}' 2>/dev/null)" &&
@@ -6883,8 +6884,8 @@ checks_catch_up() {
     printf '  full run     certified %s found, no catch-up: %s\n' "${ch:0:9}" "$reason"
     return 1
   fi
-  printf '  CATCH-UP     HEAD = certified %s + %s commit(s) of %s, merged clean,\n' \
-    "${ch:0:9}" "$n" "$ref"
+  printf '  CATCH-UP     HEAD = certified %s + %s commit(s) (%s first-parent merge(s)) of %s, merged clean,\n' \
+    "${ch:0:9}" "$n" "$m" "$ref"
   printf '               no path changed on both sides: ci re-runs, %s carries\n' \
     "$CHECKS_LOCAL_FILE"
   printf '               from %s (.agents/docs/consumer-repos.md § Local checks)\n' \

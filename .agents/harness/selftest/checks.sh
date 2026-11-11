@@ -650,7 +650,7 @@ kccu_main docs-a.txt a
 kccu_sync
 out="$(JOHARNESS_CATCHUP_COMMITS=0 JOHARNESS_CHECKS=local kc_finish)"
 expect "catch-up: over JOHARNESS_CATCHUP_COMMITS is the full run, named" \
-  "no catch-up: 1 commit(s) of origin/main since, over JOHARNESS_CATCHUP_COMMITS=0" "$out"
+  "1 commit(s) (0 first-parent merge(s)) of origin/main since, over JOHARNESS_CATCHUP_COMMITS=0" "$out"
 expect "catch-up: over the bound runs local-check" "2" "$(kccu_count)"
 
 # The case this exists for: disjoint base commits, clean merge.
@@ -659,6 +659,8 @@ kccu_sync
 out="$(JOHARNESS_CHECKS=local kc_finish)"
 expect "catch-up: a clean disjoint merge re-certifies on ci" \
   "CATCH-UP     HEAD = certified" "$out"
+expect "catch-up: the CATCH-UP line prints the merge count" \
+  "commit(s) (0 first-parent merge(s)) of origin/main" "$out"
 expect "catch-up: ci still runs" "ci: pass" "$out"
 expect "catch-up: local-check is named carried, not run" \
   "local-check: carried by CATCH-UP above, NOT run on this head" "$out"
