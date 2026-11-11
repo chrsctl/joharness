@@ -258,6 +258,9 @@ workstream file, continue", no `kill`. FAILED, ARCHIVED or not found: GUARD
 `kill`, RESPAWN with the resume line, counted against
 `JOHARNESS_RESPAWN_LIMIT`. `PARKED #<n>: … resume waits for a slot` is no
 RESUME: next pass.
+A parked row holds its scope only while a fix is planned: `PARKED #<n>: … no
+plan names #<n> yet — scope released` lets an overlapping plan spawn; it
+comes back at RESUME through the `conflict:` / reconcile path.
 
 A `PARKED #<n> RESUME — #<n> merged` row: a `core path: waiting on #<n>`
 block (manager.md §3), and the base's first parent carries a merge commit
