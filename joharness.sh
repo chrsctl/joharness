@@ -6856,7 +6856,7 @@ checks_catch_up() {
   # Another line of work's certificate: not this head's business, no line.
   git -C "$ROOT" merge-base --is-ancestor "$ch" HEAD 2>/dev/null || return 1
   max="$(num_knob JOHARNESS_CATCHUP_COMMITS)"
-  m="$(git -C "$ROOT" rev-list --count --first-parent --merges "${cb}..${ref}" 2>/dev/null)" || m=0
+  m="$(git -C "$ROOT" rev-list --count --first-parent --merges "${cb}..${ref}" 2>/dev/null)" || m="?"
   if ! git -C "$ROOT" merge-base --is-ancestor "$cb" "$ref" 2>/dev/null; then
     reason="its base ${cb:0:9} is not an ancestor of ${ref}"
   elif ! n="$(git -C "$ROOT" rev-list --count "${cb}..${ref}" 2>/dev/null)" ||

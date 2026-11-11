@@ -646,11 +646,21 @@ expect "catch-up: the first green is the full run" \
 expect "catch-up: and its local-check ran once" "1" "$(kccu_count)"
 
 # Over the bound is the full run, which certifies the merged head.
-kccu_main docs-a.txt a
+# The base move is a merged pull request: a side commit plus a --no-ff merge,
+# so 2 commits and 1 first-parent merge (a hard-coded count cannot pass).
+git -C "$kcwork" checkout -q main
+git -C "$kcwork" merge -q --ff-only origin/main 2>/dev/null
+git -C "$kcwork" checkout -qb kccu-pr main
+printf 'a\n' >>"${kcwork}/docs-a.txt"
+commit_all "$kcwork" "pr: docs-a.txt"
+git -C "$kcwork" checkout -q main
+git -C "$kcwork" merge -q --no-ff -m "main: merge pr" kccu-pr >/dev/null 2>&1
+git -C "$kcwork" push -q origin main 2>/dev/null
+git -C "$kcwork" checkout -q kccu
 kccu_sync
 out="$(JOHARNESS_CATCHUP_COMMITS=0 JOHARNESS_CHECKS=local kc_finish)"
 expect "catch-up: over JOHARNESS_CATCHUP_COMMITS is the full run, named" \
-  "1 commit(s) (0 first-parent merge(s)) of origin/main since, over JOHARNESS_CATCHUP_COMMITS=0" "$out"
+  "2 commit(s) (1 first-parent merge(s)) of origin/main since, over JOHARNESS_CATCHUP_COMMITS=0" "$out"
 expect "catch-up: over the bound runs local-check" "2" "$(kccu_count)"
 
 # The case this exists for: disjoint base commits, clean merge.
