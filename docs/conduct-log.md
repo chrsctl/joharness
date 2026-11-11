@@ -28,3 +28,6 @@ without (`.agents/scripts/c2-run.sh`)? Verdict `N/A`, `FINE`, `CONCERN` or
 | 2026-11-09 | finding-lasting-record | FINE | NO EVIDENCE | c2-run.sh: "fix: exit 1 in 1s, first name not listed: bootstrap-consumer" on fix, nofix and pre, no case rows, NO FLIP |
 | 2026-11-09 | keeper-stillborn-spawn | FINE | NO EVIDENCE | c2-run.sh: "fix: exit 1 in 1s, first name not listed: bootstrap-consumer" on fix, nofix and pre, no case rows, NO FLIP |
 | 2026-11-09 | dispatch-holds-shared-defect | FINE | NO EVIDENCE | c2-run.sh: "fix: exit 1 in 2s, first name not listed: bootstrap-consumer" on fix, nofix and pre, no case rows, NO FLIP |
+| 2026-11-11 | block-draft-guard | FINE | NO EVIDENCE | c2-run: all three runs exit 1, "first name not listed: bootstrap-consumer"; no case rows, runner NO FLIP |
+| 2026-11-11 | hold-followups | FINE | NO EVIDENCE | c2-run: all three runs exit 1, "first name not listed: bootstrap-consumer"; no case rows, runner NO FLIP |
+| 2026-11-11 | finding-routes-defect-grammar | FINE | NO EVIDENCE | c2-run: all three runs exit 1, "first name not listed: bootstrap-consumer"; no case rows, runner NO FLIP |
