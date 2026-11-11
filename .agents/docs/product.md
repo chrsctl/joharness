@@ -69,6 +69,9 @@ keeps its meaning. `serves:` with no number is red, never `all`.
   reading `all`, is today's behaviour. Shallow history = warn. A clause
   closed by exit 3 or 4 after partial plans: the last plan, verify plan
   (exit 2) included, names it in `serves:` and carries the record.
+  Deletion is also red while any plan the branch leaves in `docs/plans/`
+  still names the requirement, whatever its `serves:`: retire or re-point it
+  in the same pull request.
 - **Rejected:** matching clause text in plan bodies. Prose is not an edge
   (#626, the same rule `needs:` follows).
 
