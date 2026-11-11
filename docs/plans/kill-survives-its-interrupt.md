@@ -30,9 +30,10 @@ survive its own interrupt and finish.
   - The ledger format line (`ledger: <stem>@<head|new> …`) gains
     `[killing=<head>]`: written when a KILL (claimed or retired) sends its
     `interrupt_session`, holding the head read at that moment.
-  - One health-table row ABOVE the "a nudge, `seen=`, `held=` or
-    `unratified=` recorded … working: drop that record" row: `killing=`
-    recorded → the kill's second half, ref § KILL and LOOP (claimed) or §
+  - One health-table row ABOVE the LOOP row (`` | any | `LOOP?` ``),
+    which sits above the "a nudge, `seen=`, `held=` or `unratified=`
+    recorded … working: drop that record" row, and below the UNCLAIMED
+    row: `killing=` recorded → the kill's second half, ref § KILL and LOOP (claimed) or §
     Retired stall (retired). Its `updated_at` move is the interrupt's own
     and decides nothing.
   - The command's reading budget is 23628 bytes and `origin/main` holds
@@ -44,14 +45,17 @@ survive its own interrupt and finish.
     `killing=<head>`. The second half reads it: head moved past it =
     handover landed (claimed) or it answered (retired), drop `killing=` and
     the nudge; else the record (claimed only), `archive_session`, RESPAWN,
-    drop `killing=`. LOOP uses the same key and steps.
+    drop `killing=`. Retired: no record, `archive_session`, drop
+    `killing=`; the `gone` edge row RESPAWNs on a later pass, as today.
+    LOOP uses the same key and steps.
   - Whatever detail moves out of the command to fit the budget.
 - `.agents/harness/selftest/orchestrated.sh`:
   - The `killing=<head>` ledger key is spelled in the command and in both
     ref sections.
   - Row order: the `killing=` row's line number in `orchestrator.md` is
-    below (earlier than) the drop-record row's. Find each by a unique
-    substring of its ledger cell, as the file's other row checks do.
+    smaller than the LOOP row's and the drop-record row's (it sits above
+    both). Find each row by a unique substring of one of its cells, as
+    the file's other row checks do.
 
 ## Assumptions
 
@@ -80,12 +84,12 @@ survive its own interrupt and finish.
 - `./joharness.sh ci` — `ci: pass` (red: `ci: FAIL` naming the case). The
   new `orchestrated.sh` cases PASS; on `origin/main` the row-order and
   key-spelling cases FAIL (no `killing=` exists there):
-  `cp -r . "$T" && git -C "$T" checkout -q origin/main -- .claude/commands/orchestrator.md .agents/docs/orchestrator-reference.md && (cd "$T" && ./joharness.sh ci)`
+  `T="$(mktemp -d)" && cp -r . "$T" && git -C "$T" checkout -q origin/main -- .claude/commands/orchestrator.md .agents/docs/orchestrator-reference.md && (cd "$T" && ./joharness.sh ci)`
   prints a `FAIL` line for each new case.
 - `grep -c 'killing=<head>' .claude/commands/orchestrator.md` — at least 1
   (red: 0).
-- `wc -c .claude/commands/orchestrator.md` — at most 23628 (red: the
-  `reading-budget` FAIL line).
+- `wc -c .claude/commands/orchestrator.md` — at most 23628 (red: a
+  number above it; `ci` then prints the `reading-budget` FAIL line).
 - Consumer side, after its next sync: `grep -c 'killing=<head>'
   .claude/commands/orchestrator.md` — at least 1 (red: 0, the sync did not
   carry it).
