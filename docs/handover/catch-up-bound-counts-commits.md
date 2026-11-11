@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK5pHjzAh4525PuCj4d
 agent: sonnet
 updated: 2026-11-11
-next: Graduate the answer into .agents/docs/consumer-repos.md, file the follow-up plan, delete the research file, finish
+next: Verify (ci, review), open PR, merge
 ---
 
 ## Goal
@@ -18,7 +18,7 @@ consumer's merged PRs carry several commits each; graduate the answer.
 
 ## Decisions
 
-- Answer: it measures commits, not pull requests; on gx 20 commits is 3-4 PRs.
+- Answer: the bound counts commits, not pull requests (graduated to consumer-repos.md). Follow-up plan catch-up-print-merge-count prints both numbers; the knob is unchanged until merge-count evidence exists.
 
 ## Review
 
