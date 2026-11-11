@@ -666,13 +666,13 @@ for needle in '`heartbeat duplicated` or `heartbeat stale`; none only without `l
   'Titled exactly `🔑 keeper: <owner/repo>` (glossary, role title: the bare spelling matches too) = read `.claude/commands/keeper.md` WHOLE and run that only' \
   'Any other title (`🎼 orchestrator: …`, `🔨 manager: …`, none) = the orchestrator: the rest of this file.' \
   'No `get_session` = report and `PushNotification` once `role unreadable: no get_session`, end the turn.' \
-  '**Heartbeat.** `pass=` above 1: ref § 0. Start step 5 on that same answer, REPLACE and REGISTER included' \
+  '**Heartbeat.** `pass=` above 1: ref § 0. Start step 5 on its own read, heartbeat = `list_triggers` `recurring` true, `enabled` unset (a paused one must show; never add `enabled` true), REPLACE and REGISTER included' \
   'skip the superseded, duplicate and heartbeat checks'; do
   expect "orchestrator.md heartbeat check spells ${needle}" "$needle" "$orcfold"
 done
 # shellcheck disable=SC2016 # literal backticks in the needles
 for needle in 'Routine named exactly `💗 heartbeat: <owner/repo>` (the bare `heartbeat: <owner/repo>` matches too) with a non-empty `cron_expression`' \
-  'Heartbeat, here and on every pass after the first (`orchestrator.md`, Pass entry): `list_triggers` (no filter: a paused one must show)' \
+  'Heartbeat, here and on every pass after the first (`orchestrator.md`, Pass entry): `list_triggers` `recurring` true, `enabled` unset (a paused one must show)' \
   'None: REGISTER, below.' \
   'Two or more with `enabled` true: `heartbeat duplicated' \
   'duplicated: <id>, <id>' \
