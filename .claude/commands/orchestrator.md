@@ -142,6 +142,7 @@ Act on the FIRST row that matches:
 | any | any | branch merged (dispatch no longer lists it), or a plan/research/requirement entry still `new` whose item file is gone from fresh `origin/main` (merged between passes; never a `rescope-<key>` entry, which has no item file) | done: drop the ledger entry. A message carrying `lead <stem>: <text>` is the one exception that is never nothing: carry it and print it |
 | any | any | a `rescope-<key>` entry whose dispatch row reads `done: finished rescope, holds no slot — never nudge` (genuine holds: it merges nothing, ever) | done: drop the entry, keep `rescoped=<key>`. Nudge nothing, respawn nothing |
 | any | any | `new` from a previous pass, no claimed in-flight row for its stem on this pass's dispatch, whatever `seen=`, `held=` or nudge it carries | UNCLAIMED → ref § Unclaimed spawn rows, which decide it whole: an ended unclaimed session is a FAILED SPAWN |
+| any | any | `killing=<head>` recorded | the kill's second half → ref § KILL and LOOP (retired: § Retired stall). The interrupt moved `updated_at`: decides nothing |
 | any | `LOOP?`, or head moved and `next:` unchanged with `same=2` already | any | LOOP, below. No nudge |
 | IDLE | any | `retired, no claim file`, last turn asks a human to merge or grant merge permission (`status_detail` / needs-action) | HELD BY HUMAN → ref § Held by human |
 | any | any | edge row reading `a human/ branch` | a human merges it: confirm its pull request is open, none = report to the human. Never nudge, NEVER respawn |
@@ -157,7 +158,7 @@ Act on the FIRST row that matches:
 | RUNNING | under stall | any | working |
 | RUNNING | `STALL?` | no nudge | NUDGE (retired: ref § Retired stall): "Orchestrator health pass: no push on <branch> for <N>m. Now: /handover, commit, push. Then continue, or set status blocked and stop." Ledger head, `status_detail`. No transport: send nothing, still ledger |
 | RUNNING | `STALL?` | nudged, head and `status_detail` unchanged | KILL, below |
-| not RUNNING | any | status `blocked`, row carries `INVALID BLOCK?` | not the human's: its `next:` names no reason from the list, or parks `defect:` on its plan's own issue (its scope stays held). Treat as a stall: where a transport delivers, message it to name a reason or do the work; always report it as an invalid block. Never respawn on it alone |
+| not RUNNING | any | status `blocked`, row carries `INVALID BLOCK?` | not the human's → ref § Invalid block. Never respawn on it alone |
 | not RUNNING, bucket FAILED | any | no `seen=` | CRASHED: no nudge; ledger `seen=<updated_at>` and head |
 | same | any | `seen=`, `updated_at` and head unchanged | dead: `archive_session`, RESPAWN |
 | ARCHIVED / COMPLETED / not found | any | claimed, branch unmerged | gone: RESPAWN on the branch |
@@ -248,7 +249,7 @@ Ledger every spawn as `<stem>@new` the moment it passes the Source check
 ```
 /orchestrator pass
 harness=<first 12 chars of git hash-object of origin/main:.claude/commands/orchestrator.md> pass=<this pass's number plus one> [retire=yes]
-ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] [held=<updated_at>] [unratified=<head>] [notified=<stem>] [released=<stem>[,<stem>]] [held-human=<pr>] respawns=<n> [rescoped=<key>] [corewait=<stem>#<N>[,<stem>#<N>]] [failed=<stem>[,<stem>]] [noexit=<stem>[,<stem>]] [clerked=<stamp>[+human|+issue]] [scouted=<stamp>[+human]] [conducted=<stamp>[+human]] [retroed=<stamp>[+human]]; bp:<branch>; ...
+ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] [held=<updated_at>] [unratified=<head>] [killing=<head>] [notified=<stem>] [released=<stem>[,<stem>]] [held-human=<pr>] respawns=<n> [rescoped=<key>] [corewait=<stem>#<N>[,<stem>#<N>]] [failed=<stem>[,<stem>]] [noexit=<stem>[,<stem>]] [clerked=<stamp>[+human|+issue]] [scouted=<stamp>[+human]] [conducted=<stamp>[+human]] [retroed=<stamp>[+human]]; bp:<branch>; ...
 lead <stem>: <40 chars, to the end of this line>
 ```
 
