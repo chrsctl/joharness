@@ -1393,6 +1393,7 @@ expect "no plan names it again: released again" \
 dfbin="${TMP}/dfgitfail"
 mkdir -p "$dfbin"
 dfgit="$(command -v git)"
+# shellcheck disable=SC2016 # the $a and $@ are the stub's own, unexpanded here
 printf '#!/bin/sh\nfor a; do [ "$a" = grep ] && exit 2; done\nexec "%s" "$@"\n' "$dfgit" >"${dfbin}/git"
 chmod +x "${dfbin}/git"
 out="$(dfx env JOHARNESS_DEFECT_RECHECK_HOURS=0 PATH="${dfbin}:${PATH}")"

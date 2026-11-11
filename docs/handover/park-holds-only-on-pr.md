@@ -37,7 +37,7 @@ plan/core-only-spawns-manager (owner branch; nothing pushed there).
 - r4: (plan-checker) row text `waits for <plan>` needs a stem no reader keeps (fixed: generic text, both row texts spelled)
 - r5: (plan-checker) hold until RESUME fires is ambiguous (fixed: held through RESUME, as today)
 - r6: (plan-checker) fixture acceptance has no command, row text or failure (fixed: selftest cases with exact rows and failures)
-- r7: (plan-checker) consumer-side check after sync has no command here (fixed: dropped; a consumer sync is its own pull request, outside this repo)
+- r7: (plan-checker) consumer-side check after sync has no command here (fixed: kept as a runnable command with its output and failure, run by the consumer's sync pull request — ci's ship-scope stage says a SHIPS plan owes one)
 - r8: (plan-checker) acceptance lacks failure output and printed results (fixed: `ci: pass`, `0 failed`, failures named)
 - r9: (plan-checker) needs: none while starved-counts-green-runs also scopes joharness.sh (wontfix: both mark it shared:, a reconcile merge is the expected path)
 - r10: (plan-checker) "only UNREADABLE, STUCK, UNPLANNED join blocked_claims" is true only inside the defect arm (fixed: worded so)

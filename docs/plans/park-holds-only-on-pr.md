@@ -50,6 +50,7 @@ Today a `defect: #<n>` park in state `PARKED` keeps its scope held (`joharness.s
   - the same plan on a live branch instead of the base: B reads `HOLD — overlaps <a>`. Failure: B spawns.
   - the base's plan scan unreadable (fail closed; fixture: a `git` on PATH that exits 2 on `grep`, the base ref intact): B reads `HOLD — overlaps <a>`. Failure: B spawns, or a row reads `scope released`.
   - existing RESUME and `core path: waiting on #N` cases pass unchanged. Failure: any of them FAILs.
+- Consumer-side check (SHIPS: `joharness.sh` syncs): in a consumer after its next sync, `./joharness.sh dispatch` on a claim parked `defect: #<n>` with no plan naming #<n> prints `no plan names #<n> yet — scope released` on that claim's row. Failure: the row reads `waits for a plan naming #<n> to retire`. Run by the consumer's sync pull request, not here.
 - `./joharness.sh ci` prints `ci: pass`; `./joharness.sh verify` prints `0 failed`. Failure: `ci: fail`, or a non-zero failed count.
 
 ## Where to look
