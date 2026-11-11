@@ -38,6 +38,7 @@ evidence. The knob and its meaning do not change.
 - `./joharness.sh ci` — `ci: pass`.
 - `./joharness.sh verify` — `0 failed`.
 - Selftest asserts the refusal reads `... commit(s) (N first-parent merge(s)) of origin/main since, over JOHARNESS_CATCHUP_COMMITS=0` and fails without the change.
+- Consumer-side: in a consumer checkout, `JOHARNESS_CATCHUP_COMMITS=0 JOHARNESS_CHECKS=local ./joharness.sh finish` after a green full run and a base move prints a `no catch-up:` line carrying `first-parent merge(s)`.
 
 ## Where to look
 
