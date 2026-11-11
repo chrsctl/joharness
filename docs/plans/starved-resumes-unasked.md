@@ -7,7 +7,7 @@ needs: starved-counts-green-runs
 requirement: none
 serves: all
 issue: none
-scope: shared:joharness.sh, .agents/harness/selftest/dispatch-park.sh, .claude/commands/manager.md, .agents/docs/manager-reference.md, shared:.agents/docs/consumer-repos.md
+scope: shared:joharness.sh, .agents/harness/selftest/dispatch-park.sh, .agents/harness/selftest.sh, .claude/commands/manager.md, .agents/docs/manager-reference.md, .agents/docs/orchestrator-reference.md, .agents/docs/orchestrated.md, shared:.agents/docs/consumer-repos.md
 ---
 
 ## Goal
@@ -45,6 +45,17 @@ Settled in `.agents/docs/consumer-repos.md` § Local checks (research
   bound with a moved base is offered; with an unmoved base it is not; at the
   bound it is counted blocked.
 - `.agents/docs/consumer-repos.md` § Local checks: one line on the resume.
+- k is this block's number on the claim, the current block included (1 for
+  the first); offered while k <= max, so `JOHARNESS_STARVED_RESUMES` is the
+  number of resumes. The manager counts the same history with one `git log`
+  command (manager-reference.md § Starved); dispatch reads only the
+  `resume <k>/<max>` form from `next:`, never its numbers.
+- The row the orchestrator acts on: `PARKED #<n> RESUME — STARVED`, #<n> the
+  block's `drafted:` pull request, and its § Resume paragraph in
+  `.agents/docs/orchestrator-reference.md`. A dispatch knob: its row in the
+  `.agents/docs/orchestrated.md` table, its name in the selftest's unset list.
+- manager-reference.md § Starved carries the new `next:` form (the prefix
+  once), § Question its exception.
 
 ## Assumptions
 
@@ -70,16 +81,21 @@ Settled in `.agents/docs/consumer-repos.md` § Local checks (research
 
 ## Acceptance
 
-- `./joharness.sh ci` — `ci: pass`.
-- `./joharness.sh verify` — `0 failed`, the new dispatch-park cases in its
-  count.
-- The new "offered" case fails on `origin/main` and passes on the branch;
+- `./joharness.sh ci` — `ci: pass`; its selftest runs the new
+  dispatch-park cases (`verify` runs the layer smoke test, not the selftest).
+- `./joharness.sh verify` — `0 failed`.
+- The case "STARVED under the bound, base moved: offered as a RESUME, no
+  human" fails on `origin/main`'s `joharness.sh` and passes on the branch;
   both runs in `## Review`.
+- dispatch-park cases: under the bound, base moved = a `PARKED #<n> RESUME —
+  STARVED` row; base unmoved = `PARKED #<n> STARVED … waits for the base to
+  move`, no RESUME; past the bound (next: still saying 1/2) = `BLOCKED: the
+  human's`; the at-bound form (no `resume`) = never a RESUME.
 - `grep -n 'resume <k>/<max>' .claude/commands/manager.md` — a hit in §4.
-- Consumer side, after the sync: `./joharness.sh dispatch` in a consumer
-  with a claim blocked `conflict: base outran finish: resume 1/2: ...` and
-  a base commit newer than the block lists that claim as offered, not under
-  `manager(s) blocked`.
+- Consumer side, after the sync: `./joharness.sh dispatch` in a consumer with
+  a claim blocked `conflict: base outran finish: resume 1/2: ...`, `drafted:
+  <n>`, and a base commit newer than the block prints `PARKED #<n> RESUME —
+  STARVED`, not the claim under `manager(s) blocked`.
 
 ## Where to look
 

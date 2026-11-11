@@ -124,6 +124,7 @@ JOHARNESS_EDGE_SLOT_HOURS|4|dispatch|A retired edge branch with no claim file an
 JOHARNESS_STRANDED_DAYS|2|dispatch|A plan-only branch that never claimed, its plan filed this many days ago, is STRANDED: a human carries or closes it; 0 = off.
 JOHARNESS_HEALTH_MINUTES|10|dispatch|One orchestrator pass every this many minutes.
 JOHARNESS_RESPAWN_LIMIT|2|dispatch|Respawns per item per orchestrator run.
+JOHARNESS_STARVED_RESUMES|2|dispatch|STARVED blocks a claim resumes without a human, counted from the git history of its branch across runs; past it the manager asks; 0 = always ask.
 JOHARNESS_ORCHESTRATOR_PASSES|6|dispatch|Orchestrator passes a session makes before it retires and the keeper starts a successor.
 JOHARNESS_MANAGER_HOURS|4|dispatch|Claim older than this with no pull request = CEILING? report; 0 lifts it.
 JOHARNESS_CHURN_THRESHOLD|5|dispatch|One file rewritten this often = warning.
@@ -9116,6 +9117,51 @@ awaited_pr() {
   printf '%s' "${BASH_REMATCH[1]#"${BASH_REMATCH[1]%%[!0]*}"}"
 }
 
+# <next:>: a STARVED block that asks no human (manager.md §4): `conflict:
+# base outran finish: resume <k>/<max>: ...`. The numbers are the branch's
+# text: only the form is read here, the count is starved_blocks'.
+starved_next() {
+  local t="${1#[\"\']}"
+  [[ "$t" =~ ^conflict:\ base\ outran\ finish:\ resume\ [0-9]+/[0-9]+: ]]
+}
+
+# <branch> <workstream path> [base]: the commits on the claim's branch (first
+# parent, since [base]) that write a frontmatter `next:` opening `conflict:
+# base outran finish` — the STARVED blocks this claim has made, the current
+# one included. From git, across orchestrator runs: a count the manager
+# writes can be reset (chrsctl/gx, 2026-11-11). Empty = unreadable.
+starved_blocks() {
+  local range="refs/remotes/origin/$1"
+  [ -z "${3:-}" ] || range="${3}..${range}"
+  git -C "$ROOT" rev-parse -q --verify "refs/remotes/origin/$1" >/dev/null 2>&1 </dev/null ||
+    return 0
+  # `</dev/null`: same reason as dispatch_age_min.
+  git -C "$ROOT" log --first-parent -m -p --unified=99999 --format='C %H' \
+    "$range" -- "$2" </dev/null 2>/dev/null |
+    awk '
+      /^C [0-9a-f]+$/ { newdash = 0; inhunk = 0; next }
+      /^@@/ { inhunk = 1; next }
+      !inhunk { next }
+      {
+        c = substr($0, 1, 1); line = substr($0, 2); sub(/\r$/, "", line)
+        if (c != " " && c != "+") next
+        if (line == "---") { newdash++; next }
+        if (c == "+" && newdash == 1 &&
+            line ~ /^next:[[:space:]]*["\047]?conflict: base outran finish/) n++
+      }
+      END { print n + 0 }'
+}
+
+# <unix ts>: the base's first parent carries a commit newer than it.
+base_moved_since() {
+  local t
+  case "${1:-}" in '' | *[!0-9]*) return 1 ;; esac
+  t="$(git -C "$ROOT" log -1 --first-parent --format=%ct \
+    "refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" </dev/null 2>/dev/null)"
+  case "$t" in '' | *[!0-9]*) return 1 ;; esac
+  [ "$t" -gt "$1" ]
+}
+
 # <n> <block age, minutes>: true when the base's first parent carries
 # GitHub's merge commit for pull request #<n> from a `human/` branch,
 # committed no earlier than the block: a PR merged before it is no answer to
@@ -9185,6 +9231,7 @@ cmd_dispatch() {
   local printed_deferred=
   local inflight="" free="" questions="" corefree="" row mergewait=""
   local n_parked=0 n_fixed=0 n_resume=0 n_recheck=0 parked_lines="" dst dn dplan dage di ri rtext dresume=0 bkind selfpark n_ownpark=0
+  local sk spr smax=""
   local dpark="" dhold="" dhold_n="" dhn dfix dfix_held="" wave_moot dwv dfix_minw n_dhold=0
   local fx_label fx_wait fx_k fx_r fx_c fx_slot fx_lim
   local bts redge rstem rts n_release=0 release_due="" hseen hst
@@ -9654,7 +9701,32 @@ cmd_dispatch() {
           [ -z "$bts" ] || bage="$(( ($(date +%s) - bts) / 60 ))"
           # The raw line: the parsed one stops at ` #`, a YAML comment.
           dn="$(awaited_pr "$(printf '%s\n' "$doc" | gr_field_raw next)")"
-          if [ -n "$dn" ] && awaited_pr_merged "$dn" "$bage"; then
+          # A STARVED block under JOHARNESS_STARVED_RESUMES (manager.md §4)
+          # is no human's: green and drafted, the base only moved faster than
+          # finish. It comes back once the base moves past the block, as a
+          # merged awaited PR does; k is counted here, never read from next:.
+          sk=""; spr=""
+          if starved_next "$(printf '%s\n' "$doc" | gr_field_raw next)"; then
+            [ -n "$smax" ] || smax="$(num_knob JOHARNESS_STARVED_RESUMES)"
+            sk="$(starved_blocks "$branch" "$ws" "$base")"
+            spr="$(printf '%s\n' "$doc" | gr_field drafted | tr -d '#"'"'"' ')"
+            case "$spr" in '' | *[!0-9]*) spr="" ;; esac
+            case "$sk" in '' | *[!0-9]*) sk="" ;; esac
+            { [ -n "$sk" ] && [ "$sk" -ge 1 ] && [ "$sk" -le "$smax" ] &&
+              [ -n "$spr" ] && [ -n "$bts" ]; } || sk=""
+          fi
+          if [ -n "$sk" ]; then
+            n_parked=$((n_parked + 1))
+            di="$(lint_stem "$path") (${branch})"
+            if base_moved_since "$bts"; then
+              n_fixed=$((n_fixed + 1)); dresume=1
+              fx_lines+=("$parked_lines"); parked_lines=""
+              fx_n+=("$spr"); fx_plan+=("${sk}/${smax}"); fx_di+=("$di"); fx_kind+=(STARVED)
+            else
+              flag="  PARKED #${spr} STARVED: resume ${sk}/${smax}, holds no slot: waits for the base to move past the block"
+              parked_lines="${parked_lines}            PARKED #${spr} STARVED ${di}: resume ${sk}/${smax}, waits for the base to move"$'\n'
+            fi
+          elif [ -n "$dn" ] && awaited_pr_merged "$dn" "$bage"; then
             n_parked=$((n_parked + 1)); n_fixed=$((n_fixed + 1)); dresume=1
             di="$(lint_stem "$path") (${branch})"
             fx_lines+=("$parked_lines"); parked_lines=""
@@ -9824,7 +9896,15 @@ cmd_dispatch() {
       fx_k=$fx_r; fx_r=$((fx_r + 1))
     fi
     dn="${fx_n[$ri]}"; dplan="${fx_plan[$ri]}"; di="${fx_di[$ri]}"
-    if [ "${fx_kind[$ri]}" = MERGED ]; then
+    if [ "${fx_kind[$ri]}" = STARVED ]; then
+      if [ "$fx_k" -lt "$n_resume" ]; then
+        rtext="${rtext}${fx_rows[$ri]}  PARKED #${dn} RESUME — STARVED, the base moved past the block (resume ${dplan}, JOHARNESS_STARVED_RESUMES): write the resume next:, then nudge or respawn (orchestrator.md), one slot"
+        dst="${dst}${fx_lines[$ri]}            PARKED #${dn} RESUME ${di}: STARVED resume ${dplan}, the base moved, resume it this pass"$'\n'
+      else
+        rtext="${rtext}${fx_rows[$ri]}  PARKED #${dn}: STARVED resume ${dplan}, the base moved, resume waits for a slot"
+        dst="${dst}${fx_lines[$ri]}            PARKED #${dn} ${di}: STARVED resume ${dplan}, resume waits for a slot"$'\n'
+      fi
+    elif [ "${fx_kind[$ri]}" = MERGED ]; then
       if [ "$fx_k" -lt "$n_resume" ]; then
         rtext="${rtext}${fx_rows[$ri]}  PARKED #${dn} RESUME — #${dn} merged, the human pull request its core path: block waits on: write the resume next:, then nudge or respawn (orchestrator.md), one slot"
         dst="${dst}${fx_lines[$ri]}            PARKED #${dn} RESUME ${di}: #${dn} merged, resume it this pass"$'\n'

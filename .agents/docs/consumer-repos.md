@@ -262,9 +262,10 @@ plans:
   Twice in chrsctl/gx on 2026-11-11 a human removed the label and the relayed
   answer was "catch up and merge" (WEAK: a consumer's reading of its own
   handover history, gx `2a0e04316`, `0847989f7`; not re-taken here). So dispatch
-  resumes such a claim itself once the base has moved, bounded, and only an
-  exhausted bound asks the human the choice that is really theirs (plan
-  `starved-resumes-unasked`, after `starved-counts-green-runs`).
+  resumes such a claim itself once the base has moved, bounded by
+  `JOHARNESS_STARVED_RESUMES` counted from the branch's git history, and
+  only an exhausted bound asks the human the choice that is really theirs
+  (manager-reference.md § Starved; a `PARKED #<n> RESUME — STARVED` row).
 
 Why a full run never lands there, measured in gx over the 12 hours before
 2026-11-11T13:50Z (WEAK: gx's reading, `git rev-list --count --since --until`
