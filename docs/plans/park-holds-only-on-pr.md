@@ -18,9 +18,10 @@ Today a `defect: #<n>` park in state `PARKED` keeps its scope held (`joharness.s
 
 ## Scope
 
-- `joharness.sh` (dispatch, parked-row loop): a `PARKED` claim whose `#<n>` no plan names, on the base or on a live branch row, holds no scope. The check is the one `dispatch_defect_state` already runs for UNPLANNED (`plan_names_issue`). Today only `UNREADABLE`, `STUCK` and `UNPLANNED` join `blocked_claims`; this case joins it too. From the moment a plan names `#<n>`, the park holds its scope as today, until that plan retires and RESUME fires.
+- `joharness.sh` (dispatch, parked-row loop): a `PARKED` claim whose `#<n>` no plan names — no `issue:` of a plan file on the base nor on a `live` branch row (git only: an open pull request counts only through a plan file it carries) — holds no scope. `dispatch_defect_state` keeps its own `named` for classification, unchanged, and exports it as `DS_NAMED` = `1` named, `0` not named with every read succeeding, `?` a read failed (the base's plan grep or ls-tree, or a live row's plan file). Only `0` releases: today's readers fail open (`2>/dev/null`), so the export fails closed itself. Inside the `defect:*` arm only `UNREADABLE`, `STUCK` and `UNPLANNED` join `blocked_claims` today; a `PARKED` row with `DS_NAMED=0` joins it too. From the moment a plan names `#<n>`, the park holds its scope as today, through its RESUME (RESUME is not released, as today).
+  - RECHECK is left out on purpose: it takes a slot and comes back this pass, so its scope stays held.
   - The claim itself is untouched. Its `status: blocked`, its `next:`, and its RESUME and RECHECK still work. It already holds no slot.
-  - The row text says which case applies, e.g. `PARKED #<n>: no plan names #<n> yet — scope released` versus `PARKED #<n>: waits for <plan> — scope held`.
+  - Both texts of a PARKED row say which case applies. Released: flag `PARKED #<n>: a defect's, holds no slot, parked <age> ago: no plan names #<n> yet — scope released`, verdict line `PARKED #<n> <stem> (<branch>): no plan names #<n> yet, scope released, report only`. Held: the flag and verdict line as today (`… waits for a plan naming #<n> to retire, or the base to move`, `… waits for the fix, report only`). No plan stem is printed: no reader keeps it.
   - A `core path: waiting on #<N>` block is unchanged. (Corrected on the build branch: today it does NOT hold its scope while #<N> is open — dispatch releases it as any human block, `overlaps … — that branch is BLOCKED on a human: spawn, reconcile expected`; it holds again only once #<N> merges and it RESUMEs. This plan leaves that as it is.)
 - `.agents/harness/selftest/dispatch-park.sh`:
   - Park on an unplanned issue → its scope is free to another plan.
@@ -43,10 +44,13 @@ Today a `defect: #<n>` park in state `PARKED` keeps its scope held (`joharness.s
 
 ## Acceptance
 
-- `bash .agents/harness/selftest/dispatch-park.sh`: the new cases pass, existing cases unchanged apart from row wording.
-- `./joharness.sh ci` and `./joharness.sh verify` are green.
-- Fixture with claim A parked on unplanned #7, scoping `src/a.py`, and free plan B scoping `src/a.py`: `./joharness.sh dispatch` lists B under `spawn`. Adding a plan with `issue: #7`: B is held again.
-- Consumer-side check: after sync, a consumer's dispatch shows a park on an unplanned issue as `scope released`.
+- `.agents/harness/selftest.sh` (runs the `dispatch-park` topic; it is not runnable alone): ends `0 failed`, with these new cases in `dispatch-park.sh` passing, each on a fixture where claim A is parked `defect: #<n>` on an issue no plan names, scope `src/<a>`, and plan B scopes `src/<a>`:
+  - dispatch prints B's row `overlaps <a> on src/<a> (claimed on <branch>) — that branch is BLOCKED on a human: spawn` and A's verdict line `no plan names #<n> yet, scope released`. Failure: B reads `HOLD — overlaps`.
+  - a plan with `issue: <n>` lands on the base, scoped elsewhere: B reads `HOLD — overlaps <a>`. Failure: B still spawns.
+  - the same plan on a live branch instead of the base: B reads `HOLD — overlaps <a>`.
+  - the base's plan scan unreadable (fail closed): B reads `HOLD — overlaps <a>`.
+  - existing RESUME and `core path: waiting on #N` cases pass unchanged.
+- `./joharness.sh ci` prints `ci: pass`; `./joharness.sh verify` prints `0 failed`.
 
 ## Where to look
 
