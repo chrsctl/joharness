@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK73dTDFMFdY1DpQZNt
 agent: opus
 updated: 2026-11-11
-next: Verifier at opus running on 1a07d872; record its findings in ## Review, fix, ci + verify, then finish
+next: ci + verify on the r12 fix, then finish, PR, merge
 ---
 
 ## Goal
@@ -48,7 +48,11 @@ from git (`JOHARNESS_STARVED_RESUMES`), ask only at the bound.
 - r8: (plan-checker) consumer acceptance names "offered", a string dispatch never prints (fixed)
 - r9: (plan-checker) fails-on-origin/main item names no command or output (fixed)
 - r10: (plan-checker) unmoved-base and past-bound cases have no Acceptance item (fixed)
-- r11: (plan-checker) RECHECK already resumes on a moved base, and consumer-repos.md already carries the line (no change: RECHECK is defect-keyed and bounded by hours, STARVED by a count; the consumer-repos line is reworded off the plan stem)
+- r11: (plan-checker) RECHECK already resumes on a moved base, and consumer-repos.md already carries the line (no change: RECHECK is defect-keyed and bounded by hours, STARVED by a count; the consumer-repos line is reworded off the plan stem)- r12: (verifier) a resume-form block with no `drafted:` or past the bound reads `BLOCKED: the human's` with no question posted and nothing saying so (fixed: dispatch flags `STARVED UNASKED`, § Starved sends a failed draft to the asked form; case added)
+- r13: (verifier) the fails-on-base / passes-on-branch runs are not recorded (fixed: selftest with origin/main's joharness.sh and the branch's tests, 2026-11-11: `4317 passed, 4 failed` — the four offered/wait cases; branch `ci: pass`, verify docker `6 passed, 0 failed`)
+- r14: (verifier) the branch changed the plan's bound from k < max to k <= max and its Acceptance (no change: disclosed in r1/r5 and Decisions; the knob names the number of resumes)
+- r15: (verifier) base_moved_since compares the base's committer time with the block's author time; an amended block can read moved early (wontfix: the early resume is still counted against the bound, and dispatch_block_ts is shared with every park reader)
+
 ## Blockers
 
 None.

@@ -9231,7 +9231,7 @@ cmd_dispatch() {
   local printed_deferred=
   local inflight="" free="" questions="" corefree="" row mergewait=""
   local n_parked=0 n_fixed=0 n_resume=0 n_recheck=0 parked_lines="" dst dn dplan dage di ri rtext dresume=0 bkind selfpark n_ownpark=0
-  local sk spr smax=""
+  local sk spr sunasked smax=""
   local dpark="" dhold="" dhold_n="" dhn dfix dfix_held="" wave_moot dwv dfix_minw n_dhold=0
   local fx_label fx_wait fx_k fx_r fx_c fx_slot fx_lim
   local bts redge rstem rts n_release=0 release_due="" hseen hst
@@ -9705,7 +9705,7 @@ cmd_dispatch() {
           # is no human's: green and drafted, the base only moved faster than
           # finish. It comes back once the base moves past the block, as a
           # merged awaited PR does; k is counted here, never read from next:.
-          sk=""; spr=""
+          sk=""; spr=""; sunasked=""
           if starved_next "$(printf '%s\n' "$doc" | gr_field_raw next)"; then
             [ -n "$smax" ] || smax="$(num_knob JOHARNESS_STARVED_RESUMES)"
             sk="$(starved_blocks "$branch" "$ws" "$base")"
@@ -9713,7 +9713,7 @@ cmd_dispatch() {
             case "$spr" in '' | *[!0-9]*) spr="" ;; esac
             case "$sk" in '' | *[!0-9]*) sk="" ;; esac
             { [ -n "$sk" ] && [ "$sk" -ge 1 ] && [ "$sk" -le "$smax" ] &&
-              [ -n "$spr" ] && [ -n "$bts" ]; } || sk=""
+              [ -n "$spr" ] && [ -n "$bts" ]; } || { sk=""; sunasked=1; }
           fi
           if [ -n "$sk" ]; then
             n_parked=$((n_parked + 1))
@@ -9771,6 +9771,10 @@ cmd_dispatch() {
                 flag="  INVALID BLOCK? defect: #${selfpark} is this plan's own issue (manager.md §3): not the human's, never a park — ask it to do the plan's goal or name a real reason, order nothing"
               else
                 flag="  BLOCKED: the human's, holds no slot"
+                # The resume form asks no one: past the bound, or no
+                # drafted: number, it is the human's with no question posted.
+                [ -z "$sunasked" ] ||
+                  flag="${flag}  STARVED UNASKED: resume form past JOHARNESS_STARVED_RESUMES or with no drafted: number, so no question was posted — ask it to post manager-reference.md § Question, order nothing"
                 block_reason_ok "$next" ||
                   flag="${flag}  INVALID BLOCK? next: opens with no reason word (manager.md §3): ask, order nothing"
               fi

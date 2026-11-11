@@ -224,7 +224,7 @@ green and drafted, and dispatch resumes it once the base moves (`PARKED #<n>
 RESUME — STARVED`, orchestrator-reference.md § Resume). Dispatch counts `<k>`
 itself from the same history and ignores the number you write. Resumed:
 start the `finish behind` count at 0, merge `origin/main`, `finish`, merge.
-`<k>` over `<max>`: the bound is spent; `next:` exactly the same text
+`<k>` over `<max>`, or no `drafted: <N>` (the draft failed): the bound is spent; `next:` exactly the same text
 without `resume <k>/<max>: `, then § Question with the human choices it
 names. Dispatch counts that block the human's.
 

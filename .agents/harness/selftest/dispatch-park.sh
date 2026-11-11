@@ -1401,6 +1401,9 @@ if printf '%s\n' "$out" | grep '^  docs/plans/own-q.md' | grep -q 'BLOCKED: the 
 else
   fail "STARVED past the bound (3 blocks, next: says 1/2): the human's, git counts"; printf '%s\n' "$out" | indent
 fi
+expect "and flagged: no question was posted" \
+  "STARVED UNASKED: resume form past JOHARNESS_STARVED_RESUMES" \
+  "$(grep '^  docs/plans/own-q.md' <<<"$out")"
 out="$(dfx env JOHARNESS_STARVED_RESUMES=0)"
 refute "JOHARNESS_STARVED_RESUMES=0: never offered" "PARKED #901 RESUME" "$out"
 # The at-bound form asks the human: no `resume <k>/<max>` in next:, never offered.
