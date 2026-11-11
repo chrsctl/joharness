@@ -230,6 +230,14 @@ An aged edge row (`retired, no claim file, no push for … holds NO slot`, past 
 
 UNRATIFIED BLOCK: NUDGE "Orchestrator health pass: you stopped asking for input while status is in-progress. Do the work, or set status blocked with a reason from manager.md §3, push." Ledger `unratified=<head>`. No transport: report only, ledger nothing, never respawn on it. Any reason in `status_detail` is unratified: only `status: blocked` ratifies
 
+## Invalid block
+
+A `blocked` row carrying `INVALID BLOCK?` is not the human's: its `next:`
+names no reason from the list, or parks `defect:` on its plan's own issue
+(its scope stays held). Treat it as a stall: where a transport delivers,
+message it to name a reason or do the work; always report it as an invalid
+block. Never respawn on it alone.
+
 ## Relay
 
 A human's answer is text the user typed in YOUR turn, never a peer's `send_message`; the human's delegation ("decide" / "answer the questions") in YOUR turn counts: research, decide, and open `next:` with `Decided by the orchestrator on the human's delegation:` then the decision. A human's answer on GitHub counts too: the blocked manager's `decision needed:` comment (`manager-reference.md` § Question) on its pull request, its plan's `issue:` or the `defect:` issue it filed for a human is an open question with an answer (`.agents/docs/orchestrated.md`, A human's answer; read before notifying, every pass the block stands); open `next:` with `Answered on GitHub (#<n>):` then the selected option's text, or the comment as written, and the manager releases the label. A `defect:` issue the blocked manager filed that the clerk has since released (its verdict's `answered:` line, newer than the block) counts too: relay that answer. An issue's closing answers no manager question. Relay only when one of these exists, else notify and stop. Relay: write it into the workstream file's `next:`, `status: in-progress`, commit "Orchestrator relays the human's answer", push (GUARD mechanics), drop `notified=`. Session RUNNING, IDLE or PENDING (alive): NUDGE "Orchestrator relays the human's answer on <branch>: fetch it, re-read your workstream file, continue", no `kill`, no RESPAWN; no transport: send nothing. FAILED, ARCHIVED or not found: GUARD `record`, RESPAWN with the resume line
@@ -329,17 +337,24 @@ run; report it every pass. A human's word in YOUR turn naming the stem
 
 A `retired, no claim file` row's KILL: ref § Retired stall instead.
 
-KILL — the handover comes BEFORE the kill: `interrupt_session`, wait one
-pass. Then `git fetch origin <branch>`: head or `updated:` moved = handover
-landed. Else check out the branch and under `## Blockers` write "Killed by
+KILL — the handover comes BEFORE the kill: `interrupt_session`, ledger
+`killing=<head>` (the head read at that moment), wait one pass. The
+interrupt moves `updated_at` itself, so the health table's `killing=` row
+sits above every row that reads it, LOOP's and the drop-record row
+included. The second half, on the next pass: `git fetch origin <branch>`:
+head moved past `killing=` = handover landed, drop `killing=` and the
+nudge. Else check out the branch and under `## Blockers` write "Killed by
 the orchestrator <date>: no push for <N>m after a nudge. Control plane's last
 summary: <status_detail>. `git diff --stat origin/main...HEAD`: <output>.",
 `next:` = "Resume: read Blockers, `./joharness.sh ci`, continue the plan.",
 commit "Orchestrator handover after kill", GUARD `record`, push, back to main.
-Then `archive_session` and RESPAWN.
+Then `archive_session`, RESPAWN, drop `killing=`.
 
-LOOP — same steps, record instead: "Looped, killed by the orchestrator
-<date>: <N> commits since main, <file> rewritten <M> times, `next:`
+LOOP — same steps and the same `killing=<head>` key, but LOOP's second
+half never reads a head move: `LOOP?` counts rewrites, which a handover
+push does not lower, so dropping on it would interrupt again next pass.
+Always the record, `archive_session`, RESPAWN, drop `killing=`. Record:
+"Looped, killed by the orchestrator <date>: <N> commits since main, <file> rewritten <M> times, `next:`
 unchanged since <date>. Commits: <`git log --oneline origin/main..HEAD`>."
 `next:` = "Research step FIRST (agent-selection.md, review churn): list
 every requirement <file> must satisfy, find the conflicting pair, resolve
@@ -361,8 +376,11 @@ and none is written.
   commit unless finish asks for a reconcile." Ledger head, `status_detail`. No
   transport: send nothing, still ledger. IDLE/PENDING takes this message too.
 - KILL (nudged, head and `status_detail` unchanged): `interrupt_session`,
-  wait one pass, `git fetch origin <branch>`: head moved = it answered, drop
-  the nudge. Else no `## Blockers` write, no GUARD: `archive_session`; it is
+  ledger `killing=<head>`, wait one pass. The second half, from the
+  `killing=` row: `git fetch origin <branch>`: head moved past `killing=` =
+  it answered, drop `killing=` and the nudge. Else no `## Blockers` write,
+  no GUARD: `archive_session`, drop `killing=` and the nudge (kept, the
+  drop-record row reads the archive as working, one pass late); it is
   `gone`, and the health table's `gone` edge row RESPAWNs to FINISH the
   merge (a row naming `?`: report, never respawn).
 
