@@ -8,7 +8,7 @@ lines say when to read each; its terms hold here.
 | absent | what changes |
 | --- | --- |
 | `PushNotification` (or the environment's equivalent) | a valid block, a `corewait` pull request, a FAILED SPAWN AT LIMIT, `slot held with no exit` and `spawn has no checkout` are reported in the pass report only, no push to the human: say so once. |
-| any transport that delivers | no nudge: still two passes, the first sends nothing; the KILL's interrupt does the asking. the row's `STALL?` window becomes a kill threshold (a retired row's adds `JOHARNESS_LOCAL_CHECK_MINUTES`) — say so. |
+| any transport that delivers | no nudge: still two passes, the first sends nothing; the KILL's interrupt does the asking. The row's `STALL?` window becomes a kill threshold (a retired row's adds `JOHARNESS_LOCAL_CHECK_MINUTES`) — say so. |
 | `interrupt_session` | cannot stop, so must not replace: write the handover from the branch, `status: blocked`, `next:` = "stalled: Stalled; the orchestrator could not stop the session that holds this.", report, no respawn. A session already gone (ARCHIVED, COMPLETED, not found, FAILED twice) is respawned anyway. An UNCLAIMED session a row would interrupt (BLOCKED BEFORE CLAIM, RUNNING nudged): FAILED SPAWN AT LIMIT at once, spawn nothing (§ Unclaimed spawn rows). |
 | `archive_session` | the stopped session is left in place; report, respawn as written. An UNCLAIMED session a row would archive, not ARCHIVED, COMPLETED or not found: FAILED SPAWN AT LIMIT at once, spawn nothing (§ Unclaimed spawn rows). |
 | `status_bucket` | crash and BLOCKED BEFORE CLAIM rows unreachable: take the IDLE path (nudge, confirm, respawn; the unratified-block row still applies); never respawn on one observation; name the managers judged this way. |
@@ -92,7 +92,9 @@ queue cannot see").
 
 1. `git fetch --prune origin` and fast-forward this checkout to `origin/main`
    (`git checkout main && git merge --ff-only origin/main`), so the harness
-   you run is current. Cannot fast-forward = say so and stop.
+   you run is current. Cannot fast-forward = say so and stop. Only here:
+   a resync inside one session never shows in the checkout, which is why
+   the pass entry's Harness check reads fresh-fetched `origin/main`.
 2. `./joharness.sh authority`. VERIFIABLE = proceed. UNVERIFIED naming a
    shallow clone = `timeout 300 git fetch --unshallow origin` once, then
    `authority` again. Still not VERIFIABLE = stop and quote its verdict text
@@ -323,7 +325,7 @@ run; report it every pass. A human's word in YOUR turn naming the stem
 
 ## KILL and LOOP
 
-A `retired, no claim file` row: ref § Retired stall instead.
+A `retired, no claim file` row's KILL: ref § Retired stall instead.
 
 KILL — the handover comes BEFORE the kill: `interrupt_session`, wait one
 pass. Then `git fetch origin <branch>`: head or `updated:` moved = handover

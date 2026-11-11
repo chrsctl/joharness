@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK3Z2R5D8EtAQqikw7t
 agent: opus
 updated: 2026-11-11
-next: ci again, then the retire commit, PR and finish
+next: ci, then the retire commit, PR and finish
 ---
 
 ## Goal
@@ -55,6 +55,14 @@ that does not ask for a handover.
 - r19: (verifier) the new `stall :` header text is pinned by no test (fixed: "the stall header names the retired-row window beside the plain one")
 - r20: (verifier) the branch rewrote its plan's aged-edge clause against the base text (no change: decided in ## Decisions, from plan-checker r8, now tested by r18)
 - r21: (verifier) orchestrator-reference.md no-transport row still calls JOHARNESS_STALL_MINUTES the kill threshold, untrue for retired rows (fixed: after the merge the ref is in scope; the row names the retired window)
+- r23: (verifier) the spawn prompt carried an explanation beside the merge-base command (no change: prompt-side, the review judged the diff without it)
+- r24: (verifier) a KILL's own interrupt moves `updated_at`, so the drop-record row clears the nudge and the kill never archives; the retired kill copies the generic one (wontfix: pre-existing in the generic KILL; PR body)
+- r25: (verifier) the cut Harness clause's why is lost, not relocated (fixed: moved to ref § 0. Start step 1)
+- r26: (verifier) dispatch reads JOHARNESS_LOCAL_CHECK_MINUTES from the orchestrator's environment, not the manager's, and adds it under JOHARNESS_CHECKS=github too (wontfix: sessions of one cloud environment share its variables; under github checks the extra 30m only delays a nudge, never wrongly kills)
+- r27: (verifier) lowercase sentence start in the ref's no-transport row (fixed)
+- r28: (verifier) the § KILL and LOOP pointer reads as covering LOOP too (fixed: names KILL)
+- r29: (verifier) a retired KILL hands off to RESPAWN, whose template reads a workstream file the retire commit deleted (wontfix: pre-existing in the `gone` edge row's RESPAWN; PR body)
+- r30: (verifier) the plan's Traps byte count is stale after the merge (fixed)
 - r22: (verifier) the retired KILL row archives without checking whether the head moved after the interrupt (fixed: head moved = answered)
 
 ## Blockers

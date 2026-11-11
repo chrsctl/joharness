@@ -117,5 +117,5 @@ and a nudge that does not ask for a handover.
   `stranded-branch-plans`, and `orchestrator.md` with `stranded-branch-plans`
   and `heartbeat-read-cheaper`: reconcile, do not overwrite.
 - `orchestrator.md` has a reading budget (`selftest/reading-budget.sh`,
-  bound 23628 bytes, 472 free on `origin/main`): the new rows must fit it.
+  bound 23628 bytes; 12 free once `origin/main` moved on): the new text must fit it.
 - `joharness.conf` is a core path: do not touch it.
