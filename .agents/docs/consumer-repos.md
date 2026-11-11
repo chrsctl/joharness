@@ -220,7 +220,7 @@ check at all. `JOHARNESS_CATCHUP_COMMITS=0` turns it off.
 Why the bound counts commits, and what that costs. It is a count of commits,
 not of merged pull requests, so it measures how far the base moved only where
 a pull request is about one commit. A consumer whose pull requests are merge
-commits carrying 5-8 commits each reaches 20 commits in 3-4 pull requests:
+commits carrying 5-8 commits each reaches 20 commits in 2.5-4 pull requests:
 chrsctl/gx, 220 commits over 27 first-parent merges in 12 hours, 31 commits in
 4 pull requests inside one 29-minute `finish` (GROUNDED: `git log origin/main
 --since=<a> --until=<b> --format=%h | wc -l` and the same with `--first-parent
@@ -230,9 +230,11 @@ merged (WEAK: one gx session's reading of manager transcripts, no second
 context has taken it). Renumbering ids after a merge takes a branch out of
 CATCH-UP by the no-shared-file condition, a second cause the bound does not
 touch. The knob stays in commits until a count of merged pull requests has
-evidence of its own; the refusal line prints the first-parent merge count
-beside the commit count so a consumer can tune `JOHARNESS_CATCHUP_COMMITS`
-from its own history.
+evidence of its own. Plan `catch-up-print-merge-count` makes the CATCH-UP lines
+print the first-parent merge count beside the commit count, so a consumer can
+tune `JOHARNESS_CATCHUP_COMMITS` from its own history; until it lands they
+print commits only. Count yourself: `git rev-list --count --first-parent
+--merges <base>..origin/main`.
 
 The head's copy runs so a pull request repairing a check broken on base can
 pass; a branch can therefore weaken it. A branch changing `local-check`

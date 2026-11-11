@@ -20,9 +20,9 @@ evidence. The knob and its meaning do not change.
 
 ## Scope
 
-- `joharness.sh` — `checks_catch_up`: compute `m` = `git rev-list --count --first-parent --merges "${cb}..${ref}"` and print it with `n`.
+- `joharness.sh` — `checks_catch_up`: compute, before the if/elif chain, `m` = `git rev-list --count --first-parent --merges "${cb}..${ref}"` and print it with `n`.
 - `.agents/harness/selftest/checks.sh` — the CATCH-UP block asserts the new text.
-- `.agents/docs/consumer-repos.md` — the sentence naming what the refusal prints is already there; adjust if wording differs.
+- `.agents/docs/consumer-repos.md` — the paragraph says the lines will print the merge count; change "until it lands they print commits only" to present tense and drop that clause.
 
 ## Assumptions
 
@@ -37,8 +37,8 @@ evidence. The knob and its meaning do not change.
 
 - `./joharness.sh ci` — `ci: pass`.
 - `./joharness.sh verify` — `0 failed`.
-- Selftest asserts the refusal reads `... commit(s) (N first-parent merge(s)) of origin/main since, over JOHARNESS_CATCHUP_COMMITS=0` and fails without the change.
-- Consumer-side: in a consumer checkout, `JOHARNESS_CATCHUP_COMMITS=0 JOHARNESS_CHECKS=local ./joharness.sh finish` after a green full run and a base move prints a `no catch-up:` line carrying `first-parent merge(s)`.
+- Selftest (`.agents/harness/selftest/checks.sh`, the `JOHARNESS_CATCHUP_COMMITS=0` case) asserts the refusal contains `1 commit(s) (N first-parent merge(s)) of origin/main since, over JOHARNESS_CATCHUP_COMMITS=0` with N the count the fixture's base move really has (compute it with `git rev-list --count --first-parent --merges`, state it literally in the assertion), and a second assertion that the `CATCH-UP     HEAD = certified` case prints `commit(s) (N first-parent merge(s)) of origin/main`. Both fail without the change.
+- Consumer-side (after a sync; needs a prior green full `finish` and a base move, `0` makes every move refuse): `JOHARNESS_CATCHUP_COMMITS=0 JOHARNESS_CHECKS=local ./joharness.sh finish` prints a `no catch-up:` line carrying `first-parent merge(s)`.
 
 ## Where to look
 

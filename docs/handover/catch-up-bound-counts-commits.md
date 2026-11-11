@@ -22,6 +22,11 @@ consumer's merged PRs carry several commits each; graduate the answer.
 
 ## Review
 
+- r1: doc stated the merge count as printed today, code does not (verifier) (fixed: reworded to name the plan, until it lands commits only)
+- r2: plan acceptance left N unspecified, second line untested, consumer check not self-contained (verifier) (fixed: plan rewritten)
+- r3: 3-4 PRs arithmetic is 2.5-4 (verifier) (fixed)
+- r4: gx figures cannot be re-run here (verifier) (no change: marked GROUNDED/WEAK per who re-took them, in the doc)
+
 ## Blockers
 
 None.
