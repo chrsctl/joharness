@@ -13,10 +13,10 @@ scope: shared:joharness.sh, shared:.agents/harness/selftest/checks.sh, shared:.a
 ## Goal
 
 Local-mode `finish` on a busy consumer has no written loop, only patches:
-CATCH-UP covers a clean merge with no shared path, a scoped green is being
-taught not to certify (`local-check-scoped-green`), and STARVED is being
-taught what to count and when to resume without a human
-(`starved-counts-green-runs`, `starved-resumes-unasked`). Two cases still
+CATCH-UP covers a clean merge with no shared path, a scoped green does not
+certify (`local-check-scoped-green`, merged #762), and STARVED counts only
+outrun greens and resumes without a human (`starved-counts-green-runs`,
+`starved-resumes-unasked`, merged). Two cases still
 fall to a full run every time, and in chrsctl/gx they are the common ones:
 
 1. **A path changed on both sides.** CATCH-UP refuses, the whole check
@@ -54,7 +54,8 @@ as it does today, so the default stays safe.
      `mb..base`;
    - `auto` = the first line of `git merge-tree --write-tree --name-only
      H0 base`; on exit 1, `conflicted` = the path lines after it, up to the
-     first blank line;
+     first blank line. Exit 1 is no refusal; any other non-zero exit is
+     (today's "does not merge clean" refusal narrows to that);
    - `resolved` = `git diff --name-only <auto> HEAD^{tree}` (none for a clean
      merge). A resolved path outside `conflicted ∪ branch ∪ base` means
      something besides the merge changed: full run, naming it. A resolved
@@ -71,7 +72,8 @@ as it does today, so the default stays safe.
      green certifies `Hk` as a new `C`.
    - Any refusal: the full run, as today, naming why.
 4. **Bound.** One bound for both, `JOHARNESS_CATCHUP_COMMITS` (unchanged,
-   default 20). `R` holds only paths the branch could have changed. A
+   default 20). `R` holds no base-only path the merge left as the base
+   wrote it (a hand edit to one puts it in `R`, by step 3). A
    semantic clash between a base-only path and a branch-only path reaches
    neither CATCH-UP nor RETEST (`consumer-repos.md` § Local checks, "The
    cost, named"), so the window that bounds that risk stays where it is.
@@ -92,9 +94,26 @@ as it does today, so the default stays safe.
   (`origin/main` is shared by every worktree and can move between the
   fetch and the pin) would otherwise hide base changes from both CATCH-UP
   and RETEST (chrsctl/gx #1499 verifier r1, the same shape in
-  `tools/localcheck/scope.py`). Output: the CATCH-UP line is unchanged. A new line, `RETEST
-  HEAD = certified <sha> + <n> commit(s) …, <k> path(s) to retest, first
-  <path>`, prints on RETEST.
+  `tools/localcheck/scope.py`). In the harness the pin reads `tip` and
+  `pin` before `behind` against the same ref, so only a hand-written or
+  foreign certificate reaches that shape: the measure is the defence, case
+  9 builds it by hand. The base-changed-`local-check` refusal reads the same
+  `base` set. Paths git would quote (`core.quotePath=false` still quotes
+  a tab, newline, `"` or `\`) refuse: full run, "a path git quotes". Output:
+  the CATCH-UP line is unchanged. On RETEST:
+  `  RETEST       HEAD = certified <sha9> + <n> commit(s) (<m> first-parent merge(s)) of <ref>, <k> path(s) to retest, first <path>`.
+  The resolved-path refusal: `full run     certified <sha9> found, no
+  catch-up: HEAD changed <path>, which neither side nor the merge did:
+  something else changed`.
+- Existing `checks.sh` expectations this changes, with their new text:
+  `a path changed on both sides: docs-shared.txt` → `RETEST` with
+  `first docs-shared.txt` (`local-check` still runs); `HEAD's tree is not
+  the clean merge` → `HEAD changed docs-own.txt, which neither side`;
+  `a path changed on both sides: kccr.txt` → `RETEST` with `first kccr.txt`.
+- `finish`'s verdict line: a pass whose certificate names an older head
+  says `carried by CATCH-UP` today; after a scoped RETEST it says
+  `retested from <sha9> (RETEST)` instead (the retest file is present only
+  after a RETEST).
 - `joharness.sh:checks_gate`: a RETEST keeps the certificate. Today every
   run that is not CATCH-UP removes it before the suites ("A full run
   supersedes any certificate"). A RETEST is not a full run: if it removed
@@ -104,8 +123,10 @@ as it does today, so the default stays safe.
   writes `Hk` over it, as any full green does.
 - `joharness.sh:checks_local_check`: on RETEST, write
   `<git-dir>/joharness-retest-paths` and export `JOHARNESS_RETEST_PATHS`
-  and `JOHARNESS_RETEST_FROM`. On every other run, export neither and remove
-  the file before `local-check` starts.
+  and `JOHARNESS_RETEST_FROM`. On every other run, export neither
+  (unset, not empty). `checks_gate` removes the file on every run before
+  classifying, so a CATCH-UP, which never calls `checks_local_check`,
+  leaves none either.
 - `joharness.sh` knob table: rows for `JOHARNESS_RETEST_PATHS` and
   `JOHARNESS_RETEST_FROM`, `computed|session|`, in the form of
   `JOHARNESS_LOCAL_CHECK_SCOPED`'s row, and passed inline on the
@@ -131,8 +152,11 @@ as it does today, so the default stays safe.
      measures from `H0`, and its `R` is the union of both merges' sets.
   8. A commit after certification, base unmoved (`n = 0`) → full run, "has
      not moved since", never RETEST.
-  9. A certificate whose recorded base is not an ancestor of its head, base
-     then changing a branch path → that path is in `R` (today: missed).
+  9. A hand-written certificate whose recorded base `cb` is not an
+     ancestor of its head, where a commit in `merge-base(H0, cb)..cb`
+     changes a branch path (clean merge), then the base moves past `cb`
+     → that path is in `R` (today: missed, CATCH-UP). With `cb..ref`
+     put back it goes red.
   10. RETEST with a scoping fixture → the certificate file still names `H0`
       afterwards (today's removal on a non-CATCH-UP run would delete it).
   Each case fails with its mechanism removed; record which removal reddened
@@ -140,7 +164,11 @@ as it does today, so the default stays safe.
 - `.agents/docs/consumer-repos.md` § Local checks: "The finish loop" (the
   five steps above) and the consumer contract: the two variables, the file,
   what a scoped run must still do (re-run every suite a path in `R` could
-  feed), and the default when it ignores them.
+  feed), and the default when it ignores them. Rewrite the text this makes
+  false: the CATCH-UP paragraph's "any other shape is the full run", and
+  "Renumbering ids after a merge takes a branch out of CATCH-UP" (now:
+  into RETEST).
+- `joharness.sh` knob row `JOHARNESS_CATCHUP_COMMITS`: bounds RETEST too.
 - `.claude/commands/manager.md` §4: one line pointing at "The finish loop"
   in place of the bare "merge `origin/main` in, `finish` again".
 - `.agents/docs/product.md` "Conflict at finish": a hand resolution no
@@ -157,8 +185,9 @@ as it does today, so the default stays safe.
   `git merge-tree --help` — confidence: high.
 - A2: `local-check-scoped-green` lands a marker by which `local-check` says
   "green, do not certify", and its OUTRUN rule accepts a scoped green. This
-  plan reads that result. — evidence: `docs/plans/local-check-scoped-green.md`
-  § Scope — confidence: high.
+  plan reads that result. — evidence: `joharness.sh:checks_local_check`
+  (`JOHARNESS_LOCAL_CHECK_SCOPED`, `CHECKS_SCOPED`), merged #762 —
+  confidence: high.
 - A3: The certificate stays rooted at a full green (`C`), so a chain of
   retests never stands on a scoped run. — evidence: `consumer-repos.md` §
   Local checks, "A catch-up never re-certifies" — confidence: high.
@@ -184,12 +213,17 @@ as it does today, so the default stays safe.
 ## Acceptance
 
 - `./joharness.sh ci` — last line `ci: pass`; any `FAIL` stage is red.
-- `./joharness.sh verify` — `0 failed`, with the ten new `checks.sh` cases
-  in its count; any non-zero failed count is red. (`checks.sh` runs only under
-  the selftest runner, never alone.)
-- Cases 1, 2, 7, 9 and 10 fail on `origin/main` (CATCH-UP refuses, so a full run
-  with no variables) and pass on the branch. Record both outputs.
-- Plan `ci` calls SHIPS. The consumer-side check comes after the sync, so it
+- `./joharness.sh verify` — `0 failed`; any non-zero failed count is red.
+- Each new case's assertion names start `retest: <case number>.`, so
+  `bash .agents/harness/selftest.sh 2>&1 | grep -E 'retest: [0-9]+\.'`
+  lists all ten, none failing (a total count has no baseline to read).
+- Cases 1, 2, 7, 9 and 10 fail on `origin/main`: `git worktree add --detach
+  <dir> origin/main`, copy the branch's `checks.sh` in, run
+  `bash .agents/harness/selftest.sh 2>&1 | grep -E 'FAIL.*retest: (1|2|7|9|10)\.'`
+  there — non-empty for each of the five. Record both outputs.
+- `./joharness.sh ci` on the branch prints `finish-retest-protocol: SHIPS`
+  (the plan is changed against the merge base before the retire commit).
+  The consumer-side check comes after the sync, so it
   is not part of this pull request. The PR body names it as the sync's
   acceptance: in a consumer, a branch whose full green is certified merges
   `origin/main` with a hand-resolved conflict in its own ledger file, and
