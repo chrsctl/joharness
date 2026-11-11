@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK5ir4zBQWg9RLmp1Uh
 agent: opus
 updated: 2026-11-11
-next: Build checks_catch_up RETEST, gate, local_check, then the checks.sh cases
+next: Read selftest run, commit docs worker output, run verifier
 ---
 
 ## Goal
