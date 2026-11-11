@@ -474,6 +474,72 @@ else
   fail "and no DONE ON MAIN or live branch plan reaches the spawn list"
 fi
 
+# --- plans on a branch: STRANDED (JOHARNESS_STRANDED_DAYS) ------------------
+# A plan-only branch nobody drives: no pull request is visible from git, so
+# the proxy is a diff of plans alone and no workstream file ever added. Its
+# row carries `STRANDED <n>d` past the knob and the verdict counts it, for a
+# human; it is never spawned on. Same fixture repo; each case its own stem.
+# <branch> <stem> <days ago> [<extra file>|claim|edge]
+stbranch() {
+  git -C "$bpwork" checkout -qb "$1" main
+  mkdir -p "${bpwork}/docs/plans" "${bpwork}/docs/handover"
+  bpplan "${bpwork}/docs/plans/$2.md" "$2" normal
+  case "${4:-}" in
+    claim | edge)
+      printf -- '---\nworkstream: %s\nstatus: in-progress\nbranch: %s\nplan: none\nagent: sonnet\nupdated: 2026-01-01\nnext: Build\n---\n\n## Goal\nFixture.\n' \
+        "$2" "$1" >"${bpwork}/docs/handover/$2.md" ;;
+    ?*) printf 'code\n' >"${bpwork}/$4" ;;
+  esac
+  git -C "$bpwork" add -A
+  GIT_AUTHOR_DATE="$(( $(date +%s) - $3 * 86400 - 600 )) +0000" \
+  GIT_COMMITTER_DATE="$(( $(date +%s) - $3 * 86400 - 600 )) +0000" \
+    git -C "$bpwork" commit -qm "file $2, $3 day(s) ago"
+  if [ "${4:-}" = edge ]; then
+    git -C "$bpwork" rm -q "docs/handover/$2.md"
+    GIT_AUTHOR_DATE="$(( $(date +%s) - $3 * 86400 - 300 )) +0000" \
+    GIT_COMMITTER_DATE="$(( $(date +%s) - $3 * 86400 - 300 )) +0000" \
+      git -C "$bpwork" commit -qm "retire the claim of $2"
+  fi
+  git -C "$bpwork" push -qu origin "$1"
+  git -C "$bpwork" checkout -q main
+}
+stbranch st-old sa 3
+stbranch st-young sb 1
+stbranch st-claimed sc 3 claim
+stbranch st-code sd 3 sd.txt
+stbranch st-edge se 3 edge
+if git -C "$bpwork" cat-file -e refs/remotes/origin/st-claimed:docs/handover/sc.md 2>/dev/null &&
+   git -C "$bpwork" cat-file -e refs/remotes/origin/st-code:sd.txt 2>/dev/null &&
+   ! git -C "$bpwork" cat-file -e refs/remotes/origin/st-edge:docs/handover/se.md 2>/dev/null &&
+   [ -n "$(git -C "$bpwork" log --diff-filter=A --format=%H main..refs/remotes/origin/st-edge -- docs/handover)" ]; then
+  pass "the fixture built the state: a claim, a code file, an added-and-retired claim"
+else
+  fail "the stranded fixture is not the state its cases below read"
+fi
+out="$(bp)"
+stblock="$(sed -n '/^plans on a branch/,/^$/p' <<<"$out")"
+expect "a plan-only branch with no workstream file held 3 days is STRANDED" \
+  "  sa (urgency: normal, agent: sonnet)  on st-old  held 3d  STRANDED 3d" "$stblock"
+expect "held 1 day: its row is listed" "  sb (urgency: normal, agent: sonnet)  on st-young  held 1d" "$stblock"
+refute "and carries no mark" "on st-young  held 1d  STRANDED" "$stblock"
+expect "a branch with a workstream file: its row is listed" "on st-claimed  held 3d" "$stblock"
+refute "and carries no mark" "on st-claimed  held 3d  STRANDED" "$stblock"
+expect "a branch with a non-plan file: its row is listed" "on st-code  held 3d" "$stblock"
+refute "and carries no mark" "on st-code  held 3d  STRANDED" "$stblock"
+expect "a branch that added and retired its claim (an edge): its row is listed" "on st-edge  held 3d" "$stblock"
+refute "and carries no mark" "on st-edge  held 3d  STRANDED" "$stblock"
+stmarks="$(grep -c '  STRANDED [0-9][0-9]*d' <<<"$stblock" || :)"
+expect "the verdict block counts every marked row" \
+  "            ${stmarks} stranded branch plan(s): a human carries or closes them" "$out"
+refute "and no stranded plan reaches the spawn list" "docs/plans/sa.md" \
+  "$(sed '/^plans on a branch/,/^$/d' <<<"$out")"
+out="$(cd "$bpwork" && JOHARNESS_STRANDED_DAYS=0 JOHARNESS_CONF="$bpconf" DRAIN_FETCH=0 \
+  DISPATCH_FETCH=0 ./joharness.sh dispatch 2>&1)"
+stblock="$(sed -n '/^plans on a branch/,/^$/p' <<<"$out")"
+expect "knob 0: the row is still listed" "  sa (urgency: normal, agent: sonnet)  on st-old  held 3d" "$stblock"
+refute "knob 0: no row carries the mark" "STRANDED" "$stblock"
+refute "knob 0: the verdict counts none" "stranded branch plan(s)" "$out"
+
 # --- release lines for doc-only branches (was FREEABLE, issue #423) --------
 # Same fixture. A fresh plan branch is no line: its author may be mid-pull-
 # request. A plan branch past HANDOVER_STALE_SECONDS that never claimed is a
