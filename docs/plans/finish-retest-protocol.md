@@ -87,16 +87,29 @@ as it does today, so the default stays safe.
   `merge-tree` call. Today's "HEAD's tree is not the clean merge" refusal
   becomes the resolved-path rule. Today's "a path changed on both sides"
   refusal becomes RETEST. Every other refusal stays, for CATCH-UP and RETEST
-  alike. Output: the CATCH-UP line is unchanged. A new line, `RETEST
+  alike. Measure the base side from `merge-base(H0, base)`, replacing
+  today's `cb..ref`: a recorded base the certified head never contained
+  (`origin/main` is shared by every worktree and can move between the
+  fetch and the pin) would otherwise hide base changes from both CATCH-UP
+  and RETEST (chrsctl/gx #1499 verifier r1, the same shape in
+  `tools/localcheck/scope.py`). Output: the CATCH-UP line is unchanged. A new line, `RETEST
   HEAD = certified <sha> + <n> commit(s) …, <k> path(s) to retest, first
   <path>`, prints on RETEST.
+- `joharness.sh:checks_gate`: a RETEST keeps the certificate. Today every
+  run that is not CATCH-UP removes it before the suites ("A full run
+  supersedes any certificate"). A RETEST is not a full run: if it removed
+  `C`, a scoped retest green would leave nothing for the next retest to
+  measure from. Only a full run (no CATCH-UP, no RETEST) removes it. A
+  RETEST whose `local-check` ignores the variables and runs green unscoped
+  writes `Hk` over it, as any full green does.
 - `joharness.sh:checks_local_check`: on RETEST, write
   `<git-dir>/joharness-retest-paths` and export `JOHARNESS_RETEST_PATHS`
   and `JOHARNESS_RETEST_FROM`. On every other run, export neither and remove
   the file before `local-check` starts.
 - `joharness.sh` knob table: rows for `JOHARNESS_RETEST_PATHS` and
-  `JOHARNESS_RETEST_FROM`, each `||session|` and set by `finish` on RETEST,
-  in the form of `JOHARNESS_SESSION_SOURCE`'s row
+  `JOHARNESS_RETEST_FROM`, `computed|session|`, in the form of
+  `JOHARNESS_LOCAL_CHECK_SCOPED`'s row, and passed inline on the
+  `checks_bounded` call as that variable is
   (`knobs-declared.sh:kd_problems` reds any name without a row). No new
   bound knob.
 - `.agents/harness/selftest/checks.sh`, CATCH-UP section. Cases, each with a
@@ -118,6 +131,10 @@ as it does today, so the default stays safe.
      measures from `H0`, and its `R` is the union of both merges' sets.
   8. A commit after certification, base unmoved (`n = 0`) → full run, "has
      not moved since", never RETEST.
+  9. A certificate whose recorded base is not an ancestor of its head, base
+     then changing a branch path → that path is in `R` (today: missed).
+  10. RETEST with a scoping fixture → the certificate file still names `H0`
+      afterwards (today's removal on a non-CATCH-UP run would delete it).
   Each case fails with its mechanism removed; record which removal reddened
   which case in the workstream file's `## Review`.
 - `.agents/docs/consumer-repos.md` § Local checks: "The finish loop" (the
@@ -167,10 +184,10 @@ as it does today, so the default stays safe.
 ## Acceptance
 
 - `./joharness.sh ci` — last line `ci: pass`; any `FAIL` stage is red.
-- `./joharness.sh verify` — `0 failed`, with the eight new `checks.sh` cases
+- `./joharness.sh verify` — `0 failed`, with the ten new `checks.sh` cases
   in its count; any non-zero failed count is red. (`checks.sh` runs only under
   the selftest runner, never alone.)
-- Cases 1, 2 and 7 fail on `origin/main` (CATCH-UP refuses, so a full run
+- Cases 1, 2, 7, 9 and 10 fail on `origin/main` (CATCH-UP refuses, so a full run
   with no variables) and pass on the branch. Record both outputs.
 - Plan `ci` calls SHIPS. The consumer-side check comes after the sync, so it
   is not part of this pull request. The PR body names it as the sync's
@@ -189,6 +206,7 @@ as it does today, so the default stays safe.
 
 ## Traps
 
+- Never let a RETEST remove the certificate: the chain stands on `C`.
 - Never measure a retest from the previous retest's head: every `R` is from
   the full green `C`, or scoped runs chain (A3).
 - A path in `R` is a hint to scope, never a licence to skip: a consumer that
