@@ -14,8 +14,12 @@ scope: shared:joharness.sh, shared:.claude/commands/orchestrator.md, shared:.age
 
 A plan file filed on a branch that never opened a pull request has no
 owner: dispatch lists it under `plans on a branch` ("visible, counted
-nowhere"), the orchestrator only prints the block, the clerk reads no other
-branch, and no manager takes it. On chrsctl/gx four plans sat 3 days on two
+nowhere"), the orchestrator only prints the block, the clerk reads other
+branches only to skip their issues, and no manager takes it. The
+`release   : <branch>  no claim:` line (`release_noclaim_rows`) reports a
+never-claimed docs-only branch only past `HANDOVER_STALE_SECONDS` (6 days
+from its last push) and notifies nobody; the mark below is the earlier,
+plan-age clock on the plans block, and the one the orchestrator notifies on. On chrsctl/gx four plans sat 3 days on two
 `claude/*` branches (one commit each, no PR) until a human noticed. Worse,
 the clerk skips any issue a branch plan's `issue:` names, so a stranded plan
 also blocks the clerk from re-planning its issue. Keep the human as the only
@@ -25,17 +29,24 @@ one who lets a branch plan into the queue, but make sure the human is told.
 
 - `joharness.sh:dispatch_branch_plans` and its printer — a `live` row whose
   branch adds only files under `docs/plans/` (nothing else in the diff
-  against its merge base), carries no workstream file under
-  `docs/handover/`, and whose held days are at least
+  against its merge base), never added a workstream file under
+  `docs/handover/` since its merge base (`log --diff-filter=A`, as
+  `release_noclaim_rows` reads it: an edge that retired its claim is
+  driven), and whose held days are at least
   `JOHARNESS_STRANDED_DAYS` (new knob, default 2; 0 = off) gets the mark
-  `STRANDED <n>d`. The verdict block counts them: `<k> stranded branch
-  plan(s): a human carries or closes them`.
+  `STRANDED <n>d`, a suffix after `held <n>d`. A printed line (one per
+  stem) carries it when any of its branches is stranded, `<n>` the largest
+  held days among those. The verdict block counts the stranded (branch,
+  plan) rows: `<k> stranded branch plan(s): a human carries or closes them`.
 - `joharness.sh` knob table — declare `JOHARNESS_STRANDED_DAYS` the way
-  `JOHARNESS_EDGE_SLOT_HOURS` is declared.
-- `.claude/commands/orchestrator.md` — one sentence after the plans-on-a-
-  branch report rule: a `STRANDED` row = `PushNotification` once carrying
-  branch, stems and held days; ledger `notified=bp:<branch>`; else report
-  only. Never spawn on it, never edit the branch.
+  `JOHARNESS_EDGE_SLOT_HOURS` is declared (scope `dispatch`), plus its row
+  in `.agents/docs/orchestrated.md`'s knob table (`knobs-declared.sh`).
+- `.claude/commands/orchestrator.md` — one sentence after the Report
+  paragraph naming the `plans on a branch` block: a `STRANDED` row =
+  `PushNotification` once carrying branch, stems and held days; ledger
+  entry `bp:<branch> notified=bp:<branch>` (a branch, never an item: no
+  head, no spawn), added to the ledger grammar; else report only. Never
+  spawn on it, never edit the branch.
 - `.agents/docs/orchestrated.md` — "A plan the queue cannot see" table: a
   fourth row, `plan-only branch, no pull request, no workstream file` →
   `STRANDED` mark, human notified once.
@@ -69,10 +80,15 @@ one who lets a branch plan into the queue, but make sure the human is told.
 ## Acceptance
 
 - `./joharness.sh ci` — `ci: pass`; the 3-day case FAILS on `origin/main`
-  without the change.
+  without the change: the branch's selftest run with `origin/main`'s
+  `joharness.sh` reds `a plan-only branch with no workstream file held 3
+  days is STRANDED`.
 - `./joharness.sh verify` — `0 failed`.
-- `./joharness.sh dispatch` on this repo — no `STRANDED` line unless such a
-  branch exists; paste the block in the PR body.
+- `./joharness.sh dispatch` on this repo — a `STRANDED <n>d` mark on
+  exactly the rows whose branch is plan-only, never claimed and held past
+  the knob (at filing: `plan/core-only-spawns-manager`, held 13d); paste
+  the block in the PR body. Failure: a mark on a claimed or code-carrying
+  branch, or none on that one.
 
 ## Where to look
 
@@ -85,8 +101,7 @@ one who lets a branch plan into the queue, but make sure the human is told.
 ## Traps
 
 - NEVER skip, disable or quarantine a test to get green.
-- Shares `joharness.sh` with `retired-edge-stall-window` and
-  `requirement-deleted-under-open-plans`, `orchestrator.md` with
-  `retired-edge-stall-window` and `heartbeat-read-cheaper`: reconcile, do
-  not overwrite.
+- Shares `joharness.sh`, `orchestrator.md` and `orchestrated.md` (its
+  knob table) with `retired-edge-stall-window`, `orchestrator.md` with
+  `heartbeat-read-cheaper`: reconcile, do not overwrite.
 - Dispatch reads git only: no GitHub API from `joharness.sh`.

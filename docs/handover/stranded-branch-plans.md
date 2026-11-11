@@ -31,6 +31,18 @@ branch plan into the queue.
 
 ## Review
 
+- r1: (plan-checker) the tree moved during the review: selftest cases were written while it read (no change: the selftest is not the plan; findings were read against HEAD and hold)
+- r2: (plan-checker) the plan never relates the mark to the existing `release ... no claim:` line (fixed: Goal names it and the two clocks)
+- r3: (plan-checker) the report rule sits in orchestrator-reference.md, not orchestrator.md (fixed: plan names the orchestrator.md Report paragraph, in scope)
+- r4: (plan-checker) a dispatch knob needs its orchestrated.md knob-table row (fixed: Scope names it)
+- r5: (plan-checker) "carries no workstream file" has three readings (fixed: never added since the merge base, as release_noclaim_rows reads it)
+- r6: (plan-checker) per-branch rows vs per-stem lines: which mark, what k counts (fixed: any stranded branch marks the line, max held; k counts rows)
+- r7: (plan-checker) ledger `notified=bp:<branch>` has no entry to ride (fixed: an entry `bp:<branch> notified=bp:<branch>` added to the grammar)
+- r8: (plan-checker) an open clerk pull request 2+ days old reads STRANDED (wontfix: the clerk merges its own pull request in its pass and JOHARNESS_CLERK_STALE_HOURS already reads one older than 24h as abandoned; a human told of it is the wanted outcome)
+- r9: (plan-checker) acceptance lacks a command for the origin/main failure and a failure shape (fixed: both written; this repo's expected row named)
+- r10: (plan-checker) Traps names a retired plan and misses shared files (fixed)
+- r11: (plan-checker) "the clerk reads no other branch" is half wrong (fixed)
+
 ## Blockers
 
 None.
