@@ -125,6 +125,14 @@ stale file there: nothing here gates it. A draft is a speed bump, not a
 lock: anyone holding the button can mark it ready first; it stops the
 merge nobody meant.
 
+A STARVED merge (manager.md §4) is this case too. chrsctl/gx PR #1417: a
+27-minute `finish` never reached 0 behind, the manager ended with the PR green
+and non-draft "for a human", a human merged it 172 commits stale at
+2026-11-10T19:44Z, and a criterion id #1439 had landed collided: main red (gx
+#1449/#1450), ten managers parked (WEAK: a consumer's reading). `CATCH-UP`
+(`consumer-repos.md` § Local checks) makes starving rare; the draft makes the
+remainder no one's accident.
+
 ## Challenge
 
 Before `/plan` on a requirement, spawn `.claude/agents/challenger.md` four

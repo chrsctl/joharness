@@ -139,7 +139,10 @@ gone holds nothing.
   before opening or merging the PR. Behind = merge fetched `origin/main`
   into the branch (never rebase), resolve, re-run `ci`, push. Conflict does
   not resolve clean = stop, record in the workstream file's `Blockers`, ask
-  human (decide-alone exception, `.agents/harness/AGENTS.md`).
+  human (decide-alone exception, `.agents/harness/AGENTS.md`). Local checks:
+  a clean, disjoint catch-up re-certifies on `ci` (`consumer-repos.md` §
+  Local checks); still behind after three = starved, draft and block
+  (`.claude/commands/manager.md` §4).
 - **Long-running session** = re-check ahead/behind periodically during Build
   too; a conflict caught mid-build is cheap.
 
