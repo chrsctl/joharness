@@ -39,6 +39,18 @@ each merge of the base, retest only what that merge could have changed
 - r9: (plan-checker) RETEST line and resolved-path refusal text undefined (fixed: plan gives both verbatim)
 - r10: (plan-checker) knob row and two consumer-repos.md passages become false (fixed: added to Scope)
 - r11: (plan-checker) "R holds only branch paths" contradicts the resolved rule; A2 evidence names a deleted plan; Goal tense stale (fixed: all three reworded)
+- r12: (plan-checker) rename handling unstated; a plain diff names only the new path, so a rename against a base edit carries (no change: build keeps `--no-renames` on every path set, `checks_paths`)
+- r13: (plan-checker) `base` names the ref and the path set (no change: build names them `ref` and `base`; plan retires with this pull request)
+- r14: (plan-checker) who writes R and how three outcomes signal is unstated (no change: `checks_catch_up` returns 0/2/1 and sets CHECKS_RETEST_SET/FROM; `checks_local_check` writes the file; Decisions)
+- r15: (plan-checker) whether n and m move to mb..ref (no change: they stay on cb..ref, Reading A; only path sets move)
+- r16: (plan-checker) SHIPS line absent after the retire commit (no change: read on the build head before retire, substring match)
+- r17: (plan-checker) one grep cannot tell failed-as-designed from never-ran on origin/main (fixed: the main run's PASS/FAIL lines per case are recorded, not only the grep)
+- r18: (plan-checker) product.md never said a hand resolution means a full run (no change: Reading A, only the catch-up clause changes; the stop-and-ask rule is for a conflict the manager cannot resolve)
+- r19: (plan-checker) verdict wording a fragment (no change: build prints `local-check retested from <H0 sha9> (RETEST)` in place of `carried by CATCH-UP`)
+- r20: (plan-checker) `needs:` edges point at retired plans (no change: both merged, edge is inert)
+- r21: (plan-checker) "pin against the same ref" misstated: pin is HEAD (no change: ordering claim holds; plan retires)
+- r22: (plan-checker) certified head not an ancestor of HEAD: named or silent (no change: stays silent, another line of work's certificate)
+- r23: plan-checker round 2 read a moving tree (build started meanwhile) though handed a detached worktree; it judged against HEAD (no change: round 2 found nothing blocking, count fell in severity; no round 3, all settled in build)
 
 ## Blockers
 
