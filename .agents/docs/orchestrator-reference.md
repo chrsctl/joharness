@@ -105,7 +105,7 @@ queue cannot see").
    exactly `🎼 orchestrator: <owner/repo>` (glossary, role title: a MATCH
    takes the bare spelling too), not `ARCHIVED`, whose
    `session_status` is `RUNNING` or `PENDING`, or that holds a pending
-   `/orchestrator pass` wake (`list_triggers`: `run_once_at` set,
+   `/orchestrator pass` wake (the wakes read: `run_once_at` set,
    `persistent_session_id` = its id) — IDLE between passes is alive.
    The keeper reads this definition on the sessions it can name
    (`keeper.md` step 2). A
@@ -128,7 +128,7 @@ queue cannot see").
    from its title`.
 4. Read the Lineup once.
 5. Heartbeat, here and on every pass after the first (`orchestrator.md`,
-   Pass entry): `list_triggers` (no filter: a paused one must show). The
+   Pass entry): `list_triggers` `recurring` true, `enabled` unset (a paused one must show). The
    heartbeat is a Routine named exactly `💗 heartbeat: <owner/repo>` (the bare
    `heartbeat: <owner/repo>` matches too) with a
    non-empty `cron_expression`; any other Routine
@@ -515,7 +515,7 @@ session's title first, the same way.
 A spawn made outside a scheduled pass (in answer to the human's order above)
 arms one new `send_later` at once, in this format:
 
-- A wake is pending (`list_triggers` with `include_completed` lists one for
+- A wake is pending (the wakes read, `list_triggers` `recurring` false, `enabled` true, `limit` 100, lists one for
   this session): the new wake's `pass=` is the pending wake's `pass=` plus
   one, so Pass entry's superseded check makes the stale wake do nothing;
   cancel nothing. The new wake's `harness=` line carries `retire=yes` when
