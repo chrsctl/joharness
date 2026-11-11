@@ -78,18 +78,21 @@ nothing.
   whole before acting, fast-forward the checkout as "## 0. Start" step 1
   does, drop ledger keys the new text no longer defines, report `harness
   moved: <old> to <new>`.
-- **Superseded.** `list_triggers` with `include_completed` lists
-  `send_later` wakes account-wide with their stored prompts; take this
+- **Superseded.** Wakes read = `list_triggers` `recurring` false,
+  `enabled` true, `limit` 100 (fired wakes are
+  not needed). It lists pending `send_later` wakes account-wide with their
+  stored prompts; take this
   session's (`persistent_session_id` = your id). Another of THOSE
   carrying a higher `pass=` than yours = report `superseded by pass <m>`, do
   nothing, schedule nothing. Another session's wake never supersedes you,
   whatever its `pass=`: a SWAP successor starts at `pass=1` while its
   retired predecessor's wake is still pending. Another session's wake is
   Duplicate's matter: a retired one is not LIVE, so it stops nothing.
-- **Duplicate.** Another session's pending `/orchestrator pass` wake in that
-  answer → ref § Duplicate.
-- **Heartbeat.** `pass=` above 1: ref § 0. Start step 5 on that same
-  answer, REPLACE and REGISTER included, its line in the report. A keeper
+- **Duplicate.** Another session's pending `/orchestrator pass` wake in the
+  wakes read → ref § Duplicate.
+- **Heartbeat.** `pass=` above 1: ref § 0. Start step 5 on its own read,
+  heartbeat = `list_triggers` `recurring` true, `enabled` unset (a paused
+  one must show; never add `enabled` true), REPLACE and REGISTER included, its line in the report. A keeper
   gone mid-run otherwise surfaces only when the next orchestrator starts,
   and that keeper is what starts it.
 - No `list_triggers` = say so once, skip the superseded, duplicate and
