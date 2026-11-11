@@ -1247,6 +1247,29 @@ expect "partial plans all retired: still PARTLY PLANNED, the built clause not of
 git -C "$lwork" reset -q --hard HEAD~1
 git -C "$lwork" update-ref refs/remotes/origin/main HEAD
 
+# A requirement deleted while a remaining plan reading `serves: all` still
+# names it is red, naming the plan; deleted with its only plan, green.
+printf -- '---\nrequirement: od-req\npriority: normal\n---\n\n## Satisfied when\n\n- one\n' \
+  >"${lwork}/docs/product/od-req.md"
+printf -- '---\nplan: od-plan\nurgency: normal\nagent: sonnet\neffort: high\nrequirement: od-req\nserves: all\n---\n' \
+  >"${lwork}/docs/plans/od-plan.md"
+commit_all "$lwork" "a requirement and its one plan, serves: all"
+git -C "$lwork" update-ref refs/remotes/origin/main HEAD
+fixture_rm "$lwork" "delete the requirement, leave its plan" docs/product/od-req.md
+full="$(lint_ci)"; rc=$?
+out="$(lint_section "$full")"
+expect "deleting a requirement an open serves: all plan names is red" \
+  "docs/product/od-req.md: deleted while open plan(s) od-plan name it" "$out"
+if [ "$rc" -ne 0 ]; then pass "the straggler deletion fails ci"; else fail "the straggler deletion fails ci"; fi
+git -C "$lwork" reset -q --hard origin/main
+fixture_rm "$lwork" "delete the requirement with its only plan" \
+  docs/product/od-req.md docs/plans/od-plan.md
+out="$(lint_section "$(lint_ci)")"
+refute "deleting the requirement with its only plan is no red" "deleted while open plan" "$out"
+git -C "$lwork" reset -q --hard origin/main
+git -C "$lwork" reset -q --hard HEAD~1
+git -C "$lwork" update-ref refs/remotes/origin/main HEAD
+
 # A retire and a similar new plan in ONE commit is a rename to git's default
 # diff; the retirement still counts (r12). serves-one (1) becomes
 # serves-two (2), then a branch retires serves-two beside serves-three (3).
