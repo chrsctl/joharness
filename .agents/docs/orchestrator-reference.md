@@ -258,6 +258,11 @@ workstream file, continue", no `kill`. FAILED, ARCHIVED or not found: GUARD
 `kill`, RESPAWN with the resume line, counted against
 `JOHARNESS_RESPAWN_LIMIT`. `PARKED #<n>: … resume waits for a slot` is no
 RESUME: next pass.
+A parked row holds its scope only while a fix is planned: `PARKED #<n>: … no
+plan names #<n> yet — scope released` lets an overlapping plan spawn. It
+holds again once a plan names #<n>, and RECHECK resumes it on the base's
+move; a collision with the plan that spawned meanwhile is the `conflict:` /
+reconcile path.
 
 A `PARKED #<n> RESUME — #<n> merged` row: a `core path: waiting on #<n>`
 block (manager.md §3), and the base's first parent carries a merge commit
@@ -266,6 +271,18 @@ block. The same mechanics, `next:` = `Resume: awaited PR #<n>
 merged; merge origin/main, continue`, commit "Orchestrator resumes a parked
 item". This wording is no defect resume: STUCK and UNPLANNED never count
 it. `PARKED #<n>: #<n> merged, resume waits for a slot` is no RESUME: next
+pass.
+
+A `PARKED #<n> RESUME — STARVED` row: a STARVED block under
+`JOHARNESS_STARVED_RESUMES` (`next:` = `conflict: base outran finish:
+resume <k>/<max>: …`, manager.md §4), #<n> its drafted pull request, and
+the base's first parent moved since the block. k is dispatch's count from
+the branch's history, never the text. The same mechanics, `next:` =
+`Resume: STARVED resume <k>/<max>, the base moved; merge origin/main, finish,
+un-draft #<n>, merge`, commit "Orchestrator resumes a parked item". Never a
+question, never `human-review`: a STARVED block past the bound is the
+human's (BLOCKED). `PARKED #<n>: STARVED resume …, resume waits for a slot`
+and `PARKED #<n> STARVED …: waits for the base to move` are no RESUME: next
 pass.
 
 A `PARKED #<n> RECHECK` row: no plan on the base or a live branch names

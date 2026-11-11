@@ -144,8 +144,8 @@ gone holds nothing.
   not resolve clean = stop, record in the workstream file's `Blockers`, ask
   human (decide-alone exception, `.agents/harness/AGENTS.md`). Local checks:
   a clean, disjoint catch-up re-certifies on `ci` (`consumer-repos.md` §
-  Local checks); still behind after three = starved, draft and block
-  (`.claude/commands/manager.md` §4).
+  Local checks); three refusals printing `OUTRUN` = starved, draft and
+  block (`.claude/commands/manager.md` §4).
 - **Long-running session** = re-check ahead/behind periodically during Build
   too; a conflict caught mid-build is cheap.
 

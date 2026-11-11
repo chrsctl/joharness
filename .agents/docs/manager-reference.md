@@ -86,7 +86,8 @@ leaves the retire on a branch only.
 
 ## Question
 
-A block that is not `defect:` (manager.md §3) asks on GitHub, so the
+A block that is not `defect:`, nor a STARVED block under its bound (`resume
+<k>/<max>`, § Starved), (manager.md §3) asks on GitHub, so the
 human answers there with one gesture (`.agents/docs/orchestrated.md`, A
 human's answer). On EVERY item that exists of this head's open pull
 request and the plan's `issue:`, so neither reads as a freeze. An item
@@ -184,6 +185,61 @@ and non-draft "for a human", a human merged it 172 commits stale at
 #1449/#1450), ten managers parked (WEAK: a consumer's reading). `CATCH-UP`
 (`consumer-repos.md` § Local checks) makes starving rare; the draft makes the
 remainder no one's accident.
+
+## Starved
+
+Behind, seen any way (a `git fetch`, the pull request page, a `finish` that
+passed while the base moved): run `finish` once AS IS, before merging
+`origin/main` in. Its BEHIND refusal costs no suite run (seconds) and is the
+measurement: it prints `OUTRUN` or `NOT OUTRUN`. Merging first skips it, and
+the run after the merge starts 0 behind and prints neither.
+
+Count a `finish` refusal toward STARVED only when it prints `OUTRUN`: a
+green run (full or `CATCH-UP`) covers this head and the base outran it.
+`NOT OUTRUN` = no green run covers it (last run red, unfinished, never ran,
+or own commits since): fix the red, or merge and run `finish` when nothing
+is red (never ran, own commits). A cause outside
+the item blocks per manager.md §3 (`defect: #<n>: …`, `hardware:`), never
+`conflict:`. `JOHARNESS_CHECKS` not `local`: `finish` measures no behind
+and prints neither line; count `finish` runs after which the branch is
+behind, as before this rule. One count per green head: a refusal naming the
+head `OUTRUN` already counted (base merged in, no run since) is the gap
+between merge and `finish`, not a run lost. Where the count lives: `##
+Blockers`, pushed; after the retire commit, a `finish behind: <n>` line in
+the pull request body — a workstream file back on the head reds
+`finish_adds`, and a red `finish` measures no behind. On the third
+`OUTRUN`, draft the pull request first (§ Block on an open pull request),
+then block. `<k>` = this block's number on the claim: 1 plus the commits on
+this branch that wrote a `next:` opening `conflict: base outran finish`:
+
+`git log --first-parent -p origin/main..HEAD -- docs/handover/<workstream>.md | grep -c '^+next: *.\?conflict: base outran finish'`, plus 1
+
+`<max>` = `JOHARNESS_STARVED_RESUMES` (`./joharness.sh conf`). `<k>` at or
+under `<max>`: `next:` exactly
+
+`conflict: base outran finish: resume <k>/<max>: <n> green runs outrun (behind <b1>,<b2>,<b3>); human: hold merges until this one lands, or merge it as-is <b3> behind, or raise JOHARNESS_CATCHUP_COMMITS`
+
+and NO question, NO `human-review` (§ Question does not apply): the head is
+green and drafted, and dispatch resumes it once the base moves (`PARKED #<n>
+RESUME — STARVED`, orchestrator-reference.md § Resume). Dispatch counts `<k>`
+itself from the same history and ignores the number you write. Resumed:
+start the `finish behind` count at 0, merge `origin/main`, `finish`, merge.
+`<k>` over `<max>`, or no `drafted: <N>` (the draft failed): the bound is spent; `next:` exactly the same text
+without `resume <k>/<max>: `, then § Question with the human choices it
+names. Dispatch counts that block the human's.
+
+`<bi>` = the BEHIND count each `OUTRUN` refusal printed, `<b3>` the latest.
+Never `next:` text telling the human to merge `origin/main` and run `finish`
+again: that is the loop the manager already ran, with no human judgement in
+it.
+
+Why: a count of BEHIND refusals also counts red runs. chrsctl/gx, 2026-11-11
+(WEAK: a consumer's reading, from `list_events`):
+
+- gx #1495: blocked STARVED with no green run at all; both full runs ended
+  `local-check: FAILED`, the three counted refusals each followed a red.
+- gx #1488: three runs outrun as written; the relayed human answer was the
+  same merge-and-finish loop with the counter reset.
 
 ## Challenge
 

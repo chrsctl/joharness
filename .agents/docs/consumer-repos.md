@@ -215,7 +215,10 @@ across disjoint files (base renames a function, the branch adds a call in
 another file) passes a catch-up and lands red; the next `finish` cut from
 that base is what sees it. The bound (20 commits, no shared file) keeps that
 window small; the status quo it replaces merged 172 commits stale with no
-check at all. `JOHARNESS_CATCHUP_COMMITS=0` turns it off.
+check at all. `JOHARNESS_CATCHUP_COMMITS=0` turns it off. A BEHIND refusal
+prints `OUTRUN` when a green run (full or catch-up) covers the head, base
+merged in at most since, else `NOT OUTRUN`; only `OUTRUN` counts toward
+STARVED (`.claude/commands/manager.md` §4).
 
 Why the bound counts commits, and what that costs. It is a count of commits,
 not of merged pull requests, so it measures how far the base moved only where
@@ -235,22 +238,24 @@ beside the commit count, so a consumer can tune `JOHARNESS_CATCHUP_COMMITS`
 from its own history. Count yourself: `git rev-list --count --first-parent
 --merges <base>..origin/main`.
 
-What the certificate cannot tell, and what STARVED costs (research
-`scoped-local-check-certificate`, settled here). Two defects, both open as
-plans:
+A scoped green certifies nothing. A consumer's `local-check` may run only
+part of its suites (chrsctl/gx #1499: the suites the paths changed on both
+sides feed, measured from its own last full green). That green is real for
+this head, but certified it would be what the next `CATCH-UP` carries from,
+and scoped runs would chain with no full run under them. So `finish` hands
+the check a path in the git dir, `JOHARNESS_LOCAL_CHECK_SCOPED`, removed
+before each run: a check that touches it and exits 0 is green and prints
+`local-check: pass, SCOPED`, but writes no certificate, and the full run
+already removed the old one, so the next behind head runs `local-check` again
+(`joharness.sh:checks_local_check`, `checks_gate`). It still counts as a green
+for `OUTRUN`: a scoped green the base outran is a green, never a red to fix,
+so a scoping consumer still reaches STARVED. Why not a reserved exit code: a
+real failure that happens to exit with it would pass. The variable is a
+consumer interface a human may veto (research `scoped-local-check-certificate`).
 
-- **A scoped green is certified as full.** `checks_gate` writes the
-  certificate on `rc=0` and its own `catchup=0`; from `local-check` it reads
-  the exit code and nothing else (`joharness.sh:checks_local_check`, GROUNDED:
-  read from source, re-read by this answer's verifier, its r4). A consumer that makes
-  `local-check` re-run only the suites the both-sides paths feed (chrsctl/gx
-  #1499, measured from its own last full green) gets that partial green
-  certified, and the next `CATCH-UP` carries from it: scoped runs chain with
-  no full run under them. The contract today has no word for "green, do not
-  certify"; a reserved exit code would let a real failure that happens to
-  exit with it pass, so the plan proposes a marker the harness hands
-  `local-check` (plan `local-check-scoped-green`; a consumer interface, a
-  human may veto it).
+What STARVED costs (research `scoped-local-check-certificate`, settled here),
+open as a plan:
+
 - **STARVED asks a human a question with one answer.** It blocks `conflict:
   base outran finish`, and every block but `defect:` posts `decision needed:`
   and labels `human-review` (manager.md §3, manager-reference.md §
@@ -259,9 +264,10 @@ plans:
   Twice in chrsctl/gx on 2026-11-11 a human removed the label and the relayed
   answer was "catch up and merge" (WEAK: a consumer's reading of its own
   handover history, gx `2a0e04316`, `0847989f7`; not re-taken here). So dispatch
-  resumes such a claim itself once the base has moved, bounded, and only an
-  exhausted bound asks the human the choice that is really theirs (plan
-  `starved-resumes-unasked`, after `starved-counts-green-runs`).
+  resumes such a claim itself once the base has moved, bounded by
+  `JOHARNESS_STARVED_RESUMES` counted from the branch's git history, and
+  only an exhausted bound asks the human the choice that is really theirs
+  (manager-reference.md § Starved; a `PARKED #<n> RESUME — STARVED` row).
 
 Why a full run never lands there, measured in gx over the 12 hours before
 2026-11-11T13:50Z (WEAK: gx's reading, `git rev-list --count --since --until`
