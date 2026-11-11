@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK6mueavH589ztpnm7E
 agent: opus
 updated: 2026-11-11
-next: Run verify, the fail-on-main run of case 1, then the consumer-repos paragraph
+next: Run the verifier at the branch tier, record, then PR and finish
 ---
 
 ## Goal
@@ -31,6 +31,7 @@ the certificate a later `CATCH-UP` carries from.
 - r5: (plan-checker) selftest placement in the stateful CATCH-UP fixture ambiguous (fixed: own section after OUTRUN, flag-file toggle)
 - r6: (plan-checker) consumer-repos bullet calling the defect open would go stale (fixed: plan replaces it)
 - r7: (plan-checker) acceptance items lack failure shape (fixed: red output named per item)
+- r9: fail-on-main run (this branch's checks.sh in a worktree at origin/main 988e4af1, `JOHARNESS_VERBOSE=1 JOHARNESS_SELFTEST=always ./joharness.sh ci`, 2026-11-11): FAIL `scoped: a scoped green prints SCOPED`, `scoped: a scoped green leaves no certificate, the earlier one included`, `scoped: a stale marker does not stop the certificate` (main certified the scoped run, so case 4's head was a CATCH-UP); branch run: all 12 `scoped:` PASS, `ci: pass` (no change)
 - r8: (plan-checker) export lifetime open (fixed: env prefix on checks_bounded only)
 
 ## Blockers
