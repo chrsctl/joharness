@@ -235,6 +235,41 @@ beside the commit count, so a consumer can tune `JOHARNESS_CATCHUP_COMMITS`
 from its own history. Count yourself: `git rev-list --count --first-parent
 --merges <base>..origin/main`.
 
+What the certificate cannot tell, and what STARVED costs (research
+`scoped-local-check-certificate`, settled here). Two defects, both open as
+plans:
+
+- **A scoped green is certified as full.** `checks_gate` writes the
+  certificate on `rc=0` and its own `catchup=0`; from `local-check` it reads
+  the exit code and nothing else (`joharness.sh:checks_local_check`, GROUNDED:
+  read from source, re-read by this answer's verifier, its r4). A consumer that makes
+  `local-check` re-run only the suites the both-sides paths feed (chrsctl/gx
+  #1499, measured from its own last full green) gets that partial green
+  certified, and the next `CATCH-UP` carries from it: scoped runs chain with
+  no full run under them. The contract today has no word for "green, do not
+  certify"; a reserved exit code would let a real failure that happens to
+  exit with it pass, so the plan proposes a marker the harness hands
+  `local-check` (plan `local-check-scoped-green`; a consumer interface, a
+  human may veto it).
+- **STARVED asks a human a question with one answer.** It blocks `conflict:
+  base outran finish`, and every block but `defect:` posts `decision needed:`
+  and labels `human-review` (manager.md §3, manager-reference.md §
+  Question); dispatch counts it blocked, never respawns. The pull request is
+  already green and drafted, and the draft alone stops the merge nobody meant.
+  Twice in chrsctl/gx on 2026-11-11 a human removed the label and the relayed
+  answer was "catch up and merge" (WEAK: a consumer's reading of its own
+  handover history, gx `2a0e04316`, `0847989f7`; not re-taken here). So dispatch
+  resumes such a claim itself once the base has moved, bounded, and only an
+  exhausted bound asks the human the choice that is really theirs (plan
+  `starved-resumes-unasked`, after `starved-counts-green-runs`).
+
+Why a full run never lands there, measured in gx over the 12 hours before
+2026-11-11T13:50Z (WEAK: gx's reading, `git rev-list --count --since --until`
+over 69 33-minute windows 600 s apart): `main` was still in 0 of 69; a path
+changed on both sides in 47 and 33 of 69 for two branches, so CATCH-UP
+refused about half of them or more. Scoping turned 47 -> 20 and 33 -> 10 of those into full
+runs and most of the rest into a 25 s one.
+
 The head's copy runs so a pull request repairing a check broken on base can
 pass; a branch can therefore weaken it. A branch changing `local-check`
 against the merge base prints `CHECK CHANGED on this branch` with the diff
