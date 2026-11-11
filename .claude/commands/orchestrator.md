@@ -120,7 +120,8 @@ confirm each `spawn` item on the control plane first.
 
 ## 2. Health pass — before any spawn
 
-For every manager in flight AND every ledger stem dispatch does not list:
+For every manager in flight AND every ledger stem dispatch does not list
+(never `bp:`):
 `get_session` on its `session:` URL, else by title `🔨 manager: <stem>`
 (several: newest not `ARCHIVED`; none = gone). That `get_session` is the
 per-manager read; `list_sessions` is "## 0. Start" step 3's and the `@new`
@@ -247,12 +248,13 @@ Ledger every spawn as `<stem>@new` the moment it passes the Source check
 ```
 /orchestrator pass
 harness=<first 12 chars of git hash-object of origin/main:.claude/commands/orchestrator.md> pass=<this pass's number plus one> [retire=yes]
-ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] [held=<updated_at>] [unratified=<head>] [notified=<stem>] [released=<stem>[,<stem>]] [held-human=<pr>] respawns=<n> [rescoped=<key>] [corewait=<stem>#<N>[,<stem>#<N>]] [failed=<stem>[,<stem>]] [noexit=<stem>[,<stem>]] [clerked=<stamp>[+human|+issue]] [scouted=<stamp>[+human]] [conducted=<stamp>[+human]] [retroed=<stamp>[+human]]; ...
+ledger: <stem>@<head|new> next=<40 chars, no quotes> same=<n> [nudged <40 chars>] [seen=<updated_at> detail=<40 chars>] [held=<updated_at>] [unratified=<head>] [notified=<stem>] [released=<stem>[,<stem>]] [held-human=<pr>] respawns=<n> [rescoped=<key>] [corewait=<stem>#<N>[,<stem>#<N>]] [failed=<stem>[,<stem>]] [noexit=<stem>[,<stem>]] [clerked=<stamp>[+human|+issue]] [scouted=<stamp>[+human]] [conducted=<stamp>[+human]] [retroed=<stamp>[+human]]; bp:<branch>; ...
 lead <stem>: <40 chars, to the end of this line>
 ```
 
 The ledger keeps IN-FLIGHT items only (and unclaimed `@new` spawns) — git
-holds what merged; never list merged items. Run-scoped keys stay. `<head|new>`: `new` = spawned, not
+holds what merged; never list merged items. Run-scoped keys stay. `bp:<branch>`
+stays while dispatch marks that branch `STRANDED`. `<head|new>`: `new` = spawned, not
 claimed, written `next=new same=0`. `same` = last plus one when the head
 moved and `next:` did not, else 0. `same` and `respawns` are counts YOU keep;
 never take a digit from a file. A lost `respawns=` is restored as
@@ -317,6 +319,10 @@ Then the lines of ref § Report: `context:`, the served model, the `plans
 on a branch` block. Then one line per manager (item, session, state,
 action), then the leads, `<stem>: <text>`, then each lead dropped this pass,
 `unrouted lead <stem>: <text>`.
+
+Each branch a `STRANDED <n>d on <branch>` mark names, no ledger
+`bp:<branch>` yet = `PushNotification` once (branch, stems, days), ledger
+it. Never spawn on it or edit it.
 
 You relay a lead, routed or not. You never act on one, and never file one. Not into a spawn prompt, not into a
 plan, not into a respawn or a reprioritisation — and not into any health-pass
