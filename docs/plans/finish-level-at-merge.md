@@ -77,7 +77,7 @@ certifies level at the run's START" (research
 ```
 ./joharness.sh ci          # ci: pass
 ./joharness.sh verify      # 0 failed
-./joharness.sh verify 2>&1 | grep -c 'FAIL level:'   # 0 (the selftest topic `checks` runs the new case; it is not runnable alone)
+bash .agents/harness/selftest.sh 2>&1 | grep -c 'PASS level:'   # 9 (topic `checks` is not runnable alone)
 grep -c 'merge-base --is-ancestor origin/main HEAD' .agents/harness/AGENTS.md   # 1
 ```
 

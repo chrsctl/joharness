@@ -7034,11 +7034,11 @@ checks_catch_up() {
   return 0
 }
 
-# checks_level_end <ref> <tip>: after a green run, fetch the base again
+# checks_level_end <ref>: after a green run, fetch the base again
 # (same switch and bound as the first fetch) and red when it moved past
 # HEAD. A failed fetch leaves the end unmeasured and green, as at the start.
 checks_level_end() {
-  local ref="$1" tip="$2" fresh="as of the last fetch" now behind
+  local ref="$1" fresh="as of the last fetch" behind
   if [ "${HANDOVER_FETCH:-1}" = "1" ]; then
     if tmo 15 git -C "$ROOT" fetch --quiet origin \
          "${HANDOVER_BASE_BRANCH:-main}" >/dev/null 2>&1; then
@@ -7049,12 +7049,13 @@ checks_level_end() {
       return 0
     fi
   fi
-  now="$(git -C "$ROOT" rev-parse "$ref" 2>/dev/null)" || now=""
+  # Behind at all is red, not only a moved base: HEAD moved mid-run can be
+  # behind an unmoved tip (verifier r1).
   behind="$(git -C "$ROOT" rev-list --count "HEAD..${ref}" 2>/dev/null)" || behind=""
-  if [ -n "$now" ] && [ "$now" != "$tip" ] && [ -n "$behind" ] && [ "$behind" -gt 0 ]; then
+  if [ -n "$behind" ] && [ "$behind" -gt 0 ]; then
     printf '\n  BEHIND       %s commit(s) behind %s at end of run (%s): the base\n' \
       "$behind" "$ref" "$fresh"
-    printf '               moved while the suites ran, and no run here saw it.\n'
+    printf '               moved, or HEAD did, while the suites ran; no run saw it.\n'
     printf '               Merge it in, finish again: git fetch origin %s\n' \
       "${HANDOVER_BASE_BRANCH:-main}"
     checks_outrun "$ref"
@@ -7243,7 +7244,7 @@ checks_gate() {
   # this run's green: a long run leaves a window the base moves in unseen
   # (chrsctl/gx #1553). The certificate keeps the pinned tip.
   if [ "$rc" -eq 0 ] && [ -n "$tip" ]; then
-    checks_level_end "$ref" "$tip" || rc=1
+    checks_level_end "$ref" || rc=1
   fi
 
   # What a green above does NOT cover.

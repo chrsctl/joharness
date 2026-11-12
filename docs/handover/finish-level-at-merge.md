@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK5XJnYWH5pXzz3wazu
 agent: opus
 updated: 2026-11-12
-next: Read ci and verify counts on this head; then verifier at opus, finish, PR
+next: ci, verify, finish on this head; retire commit; PR; merge
 ---
 
 ## Goal
@@ -41,6 +41,9 @@ and at the merge call, so a base that moves mid-run never merges unchecked.
 - r9: (plan-checker) A1 "before the refusals" inexact (fixed: reworded)
 - r10: (plan-checker) consumer-repos headroom understated (no change)
 - r11: (plan-checker) its own run of checks.sh left /checksorigin.git and /checkswork at the container root; removal refused by a safety check (wontfix: ephemeral container, outside the repo)
+- r12: (verifier) end check skipped red when HEAD moved mid-run behind an unmoved base (`now != tip` guard) (fixed: behind > 0 alone; fixture kcle2 fails without it)
+- r13: (verifier) step 7 merge-time fetch failure reads as behind; HEAD not named as the pushed head (fixed: fails = unmeasured, retry; HEAD = pushed head)
+- r14: (verifier) acceptance `grep -c 'FAIL level:'` is 0 when the topic never runs (fixed: counts PASS level:, 9)
 
 ## Blockers
 

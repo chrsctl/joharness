@@ -819,6 +819,28 @@ git -C "$kcwork" rm -q docs-e.txt
 commit_all "$kcwork" "main: drop the level fixture"
 git -C "$kcwork" push -q origin main 2>/dev/null
 rm -rf "$kcle_clone" "$kcle_once"
+# HEAD moved mid-run to a commit behind an UNMOVED base: still behind at the
+# end, still red (verifier r1).
+# The behind commit carries the same check, or NO CHECK reds first.
+git -C "$kcwork" checkout -qb kcle2 main
+printf 'if [ ! -e %q ]; then : >%q; git -C %q checkout -q --detach kcle2-old; fi\nexit 0\n' \
+  "$kcle_once" "$kcle_once" "$kcwork" >"${kcwork}/local-check"
+git -C "$kcwork" stash -q -u
+git -C "$kcwork" checkout -q --detach main~1
+git -C "$kcwork" stash pop -q
+commit_all "$kcwork" "kcle2-old: the same check, one behind the base"
+git -C "$kcwork" tag kcle2-old
+git -C "$kcwork" checkout -q kcle2
+git -C "$kcwork" checkout kcle2-old -- local-check
+commit_all "$kcwork" "kcle2: a check that moves HEAD behind the base"
+git -C "$kcwork" push -qu origin kcle2 2>/dev/null
+out="$(JOHARNESS_CHECKS=local kc_finish)"
+expect "level: HEAD moved behind a still base is BEHIND at the end" \
+  "BEHIND       1 commit(s) behind origin/main at end of run" "$out"
+expect "level: and that finish is red" "finish: FAIL" "$out"
+git -C "$kcwork" checkout -q main
+git -C "$kcwork" tag -d kcle2-old >/dev/null
+rm -f "$kcle_once"
 rm -f "$(git -C "$kcwork" rev-parse --absolute-git-dir)/joharness-finish-cert" \
   "$(git -C "$kcwork" rev-parse --absolute-git-dir)/joharness-finish-green"
 
