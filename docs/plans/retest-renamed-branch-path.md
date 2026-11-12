@@ -62,8 +62,11 @@ renames a file").
 
 - `./joharness.sh selftest 2>&1 | grep -c 'FAIL'` — `0`; the two new cases
   print `ok`/pass lines naming "rename".
-- Case (i) fails with the `joharness.sh` change reverted (`git stash` the
-  `joharness.sh` hunk, rerun the selftest): the new RETEST case reds.
+- Case (i) fails without the fix: in a detached worktree at the merge base
+  (`git worktree add --detach <dir> $(git merge-base origin/main HEAD)`), copy
+  in this branch's `checks.sh` only and run the selftest there — the new
+  RETEST case reds. Never stash or revert in the shared tree while a
+  verifier lives.
 - `./joharness.sh ci` — `ci: pass`.
 - `./joharness.sh verify` — `0 failed`.
 
