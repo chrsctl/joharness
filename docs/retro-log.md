@@ -14,3 +14,6 @@
 | 2026-11-11 | pm-dispatch | https://claude.ai/code/session_019M7ypRKWMGi2oaM3XEmGcC | nothing |
 | 2026-11-11 | bash-guard-reads-prose-as-a-loop | https://claude.ai/code/session_01X7MYq6kL1CgciaSW4PW2fv | nothing |
 | 2026-11-11 | unsupervised-goal | https://claude.ai/code/session_0126bZYruEVL7vNBLb7RXF4v | nothing |
+| 2026-11-12 | byte-identical-bullet | https://claude.ai/code/session_017oZ8o5q2YRzjFT1eTnx4Cs | nothing |
+| 2026-11-12 | dispatch-held-merged-pr | https://claude.ai/code/session_01GjKnsgJV4qubTD63CuMiH7 | nothing |
+| 2026-11-12 | marker-gate-needs-no-done | https://claude.ai/code/session_01Samg4LcLJBw1jg4RfCtT8Z | nothing |
