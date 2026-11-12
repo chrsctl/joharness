@@ -16,8 +16,9 @@ plus the pull request calls leave a window in which the base moves unseen,
 and the merge lands base commits no check ran on (chrsctl/gx PR #1550, base
 red for every branch, gx #1553). Make the level condition a measurement at
 the end of `finish` and again at the merge call. Settled in
-`.agents/docs/consumer-repos.md` § Local checks, "What a local pass
-certifies" (research `finish-pass-certifies-level-at-merge`).
+`.agents/docs/consumer-repos.md` § Local checks, the paragraph "A local pass
+certifies level at the run's START" (research
+`finish-pass-certifies-level-at-merge`).
 
 ## Scope
 
@@ -29,24 +30,29 @@ certifies" (research `finish-pass-certifies-level-at-merge`).
   and green file this run wrote stay: the next `finish` after the merge of
   `origin/main` is a CATCH-UP or RETEST from them. A fetch that fails prints
   that the end-of-run level is unmeasured, and stays green (as the first
-  fetch does). Level at the end: print `  level        0 behind <ref> at end of
+  fetch does). `HANDOVER_FETCH=0` skips the fetch and compares the ref as
+  of the last fetch, labelled so (the first measurement's `fresh` wording).
+  HEAD moved mid-run: no green was written, so `checks_outrun` prints
+  `NOT OUTRUN` — correct, that head is unchecked. Level at the end: print `  level        0 behind <ref> at end of
   run (fetched just now)`.
 - `.agents/harness/selftest/checks.sh`: a fixture where the base gains a
-  commit while `local-check` runs (the check itself commits to the fixture's
-  origin) reds `finish` with `OUTRUN`; the next `finish` after merging the
+  commit while `local-check` runs (the check pushes a disjoint commit to the
+  fixture's origin from a separate clone; the worktree's HEAD stays) reds `finish` with `OUTRUN`; the next `finish` after merging the
   base prints `CATCH-UP`. Fails without the change.
 - `.agents/harness/AGENTS.md` step 7, the "0 behind" bullet: measured
   immediately before `merge_pull_request` by `git fetch origin main && git
   merge-base --is-ancestor origin/main HEAD`; non-zero = behind, back to the
-  finish loop. One clause; `.claude/commands/manager.md` is NOT touched (it
+  finish loop. The pattern `merge-base --is-ancestor origin/main HEAD` stays
+  on one line (the acceptance grep counts it). One clause; `.claude/commands/manager.md` is NOT touched (it
   defers to step 7, and has no reading-budget headroom).
-- `.agents/docs/consumer-repos.md` § Local checks: replace "Plan
-  `finish-level-at-merge` would re-measure" with what now holds, net bytes
-  not added (the file sits near its reading budget).
+- `.agents/docs/consumer-repos.md` § Local checks: rewrite the whole
+  paragraph "A local pass certifies level at the run's START" (heading and
+  body both turn false) to what now holds, net bytes not added (the file sits near its reading budget).
 
 ## Assumptions
 
-- A1: `checks_gate` fetches the base once, before the refusals, and nothing
+- A1: `checks_gate` fetches the base once, before the BEHIND refusal and
+  the suites, and nothing
   after the suites re-measures it. — evidence: `joharness.sh:checks_gate`
   (`fresh="fetched just now"`, the only `fetch` in the function) —
   confidence: high.
@@ -71,7 +77,7 @@ certifies" (research `finish-pass-certifies-level-at-merge`).
 ```
 ./joharness.sh ci          # ci: pass
 ./joharness.sh verify      # 0 failed
-bash .agents/harness/selftest/checks.sh   # the new base-moved-mid-run case passes
+./joharness.sh verify 2>&1 | grep -c 'FAIL level:'   # 0 (the selftest topic `checks` runs the new case; it is not runnable alone)
 grep -c 'merge-base --is-ancestor origin/main HEAD' .agents/harness/AGENTS.md   # 1
 ```
 

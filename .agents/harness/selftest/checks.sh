@@ -780,6 +780,48 @@ git -C "$kcwork" checkout -q main
 rm -f "${TMP}/kcmid-once"
 rm -f "$(git -C "$kcwork" rev-parse --absolute-git-dir)/joharness-finish-cert" "$kccu_ran"
 
+# --- LEVEL at the end of the run: the base moves while the suites run -------
+# chrsctl/gx #1553: level was measured once, before a long local-check, and
+# the merge landed base commits no check ran on. The check here pushes one
+# disjoint commit to origin/main mid-run, as another session's merge would:
+# finish re-fetches after the suites and reds OUTRUN; merged in, CATCH-UP.
+kcle_clone="${TMP}/kcle-clone"
+kcle_once="${TMP}/kcle-once"
+git -C "$kcwork" checkout -q main
+git -C "$kcwork" merge -q --ff-only origin/main 2>/dev/null
+git clone -q -b main "$kcorigin" "$kcle_clone" 2>/dev/null
+git -C "$kcle_clone" config user.email t@example.invalid
+git -C "$kcle_clone" config user.name t
+git -C "$kcwork" checkout -qb kcle main
+printf 'if [ ! -e %q ]; then : >%q; printf e >%q/docs-e.txt; git -C %q add docs-e.txt; git -C %q commit -qm "main: lands mid-run"; git -C %q push -q origin HEAD:main; fi\nexit 0\n' \
+  "$kcle_once" "$kcle_once" "$kcle_clone" "$kcle_clone" "$kcle_clone" "$kcle_clone" \
+  >"${kcwork}/local-check"
+commit_all "$kcwork" "kcle: a check the base outruns"
+git -C "$kcwork" push -qu origin kcle 2>/dev/null
+out="$(JOHARNESS_CHECKS=local kc_finish)"
+expect "level: a base that moved mid-run is BEHIND at the end" \
+  "BEHIND       1 commit(s) behind origin/main at end of run" "$out"
+expect "level: and this run's green is OUTRUN" "OUTRUN       a green run at" "$out"
+expect "level: and finish is red" "finish: FAIL" "$out"
+refute "level: never a pass" "finish: pass" "$out"
+git -C "$kcwork" fetch -q origin main 2>/dev/null
+git -C "$kcwork" merge -q --no-edit origin/main >/dev/null 2>&1
+git -C "$kcwork" push -q origin HEAD 2>/dev/null
+out="$(JOHARNESS_CHECKS=local kc_finish)"
+expect "level: merged in, the next finish is a CATCH-UP" \
+  "CATCH-UP     HEAD = certified" "$out"
+expect "level: a still base prints the end-of-run level" \
+  "level        0 behind origin/main at end of run (fetched just now)" "$out"
+expect "level: and passes" "finish: pass" "$out"
+git -C "$kcwork" checkout -q main
+git -C "$kcwork" merge -q --ff-only origin/main 2>/dev/null
+git -C "$kcwork" rm -q docs-e.txt
+commit_all "$kcwork" "main: drop the level fixture"
+git -C "$kcwork" push -q origin main 2>/dev/null
+rm -rf "$kcle_clone" "$kcle_once"
+rm -f "$(git -C "$kcwork" rev-parse --absolute-git-dir)/joharness-finish-cert" \
+  "$(git -C "$kcwork" rev-parse --absolute-git-dir)/joharness-finish-green"
+
 # --- OUTRUN: which BEHIND refusal a STARVED count may count ------------------
 # chrsctl/gx #1495: a manager counted three BEHIND refusals as "outrun" when
 # no run on the branch was ever green, and blocked a human on it. The
