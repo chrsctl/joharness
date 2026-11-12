@@ -105,6 +105,18 @@ verdict spawns a surveyor that marks registries `shared:` and narrows
 bare-directory claims (`.agents/docs/orchestrated.md`, Concurrency). Name the
 specific file and mark a true registry `shared:` to spare that pass.
 
+### Numbered artefacts
+
+A plan that will add a numbered artefact (a decision record, a criterion id)
+reserves the number in the repository's registry (whatever file the
+repository names for it) in the plan's own pull request, and names the number
+in `## Scope`. The building branch uses only that number, never renames the
+file, and does not list the registry in `scope:` (the reservation already
+landed). No registry = no step. A plan carried on its building branch
+reserves nothing. Why: two branches adding the next number race, and the
+loser renames (`.agents/docs/consumer-repos.md`, "A renumber that renames a
+file").
+
 A core path in `scope:` (`./joharness.sh protocol-paths`: the conf, the
 settings, `.github`) — `shared:` or not — marks the plan `CORE ONLY` and ranks
 it after every other free plan. The agent builds it, a human merges it: its
