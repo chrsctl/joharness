@@ -1314,10 +1314,20 @@ expect "retest: rename iv. an added file is the full run, named" \
   "no catch-up: HEAD changed kr-0691-x.txt, which neither side nor the merge did" "$out"
 refute "retest: rename iv. and no RETEST" "RETEST       HEAD" "$out"
 
+# (v) A renumber into another directory: the full run, naming it. The
+# directory is one main tracks: a new one reds finish at map first.
+kr_rn kcrn5 0790
+git -C "$kcwork" mv kr-0790-x.txt .agents/harness/kr-0791-x.txt
+kr_rn_commit "kcrn5: renumber into another directory"
+out="$(kr_run)"
+expect "retest: rename v. a renumber into another directory is the full run, named" \
+  "no catch-up: HEAD changed .agents/harness/kr-0791-x.txt, which neither side nor the merge did" "$out"
+refute "retest: rename v. and no RETEST" "RETEST       HEAD" "$out"
+
 git -C "$kcwork" checkout -q main
 git -C "$kcwork" merge -q --ff-only origin/main 2>/dev/null
 git -C "$kcwork" rm -q kr-a.txt kr-b.txt kr-e.txt kr-c.txt kr-d.txt kr9.txt kr9-y.txt \
-  kr-0390-y.txt kr-0490-y.txt kr-0590-y.txt kr-0690-y.txt
+  kr-0390-y.txt kr-0490-y.txt kr-0590-y.txt kr-0690-y.txt kr-0790-y.txt
 commit_all "$kcwork" "main: drop the retest fixture"
 git -C "$kcwork" push -q origin main 2>/dev/null
 rm -f "$kr_cert" "${kr_gitdir}/joharness-finish-green" "$kr_file" \

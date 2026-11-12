@@ -264,8 +264,9 @@ green and level.
    `auto` = tree from `git merge-tree --write-tree --name-only H0 base`
    (exit 1 = conflicts, listed as `conflicted`); `resolved` = `git diff
    --name-only <auto> HEAD^{tree}`. A resolved path outside `conflicted ∪
-   branch ∪ base`, nor a renumber's destination (above) = full run: `HEAD changed <path>, which neither side nor the
-   merge did: something else changed`. Retest set `R = (branch ∩ base) ∪
+   branch ∪ base`, nor a renumber's destination (above) = full run: `HEAD
+   changed <path>, which neither side nor the merge did: something else
+   changed`. Retest set `R = (branch ∩ base) ∪
    conflicted ∪ resolved`, sorted, one per line, in
    `<git-dir>/joharness-retest-paths`. An own commit after the merge that edits
    a path the branch or base already changed is `resolved` too, so it is

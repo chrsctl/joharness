@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK4JQsfWEwkVQ7pADKT
 agent: opus
 updated: 2026-11-12
-next: ci, verify, then verifier at the tier review names
+next: verifier round 2 on r12/r13, then retire and finish
 ---
 
 ## Goal
@@ -37,6 +37,8 @@ not the full finish run (plan `docs/plans/retest-renamed-branch-path.md`).
 - r9: (plan-checker) mixed-tree selftest count unverified (no change: counts here are from runs after the edits)
 - r10: (plan-checker) anchor `kr_main` is a helper, not the block (no change: resolves)
 - r11: build edits landed while the plan-checker still ran, against the hold-still rule (no change: its findings were checked against HEAD, the plan only; no rerun needed)
+- r12: (verifier) same-directory rule untested: replacing it with `:` left the selftest green (fixed: case v, a renumber into `.agents/harness/`, must be the full run; with the rule replaced by `:` it FAILs, 4403 passed 2 failed, 2026-11-12)
+- r13: (verifier) step 3 line in consumer-repos.md not re-wrapped (fixed)
 
 ## Blockers
 
