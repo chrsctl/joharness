@@ -1252,9 +1252,82 @@ expect "retest: 9. a change before the recorded base is still a RETEST" \
   "RETEST       HEAD = certified ${kr9_h0:0:9}" "$out"
 expect "retest: 9. its path is in the set" "kr9.txt " "$(kr_paths)"
 
+# Renames. A branch whose numbered record the base took the number of
+# renumbers it after the merge (0390 -> 0391): only a rename whose source
+# either side changed and which only renumbers it joins the known paths.
+kr_rn() { # <branch> <number>: branch adds kr-<n>-x.txt, certified; base adds kr-<n>-y.txt, merged
+  git -C "$kcwork" checkout -q main
+  git -C "$kcwork" merge -q --ff-only origin/main 2>/dev/null
+  git -C "$kcwork" checkout -qb "$1" main
+  git -C "$kcwork" show kcr:local-check >"${kcwork}/local-check"
+  printf 'x\n' >"${kcwork}/kr-$2-x.txt"
+  commit_all "$kcwork" "$1: its record $2"
+  git -C "$kcwork" push -qu origin "$1" 2>/dev/null
+  printf '0\n' >"$kr_flag"
+  kr_run >/dev/null
+  kr_main "kr-$2-y.txt" 1 y "$1"
+  kr_sync
+}
+kr_rn_commit() { # <message>: commit everything, push
+  git -C "$kcwork" add -A
+  git -C "$kcwork" commit -qm "$1"
+  git -C "$kcwork" push -q origin HEAD 2>/dev/null
+}
+
+# (i) The renumber alone: a RETEST, its destination in the set.
+kr_rn kcrn1 0390
+kr_rn1_h0="$(git -C "$kcwork" rev-parse HEAD^1)"
+git -C "$kcwork" mv kr-0390-x.txt kr-0391-x.txt
+kr_rn_commit "kcrn1: renumber 0390 to 0391"
+printf '1\n' >"$kr_flag"
+out="$(kr_run)"
+printf '0\n' >"$kr_flag"
+expect "retest: rename i. a renumbering rename is a RETEST" \
+  "RETEST       HEAD = certified ${kr_rn1_h0:0:9}" "$out"
+expect "retest: rename i. the destination is in the set" "kr-0391-x.txt" "$(kr_paths)"
+
+# (ii) The same rename plus an edit to a path neither side changed.
+kr_rn kcrn2 0490
+git -C "$kcwork" mv kr-0490-x.txt kr-0491-x.txt
+sed -i '5s/.*/FIVE/' "${kcwork}/kr-c.txt"
+kr_rn_commit "kcrn2: renumber, and an edit outside both sides"
+out="$(kr_run)"
+expect "retest: rename ii. an edit beside the rename is still the full run, named" \
+  "no catch-up: HEAD changed kr-c.txt, which neither side nor the merge did" "$out"
+refute "retest: rename ii. and no RETEST" "RETEST       HEAD" "$out"
+
+# (iii) A rename that changes more than digits: the full run, naming it.
+kr_rn kcrn3 0590
+git -C "$kcwork" mv kr-0590-x.txt kr-0591-z.txt
+kr_rn_commit "kcrn3: rename to another name"
+out="$(kr_run)"
+expect "retest: rename iii. a rename beyond digits is the full run, named" \
+  "no catch-up: HEAD changed kr-0591-z.txt, which neither side nor the merge did" "$out"
+refute "retest: rename iii. and no RETEST" "RETEST       HEAD" "$out"
+
+# (iv) A new file after the merge, no rename: the full run, naming it.
+kr_rn kcrn4 0690
+printf 'x\n' >"${kcwork}/kr-0691-x.txt"
+kr_rn_commit "kcrn4: a new file"
+out="$(kr_run)"
+expect "retest: rename iv. an added file is the full run, named" \
+  "no catch-up: HEAD changed kr-0691-x.txt, which neither side nor the merge did" "$out"
+refute "retest: rename iv. and no RETEST" "RETEST       HEAD" "$out"
+
+# (v) A renumber into another directory: the full run, naming it. The
+# directory is one main tracks: a new one reds finish at map first.
+kr_rn kcrn5 0790
+git -C "$kcwork" mv kr-0790-x.txt .agents/harness/kr-0791-x.txt
+kr_rn_commit "kcrn5: renumber into another directory"
+out="$(kr_run)"
+expect "retest: rename v. a renumber into another directory is the full run, named" \
+  "no catch-up: HEAD changed .agents/harness/kr-0791-x.txt, which neither side nor the merge did" "$out"
+refute "retest: rename v. and no RETEST" "RETEST       HEAD" "$out"
+
 git -C "$kcwork" checkout -q main
 git -C "$kcwork" merge -q --ff-only origin/main 2>/dev/null
-git -C "$kcwork" rm -q kr-a.txt kr-b.txt kr-e.txt kr-c.txt kr-d.txt kr9.txt kr9-y.txt
+git -C "$kcwork" rm -q kr-a.txt kr-b.txt kr-e.txt kr-c.txt kr-d.txt kr9.txt kr9-y.txt \
+  kr-0390-y.txt kr-0490-y.txt kr-0590-y.txt kr-0690-y.txt kr-0790-y.txt
 commit_all "$kcwork" "main: drop the retest fixture"
 git -C "$kcwork" push -q origin main 2>/dev/null
 rm -f "$kr_cert" "${kr_gitdir}/joharness-finish-green" "$kr_file" \
