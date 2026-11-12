@@ -7034,6 +7034,38 @@ checks_catch_up() {
   return 0
 }
 
+# checks_level_end <ref>: after a green run, fetch the base again
+# (same switch and bound as the first fetch) and red when it moved past
+# HEAD. A failed fetch leaves the end unmeasured and green, as at the start.
+checks_level_end() {
+  local ref="$1" fresh="as of the last fetch" behind
+  if [ "${HANDOVER_FETCH:-1}" = "1" ]; then
+    if tmo 15 git -C "$ROOT" fetch --quiet origin \
+         "${HANDOVER_BASE_BRANCH:-main}" >/dev/null 2>&1; then
+      fresh="fetched just now"
+    else
+      printf '\n  level        UNMEASURED at end of run: the fetch of %s failed;\n' "$ref"
+      printf '               level stands as measured at the start\n'
+      return 0
+    fi
+  fi
+  # Behind at all is red, not only a moved base: HEAD moved mid-run can be
+  # behind an unmoved tip (verifier r1).
+  behind="$(git -C "$ROOT" rev-list --count "HEAD..${ref}" 2>/dev/null)" || behind=""
+  if [ -n "$behind" ] && [ "$behind" -gt 0 ]; then
+    printf '\n  BEHIND       %s commit(s) behind %s at end of run (%s): the base\n' \
+      "$behind" "$ref" "$fresh"
+    printf '               moved, or HEAD did, while the suites ran; no run saw it.\n'
+    printf '               Merge it in, finish again: git fetch origin %s\n' \
+      "${HANDOVER_BASE_BRANCH:-main}"
+    checks_outrun "$ref"
+    return 1
+  fi
+  printf '\n  level        %s behind %s at end of run (%s)\n' \
+    "${behind:-?}" "$ref" "$fresh"
+  return 0
+}
+
 # One line under 'github', the whole gate under 'local'.
 checks_gate() {
   local ref="$1" branch="$2" is_local="$3" ready="$4"
@@ -7207,6 +7239,12 @@ checks_gate() {
      [ "$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)" = "$pin" ] &&
      cf="$(checks_green_file)"; then
     printf 'head=%s\n' "$pin" >"$cf" 2>/dev/null || :
+  fi
+  # Level again at the END, after the green above, so checks_outrun reads
+  # this run's green: a long run leaves a window the base moves in unseen
+  # (chrsctl/gx #1553). The certificate keeps the pinned tip.
+  if [ "$rc" -eq 0 ] && [ -n "$tip" ]; then
+    checks_level_end "$ref" || rc=1
   fi
 
   # What a green above does NOT cover.

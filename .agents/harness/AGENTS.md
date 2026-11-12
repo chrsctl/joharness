@@ -58,9 +58,12 @@ ONE spelling: [`.agents/docs/glossary.md`](../../.agents/docs/glossary.md); `ci`
      = merge only on `JOHARNESS_CHECKS=local ./joharness.sh finish` printing
      `finish: pass (ci and verify ran here…)` (`.agents/docs/consumer-repos.md`,
      "Local checks"). A skipped `lint` check is never green;
-   - branch 0 behind fresh-fetched `origin/main` — behind = reconcile first
-     (`.agents/docs/product.md`, "Conflict at finish"); base outruns
-     `finish` = draft the PR and block (`.claude/commands/manager.md` §4);
+   - branch 0 behind fresh-fetched `origin/main`, measured right before
+     `merge_pull_request`, HEAD = pushed head: `git fetch origin main` (fails =
+     unmeasured, retry), then `git merge-base --is-ancestor origin/main HEAD`:
+     non-zero = behind = reconcile first (`.agents/docs/product.md`, "Conflict
+     at finish"); base outruns `finish` = draft the PR and block
+     (`.claude/commands/manager.md` §4);
    - `./joharness.sh verify` green when the diff touches non-`*.md` files under
      `joharness.sh`, `.agents/harness/`, `.agents/env/`, `.agents/scripts/` —
      unless this head's checks verified the selected layer (read the run; a
