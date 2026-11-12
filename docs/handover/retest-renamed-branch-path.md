@@ -22,7 +22,7 @@ not the full finish run (plan `docs/plans/retest-renamed-branch-path.md`).
 - A2: confirmed — replayed by the plan-checker in a scratch repo, git 2.43.0: `R100 docs/0390-branch.md docs/0391-branch.md`.
 - Each rename case runs on its own branch (`kr_rn`): certify after the add, base adds its own record, merge, then the case's edit. Cases share no certificate state.
 - Digit rule: both basenames, digits deleted, equal; same directory; source in `known`. Helper `checks_renumbered`.
-- Fails without the fix: detached worktree at the merge base with only this branch's `checks.sh`: `4400 passed, 3 failed` — case (i) both lines and (ii)'s named line FAIL (2026-11-12).
+- Fails without the fix: detached worktree at the merge base with only this branch's `checks.sh`: `4402 passed, 3 failed, 1 skipped` with case v present — case (i) both lines and (ii)'s named line FAIL (verifier re-run, 2026-11-12).
 
 ## Review
 
@@ -39,6 +39,8 @@ not the full finish run (plan `docs/plans/retest-renamed-branch-path.md`).
 - r11: build edits landed while the plan-checker still ran, against the hold-still rule (no change: its findings were checked against HEAD, the plan only; no rerun needed)
 - r12: (verifier) same-directory rule untested: replacing it with `:` left the selftest green (fixed: case v, a renumber into `.agents/harness/`, must be the full run; with the rule replaced by `:` it FAILs, 4403 passed 2 failed, 2026-11-12)
 - r13: (verifier) step 3 line in consumer-repos.md not re-wrapped (fixed)
+- r14: (verifier) source-in-known rule untested by mutation (no change: a source outside known is itself a deletion in `resolved`, so stray; the head is the full run with or without the rule, nothing to observe)
+- r15: (verifier) recorded fails-without-fix count predates case v (fixed: 4402 passed, 3 failed, re-run by the verifier)
 
 ## Blockers
 
