@@ -105,6 +105,13 @@ verdict spawns a surveyor that marks registries `shared:` and narrows
 bare-directory claims (`.agents/docs/orchestrated.md`, Concurrency). Name the
 specific file and mark a true registry `shared:` to spare that pass.
 
+A core path in `scope:` (`./joharness.sh protocol-paths`: the conf, the
+settings, `.github`) — `shared:` or not — marks the plan `CORE ONLY` and ranks
+it after every other free plan. The agent builds it, a human merges it: its
+manager puts the core edit in a `human/<stem>` pull request
+(`.agents/docs/manager-reference.md` § Human remainder). Protocol text is not a
+core path. Declare core paths anyway: the Stop guard blocks on the diff.
+
 ### Numbered artefacts
 
 A plan that will add a numbered artefact (a decision record, a criterion id)
@@ -116,13 +123,6 @@ landed). No registry = no step. A plan carried on its building branch
 reserves nothing. Why: two branches adding the next number race, and the
 loser renames (`.agents/docs/consumer-repos.md`, "A renumber that renames a
 file").
-
-A core path in `scope:` (`./joharness.sh protocol-paths`: the conf, the
-settings, `.github`) — `shared:` or not — marks the plan `CORE ONLY` and ranks
-it after every other free plan. The agent builds it, a human merges it: its
-manager puts the core edit in a `human/<stem>` pull request
-(`.agents/docs/manager-reference.md` § Human remainder). Protocol text is not a
-core path. Declare core paths anyway: the Stop guard blocks on the diff.
 
 ### A human remainder
 
