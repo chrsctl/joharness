@@ -6939,6 +6939,30 @@ checks_paths() {
   [ -z "$out" ] || printf '%s\n' "$out" | LC_ALL=C sort -u
 }
 
+# checks_renumbered <a> <b> <known>: destinations of the renames a..b whose
+# source is a <known> path and which only renumber it: same directory, the
+# basenames equal once every digit is deleted (0390-x.md -> 0391-x.md).
+# Non-zero when git cannot say. A quoted path stays quoted, so it reaches
+# the retest set's quoted-path refusal (.agents/docs/consumer-repos.md,
+# "A renumber that renames a file").
+checks_renumbered() {
+  local out st src dst sd dd sb db
+  out="$(git -C "$ROOT" -c core.quotePath=false diff -M --name-status --diff-filter=R "$1" "$2" -- 2>/dev/null)" ||
+    return 1
+  [ -n "$out" ] || return 0
+  while IFS=$'\t' read -r st src dst; do
+    [[ "$st" == R* && -n "$src" && -n "$dst" ]] || continue
+    printf '%s\n' "$3" | grep -qxF -- "$src" || continue
+    sd=""; dd=""
+    [[ "$src" != */* ]] || sd="${src%/*}"
+    [[ "$dst" != */* ]] || dd="${dst%/*}"
+    sb="${src##*/}"; db="${dst##*/}"
+    [ "$sd" = "$dd" ] && [ "${sb//[0-9]/}" = "${db//[0-9]/}" ] || continue
+    printf '%s\n' "$dst"
+  done <<<"$out"
+  return 0
+}
+
 # checks_catch_up <ref>: classifies a head descending from the certified one
 # (.agents/docs/consumer-repos.md § Local checks, "The finish loop").
 # 0 = CATCH-UP: HEAD is that head merged with <ref> and nothing to retest;
@@ -6950,7 +6974,7 @@ checks_paths() {
 # one line when this head descends from the certified one; silent otherwise.
 checks_catch_up() {
   local ref="$1" cf ch cb n m max mt mrc auto reason="" mb
-  local branch="" base="" conflicted="" resolved="" known stray rset="" k
+  local branch="" base="" conflicted="" resolved="" known stray rset="" k renum
   CHECKS_RETEST_SET=""
   CHECKS_RETEST_FROM=""
   cf="$(checks_cert_file)" && [ -r "$cf" ] || return 1
@@ -6990,10 +7014,13 @@ checks_catch_up() {
       # Exit 1 = conflicts: their paths follow the tree id, up to a blank line.
       [ "$mrc" -eq 0 ] ||
         conflicted="$(printf '%s\n' "$mt" | sed -n '2,${/^$/q;p;}' | LC_ALL=C sort -u)"
+      known="$(printf '%s\n' "$conflicted" "$branch" "$base" | grep -v '^$' | LC_ALL=C sort -u)"
       if ! resolved="$(checks_paths "$auto" 'HEAD^{tree}')"; then
         reason="git could not compare HEAD with the merge of it and ${ref}"
+      elif ! renum="$(checks_renumbered "$auto" 'HEAD^{tree}' "$known")"; then
+        reason="git could not list the renames between HEAD and the merge of it and ${ref}"
       else
-        known="$(printf '%s\n' "$conflicted" "$branch" "$base" | grep -v '^$' | LC_ALL=C sort -u)"
+        known="$(printf '%s\n' "$known" "$renum" | grep -v '^$' | LC_ALL=C sort -u)"
         stray="$(LC_ALL=C comm -23 <(printf '%s\n' "$resolved" | grep -v '^$') \
           <(printf '%s\n' "$known"))"
         if [ -n "$stray" ]; then

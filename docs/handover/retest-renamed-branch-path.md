@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK4JQsfWEwkVQ7pADKT
 agent: opus
 updated: 2026-11-12
-next: Check A1/A2, then add the rename term to checks_catch_up with its four selftest cases
+next: consumer-repos.md step 3 + renumber paragraph, then fail-without-fix check, ci, verify, verifier
 ---
 
 ## Goal
