@@ -232,13 +232,22 @@ chrsctl/gx, 220 commits over 27 first-parent merges in 12 hours, 31 commits in
 traffic, and one manager threw away seven green ~26-minute passes before it
 merged (WEAK: one gx session's reading of manager transcripts, no second
 context has taken it). Renumbering ids after a merge lands in `RETEST`
-(its paths sit inside conflicted ∪ branch ∪ base); only an edit to a path
-neither side changed falls to the full run. Neither is a cause the bound
-touches. The knob stays in commits until a count of merged pull requests has
-evidence of its own. The CATCH-UP lines print the first-parent merge count
-beside the commit count, so a consumer can tune `JOHARNESS_CATCHUP_COMMITS`
-from its own history. Count yourself: `git rev-list --count --first-parent
---merges <base>..origin/main`.
+when the ids are edited in place (their paths sit inside conflicted ∪ branch
+∪ base); an edit to a path neither side changed falls to the full run.
+Neither is a cause the bound touches.
+
+**A renumber that renames a file.** A branch that loses its record's
+number (`0390-x.md`) to the base and renames the file after the merge pays
+the full run: `resolved` is listed `--no-renames`, so the new path is in no
+set (GROUNDED: step 3's commands replayed on a fixture). A gap, not a bound:
+a rename in the same directory, names equal but for digits, from a source in
+`conflicted ∪ branch ∪ base` counts as known, so it is retested, not stray
+(plan `retest-renamed-branch-path`; until then, the full run). Any other
+new path still runs in full. Cheaper, no rename: reserve the number in the
+plan's own pull request when it merges ahead of the build (plan
+`reserve-numbered-artefact`). Cost of the gap: six renames, each a
+~24-minute full run (chrsctl/gx #1557, ADR 0413; WEAK: a consumer's
+reading).
 
 **The finish loop.** One protocol: test a head in full once; after each
 merge of the base, retest only what that merge could have changed; merge when
