@@ -237,17 +237,15 @@ when the ids are edited in place (their paths sit inside conflicted ∪ branch
 Neither is a cause the bound touches.
 
 **A renumber that renames a file.** A branch that loses its record's
-number (`0390-x.md`) to the base and renames the file after the merge pays
-the full run: `resolved` is listed `--no-renames`, so the new path is in no
-set (GROUNDED: step 3's commands replayed on a fixture). A gap, not a bound:
-a rename in the same directory, names equal but for digits, from a source in
-`conflicted ∪ branch ∪ base` counts as known, so it is retested, not stray
-(plan `retest-renamed-branch-path`; until then, the full run). Any other
-new path still runs in full. Cheaper, no rename: reserve the number in the
-plan's own pull request when it merges ahead of the build (plan
-`reserve-numbered-artefact`). Cost of the gap: six renames, each a
-~24-minute full run (chrsctl/gx #1557, ADR 0413; WEAK: a consumer's
-reading).
+number (`0390-x.md`) to the base and renames the file after the merge: a
+rename in the same directory, names equal but for digits, from a source in
+`conflicted ∪ branch ∪ base` counts as known (`git diff -M`), so it is
+retested, not stray; `resolved` alone (`--no-renames`) would name the new path
+stray (GROUNDED: step 3's commands replayed on a fixture). Any other new path
+still runs in full. Cheaper, no rename: reserve the number in the plan's own
+pull request when it merges ahead of the build (plan
+`reserve-numbered-artefact`). Cost before: six renames, each a ~24-minute
+full run (chrsctl/gx #1557, ADR 0413; WEAK: a consumer's reading).
 
 **The finish loop.** One protocol: test a head in full once; after each
 merge of the base, retest only what that merge could have changed; merge when
@@ -266,7 +264,7 @@ green and level.
    `auto` = tree from `git merge-tree --write-tree --name-only H0 base`
    (exit 1 = conflicts, listed as `conflicted`); `resolved` = `git diff
    --name-only <auto> HEAD^{tree}`. A resolved path outside `conflicted ∪
-   branch ∪ base` = full run: `HEAD changed <path>, which neither side nor the
+   branch ∪ base`, nor a renumber's destination (above) = full run: `HEAD changed <path>, which neither side nor the
    merge did: something else changed`. Retest set `R = (branch ∩ base) ∪
    conflicted ∪ resolved`, sorted, one per line, in
    `<git-dir>/joharness-retest-paths`. An own commit after the merge that edits

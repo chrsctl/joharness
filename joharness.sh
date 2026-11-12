@@ -6957,7 +6957,8 @@ checks_renumbered() {
     [[ "$src" != */* ]] || sd="${src%/*}"
     [[ "$dst" != */* ]] || dd="${dst%/*}"
     sb="${src##*/}"; db="${dst##*/}"
-    [ "$sd" = "$dd" ] && [ "${sb//[0-9]/}" = "${db//[0-9]/}" ] || continue
+    [ "$sd" = "$dd" ] || continue
+    [ "${sb//[0-9]/}" = "${db//[0-9]/}" ] || continue
     printf '%s\n' "$dst"
   done <<<"$out"
   return 0
