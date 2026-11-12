@@ -38,8 +38,8 @@ renames a file").
   fixture's files up in the block's existing `git rm` line.
 - `.agents/docs/consumer-repos.md` — "The finish loop" step 3: add the rename
   term to the definition of `resolved`/the stray test; in "A renumber that
-  renames a file" drop "(plan `retest-renamed-branch-path`; until it merges,
-  the full run)" and state the behaviour as current.
+  renames a file" drop "(plan `retest-renamed-branch-path`; until then, the
+  full run)" and state the behaviour as current.
 
 ## Assumptions
 
@@ -83,3 +83,6 @@ renames a file").
   FAIL without the fix.
 - The finish gate is merge-gate logic: a looser stray test is a merge of an
   untested head. Only a rename's destination joins `known`, never an add.
+- `consumer-repos.md` sits within bytes of its reading budget (`ci` stage
+  `reading budget`): the step 3 edit replaces text, it does not add a
+  paragraph.

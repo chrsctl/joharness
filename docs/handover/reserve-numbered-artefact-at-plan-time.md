@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK78vSStgy6SqLSw8Wb
 agent: opus
 updated: 2026-11-12
-next: ci, verify, verifier at opus, then retire and open the PR
+next: await verifier (opus) on 0132c06, record findings in Review, rerun ci, retire, PR
 ---
 
 ## Goal
