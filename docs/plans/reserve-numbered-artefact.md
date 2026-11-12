@@ -7,7 +7,7 @@ needs: none
 requirement: none
 serves: all
 issue: none
-scope: .agents/docs/plans.md, .claude/commands/plan.md, .claude/commands/clerk.md
+scope: .agents/docs/plans.md, .claude/commands/plan.md, .claude/commands/clerk.md, .claude/commands/manager.md
 ---
 
 ## Goal
@@ -17,7 +17,7 @@ record, a criterion id) race for the same number; the loser renames after
 merging the base and pays the finish loop for it. The research
 `reserve-numbered-artefact-at-plan-time` decided the plan writer reserves the
 number in the plan's own pull request (`.agents/docs/consumer-repos.md`,
-"Reserve the number when the plan is written").
+"A renumber that renames a file").
 
 ## Scope
 
@@ -25,13 +25,17 @@ number in the plan's own pull request (`.agents/docs/consumer-repos.md`,
   paragraphs, "Numbered artefacts": a plan that will add a numbered artefact
   reserves the number in the repository's registry (whatever file the
   repository names for it) in the plan's own pull request, names the number
-  in `## Scope`, and lists the registry in `scope:` as `shared:`; the building
-  branch uses only that number and never renames the file. No registry = no
-  step. Why: one line, citing `consumer-repos.md` "Reserve the number when the
-  plan is written".
+  in `## Scope`; the building branch uses only that number, never renames
+  the file, and does not list the registry in `scope:` (the reservation
+  already landed). No registry = no step. A plan carried on its building
+  branch reserves nothing: say so. Why: one line, citing
+  `consumer-repos.md` "A renumber that renames a file".
 - `.claude/commands/plan.md` — step 3: one line pointing at that subsection.
 - `.claude/commands/clerk.md` — the `HOLDS` bullet: one clause pointing at
-  the same subsection.
+  the same subsection; the `## Never` line "Plans only" gains "(and a
+  number reserved in the registry, `plans.md` Numbered artefacts)".
+- `.claude/commands/manager.md` — §0 `docs/product/` bullet, "pull request
+  carrying the plans only": the same carve-out.
 
 ## Assumptions
 
@@ -50,14 +54,16 @@ number in the plan's own pull request (`.agents/docs/consumer-repos.md`,
 ## Acceptance
 
 - `git grep -n 'Numbered artefacts' -- .agents/docs/plans.md` — one hit.
-- `git grep -n -i 'numbered artefact' -- .claude/commands/plan.md .claude/commands/clerk.md` — one hit each.
+- `git grep -n -i 'numbered artefact' -- .claude/commands/plan.md .claude/commands/clerk.md .claude/commands/manager.md` — at least one hit each.
+- SHIPS: a consumer's `./joharness.sh ci` after its next sync — `ci: pass`
+  (its glossary and lint stages read the synced text).
 - `./joharness.sh ci` — `ci: pass`.
 
 ## Where to look
 
 - `.agents/docs/plans.md:shared:` — the registry paragraphs the subsection follows.
 - `.claude/commands/clerk.md:HOLDS` — the bullet that writes plans.
-- `.agents/docs/consumer-repos.md:Reserve the number` — the why it cites.
+- `.agents/docs/consumer-repos.md:A renumber that renames a file` — the why it cites.
 
 ## Traps
 

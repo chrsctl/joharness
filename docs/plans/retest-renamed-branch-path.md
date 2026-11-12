@@ -25,16 +25,23 @@ renames a file").
 - `joharness.sh` — `checks_catch_up`: before the stray test, take the
   renames between `auto` and `HEAD^{tree}` (`git diff -M --name-status
   --diff-filter=R`, `core.quotePath=false`). A rename whose SOURCE is in
-  `known` (`conflicted ∪ branch ∪ base`) adds its DESTINATION to `known`.
+  `known` (`conflicted ∪ branch ∪ base`), whose destination is in the SAME
+  directory and whose basename equals the source's with every digit deleted
+  (`0390-x.md` → `0391-x.md`; `helpers.py` → `conftest.py` does not count),
+  adds its DESTINATION to `known`.
   `resolved` (and so `R`) still comes from `checks_paths` (`--no-renames`), so
   both source and destination land in `R`. A destination git quotes falls to
   the existing quoted-path refusal. Rename detection failing = the full run
   with a reason, as every other git failure there.
 - `.agents/harness/selftest/checks.sh` — in the RETEST block (`kr_` fixture)
-  add two cases: (i) the branch adds a file, the base adds an unrelated file,
-  the branch merges and renames its own file: `RETEST`, the destination path
-  in `JOHARNESS_RETEST_PATHS`; (ii) the same rename plus an edit to a file
-  neither side changed: still the full run naming that file. Clean the
+  add four cases, labels starting `retest: rename`: (i) the branch adds
+  `kr-0390-x.txt`, the base adds `kr-0390-y.txt`, the branch merges and `git
+  mv`s its file to `kr-0391-x.txt`: `RETEST`, the destination in
+  `JOHARNESS_RETEST_PATHS`; (ii) the same rename plus an edit to a file
+  neither side changed: still the full run naming that file; (iii) a rename
+  of a branch file to a name that differs by more than digits: the full run
+  naming the destination; (iv) a new file added after the merge, no rename:
+  the full run naming it. Clean the
   fixture's files up in the block's existing `git rm` line.
 - `.agents/docs/consumer-repos.md` — "The finish loop" step 3: add the rename
   term to the definition of `resolved`/the stray test; in "A renumber that
@@ -48,7 +55,12 @@ renames a file").
   the replay recorded in `consumer-repos.md` "A renumber that renames a
   file" — confidence: high
 - A2: `git diff -M` between `auto` and `HEAD^{tree}` pairs an unchanged
-  rename as `R100` — evidence: same replay — confidence: high
+  rename as `R100` — evidence: replay: in a fresh repo, branch adds
+  `docs/0390-branch.md`, main adds `docs/0390-main.md`, branch merges main and
+  `git mv`s to `docs/0391-branch.md`; `git merge-tree --write-tree --name-only
+  <H0> main` = `<auto>`; `git diff --no-renames --name-only <auto> HEAD^{tree}`
+  = both paths; `git diff -M --name-status <auto> HEAD^{tree}` = `R100
+  docs/0390-branch.md docs/0391-branch.md` — confidence: high
 
 ## Out of scope
 
@@ -60,15 +72,18 @@ renames a file").
 
 ## Acceptance
 
-- `./joharness.sh selftest 2>&1 | grep -c 'FAIL'` — `0`; the two new cases
-  print `ok`/pass lines naming "rename".
+- `bash .agents/harness/selftest.sh 2>&1 | grep -E '^ *(PASS|FAIL) retest: rename'`
+  — four or more lines, every one `PASS`.
+- `bash .agents/harness/selftest.sh 2>&1 | grep -cE '^ *FAIL '` — `0`.
 - Case (i) fails without the fix: in a detached worktree at the merge base
   (`git worktree add --detach <dir> $(git merge-base origin/main HEAD)`), copy
-  in this branch's `checks.sh` only and run the selftest there — the new
-  RETEST case reds. Never stash or revert in the shared tree while a
-  verifier lives.
+  in this branch's `.agents/harness/selftest/checks.sh` only, run `bash
+  .agents/harness/selftest.sh` there: case (i) prints `FAIL retest: rename`.
+  Never stash or revert in the shared tree while a verifier lives.
 - `./joharness.sh ci` — `ci: pass`.
 - `./joharness.sh verify` — `0 failed`.
+- SHIPS: a consumer's `./joharness.sh ci` after its next sync runs the same
+  harness selftest — `ci: pass`.
 
 ## Where to look
 

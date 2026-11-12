@@ -239,16 +239,15 @@ Neither is a cause the bound touches.
 **A renumber that renames a file.** A branch that loses its record's
 number (`0390-x.md`) to the base and renames the file after the merge pays
 the full run: `resolved` is listed `--no-renames`, so the new path is in no
-set (GROUNDED: step 3's commands replayed on a two-branch fixture). A gap,
-not a bound: a rename whose source sits in `conflicted ∪ branch ∪ base`
-puts its destination in `R` (plan `retest-renamed-branch-path`; until then,
-the full run). A cross-reference edited outside both sides still runs in
-full. Cheaper, no rename: a plan that adds a numbered
-artefact reserves the number in the repository's registry in its own plan
-pull request, which merges before any build (plan
-`reserve-numbered-artefact`, rule in `plans.md`). Cost of the gap: six
-renames, each a ~24-minute full run (chrsctl/gx #1557, ADR 0413; WEAK: a
-consumer's reading).
+set (GROUNDED: step 3's commands replayed on a fixture). A gap, not a bound:
+a rename in the same directory, names equal but for digits, from a source in
+`conflicted ∪ branch ∪ base` counts as known, so it is retested, not stray
+(plan `retest-renamed-branch-path`; until then, the full run). Any other
+new path still runs in full. Cheaper, no rename: reserve the number in the
+plan's own pull request when it merges ahead of the build (plan
+`reserve-numbered-artefact`). Cost of the gap: six renames, each a
+~24-minute full run (chrsctl/gx #1557, ADR 0413; WEAK: a consumer's
+reading).
 
 **The finish loop.** One protocol: test a head in full once; after each
 merge of the base, retest only what that merge could have changed; merge when
