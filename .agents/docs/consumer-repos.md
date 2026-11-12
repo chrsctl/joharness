@@ -279,6 +279,16 @@ green and level.
 5. **Merge when green and level.** `.agents/harness/AGENTS.md` step 7. STARVED
    counts only green runs the base outran; minutes-long retests make it rare.
 
+**A local pass certifies level at the run's START, not at the merge.**
+`joharness.sh:checks_gate` fetches the base once, before the suites; nothing
+after them, and no step before `merge_pull_request`, measures it again. So
+step 7's "0 behind" is claimed at the merge, and GitHub merges into the base
+as it then is: a line both sides added merges clean as two and reddens the
+base for every branch (chrsctl/gx #1553, WEAK: a consumer's reading). Plan
+`finish-level-at-merge` would re-measure at the end of `finish` and at the
+merge call. Only branch protection's "require branches to be up to date"
+closes the last seconds: a human's setting.
+
 Consumer contract. On RETEST `local-check` gets `JOHARNESS_RETEST_PATHS`
 (absolute path of `<git-dir>/joharness-retest-paths`, sorted paths, one per
 line) and `JOHARNESS_RETEST_FROM` (the certified head sha). On every other run
