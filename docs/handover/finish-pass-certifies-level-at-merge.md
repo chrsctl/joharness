@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK7RMRKD58eoujx5QMg
 agent: opus
 updated: 2026-11-12
-next: Read finish in joharness.sh, settle whether a pass certifies level at merge, graduate to consumer-repos.md
+next: Run verifier on the branch diff, record in Review, then ci, finish, retire, PR, merge
 ---
 
 ## Goal
@@ -19,15 +19,23 @@ Graduate the answer, delete the research file.
 
 ## Decisions
 
-- None yet.
+- Answer: NO. `joharness.sh:checks_gate` fetches the base once, before the
+  refusals, and pins `tip`; nothing after the suites fetches, and no manager
+  step between pass and `merge_pull_request` does. Graduated to
+  `consumer-repos.md` § Local checks ("What a local pass certifies").
+- The fix is code, so it is a plan (`docs/plans/finish-level-at-merge.md`),
+  not built here: a research PR writes no code (`.agents/docs/research.md`).
+- Both fixes, not one: an end-of-run fetch in `finish` (cheap, reuses
+  OUTRUN/CATCH-UP) plus a fetch-and-ancestor check at the merge call, since
+  the PR calls after the pass are a window too. Branch protection named as
+  the only full close (a human's setting).
+- gx incident readings kept WEAK: this session cannot read chrsctl/gx.
 
 ## Rejected
 
-- None yet.
-
-## Review
-
-None yet.
+- Docs-only answer ("turn on branch protection"): leaves every consumer on
+  local checks with the race until a human acts; the harness can shrink it
+  to seconds itself.
 
 ## Blockers
 
