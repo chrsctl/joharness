@@ -232,9 +232,42 @@ chrsctl/gx, 220 commits over 27 first-parent merges in 12 hours, 31 commits in
 traffic, and one manager threw away seven green ~26-minute passes before it
 merged (WEAK: one gx session's reading of manager transcripts, no second
 context has taken it). Renumbering ids after a merge lands in `RETEST`
-(its paths sit inside conflicted ∪ branch ∪ base); only an edit to a path
-neither side changed falls to the full run. Neither is a cause the bound
-touches. The knob stays in commits until a count of merged pull requests has
+when the ids are edited in place (their paths sit inside conflicted ∪ branch
+∪ base); an edit to a path neither side changed falls to the full run.
+Neither is a cause the bound touches.
+
+**A renumber that renames a file.** A branch that adds a numbered artefact
+(a decision record `0390-x.md`) loses the number to whichever branch merges
+first, and renames its file after merging the base in. `resolved` is listed
+with `--no-renames` (`joharness.sh:checks_paths`), so the rename is the old
+path deleted, which `branch` holds, and the new path added, which no set
+holds: the full run, `HEAD changed <new path>, which neither side nor the
+merge did` (GROUNDED: the step 3 commands replayed on a two-branch fixture,
+branch `0390-branch.md` renamed to `0391-branch.md` after merging a base that
+added `0390-main.md`; `resolved` = both paths, the new one stray; `git diff
+-M` pairs them `R100`). That is a gap, not a bound: the rename is the
+resolution shape `RETEST` exists for, and its content is a path the branch
+already changed. Decided: a path HEAD adds that rename detection pairs with a
+source in `conflicted ∪ branch ∪ base` is `resolved`, the destination joins
+`R` (plan `retest-renamed-branch-path`; until it merges, the full run). It
+stays safe for the reason the stray rule is: a renumber that also rewrites a
+cross-reference in a file neither side changed still names that file and
+runs in full. One consumer paid for the gap: six renames of one record, each
+a ~24-minute full run where a catch-up would do, the base outrunning nine
+green runs and both STARVED resumes (chrsctl/gx #1557, WEAK: a consumer's
+reading, not re-measured here).
+
+**Reserve the number when the plan is written.** The cheaper fix is no
+rename at all: a plan that will add a numbered artefact reserves the number
+in the consumer's registry (whatever file it names for that) in the plan's
+own pull request, and the building branch uses only that number. The plan
+pull request is merged before any manager builds, so the reservation costs
+one line and a clash surfaces as a conflict between two small plan pull
+requests, never as a lap of the finish loop. The rename rule above covers
+what reservation misses (a number nobody reserved, a registry the consumer
+lacks). Rule: `.agents/docs/plans.md` (plan `reserve-numbered-artefact`; the
+consumer's own record of the practice: chrsctl/gx ADR 0413, WEAK: a
+consumer's reading). The knob stays in commits until a count of merged pull requests has
 evidence of its own. The CATCH-UP lines print the first-parent merge count
 beside the commit count, so a consumer can tune `JOHARNESS_CATCHUP_COMMITS`
 from its own history. Count yourself: `git rev-list --count --first-parent
