@@ -28,7 +28,8 @@ subagent.
    Assumptions (`A<n>: <claim> — evidence: … — confidence: …`), Out of scope,
    Acceptance (commands WITH expected output), Where to look, Traps. Open
    each anchor in Where to look. Two plans touching one file name each other
-   in Traps.
+   in Traps. Adds a numbered artefact? Reserve its number
+   (`.agents/docs/plans.md`, Numbered artefacts).
 4. `./joharness.sh curate --apply`, then `./joharness.sh curate`: fix by
    hand what it still names on your plan (a `PROPOSE` line is the human's —
    say it in the pull request body).

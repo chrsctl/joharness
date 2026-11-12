@@ -112,6 +112,18 @@ manager puts the core edit in a `human/<stem>` pull request
 (`.agents/docs/manager-reference.md` § Human remainder). Protocol text is not a
 core path. Declare core paths anyway: the Stop guard blocks on the diff.
 
+### Numbered artefacts
+
+A plan that will add a numbered artefact (a decision record, a criterion id)
+reserves the number in the repository's registry (whatever file the
+repository names for it) in the plan's own pull request, and names the number
+in `## Scope`. The building branch uses only that number, never renames the
+file, and does not list the registry in `scope:` (the reservation already
+landed). No registry = no step. A plan carried on its building branch
+reserves nothing. Why: two branches adding the next number race, and the
+loser renames (`.agents/docs/consumer-repos.md`, "A renumber that renames a
+file").
+
 ### A human remainder
 
 A core-path edit never lands on a session's branch: it lives in a pull

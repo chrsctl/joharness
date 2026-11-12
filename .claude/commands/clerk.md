@@ -123,7 +123,9 @@ the pull request body with the evidence, one line each:
   effort by `.agents/docs/agent-selection.md`. A plan whose `scope:` is core
   paths only (`./joharness.sh protocol-paths`) is written like any other: its
   manager builds the core edit in a `human/<stem>` pull request. A plan
-  written: comment `clerk: HOLDS — plan <stem> in PR #<M>`.
+  written: comment `clerk: HOLDS — plan <stem> in PR #<M>`. A plan adding a
+  numbered artefact reserves its number (`.agents/docs/plans.md`, Numbered
+  artefacts).
 - **NARROWER** — a plan for only the part that holds, `issue: <N>`; comment
   naming `PR #<M>` and sorting each part not planned into one of two kinds.
   Does not hold: the evidence, as DOES NOT HOLD gives it. Needs a human (the
@@ -229,7 +231,8 @@ written, comments posted (link comments counted).
 
 ## Never
 
-- Write code, a requirement, or a research file. Plans only; the one
+- Write code, a requirement, or a research file. Plans only (and a number reserved in the registry, `plans.md` Numbered
+  artefacts); the one
   requirement is a scout proposal's, as above.
 - Edit anything under `./joharness.sh protocol-paths`, or any plan you did
   not write this pass.
