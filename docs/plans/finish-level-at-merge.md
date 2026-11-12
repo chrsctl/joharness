@@ -5,7 +5,7 @@ agent: opus
 effort: high
 requirement: none
 issue: none
-scope: shared:joharness.sh, .agents/harness/selftest/checks.sh, .claude/commands/manager.md, .agents/harness/AGENTS.md, shared:.agents/docs/consumer-repos.md
+scope: shared:joharness.sh, .agents/harness/selftest/checks.sh, .agents/harness/AGENTS.md, shared:.agents/docs/consumer-repos.md
 ---
 
 ## Goal
@@ -29,17 +29,20 @@ certifies" (research `finish-pass-certifies-level-at-merge`).
   and green file this run wrote stay: the next `finish` after the merge of
   `origin/main` is a CATCH-UP or RETEST from them. A fetch that fails prints
   that the end-of-run level is unmeasured, and stays green (as the first
-  fetch does).
+  fetch does). Level at the end: print `  level        0 behind <ref> at end of
+  run (fetched just now)`.
 - `.agents/harness/selftest/checks.sh`: a fixture where the base gains a
   commit while `local-check` runs (the check itself commits to the fixture's
   origin) reds `finish` with `OUTRUN`; the next `finish` after merging the
   base prints `CATCH-UP`. Fails without the change.
-- `.claude/commands/manager.md` §4 and `.agents/harness/AGENTS.md` step 7: right
-  before `merge_pull_request`, `git fetch origin main && git merge-base
-  --is-ancestor origin/main HEAD`; non-zero = behind, back to the finish loop
-  (no merge). One line each.
+- `.agents/harness/AGENTS.md` step 7, the "0 behind" bullet: measured
+  immediately before `merge_pull_request` by `git fetch origin main && git
+  merge-base --is-ancestor origin/main HEAD`; non-zero = behind, back to the
+  finish loop. One clause; `.claude/commands/manager.md` is NOT touched (it
+  defers to step 7, and has no reading-budget headroom).
 - `.agents/docs/consumer-repos.md` § Local checks: replace "Plan
-  `finish-level-at-merge` makes it a measurement" with what now holds.
+  `finish-level-at-merge` would re-measure" with what now holds, net bytes
+  not added (the file sits near its reading budget).
 
 ## Assumptions
 
@@ -69,7 +72,12 @@ certifies" (research `finish-pass-certifies-level-at-merge`).
 ./joharness.sh ci          # ci: pass
 ./joharness.sh verify      # 0 failed
 bash .agents/harness/selftest/checks.sh   # the new base-moved-mid-run case passes
+grep -c 'merge-base --is-ancestor origin/main HEAD' .agents/harness/AGENTS.md   # 1
 ```
+
+Consumer side, after the sync: in a consumer with `JOHARNESS_CHECKS=local`,
+`./joharness.sh finish` on a level head prints `level        0 behind
+origin/main at end of run` before `finish: pass`.
 
 ## Where to look
 
@@ -81,3 +89,6 @@ bash .agents/harness/selftest/checks.sh   # the new base-moved-mid-run case pass
 
 - Never skip, disable or quarantine a test to get green.
 - `.github/` and `joharness.conf` are core paths: not this plan.
+- Reading budget (`.agents/harness/selftest/reading-budget.sh`): `manager.md`
+  has ~1 byte headroom, `.agents/harness/AGENTS.md` ~540, `consumer-repos.md`
+  little. Run `ci` after each doc edit.

@@ -279,30 +279,15 @@ green and level.
 5. **Merge when green and level.** `.agents/harness/AGENTS.md` step 7. STARVED
    counts only green runs the base outran; minutes-long retests make it rare.
 
-**What a local pass certifies: level when the run STARTED, not at the merge.**
-`checks_gate` fetches the base once, before the suites, measures BEHIND
-against that tip and pins it (`tip`, `pin`); nothing after the suites fetches
-or measures again, and no step between `finish: pass` and
-`merge_pull_request` does either (`.claude/commands/manager.md` §4,
-`manager-reference.md` § Starved: each acts on a behind someone SAW). So the
-pass says "0 behind at the start of a 20-30 minute run". Step 7's "0 behind
-fresh-fetched `origin/main`" is claimed, not measured, at the merge. GitHub
-merges the head into the base as it is at the merge call, so the merge commit
-carries base commits no check ran on. Why it matters: a line both sides add
-merges clean as two lines. chrsctl/gx PR #1550 merged head `0add9192a`, 2
-commits behind `ff9517e3e` (#1548, landed 19 minutes before the pass). Both
-sides had added `- CRM6300-6309`, and the base went red for every branch (gx
-#1553). A level head's own `ci` would have caught the duplicate on the branch
-(WEAK: one gx session's reading of two transcripts and `git merge-base
---is-ancestor` on gx; not re-taken here). The code reading is GROUNDED
-(`joharness.sh:checks_gate`, one `fetch` before the refusals, none after;
-research `finish-pass-certifies-level-at-merge`). Plan
-`finish-level-at-merge` makes it a measurement: `finish` fetches again after
-the suites and refuses `OUTRUN` when the base moved, and step 7 runs a
-seconds-long fetch-and-ancestor check immediately before the merge call. Even
-then the gap between that check and GitHub's merge is not zero. Only branch
-protection's "require branches to be up to date before merging" closes it,
-a repository setting a human turns on.
+**A local pass certifies level at the run's START, not at the merge.**
+`joharness.sh:checks_gate` fetches the base once, before the suites; nothing
+after them, and no step before `merge_pull_request`, measures it again. So
+step 7's "0 behind" is claimed at the merge, and GitHub merges into the base
+as it then is: a line both sides added merges clean as two and reddens the
+base for every branch (chrsctl/gx #1553, WEAK: a consumer's reading). Plan
+`finish-level-at-merge` would re-measure at the end of `finish` and at the
+merge call. Only branch protection's "require branches to be up to date"
+closes the last seconds: a human's setting.
 
 Consumer contract. On RETEST `local-check` gets `JOHARNESS_RETEST_PATHS`
 (absolute path of `<git-dir>/joharness-retest-paths`, sorted paths, one per
