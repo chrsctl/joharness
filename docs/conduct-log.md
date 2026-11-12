@@ -31,3 +31,6 @@ without (`.agents/scripts/c2-run.sh`)? Verdict `N/A`, `FINE`, `CONCERN` or
 | 2026-11-11 | block-draft-guard | FINE | NO EVIDENCE | c2-run: all three runs exit 1, "first name not listed: bootstrap-consumer"; no case rows, runner NO FLIP |
 | 2026-11-11 | hold-followups | FINE | NO EVIDENCE | c2-run: all three runs exit 1, "first name not listed: bootstrap-consumer"; no case rows, runner NO FLIP |
 | 2026-11-11 | finding-routes-defect-grammar | FINE | NO EVIDENCE | c2-run: all three runs exit 1, "first name not listed: bootstrap-consumer"; no case rows, runner NO FLIP |
+| 2026-11-12 | retired-respawn-prompt | FINE | NO EVIDENCE | c2-run: all three runs exit 1, "first name not listed: bootstrap-consumer"; no case rows, runner NO FLIP |
+| 2026-11-12 | heartbeat-read-cheaper | FINE | NO EVIDENCE | c2-run: all three runs exit 1, "first name not listed: bootstrap-consumer"; no case rows, runner NO FLIP |
+| 2026-11-12 | requirement-deleted-under-open-plans | FINE | NO EVIDENCE | c2-run: all three runs exit 1, "first name not listed: bootstrap-consumer"; no case rows, runner NO FLIP |
