@@ -254,17 +254,19 @@ or `wontfix: why`. A `measure` finding no plan's Acceptance can answer = block
 with `product:` (the requester owns the requirement text).
 
 Then every plan the pass writes gets `.claude/agents/plan-checker.md` before
-the pull request opens, whatever its `agent:`. Findings `(plan-checker)`.
+the pull request opens, whatever its `agent:`. Findings `(plan-checker)`, at
+most 3 rounds, as §2 says for the build.
 
-A planning pass's review is bounded; the build's own plan-check reads each
-plan again before any code, so a finding left open here is not lost:
+A planning pass's review is bounded on top of that; the build's own
+plan-check reads each plan again before any code, so a finding left open
+here is not lost:
 
-- **Rounds:** at most 10 review rounds in the whole pass, each plan-checker
-  spawn and each verifier pass counting one. Round 10 done = stop: a
-  finding from it is fixed without another round or recorded
-  `wontfix: PR body`.
+- **Rounds:** at most `JOHARNESS_PLANNING_REVIEW_ROUNDS` (default 25) in
+  the whole pass, each plan-checker spawn and each verifier pass counting
+  one. The cap reached = stop: a finding from the last round is fixed
+  without another round or recorded `wontfix: PR body`.
 - **Tier:** plan-checker and verifier at opus, never fable
-  (`./joharness.sh review` prints it; `agent-selection.md`, Review depth).
+  (`./joharness.sh review` prints both; `agent-selection.md`, Review depth).
   Challengers stay at sonnet.
 - What stays open goes in the pull request body, for the build's manager.
 

@@ -128,6 +128,7 @@ JOHARNESS_STARVED_RESUMES|2|dispatch|STARVED blocks a claim resumes without a hu
 JOHARNESS_ORCHESTRATOR_PASSES|6|dispatch|Orchestrator passes a session makes before it retires and the keeper starts a successor.
 JOHARNESS_MANAGER_HOURS|4|dispatch|Claim older than this with no pull request = CEILING? report; 0 lifts it.
 JOHARNESS_CHURN_THRESHOLD|5|dispatch|One file rewritten this often = warning.
+JOHARNESS_PLANNING_REVIEW_ROUNDS|25|dispatch|Plan-checker spawns and verifier passes one planning pass makes at most, counted together; 0 = no cap.
 JOHARNESS_CHURN_LIMIT|computed|dispatch|One file rewritten this often = LOOP? and ci red; default twice the threshold; 0 lifts it.
 JOHARNESS_CURATE_REGISTRY|3|dispatch|Plans declaring one path before curate calls it a registry.
 JOHARNESS_CURATE_SPLIT|8|dispatch|Scope bullets before curate proposes a decompose.
@@ -1845,15 +1846,17 @@ review_tier() {
   printf '%s' "$tier"
 }
 
-# A planning pass: `plan:` names a requirement that no plan file shares a stem
-# with. Its diff is plans, so its review is bounded (manager-reference.md,
+# A planning pass: `plan:` names a requirement that, at the merge base, no
+# plan file shares a stem with. Read at the base, never the tree: the pass
+# may add a plan of the requirement's stem, and a build's retire deletes its
+# plan. Its diff is plans, so its review is bounded (manager-reference.md,
 # Challenge) and its reviewers never run at fable.
 review_planning_pass() {
-  local plan
+  local plan base="$2"
   plan="$(lint_stem "$(printf '%s\n' "$1" | gr_field plan)")"
-  [ -n "$plan" ] && [ "$plan" != "none" ] &&
-    [ -f "${ROOT}/docs/product/${plan}.md" ] &&
-    [ ! -f "${ROOT}/docs/plans/${plan}.md" ]
+  [ -n "$plan" ] && [ "$plan" != "none" ] && [ -n "$base" ] || return 1
+  git -C "$ROOT" cat-file -e "${base}:docs/product/${plan}.md" 2>/dev/null &&
+    ! git -C "$ROOT" cat-file -e "${base}:docs/plans/${plan}.md" 2>/dev/null
 }
 
 # Depth per tier, quoted from the review-depth rule rather than re-invented.
@@ -2219,7 +2222,7 @@ review_report() {
     tier="$(review_tier "$doc" "$agent")"
     case $'\n'"${fast}"$'\n' in *$'\n'"${ws}"$'\n'*) tier="haiku" ;; esac
     planning=0
-    review_planning_pass "$doc" && planning=1
+    review_planning_pass "$doc" "$base" && planning=1
     # The human's money decision (agent-selection.md, Review depth): a
     # planning pass's reviewers run at opus, never fable.
     [ "$planning" = 1 ] && [ "$tier" = fable ] && tier="opus"
@@ -2232,9 +2235,11 @@ review_report() {
     printf '    write this diff, which is the whole property. Tag what it\n'
     printf '    returns (verifier).\n'
     if [ "$planning" = 1 ]; then
-      printf '    planning pass: at most 10 review rounds, plan-checker spawns and\n'
-      printf '    verifier passes counted together, then stop: what is open goes\n'
-      printf '    to the PR body (manager-reference.md, Challenge)\n'
+      printf '    planning pass: plan-checker and verifier at %s; at most %s\n' \
+        "$tier" "$(num_knob JOHARNESS_PLANNING_REVIEW_ROUNDS)"
+      printf '    review rounds in the pass (0 = no cap), per-plan bounds still\n'
+      printf '    hold; then stop: what is open goes to the PR body\n'
+      printf '    (manager-reference.md, Challenge)\n'
     fi
     if [ "${n:-0}" -gt 0 ]; then
       printf '    %s finding(s) recorded\n' "$n"

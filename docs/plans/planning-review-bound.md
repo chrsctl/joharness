@@ -7,7 +7,7 @@ needs: none
 requirement: none
 serves: all
 issue: none
-scope: joharness.sh, .agents/harness/selftest/review.sh, .agents/docs/manager-reference.md, .agents/docs/agent-selection.md
+scope: joharness.sh, .agents/harness/selftest/review.sh, .agents/docs/manager-reference.md, .agents/docs/agent-selection.md, .agents/docs/orchestrated.md
 ---
 
 ## Goal
@@ -29,10 +29,12 @@ planning pass's reviewers at opus.
   round bound.
 - `.agents/harness/selftest/review.sh` — cases: planning pass at fable
   reads opus with the bound; a fable plan's build stays fable.
-- `.agents/docs/manager-reference.md` § Challenge — the bound: at most 10
-  review rounds a pass (plan-checker spawns and verifier passes together,
-  the human's number); findings left open go to the PR body. Reviewers at
-  opus.
+- `joharness.sh` KNOBS — `JOHARNESS_PLANNING_REVIEW_ROUNDS`, default 25
+  (the human's number), 0 = no cap; `.agents/docs/orchestrated.md` table row.
+- `.agents/docs/manager-reference.md` § Challenge — the cap: at most that
+  many review rounds a pass (plan-checker spawns and verifier passes
+  together), on top of the per-plan 3 rounds and churn stop; findings left
+  open go to the PR body. Reviewers at opus.
 - `.agents/docs/agent-selection.md` — Review depth: the planning-pass
   exception, citing the human's decision.
 
@@ -54,6 +56,9 @@ planning pass's reviewers at opus.
 - `./joharness.sh ci` — `ci: pass`.
 - `./joharness.sh verify` — `0 failed`.
 - New selftest cases fail with the `review_report` change reverted.
+- Consumer side, after sync: on a planning branch (`plan:` a requirement
+  with no plan of its stem on the base, `agent: fable`), `./joharness.sh
+  review` prints `[opus` and `at most 25 review rounds`.
 
 ## Where to look
 

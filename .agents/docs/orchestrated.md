@@ -209,6 +209,7 @@ Removing the line, on the base first, is the human override.
 | `JOHARNESS_STARVED_RESUMES` | 2 | STARVED blocks (`conflict: base outran finish: resume <k>/<max>`) a claim resumes without a human, k counted from its branch's git history across runs, never from `next:`; past it the manager asks (manager.md §4); 0 = always ask | two gx STARVED blocks on 2026-11-11 both answered "catch up and merge" |
 | `JOHARNESS_MANAGER_HOURS` | 4 | claim older than this, no pull request = `CEILING?` report; 0 lifts it | one consumer run |
 | `JOHARNESS_CHURN_THRESHOLD` | 5 | one file rewritten this often = warning | `ci`'s knob; honest branches peak at 4 |
+| `JOHARNESS_PLANNING_REVIEW_ROUNDS` | 25 | plan-checker spawns and verifier passes one planning pass makes at most, counted together; `review` prints it; 0 = no cap | the human's number, 2026-11-13: four gx planning passes ran 11, 14, 16 and 26 review rounds |
 | `JOHARNESS_CHURN_LIMIT` | 2x threshold | one file rewritten this often = `LOOP?` and `ci` red; 0 lifts it | `ci`'s ceiling |
 | `JOHARNESS_CURATE_REGISTRY` | 3 | plans declaring one path before `curate` calls it a registry | written number |
 | `JOHARNESS_CURATE_SPLIT` | 8 | `## Scope` bullets before `curate` proposes a decompose | written number |
