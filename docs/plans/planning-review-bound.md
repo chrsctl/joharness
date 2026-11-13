@@ -1,0 +1,63 @@
+---
+plan: planning-review-bound
+urgency: urgent
+agent: opus
+effort: high
+needs: none
+requirement: none
+serves: all
+issue: none
+scope: joharness.sh, .agents/harness/selftest/review.sh, .agents/docs/manager-reference.md, .agents/docs/agent-selection.md
+---
+
+## Goal
+
+A planning pass (a manager decomposing an unplanned requirement into plan
+files, no code) cost $108-191 a pass on chrsctl/gx on 2026-11-12/13, four
+passes, ~$619 at list price, 94% of it at the fable rate. The cost is
+review: up to 16 plan-checker runs and 11 verifier passes a branch,
+237 findings recorded on one, every reviewer at fable, and the churn
+gate cannot stop it (it skips `docs/plans|handover|product`). The human
+(money decision, `agent-selection.md`) chose: cap the rounds, and run a
+planning pass's reviewers at opus.
+
+## Scope
+
+- `joharness.sh` — `review_report`: a workstream whose `plan:` names a
+  requirement (`docs/product/<stem>.md`, no `docs/plans/<stem>.md`) is a
+  planning pass; a fable tier there prints opus, and the line names the
+  round bound.
+- `.agents/harness/selftest/review.sh` — cases: planning pass at fable
+  reads opus with the bound; a fable plan's build stays fable.
+- `.agents/docs/manager-reference.md` § Challenge — the bound: one
+  plan-checker round per plan, a second only after a fix to a finding that
+  would break the build; one verifier pass on the whole diff, one more on
+  its fixes, none after; findings left open go to the PR body. Reviewers at
+  opus.
+- `.agents/docs/agent-selection.md` — Review depth: the planning-pass
+  exception, citing the human's decision.
+
+## Assumptions
+
+- A1: a planning workstream's `plan:` is the requirement stem and no plan
+  file of that stem exists — evidence: gx `manager/invoicing-app` workstream
+  `plan: invoicing-app`, `agent: fable`; verifier reports "docs/plans/
+  invoicing-app.md exists at neither sha" — confidence: high
+
+## Out of scope
+
+- Reviewer report length cap and excluding the `## Review` record from
+  review (offered, not chosen).
+- Counting `docs/plans` in the churn gate: the bound replaces it.
+
+## Acceptance
+
+- `./joharness.sh ci` — `ci: pass`.
+- `./joharness.sh verify` — `0 failed`.
+- New selftest cases fail with the `review_report` change reverted.
+
+## Where to look
+
+- `joharness.sh:review_report`, `review_tier`
+- `.agents/docs/manager-reference.md` § Challenge
+- `.agents/docs/agent-selection.md` § Review depth
