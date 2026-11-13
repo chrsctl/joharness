@@ -257,19 +257,18 @@ Then every plan the pass writes gets `.claude/agents/plan-checker.md` before
 the pull request opens, whatever its `agent:`. Findings `(plan-checker)`, at
 most 3 rounds, as §2 says for the build.
 
-A planning pass's review is bounded on top of that. A finding left open
-goes in the pull request body; an opus or fable plan is plan-checked again
-before its build (`manager.md` §2), a sonnet or haiku plan is not:
+A planning pass's review is bounded on top of that:
 
 - **Rounds:** at most `JOHARNESS_PLANNING_REVIEW_ROUNDS` (default 25) in
   the whole pass, each plan-checker spawn and each verifier pass counting
   one. The cap reached = stop: a finding from the last round is fixed
-  without another round or recorded `wontfix: PR body`.
+  without another round, or left open.
+- **Open findings:** one on a plan goes into that plan's `## Assumptions`
+  as an `A<n>` the build confirms or refutes before any worker
+  (`manager.md` §2); any other goes in the pull request body.
 - **Tier:** plan-checker and verifier at the pass's tier with fable
   lowered to opus (`./joharness.sh review` prints it; `agent-selection.md`,
-  Review depth).
-  Challengers stay at sonnet.
-- What stays open goes in the pull request body, for the build's manager.
+  Review depth). Challengers stay at sonnet.
 
 ## Plan issue
 

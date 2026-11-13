@@ -45,3 +45,5 @@ chose levers A and B on 2026-11-13 after four gx planning passes cost ~$619.
 - r18: (verifier) "a finding left open here is not lost" is false for a sonnet or haiku plan, which no build plan-check reads (fixed: says which plans are re-checked)
 - r19: (verifier) a partly planned requirement whose open plan shares its stem is not read as a planning pass (wontfix: a plan wins a shared stem by design, joharness.sh "a plan wins a shared stem"; a planning claim cannot be told from that plan's build)
 - r20: (verifier) no command counts rounds against the cap (wontfix: same shape as the per-plan 3-round bound, a rule the manager keeps; the human asked for a limit, not a gate)
+- r21: (verifier) an open finding on a sonnet or haiku plan went to a PR body no build manager reads (fixed: it goes into the plan's ## Assumptions as an A<n>, which manager.md §2 has every build confirm)
+- r22: (verifier) two lines stated the PR-body rule (fixed: one Open findings bullet)
