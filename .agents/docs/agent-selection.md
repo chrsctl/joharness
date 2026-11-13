@@ -71,7 +71,7 @@ Scales with the plan's tier:
   (gx PRs #1601, #1602, #1605, #1615, billed `modelUsage`).
 
 Every tier also spawns `.claude/agents/verifier.md` at its own tier (a
-planning pass: opus, above) — one
+planning pass at fable: opus, above) — one
 reader that did not write the diff, findings tagged `(verifier)`: depth is not
 the property it adds, independence is. Its output is not privileged: record,
 judge and fix as for a self-finding. What the spawn prompt carries:

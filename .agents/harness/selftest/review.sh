@@ -514,6 +514,12 @@ out="$(JOHARNESS_PLANNING_REVIEW_ROUNDS=7 jr review | tblock)"
 expect "the round cap is the knob's" "at most 7 review rounds" "$out"
 out="$(JOHARNESS_PLANNING_REVIEW_ROUNDS=0 jr review | tblock)"
 expect "0 prints as no cap" "no cap on review rounds" "$out"
+write_ws t.md in-progress none $'plan: req\nagent: sonnet' "- r1: x (fixed)"
+commit_all "$rwork" "planning pass at sonnet"
+out="$(jr review | tblock)"
+expect "a cheaper planning pass keeps its tier" "docs/handover/t.md [sonnet" "$out"
+write_ws t.md in-progress none $'plan: req\nagent: fable' "- r1: x (fixed)"
+commit_all "$rwork" "planning pass back at fable"
 
 # The pass adds a plan of the requirement's own stem: still a planning pass,
 # since the base has none.

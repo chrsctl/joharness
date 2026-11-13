@@ -37,3 +37,7 @@ chose levers A and B on 2026-11-13 after four gx planning passes cost ~$619.
 - r10: (verifier) cap changed 10 to 25 with no evidence in the checkout (wontfix: the human's number, given in session 2026-11-13; Decisions)
 - r11: (verifier) 0 printed "at most 0" (fixed: prints "no cap on review rounds", selftest case)
 - r12: (verifier) round counts in orchestrated.md and agent-selection.md did not fit (fixed: per-branch counts from the sessions' subagent_stats, maxima named per branch)
+- r13: (verifier) default 25 is above every measured pass (10, 11, 12, 21), so it caps none of them (wontfix: the human's number, chosen as a ceiling; the saving is the opus tier, PR body)
+- r14: (verifier) per-branch counts not checkable here (wontfix: billed gx sessions' subagent_stats, outside any checkout; invoicing-app's 11 is its verifier passes, its plan-checks fell in an earlier process)
+- r15: (verifier) agent-selection.md said a planning pass's verifier is always opus (fixed: "at fable")
+- r16: (verifier) no case held a cheaper planning pass at its tier (fixed: sonnet case)
