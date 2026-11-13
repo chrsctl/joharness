@@ -27,8 +27,7 @@ chose levers A and B on 2026-11-13 after four gx planning passes cost ~$619.
   rule for every requirement. An open finding must reach the build (r21),
   in the Assumptions shape (r24), so that refuted means fix (r23), with a
   record spelling (r25), and the plan and `review`'s line agree (r26, r29).
-  Ran at opus, effort raised to high (the session's tier; a session cannot
-  switch its own model).
+  Ran at the plan's own tier and effort (opus, high): neither raised.
 
 ## Review
 
@@ -63,3 +62,5 @@ chose levers A and B on 2026-11-13 after four gx planning passes cost ~$619.
 - r29: (verifier) review's planning line still sent open findings to the PR body (fixed: points at the Challenge rule; selftest refutes "PR body")
 - r30: (verifier) research step left out review's line and named no tier (fixed: Decisions)
 - r31: (verifier) knob row split the churn pair (fixed: moved after JOHARNESS_CHURN_LIMIT in both tables)
+- r32: (verifier) r30's record claimed a raised effort; the plan already says opus/high, so nothing was raised (fixed: record says so)
+- r33: (verifier) "routes open findings by the rule" passed on the phrase alone, not the pointer (fixed: expects the pointer line)
