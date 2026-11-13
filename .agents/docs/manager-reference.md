@@ -263,9 +263,12 @@ A planning pass's review is bounded on top of that:
   the whole pass, each plan-checker spawn and each verifier pass counting
   one. The cap reached = stop: a finding from the last round is fixed
   without another round, or left open.
-- **Open findings:** one on a plan goes into that plan's `## Assumptions`
-  as an `A<n>` the build confirms or refutes before any worker
-  (`manager.md` §2); any other goes in the pull request body.
+- **Open findings:** one on a plan becomes an assumption in that plan,
+  written as the plan's own claim the finding disputes, so a build that
+  refutes it fixes the plan before any worker (`manager.md` §2):
+  `A<n>: <the plan's claim> — evidence: <the finding's evidence> —
+  confidence: low`, recorded `wontfix: A<n> in <plan>`. Any other open
+  finding: `wontfix: PR body`.
 - **Tier:** plan-checker and verifier at the pass's tier with fable
   lowered to opus (`./joharness.sh review` prints it; `agent-selection.md`,
   Review depth). Challengers stay at sonnet.

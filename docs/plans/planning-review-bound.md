@@ -33,8 +33,9 @@ planning pass's reviewers at opus.
   (the human's number), 0 = no cap; `.agents/docs/orchestrated.md` table row.
 - `.agents/docs/manager-reference.md` § Challenge — the cap: at most that
   many review rounds a pass (plan-checker spawns and verifier passes
-  together), on top of the per-plan 3 rounds and churn stop; findings left
-  open go to the PR body. Reviewers at opus.
+  together), on top of the per-plan 3 rounds and churn stop; an open
+  finding on a plan becomes a low-confidence `A<n>` in that plan, any other
+  goes to the PR body. Reviewers at opus.
 - `.agents/docs/agent-selection.md` — Review depth: the planning-pass
   exception, citing the human's decision.
 

@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK3kUVqT3rMpf2mS888
 agent: opus
 updated: 2026-11-13
-next: Build review_report planning-pass tier and bound, selftest, docs; ci, verify, verifier
+next: Retire plan and workstream, open PR, finish, merge; then sync to gx
 ---
 
 ## Goal
@@ -22,6 +22,11 @@ chose levers A and B on 2026-11-13 after four gx planning passes cost ~$619.
   given in this session 2026-11-13; cap 25 rounds as a setting, also theirs.
 - The cap sits on top of the per-plan 3-round bound and churn stop: the
   human asked for an upper limit, not a looser rule.
+
+- Review churn on manager-reference.md (r18, r21, r23): research step, one
+  rule for every requirement. An open finding must reach the build (r21),
+  in the Assumptions shape (r24), so that refuted means fix (r23), with a
+  record spelling (r25), and the plan agrees (r26).
 
 ## Review
 
@@ -47,3 +52,8 @@ chose levers A and B on 2026-11-13 after four gx planning passes cost ~$619.
 - r20: (verifier) no command counts rounds against the cap (wontfix: same shape as the per-plan 3-round bound, a rule the manager keeps; the human asked for a limit, not a gate)
 - r21: (verifier) an open finding on a sonnet or haiku plan went to a PR body no build manager reads (fixed: it goes into the plan's ## Assumptions as an A<n>, which manager.md §2 has every build confirm)
 - r22: (verifier) two lines stated the PR-body rule (fixed: one Open findings bullet)
+- r23: (verifier) a finding written as an A<n> is confirmed true and nothing fixes the plan (fixed: the A<n> is the plan's own disputed claim, refuted = fix)
+- r24: (verifier) no spelling for a finding as an assumption (fixed: the plans.md shape, confidence low)
+- r25: (verifier) "left open" had no record verdict (fixed: wontfix: A<n> in <plan>, or wontfix: PR body)
+- r26: (verifier) plan still said PR body (fixed)
+- r27: (verifier) churn on manager-reference.md (fixed: research step recorded in Decisions, one rule replaces r18 and r21)
