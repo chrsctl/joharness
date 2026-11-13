@@ -15,7 +15,7 @@ scope: joharness.sh, .agents/harness/selftest/review.sh, .agents/docs/manager-re
 A planning pass (a manager decomposing an unplanned requirement into plan
 files, no code) cost $108-191 a pass on chrsctl/gx on 2026-11-12/13, four
 passes, ~$619 at list price, 94% of it at the fable rate. The cost is
-review: up to 16 plan-checker runs and 11 verifier passes a branch,
+review: 16 plan-checker runs on one branch, 11 verifier passes on another,
 237 findings recorded on one, every reviewer at fable, and the churn
 gate cannot stop it (it skips `docs/plans|handover|product`). The human
 (money decision, `agent-selection.md`) chose: cap the rounds, and run a
@@ -58,7 +58,8 @@ planning pass's reviewers at opus.
 - New selftest cases fail with the `review_report` change reverted.
 - Consumer side, after sync: on a planning branch (`plan:` a requirement
   with no plan of its stem on the base, `agent: fable`), `./joharness.sh
-  review` prints `[opus` and `at most 25 review rounds`.
+  review` prints `[opus` and `at most 25 review rounds`
+  (`./joharness.sh review | grep -c 'at most 25 review rounds'` → 1).
 
 ## Where to look
 

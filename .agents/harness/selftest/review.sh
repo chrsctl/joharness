@@ -508,10 +508,12 @@ out="$(jr review | tblock)"
 expect "planning pass reviewers run at opus" "docs/handover/t.md [opus" "$out"
 expect "planning pass verifier spawns at opus" "verifier.md at opus" "$out"
 expect "planning pass names plan-checker's tier" "plan-checker and verifier at opus" "$out"
-expect "planning pass names the round cap" "at most 25" "$out"
+expect "planning pass names the round cap" "at most 25 review rounds" "$out"
 refute "planning pass is never reviewed at fable" "fable" "$out"
 out="$(JOHARNESS_PLANNING_REVIEW_ROUNDS=7 jr review | tblock)"
-expect "the round cap is the knob's" "at most 7" "$out"
+expect "the round cap is the knob's" "at most 7 review rounds" "$out"
+out="$(JOHARNESS_PLANNING_REVIEW_ROUNDS=0 jr review | tblock)"
+expect "0 prints as no cap" "no cap on review rounds" "$out"
 
 # The pass adds a plan of the requirement's own stem: still a planning pass,
 # since the base has none.

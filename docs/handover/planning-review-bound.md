@@ -32,3 +32,8 @@ chose levers A and B on 2026-11-13 after four gx planning passes cost ~$619.
 - r5: (verifier) a build that deletes its base plan read as a planning pass (fixed: by r1; selftest case)
 - r6: (verifier) agent-selection.md cost figures are not reproducible in this checkout (wontfix: billed modelUsage from the gx sessions' result events, outside any checkout; named in the line)
 - r7: (verifier) Acceptance named no consumer-side check (fixed: plan Acceptance)
+- r8: (verifier) doc said opus whatever the tier; a sonnet planning pass printed sonnet (fixed: doc says fable lowered to opus, a cheaper tier stays)
+- r9: (verifier) the cap phrase broke across two lines, Acceptance grep could never match (fixed: one line, selftest checks the phrase)
+- r10: (verifier) cap changed 10 to 25 with no evidence in the checkout (wontfix: the human's number, given in session 2026-11-13; Decisions)
+- r11: (verifier) 0 printed "at most 0" (fixed: prints "no cap on review rounds", selftest case)
+- r12: (verifier) round counts in orchestrated.md and agent-selection.md did not fit (fixed: per-branch counts from the sessions' subagent_stats, maxima named per branch)

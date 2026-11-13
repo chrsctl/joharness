@@ -2187,7 +2187,7 @@ review_at_edge() {
 # returns non-zero only when this branch owes a review record.
 review_report() {
   local over="origin/${HANDOVER_BASE_BRANCH:-main}" base head ws doc tier n
-  local edge rc=0 seen=0 marks tagged agent pr status own mine fast planning
+  local edge rc=0 seen=0 marks tagged agent pr status own mine fast planning cap
   base="$(git -C "$ROOT" merge-base HEAD "$over" 2>/dev/null)"
   head="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)"
   if [ -z "$base" ]; then
@@ -2235,11 +2235,12 @@ review_report() {
     printf '    write this diff, which is the whole property. Tag what it\n'
     printf '    returns (verifier).\n'
     if [ "$planning" = 1 ]; then
-      printf '    planning pass: plan-checker and verifier at %s; at most %s\n' \
-        "$tier" "$(num_knob JOHARNESS_PLANNING_REVIEW_ROUNDS)"
-      printf '    review rounds in the pass (0 = no cap), per-plan bounds still\n'
-      printf '    hold; then stop: what is open goes to the PR body\n'
-      printf '    (manager-reference.md, Challenge)\n'
+      cap="$(num_knob JOHARNESS_PLANNING_REVIEW_ROUNDS)"
+      if [ "$cap" = 0 ]; then cap="no cap on review rounds"
+      else cap="at most ${cap} review rounds"; fi
+      printf '    planning pass: plan-checker and verifier at %s; %s\n' "$tier" "$cap"
+      printf '    in the pass, per-plan bounds still hold; then stop: what is open\n'
+      printf '    goes to the PR body (manager-reference.md, Challenge)\n'
     fi
     if [ "${n:-0}" -gt 0 ]; then
       printf '    %s finding(s) recorded\n' "$n"

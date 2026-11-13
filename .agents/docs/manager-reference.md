@@ -265,8 +265,9 @@ here is not lost:
   the whole pass, each plan-checker spawn and each verifier pass counting
   one. The cap reached = stop: a finding from the last round is fixed
   without another round or recorded `wontfix: PR body`.
-- **Tier:** plan-checker and verifier at opus, never fable
-  (`./joharness.sh review` prints both; `agent-selection.md`, Review depth).
+- **Tier:** plan-checker and verifier at the pass's tier with fable
+  lowered to opus (`./joharness.sh review` prints it; `agent-selection.md`,
+  Review depth).
   Challengers stay at sonnet.
 - What stays open goes in the pull request body, for the build's manager.
 

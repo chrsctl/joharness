@@ -66,8 +66,8 @@ Scales with the plan's tier:
 - planning pass (a fable manager decomposing a requirement; its diff is
   plans): reviewers at opus, rounds bounded (`manager-reference.md`,
   Challenge). The human's money decision, 2026-11-13: four passes cost
-  ~$619 list, 94% at fable, up to 16 plan-checks and 11 verifier passes a
-  branch, and the churn gate skips `docs/plans/` so nothing stopped them
+  ~$619 list, 94% at fable, 16 plan-checks on one branch and 11 verifier
+  passes on another, and the churn gate skips `docs/plans/` so nothing stopped them
   (gx PRs #1601, #1602, #1605, #1615, billed `modelUsage`).
 
 Every tier also spawns `.claude/agents/verifier.md` at its own tier (a
