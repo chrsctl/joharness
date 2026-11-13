@@ -500,7 +500,7 @@ commit_all "$rwork" "planning pass at fable"
 out="$(jr review)"
 expect "planning pass reviewers run at opus" "docs/handover/t.md [opus" "$out"
 expect "planning pass verifier spawns at opus" "verifier.md at opus" "$out"
-expect "planning pass names the round bound" "planning pass: plan-checker 1 round" "$out"
+expect "planning pass names the round bound" "planning pass: at most 10 review rounds" "$out"
 refute "planning pass is never reviewed at fable" "[fable" "$out"
 
 # A fable plan's own build is not a planning pass: its tier stands.

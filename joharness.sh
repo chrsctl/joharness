@@ -2232,9 +2232,9 @@ review_report() {
     printf '    write this diff, which is the whole property. Tag what it\n'
     printf '    returns (verifier).\n'
     if [ "$planning" = 1 ]; then
-      printf '    planning pass: plan-checker 1 round per plan (a 2nd only after a\n'
-      printf '    build-breaking fix); verifier 1 pass + 1 on its fixes, then stop:\n'
-      printf '    what is open goes to the PR body (manager-reference.md, Challenge)\n'
+      printf '    planning pass: at most 10 review rounds, plan-checker spawns and\n'
+      printf '    verifier passes counted together, then stop: what is open goes\n'
+      printf '    to the PR body (manager-reference.md, Challenge)\n'
     fi
     if [ "${n:-0}" -gt 0 ]; then
       printf '    %s finding(s) recorded\n' "$n"

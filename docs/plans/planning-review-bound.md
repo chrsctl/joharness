@@ -29,10 +29,9 @@ planning pass's reviewers at opus.
   round bound.
 - `.agents/harness/selftest/review.sh` — cases: planning pass at fable
   reads opus with the bound; a fable plan's build stays fable.
-- `.agents/docs/manager-reference.md` § Challenge — the bound: one
-  plan-checker round per plan, a second only after a fix to a finding that
-  would break the build; one verifier pass on the whole diff, one more on
-  its fixes, none after; findings left open go to the PR body. Reviewers at
+- `.agents/docs/manager-reference.md` § Challenge — the bound: at most 10
+  review rounds a pass (plan-checker spawns and verifier passes together,
+  the human's number); findings left open go to the PR body. Reviewers at
   opus.
 - `.agents/docs/agent-selection.md` — Review depth: the planning-pass
   exception, citing the human's decision.
