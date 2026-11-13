@@ -257,9 +257,9 @@ Then every plan the pass writes gets `.claude/agents/plan-checker.md` before
 the pull request opens, whatever its `agent:`. Findings `(plan-checker)`, at
 most 3 rounds, as §2 says for the build.
 
-A planning pass's review is bounded on top of that; the build's own
-plan-check reads each plan again before any code, so a finding left open
-here is not lost:
+A planning pass's review is bounded on top of that. A finding left open
+goes in the pull request body; an opus or fable plan is plan-checked again
+before its build (`manager.md` §2), a sonnet or haiku plan is not:
 
 - **Rounds:** at most `JOHARNESS_PLANNING_REVIEW_ROUNDS` (default 25) in
   the whole pass, each plan-checker spawn and each verifier pass counting

@@ -41,3 +41,7 @@ chose levers A and B on 2026-11-13 after four gx planning passes cost ~$619.
 - r14: (verifier) per-branch counts not checkable here (wontfix: billed gx sessions' subagent_stats, outside any checkout; invoicing-app's 11 is its verifier passes, its plan-checks fell in an earlier process)
 - r15: (verifier) agent-selection.md said a planning pass's verifier is always opus (fixed: "at fable")
 - r16: (verifier) no case held a cheaper planning pass at its tier (fixed: sonnet case)
+- r17: (verifier) spawn prompt's base was the last-reviewed head, not the merge base (no change: agent-selection.md, Review depth, prescribes the parent of the fix commits for a follow-up pass)
+- r18: (verifier) "a finding left open here is not lost" is false for a sonnet or haiku plan, which no build plan-check reads (fixed: says which plans are re-checked)
+- r19: (verifier) a partly planned requirement whose open plan shares its stem is not read as a planning pass (wontfix: a plan wins a shared stem by design, joharness.sh "a plan wins a shared stem"; a planning claim cannot be told from that plan's build)
+- r20: (verifier) no command counts rounds against the cap (wontfix: same shape as the per-plan 3-round bound, a rule the manager keeps; the human asked for a limit, not a gate)
