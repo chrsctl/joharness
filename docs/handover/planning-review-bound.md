@@ -26,7 +26,9 @@ chose levers A and B on 2026-11-13 after four gx planning passes cost ~$619.
 - Review churn on manager-reference.md (r18, r21, r23): research step, one
   rule for every requirement. An open finding must reach the build (r21),
   in the Assumptions shape (r24), so that refuted means fix (r23), with a
-  record spelling (r25), and the plan agrees (r26).
+  record spelling (r25), and the plan and `review`'s line agree (r26, r29).
+  Ran at opus, effort raised to high (the session's tier; a session cannot
+  switch its own model).
 
 ## Review
 
@@ -57,3 +59,7 @@ chose levers A and B on 2026-11-13 after four gx planning passes cost ~$619.
 - r25: (verifier) "left open" had no record verdict (fixed: wontfix: A<n> in <plan>, or wontfix: PR body)
 - r26: (verifier) plan still said PR body (fixed)
 - r27: (verifier) churn on manager-reference.md (fixed: research step recorded in Decisions, one rule replaces r18 and r21)
+- r28: (verifier) spawn prompt's base was HEAD~1, not the merge base (no change: agent-selection.md, Review depth, prescribes the parent of the fix commits)
+- r29: (verifier) review's planning line still sent open findings to the PR body (fixed: points at the Challenge rule; selftest refutes "PR body")
+- r30: (verifier) research step left out review's line and named no tier (fixed: Decisions)
+- r31: (verifier) knob row split the churn pair (fixed: moved after JOHARNESS_CHURN_LIMIT in both tables)
