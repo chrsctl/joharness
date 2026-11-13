@@ -491,6 +491,27 @@ commit_all "$rwork" "workstream naming no plan"
 out="$(jr review)"
 expect "tier defaults to sonnet" "docs/handover/t.md [sonnet" "$out"
 
+# A planning pass (plan: names a requirement, no plan file of that stem):
+# its reviewers run at opus, not fable, and the line names the round bound.
+mkdir -p "${rwork}/docs/product"
+printf '# r\n\n## Satisfied when\n\n1. x\n' >"${rwork}/docs/product/req.md"
+write_ws t.md in-progress none $'plan: req\nagent: fable' "- r1: x (fixed)"
+commit_all "$rwork" "planning pass at fable"
+out="$(jr review)"
+expect "planning pass reviewers run at opus" "docs/handover/t.md [opus" "$out"
+expect "planning pass verifier spawns at opus" "verifier.md at opus" "$out"
+expect "planning pass names the round bound" "planning pass: plan-checker 1 round" "$out"
+refute "planning pass is never reviewed at fable" "[fable" "$out"
+
+# A fable plan's own build is not a planning pass: its tier stands.
+printf -- '---\nplan: req\nagent: fable\n---\n' >"${rwork}/docs/plans/req.md"
+commit_all "$rwork" "a plan file shares the requirement's stem"
+out="$(jr review)"
+expect "a plan file of that stem is not a planning pass" "docs/handover/t.md [fable" "$out"
+refute "no bound line outside a planning pass" "planning pass:" "$out"
+git -C "$rwork" rm -q -r "docs/product/req.md" "docs/plans/req.md"
+commit_all "$rwork" "drop the planning fixtures"
+
 # Session start says the gate is armed, and says nothing while it is not.
 out="$(JOHARNESS_REVIEW=on jr session-start)"
 expect "session start announces an armed gate" "Review gate: ON" "$out"

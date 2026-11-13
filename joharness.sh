@@ -1845,6 +1845,17 @@ review_tier() {
   printf '%s' "$tier"
 }
 
+# A planning pass: `plan:` names a requirement that no plan file shares a stem
+# with. Its diff is plans, so its review is bounded (manager-reference.md,
+# Challenge) and its reviewers never run at fable.
+review_planning_pass() {
+  local plan
+  plan="$(lint_stem "$(printf '%s\n' "$1" | gr_field plan)")"
+  [ -n "$plan" ] && [ "$plan" != "none" ] &&
+    [ -f "${ROOT}/docs/product/${plan}.md" ] &&
+    [ ! -f "${ROOT}/docs/plans/${plan}.md" ]
+}
+
 # Depth per tier, quoted from the review-depth rule rather than re-invented.
 review_recipe() {
   case "$1" in
@@ -2173,7 +2184,7 @@ review_at_edge() {
 # returns non-zero only when this branch owes a review record.
 review_report() {
   local over="origin/${HANDOVER_BASE_BRANCH:-main}" base head ws doc tier n
-  local edge rc=0 seen=0 marks tagged agent pr status own mine fast
+  local edge rc=0 seen=0 marks tagged agent pr status own mine fast planning
   base="$(git -C "$ROOT" merge-base HEAD "$over" 2>/dev/null)"
   head="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)"
   if [ -z "$base" ]; then
@@ -2207,6 +2218,11 @@ review_report() {
       printf '%s\n' "$doc" | gr_fields agent pr status)
     tier="$(review_tier "$doc" "$agent")"
     case $'\n'"${fast}"$'\n' in *$'\n'"${ws}"$'\n'*) tier="haiku" ;; esac
+    planning=0
+    review_planning_pass "$doc" && planning=1
+    # The human's money decision (agent-selection.md, Review depth): a
+    # planning pass's reviewers run at opus, never fable.
+    [ "$planning" = 1 ] && [ "$tier" = fable ] && tier="opus"
     marks="$(review_marks <"${ROOT}/${ws}")"
     n="${marks%% *}"; tagged="${marks##* }"
     edge="$(review_at_edge "$pr" "$status")" || edge=""
@@ -2215,6 +2231,11 @@ review_report() {
     printf '    verifier: spawn .claude/agents/verifier.md at %s — it did not\n' "$tier"
     printf '    write this diff, which is the whole property. Tag what it\n'
     printf '    returns (verifier).\n'
+    if [ "$planning" = 1 ]; then
+      printf '    planning pass: plan-checker 1 round per plan (a 2nd only after a\n'
+      printf '    build-breaking fix); verifier 1 pass + 1 on its fixes, then stop:\n'
+      printf '    what is open goes to the PR body (manager-reference.md, Challenge)\n'
+    fi
     if [ "${n:-0}" -gt 0 ]; then
       printf '    %s finding(s) recorded\n' "$n"
       [ "$tagged" = 1 ] && continue

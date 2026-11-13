@@ -63,8 +63,15 @@ Scales with the plan's tier:
 - opus plan: adversarial review, separate lenses (correctness, security,
   does-it-reproduce) as independent passes.
 - fable plan: the opus recipe.
+- planning pass (a fable manager decomposing a requirement; its diff is
+  plans): reviewers at opus, rounds bounded (`manager-reference.md`,
+  Challenge). The human's money decision, 2026-11-13: four passes cost
+  ~$619 list, 94% at fable, up to 16 plan-checks and 11 verifier passes a
+  branch, and the churn gate skips `docs/plans/` so nothing stopped them
+  (gx PRs #1601, #1602, #1605, #1615, billed `modelUsage`).
 
-Every tier also spawns `.claude/agents/verifier.md` at its own tier — one
+Every tier also spawns `.claude/agents/verifier.md` at its own tier (a
+planning pass: opus, above) — one
 reader that did not write the diff, findings tagged `(verifier)`: depth is not
 the property it adds, independence is. Its output is not privileged: record,
 judge and fix as for a self-finding. What the spawn prompt carries:
