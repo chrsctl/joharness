@@ -922,6 +922,24 @@ expect "outrun: two first-parent commits past a bound of 1 is OUTRUN" "$ko_outru
 refute "outrun: and never IN REACH" "$ko_reach" "$out"
 out="$(JOHARNESS_CATCHUP_COMMITS=2 JOHARNESS_CHECKS=local kc_finish)"
 expect "outrun: two first-parent commits inside a bound of 2 is IN REACH" "$ko_reach" "$out"
+# A merged pull request of two commits is ONE first-parent commit: 3 since
+# the certificate, 4 commits. A bound of 3 is IN REACH only when the reach
+# test counts first-parent commits, as checks_catch_up does (verifier r4).
+git -C "$kcwork" checkout -q main
+git -C "$kcwork" merge -q --ff-only origin/main 2>/dev/null
+git -C "$kcwork" checkout -qb ko-pr main
+printf 'p\n' >>"${kcwork}/docs-o3.txt"
+commit_all "$kcwork" "pr: one"
+printf 'q\n' >>"${kcwork}/docs-o3.txt"
+commit_all "$kcwork" "pr: two"
+git -C "$kcwork" checkout -q main
+git -C "$kcwork" merge -q --no-ff -m "main: merge ko-pr" ko-pr >/dev/null 2>&1
+git -C "$kcwork" push -q origin main 2>/dev/null
+git -C "$kcwork" checkout -q kco
+git -C "$kcwork" branch -qD ko-pr
+out="$(JOHARNESS_CATCHUP_COMMITS=3 JOHARNESS_CHECKS=local kc_finish)"
+expect "outrun: a 2-commit pull request counts once toward IN REACH" "$ko_reach" "$out"
+expect "outrun: and IN REACH names 3 first-parent commits" "3 first-parent commit(s)" "$out"
 
 # A CATCH-UP whose ci goes red: the certificate stays, the green does not.
 git -C "$kcwork" checkout -q main
@@ -985,6 +1003,31 @@ git -C "$kcwork" checkout -q main
 git -C "$kcwork" merge -q --ff-only origin/main 2>/dev/null
 git -C "$kcwork" rm -q docs-o1.txt docs-o2.txt docs-o3.txt docs-o4.txt docs-o5.txt docs-o6.txt
 commit_all "$kcwork" "main: drop the outrun fixture"
+git -C "$kcwork" push -q origin main 2>/dev/null
+
+# Inside the bound, but the base changed local-check: the next finish is
+# the full run whatever the count, so the outrun is OUTRUN, never IN REACH.
+# A reach test of the bound alone looped full runs uncounted (verifier r1).
+git -C "$kcwork" checkout -qb kco3 main
+printf 'own\n' >"${kcwork}/docs-own-o3.txt"
+printf 'exit 0\n' >"${kcwork}/local-check"
+commit_all "$kcwork" "kco3: own work"
+git -C "$kcwork" push -qu origin kco3 2>/dev/null
+out="$(JOHARNESS_CHECKS=local kc_finish)"
+expect "outrun: the kco3 full run is green" "finish: pass" "$out"
+git -C "$kcwork" checkout -q main
+ko_lc_had=0
+[ ! -e "${kcwork}/local-check" ] || { ko_lc_had=1; cp "${kcwork}/local-check" "${TMP}/ko-lc"; }
+printf 'exit 0\n# base moved it\n' >"${kcwork}/local-check"
+commit_all "$kcwork" "main: change local-check"
+git -C "$kcwork" push -q origin main 2>/dev/null
+git -C "$kcwork" checkout -q kco3
+out="$(JOHARNESS_CHECKS=local kc_finish)"
+expect "outrun: base changed local-check inside the bound is OUTRUN" "$ko_outrun" "$out"
+refute "outrun: and never IN REACH" "$ko_reach" "$out"
+git -C "$kcwork" checkout -q main
+if [ "$ko_lc_had" = 1 ]; then cp "${TMP}/ko-lc" "${kcwork}/local-check"; else git -C "$kcwork" rm -q local-check; fi
+commit_all "$kcwork" "main: restore local-check"
 git -C "$kcwork" push -q origin main 2>/dev/null
 rm -f "${ko_gitdir}/joharness-finish-cert" "${ko_gitdir}/joharness-finish-green" "$ko_flag"
 

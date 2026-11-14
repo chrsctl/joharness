@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK5n638k2v3Vcg17JxV
 agent: opus
 updated: 2026-11-14
-next: Run the verifier, record its findings, then ci, verify, finish and open the PR
+next: verify, finish, retire, open the PR and merge
 ---
 
 ## Goal
@@ -34,6 +34,14 @@ base (chrsctl/gx #1696). Asked by the owner: "Fix directly in joharness".
 
 ## Review
 
+- r0: (verifier) F0 spawn prompt carried claims and focus beyond the listed fields (no change: the reader re-took every claim itself)
+- r1: (verifier) F1 `IN REACH` checked the bound alone; a base changing local-check each move looped full runs never counted (fixed: `checks_in_reach` probes `checks_catch_up` itself on the clean merge; kco3 case red without it)
+- r2: (verifier) F2 the base can move past the bound between `IN REACH` and the merge, one uncounted full run (wontfix: seconds against ten pull requests; that full run's own outrun is measured again; documented in consumer-repos.md)
+- r3: (verifier) F3 cert base off the ref's first-parent line (fast-forward onto another line) hid the move (fixed: `checks_base_steps` falls back to every commit; scratch repo 14 vs 2)
+- r4: (verifier) F4 no test pinned first-parent counting in the reach test (fixed: 2-commit --no-ff pull request case, red with an all-commit count)
+- r5: (verifier) F5 stale text: "20 commits", "BEHIND plus OUTRUN", "OUTRUN or NOT OUTRUN" (fixed)
+- r6: (verifier) F6 plan not at merge base, no plan-checker (wontfix: the owner asked for the fix directly; the verifier's plan lens covered it)
+- r7: (verifier) F7 no case shows an end-of-run outrun still counts under the default bound (fixed: kco3 case is OUTRUN under the default bound)
 ## Blockers
 
 None.

@@ -191,7 +191,7 @@ remainder no one's accident.
 Behind, seen any way (a `git fetch`, the pull request page, a `finish` that
 passed while the base moved): run `finish` once AS IS, before merging
 `origin/main` in. Its BEHIND refusal costs no suite run (seconds) and is the
-measurement: it prints `OUTRUN` or `NOT OUTRUN`. Merging first skips it, and
+measurement: it prints `OUTRUN`, `IN REACH` or `NOT OUTRUN`. Merging first skips it, and
 the run after the merge starts 0 behind and prints neither.
 
 Count a `finish` refusal toward STARVED only when it prints `OUTRUN`: a

@@ -215,12 +215,14 @@ behind (chrsctl/gx #1417, WEAK: a consumer's reading). The cost, named: `ci`
 is the harness's own checks, not the consumer's suites, so a semantic clash
 across disjoint files (base renames a function, the branch adds a call in
 another file) passes a catch-up and lands red; the next `finish` cut from
-that base is what sees it. The bound (20 commits, no shared file) keeps that
-window small; the status quo it replaces merged 172 commits stale with no
+that base is what sees it. The bound (10 pull requests, no shared file) keeps that
+window bounded; the status quo it replaces merged 172 commits stale with no
 check at all. `JOHARNESS_CATCHUP_COMMITS=0` turns it off. A BEHIND refusal
 prints `OUTRUN` when a green run covers the head (base merged in at most
 since) and merging the base in would pass the bound or no certificate
-stands; `IN REACH` when it would not (next lap: catch-up or retest); else
+stands; `IN REACH` when `checks_catch_up`, probed on the clean merge, would
+not refuse (next lap: catch-up or retest; base moving again before the merge
+can still push it past); else
 `NOT OUTRUN`. Only `OUTRUN`
 counts toward STARVED (`.claude/commands/manager.md` §4).
 
@@ -289,7 +291,7 @@ green and level.
 
 **Level is measured at both ends of the run, and at the merge.**
 `joharness.sh:checks_gate` fetches the base before the suites and again after
-a green: moved past HEAD = `BEHIND` plus `OUTRUN`, red; certificate and green
+a green: moved past HEAD = `BEHIND` plus `OUTRUN` or `IN REACH`, red; certificate and green
 stay, so merging the base in is a CATCH-UP or RETEST. Step 7 measures once
 more before `merge_pull_request`. GitHub merges into the base as it then is:
 a line both sides added merges clean as two and reddens the base for every
