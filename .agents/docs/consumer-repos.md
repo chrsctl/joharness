@@ -204,7 +204,8 @@ A full local green certifies its head and base (a file in the git dir,
 never the tree). Behind again, the manager merges `origin/main` in and runs
 `finish` once more: when HEAD is exactly that certified head merged clean
 with `origin/main` (`git merge-tree`), at most `JOHARNESS_CATCHUP_COMMITS`
-(default 20) base commits since, none touching `local-check` itself, and no path changed on both sides, it
+(default 10) base commits on its first-parent line since (one per merged pull
+request), none touching `local-check` itself, and no path changed on both sides, it
 prints `CATCH-UP`, re-runs `ci` (and `verify` when needed) and carries
 `local-check`'s verdict. A shared path or a hand-resolved conflict is a
 `RETEST`, not a full run ("The finish loop"); any other shape is the full run,
@@ -218,20 +219,31 @@ that base is what sees it. The bound (20 commits, no shared file) keeps that
 window small; the status quo it replaces merged 172 commits stale with no
 check at all. `JOHARNESS_CATCHUP_COMMITS=0` turns it off. A BEHIND refusal
 prints `OUTRUN` when a green run (full or catch-up) covers the head, base
-merged in at most since, else `NOT OUTRUN`; only `OUTRUN` counts toward
-STARVED (`.claude/commands/manager.md` §4).
+merged in at most since, and merging the base in now would pass the bound
+(or no certificate stands); `IN REACH` for the same outrun inside the bound,
+where the next lap is a catch-up or retest; else `NOT OUTRUN`. Only `OUTRUN`
+counts toward STARVED (`.claude/commands/manager.md` §4).
 
-Why the bound counts commits, and what that costs. It is a count of commits,
-not of merged pull requests, so it measures how far the base moved only where
-a pull request is about one commit. A consumer whose pull requests are merge
+Why the bound counts first-parent commits. It counted every commit until
+2026-11-14, which measures how far the base moved only where a pull request
+is about one commit. A consumer whose pull requests are merge
 commits carrying 5-8 commits each reaches 20 commits in 2.5-4 pull requests:
 chrsctl/gx, 220 commits over 27 first-parent merges in 12 hours, 31 commits in
 4 pull requests inside one 29-minute `finish` (GROUNDED: `git log origin/main
 --since=<a> --until=<b> --format=%h | wc -l` and the same with `--first-parent
---merges`, re-run by a second gx session). There the bound refuses on ordinary
+--merges`, re-run by a second gx session). There the bound refused on ordinary
 traffic, and one manager threw away seven green ~26-minute passes before it
 merged (WEAK: one gx session's reading of manager transcripts, no second
-context has taken it). Renumbering ids after a merge lands in `RETEST`
+context has taken it). gx #1696 then ran four full passes outrun 40, 38, 15
+and 26 commits behind and blocked STARVED on the third, with gx `main` at
+46-61 commits in 8 pull requests an hour (2026-11-14 06:00-08:00Z, `git
+rev-list --count` and the same with `--first-parent --merges`). So the bound
+counts `git rev-list --count --first-parent`: one per pull request a merge
+commit lands, one per commit pushed or squashed straight onto the base, which
+is the old count for a consumer that never merges with a merge commit. The
+default fell from 20 to 10: ten pull requests is about one 26-minute pass on
+gx's busiest hour plus a retest lap, and the semantic-clash window below
+grows with pull requests, not with the commits inside them. Renumbering ids after a merge lands in `RETEST`
 when the ids are edited in place (their paths sit inside conflicted ∪ branch
 ∪ base); an edit to a path neither side changed falls to the full run.
 Neither is a cause the bound touches.
@@ -257,7 +269,7 @@ green and level.
    resolving conflicts by hand if needed. New head `Hk` = the merge.
 3. **Retest.** `finish` on `Hk` measures from `C`, never from the previous
    retest. `H0` not an ancestor of HEAD = another line of work, no line.
-   Refusals: its base not an ancestor of the base, base unmoved (`n = 0`), base changed `local-check`, `n` over
+   Refusals: its base not an ancestor of the base, base unmoved (`n = 0`), base changed `local-check`, `f` (its first-parent commits since `C`'s base) over
    `JOHARNESS_CATCHUP_COMMITS`, any other non-zero `merge-tree` exit, a path
    git quotes: full run, naming why. Else, with `mb = merge-base(H0, base)`:
    `branch` = paths changed in `mb..H0`; `base` = paths changed in `mb..base`;
@@ -285,7 +297,8 @@ green and level.
    (below, "The cost, named"), so the window stays. Past it: full run; a full
    green starts a new chain.
 5. **Merge when green and level.** `.agents/harness/AGENTS.md` step 7. STARVED
-   counts only green runs the base outran; minutes-long retests make it rare.
+   counts only green runs the base outran past the bound (`OUTRUN`, never `IN
+   REACH`); minutes-long retests make it rare.
 
 **Level is measured at both ends of the run, and at the merge.**
 `joharness.sh:checks_gate` fetches the base before the suites and again after

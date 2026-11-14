@@ -144,7 +144,7 @@ gone holds nothing.
   not resolve clean = stop, record in the workstream file's `Blockers`, ask
   human (decide-alone exception, `.agents/harness/AGENTS.md`). Local checks:
   a hand resolution is a `RETEST`, not a full run (`consumer-repos.md` §
-  Local checks, "The finish loop"); three refusals printing `OUTRUN` = starved, draft and
+  Local checks, "The finish loop"); three refusals printing `OUTRUN` (never `IN REACH`) = starved, draft and
   block (`.claude/commands/manager.md` §4).
 - **Long-running session** = re-check ahead/behind periodically during Build
   too; a conflict caught mid-build is cheap.

@@ -195,7 +195,13 @@ measurement: it prints `OUTRUN` or `NOT OUTRUN`. Merging first skips it, and
 the run after the merge starts 0 behind and prints neither.
 
 Count a `finish` refusal toward STARVED only when it prints `OUTRUN`: a
-green run (full or `CATCH-UP`) covers this head and the base outran it.
+green run (full or `CATCH-UP`) covers this head, the base outran it, and
+merging the base in now goes past `JOHARNESS_CATCHUP_COMMITS` (or no
+certificate stands), so the next lap is the full run again. `IN REACH` = the
+same outrun with the merge inside that bound: merge, `finish` (a `CATCH-UP` or
+`RETEST`, minutes), never counted. Why: chrsctl/gx #1696 (2026-11-14) blocked
+on a third outrun 15 commits behind, two first-parent commits inside its
+bound, where the next lap was a retest (WEAK: a consumer's reading).
 `NOT OUTRUN` = no green run covers it (last run red, unfinished, never ran,
 or own commits since): fix the red, or merge and run `finish` when nothing
 is red (never ran, own commits). A cause outside

@@ -140,7 +140,8 @@ git; send nothing for it.
 
 Behind again at merge? `finish` as is first, then merge `origin/main` in,
 `finish` again (`CATCH-UP`/`RETEST`: `consumer-repos.md` "The finish loop").
-Count only `OUTRUN` refusals, one per green head, as `finish behind: <n>`
+Count only `OUTRUN` refusals, one per green head, as `finish behind: <n>`;
+`IN REACH` (merging in stays inside the catch-up bound) counts nothing
 (`## Blockers`; retired: the PR body), pushed. Three = STARVED: under its
 bound, block `resume <k>/<max>` unasked. ref § Starved.
 

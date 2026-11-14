@@ -658,9 +658,17 @@ git -C "$kcwork" merge -q --no-ff -m "main: merge pr" kccu-pr >/dev/null 2>&1
 git -C "$kcwork" push -q origin main 2>/dev/null
 git -C "$kcwork" checkout -q kccu
 kccu_sync
+# The bound counts first-parent commits: a 2-commit pull request is ONE, so
+# a bound of 1 still catches up (chrsctl/gx #1696: commits counted, every
+# catch-up after a full run was refused).
+out="$(JOHARNESS_CATCHUP_COMMITS=1 JOHARNESS_CHECKS=local kc_finish)"
+expect "catch-up: a 2-commit pull request is one first-parent commit, inside a bound of 1" \
+  "CATCH-UP     HEAD = certified" "$out"
+refute "catch-up: and never refused as over the bound" "over JOHARNESS_CATCHUP_COMMITS" "$out"
+expect "catch-up: inside the bound runs no local-check" "1" "$(kccu_count)"
 out="$(JOHARNESS_CATCHUP_COMMITS=0 JOHARNESS_CHECKS=local kc_finish)"
 expect "catch-up: over JOHARNESS_CATCHUP_COMMITS is the full run, named" \
-  "2 commit(s) (1 first-parent merge(s)) of origin/main since, over JOHARNESS_CATCHUP_COMMITS=0" "$out"
+  "2 commit(s) (1 first-parent merge(s)) of origin/main since: 1 first-parent commit(s), over JOHARNESS_CATCHUP_COMMITS=0" "$out"
 expect "catch-up: over the bound runs local-check" "2" "$(kccu_count)"
 
 # The case this exists for: disjoint base commits, clean merge.
@@ -801,7 +809,9 @@ git -C "$kcwork" push -qu origin kcle 2>/dev/null
 out="$(JOHARNESS_CHECKS=local kc_finish)"
 expect "level: a base that moved mid-run is BEHIND at the end" \
   "BEHIND       1 commit(s) behind origin/main at end of run" "$out"
-expect "level: and this run's green is OUTRUN" "OUTRUN       a green run at" "$out"
+expect "level: and this run's green is IN REACH (one commit, a catch-up next)" \
+  "IN REACH     a green run at" "$out"
+refute "level: so it is not OUTRUN" "OUTRUN       a green run at" "$out"
 expect "level: and finish is red" "finish: FAIL" "$out"
 refute "level: never a pass" "finish: pass" "$out"
 git -C "$kcwork" fetch -q origin main 2>/dev/null
@@ -886,16 +896,32 @@ ko_sync
 out="$(JOHARNESS_CHECKS=local kc_finish)"
 expect "outrun: the full run is green" "finish: pass" "$out"
 ko_main docs-o2.txt
-out="$(JOHARNESS_CHECKS=local kc_finish)"
-expect "outrun: a green head the base outran is OUTRUN" "$ko_outrun" "$out"
-expect "outrun: and the line says it counts" "(counts as finish behind)" "$out"
+out="$(JOHARNESS_CATCHUP_COMMITS=0 JOHARNESS_CHECKS=local kc_finish)"
+expect "outrun: a green head the base outran past the bound is OUTRUN" "$ko_outrun" "$out"
+expect "outrun: and the line says it counts" "(counts as finish behind" "$out"
 expect "outrun: the refusal still runs nothing" "ci and verify NOT run" "$out"
+# Inside the bound the same refusal is IN REACH: the next lap is a catch-up
+# or retest, so a STARVED count skips it (chrsctl/gx #1696 blocked on an
+# outrun 15 commits behind, inside its bound).
+ko_reach="IN REACH     a green run at"
+out="$(JOHARNESS_CHECKS=local kc_finish)"
+expect "outrun: inside JOHARNESS_CATCHUP_COMMITS it is IN REACH" "$ko_reach" "$out"
+expect "outrun: IN REACH names the count and the bound" \
+  "1 first-parent commit(s)" "$out"
+expect "outrun: IN REACH is not a finish behind" "not a finish behind" "$out"
+refute "outrun: IN REACH is never OUTRUN" "$ko_outrun" "$out"
+expect "outrun: IN REACH is still red" "finish: FAIL" "$out"
 
 # The base merged in with no run since, then moved again: still that green.
 ko_sync
 ko_main docs-o3.txt
-out="$(JOHARNESS_CHECKS=local kc_finish)"
+out="$(JOHARNESS_CATCHUP_COMMITS=0 JOHARNESS_CHECKS=local kc_finish)"
 expect "outrun: base merged in since the green is OUTRUN" "$ko_outrun" "$out"
+out="$(JOHARNESS_CATCHUP_COMMITS=1 JOHARNESS_CHECKS=local kc_finish)"
+expect "outrun: two first-parent commits past a bound of 1 is OUTRUN" "$ko_outrun" "$out"
+refute "outrun: and never IN REACH" "$ko_reach" "$out"
+out="$(JOHARNESS_CATCHUP_COMMITS=2 JOHARNESS_CHECKS=local kc_finish)"
+expect "outrun: two first-parent commits inside a bound of 2 is IN REACH" "$ko_reach" "$out"
 
 # A CATCH-UP whose ci goes red: the certificate stays, the green does not.
 git -C "$kcwork" checkout -q main
@@ -1199,7 +1225,7 @@ kr_main kr-b.txt 7 SEVEN kcr
 kr_sync
 out="$(JOHARNESS_CATCHUP_COMMITS=0 kr_run)"
 expect "retest: 5. over the bound is the full run, named" \
-  "1 commit(s) (0 first-parent merge(s)) of origin/main since, over JOHARNESS_CATCHUP_COMMITS=0" "$out"
+  "1 commit(s) (0 first-parent merge(s)) of origin/main since: 1 first-parent commit(s), over JOHARNESS_CATCHUP_COMMITS=0" "$out"
 refute "retest: 5. and no RETEST" "RETEST       HEAD" "$out"
 expect "retest: 5. its check ran unscoped" "paths=unset" "$(cat "$kr_rec" 2>/dev/null)"
 
