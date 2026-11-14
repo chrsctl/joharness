@@ -120,9 +120,41 @@ repository names for it) in the plan's own pull request, and names the number
 in `## Scope`. The building branch uses only that number, never renames the
 file, and does not list the registry in `scope:` (the reservation already
 landed). No registry = no step. A plan carried on its building branch
-reserves nothing. Why: two branches adding the next number race, and the
-loser renames (`.agents/docs/consumer-repos.md`, "A renumber that renames a
-file").
+reserves nothing: that branch claims in-branch. A building branch whose plan
+merged ahead of it adds no registry line.
+
+A reservation counts once merged, not while its pull request is open. A plan
+pull request picks "next free" from its own base, as does a branch claiming
+in-branch (a carried plan, no plan, `plan: fast`, or a rule-breaker); two
+picks from two bases land on one number. So EVERY branch holding an unmerged
+registry line re-reads the registry after each merge of `origin/main` at
+finish (`consumer-repos.md`, "The finish loop") and re-picks when the base
+now holds its number, everywhere it named it (registry, `## Scope`, its
+files). The later merger loses, whichever kind it is. What catches the
+collision is the repository's own registry check in its `local-check`
+(overlap and duplicate owner = red), never the merge: lines appended at one
+spot conflict, lines inserted at two spots merge clean and hold the number
+twice. Registry without such a check = a collision lands unseen.
+
+Why: two branches adding the next number race, and the loser renames
+(`.agents/docs/consumer-repos.md`, "A renumber that renames a file").
+Reserving in the plan pull request moves the race earlier and, when the
+plan pull request loses, to a plan-only file, where losing costs a renumber
+of one plan line instead of a renamed file; it does not remove the race.
+Measured on chrsctl/gx: clerk PR #1678 reserved CRM7960-7969 in its plan
+pull request (`2f6778a61`) and lost the block 7h23m later, at its catch-up
+merge `badaa2e0d`, to building branch `reeve-fit-timeline`, which claimed it
+in-branch although its plan had merged (`14d9f4d2c`, merged #1686);
+renumbered in `402e4b972` (GROUNDED: `git log -1 --format=%ad` and `git show
+--cc` on those commits, re-taken by a second session in a clone of
+chrsctl/gx). Same shape between two in-branch claims in `d546901d1` (WEAK:
+its commit message only). Two rule-following branches off one base race the
+same way (GROUNDED, fixture: in a fresh repo commit `blocks.md` holding
+`- X10-19: a`; branches A and B each append `- X20-29: <name>`; merge A into
+main, then main into B: exit 1, `blocks.md` conflicted. Branch C instead
+inserts its `X20-29` line after line 1: merge exit 0, block held twice).
+A harness-side check was weighed and not built: the harness names no
+registry format, so only the repository can parse its own.
 
 ### A human remainder
 
