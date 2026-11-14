@@ -259,7 +259,7 @@ most 3 rounds, as §2 says for the build.
 
 A planning pass's review is bounded on top of that:
 
-- **Rounds:** at most `JOHARNESS_PLANNING_REVIEW_ROUNDS` (default 25) in
+- **Rounds:** at most `JOHARNESS_PLANNING_REVIEW_ROUNDS` (default 12) in
   the whole pass, each plan-checker spawn and each verifier pass counting
   one. The cap reached = stop: a finding from the last round is fixed
   without another round, or left open.

@@ -29,7 +29,7 @@ planning pass's reviewers at opus.
   round bound.
 - `.agents/harness/selftest/review.sh` — cases: planning pass at fable
   reads opus with the bound; a fable plan's build stays fable.
-- `joharness.sh` KNOBS — `JOHARNESS_PLANNING_REVIEW_ROUNDS`, default 25
+- `joharness.sh` KNOBS — `JOHARNESS_PLANNING_REVIEW_ROUNDS`, default 12
   (the human's number), 0 = no cap; `.agents/docs/orchestrated.md` table row.
 - `.agents/docs/manager-reference.md` § Challenge — the cap: at most that
   many review rounds a pass (plan-checker spawns and verifier passes
@@ -63,8 +63,8 @@ planning pass's reviewers at opus.
 - New selftest cases fail with the `review_report` change reverted.
 - Consumer side, after sync: on a planning branch (`plan:` a requirement
   with no plan of its stem on the base, `agent: fable`), `./joharness.sh
-  review` prints `[opus` and `at most 25 review rounds`
-  (`./joharness.sh review | grep -c 'at most 25 review rounds'` → 1).
+  review` prints `[opus` and `at most 12 review rounds`
+  (`./joharness.sh review | grep -c 'at most 12 review rounds'` → 1).
 
 ## Where to look
 

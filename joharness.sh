@@ -129,7 +129,7 @@ JOHARNESS_ORCHESTRATOR_PASSES|6|dispatch|Orchestrator passes a session makes bef
 JOHARNESS_MANAGER_HOURS|4|dispatch|Claim older than this with no pull request = CEILING? report; 0 lifts it.
 JOHARNESS_CHURN_THRESHOLD|5|dispatch|One file rewritten this often = warning.
 JOHARNESS_CHURN_LIMIT|computed|dispatch|One file rewritten this often = LOOP? and ci red; default twice the threshold; 0 lifts it.
-JOHARNESS_PLANNING_REVIEW_ROUNDS|25|dispatch|Plan-checker spawns and verifier passes one planning pass makes at most, counted together; 0 = no cap.
+JOHARNESS_PLANNING_REVIEW_ROUNDS|12|dispatch|Plan-checker spawns and verifier passes one planning pass makes at most, counted together; 0 = no cap.
 JOHARNESS_CURATE_REGISTRY|3|dispatch|Plans declaring one path before curate calls it a registry.
 JOHARNESS_CURATE_SPLIT|8|dispatch|Scope bullets before curate proposes a decompose.
 JOHARNESS_CURATE_LAYERS|3|dispatch|Distinct top-level directories in a plan scope: line before curate proposes a decompose; 0 = off.

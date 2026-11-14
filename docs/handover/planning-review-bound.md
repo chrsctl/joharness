@@ -19,7 +19,7 @@ chose levers A and B on 2026-11-13 after four gx planning passes cost ~$619.
 ## Decisions
 
 - Money decision (tier below fable for planning reviewers) is the human's,
-  given in this session 2026-11-13; cap 25 rounds as a setting, also theirs.
+  given in this session 2026-11-13; a cap as a setting, also theirs.
 - The cap sits on top of the per-plan 3-round bound and churn stop: the
   human asked for an upper limit, not a looser rule.
 
@@ -32,6 +32,12 @@ chose levers A and B on 2026-11-13 after four gx planning passes cost ~$619.
 - Planning manager effort xhigh to high: the human named the extra effort
   as a cost, 2026-11-14 (thinking was ~1M tokens a pass at fable output
   price). A looped session's "Run at effort xhigh" respawn stays.
+
+- Default 12, not 25 (2026-11-14, the human left the number to this
+  session: "well proven plans, but costs shouldn't explode"). 25 stopped
+  none of the four measured passes (10, 11, 12, 21); 12 keeps the three
+  that converged and stops the outlier. Per-plan 3 rounds, open findings as
+  A<n> and the build's plan-check keep plans proven.
 
 ## Review
 
@@ -47,7 +53,7 @@ chose levers A and B on 2026-11-13 after four gx planning passes cost ~$619.
 - r10: (verifier) cap changed 10 to 25 with no evidence in the checkout (wontfix: the human's number, given in session 2026-11-13; Decisions)
 - r11: (verifier) 0 printed "at most 0" (fixed: prints "no cap on review rounds", selftest case)
 - r12: (verifier) round counts in orchestrated.md and agent-selection.md did not fit (fixed: per-branch counts from the sessions' subagent_stats, maxima named per branch)
-- r13: (verifier) default 25 is above every measured pass (10, 11, 12, 21), so it caps none of them (wontfix: the human's number, chosen as a ceiling; the saving is the opus tier, PR body)
+- r13: (verifier) default 25 is above every measured pass (10, 11, 12, 21), so it caps none of them (fixed: default 12, Decisions)
 - r14: (verifier) per-branch counts not checkable here (wontfix: billed gx sessions' subagent_stats, outside any checkout; invoicing-app's 11 is its verifier passes, its plan-checks fell in an earlier process)
 - r15: (verifier) agent-selection.md said a planning pass's verifier is always opus (fixed: "at fable")
 - r16: (verifier) no case held a cheaper planning pass at its tier (fixed: sonnet case)
