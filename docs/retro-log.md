@@ -17,3 +17,6 @@
 | 2026-11-12 | byte-identical-bullet | https://claude.ai/code/session_017oZ8o5q2YRzjFT1eTnx4Cs | nothing |
 | 2026-11-12 | dispatch-held-merged-pr | https://claude.ai/code/session_01GjKnsgJV4qubTD63CuMiH7 | nothing |
 | 2026-11-12 | marker-gate-needs-no-done | https://claude.ai/code/session_01Samg4LcLJBw1jg4RfCtT8Z | nothing |
+| 2026-11-14 | context-pressure-warning | https://claude.ai/code/session_01FmArP42iphRwRzXNj4HD4o | nothing |
+| 2026-11-14 | dispatch-holds-shared-defect | https://claude.ai/code/session_01J1YMK5sbgbhefzA9MHbwCu | nothing |
+| 2026-11-14 | unsupervised-endurance | https://claude.ai/code/session_01JU2E2vNtdyc5di2jrZfBRg | nothing |
