@@ -39,6 +39,8 @@ chose levers A and B on 2026-11-13 after four gx planning passes cost ~$619.
   the passes that converged and stops the outlier. Per-plan 3 rounds, open findings as
   A<n> and the build's plan-check keep plans proven.
 
+- Review stopped after pass 9 by this session's call on the human's cost brief: findings per pass 7, 5, 4, 2, 2, 4, 2, 7, and pass 9's are record and wording; no code defect since pass 7.
+
 ## Review
 
 - r1: (verifier) review_planning_pass read the tree, so a pass adding a plan of the requirement's stem lost the opus tier (fixed: read at the merge base)
@@ -81,4 +83,3 @@ chose levers A and B on 2026-11-13 after four gx planning passes cost ~$619.
 - r38: (verifier) the plan's Goal named no effort change (fixed: Goal records the human's 2026-11-14 additions)
 - r39: (verifier) agent-selection defined a planning pass by effort high (fixed: by what it is, not its effort)
 - r40: (verifier) effort downgrade needs a human (no change: the human's call, 2026-11-14, Decisions)
-- Review stopped after pass 9 by this session's call on the human's cost brief: findings per pass 7, 5, 4, 2, 2, 4, 2, 7, and pass 9's are record and wording; no code defect since pass 7.
