@@ -21,6 +21,10 @@ gate cannot stop it (it skips `docs/plans|handover|product`). The human
 (money decision, `agent-selection.md`) chose: cap the rounds, and run a
 planning pass's reviewers at opus.
 
+On 2026-11-14 the human added: planning managers run at effort high, not
+xhigh (their thinking was ~1M output tokens a pass at fable price), and
+left the cap's number to this session: plans stay well proven, cost bounded.
+
 ## Scope
 
 - `joharness.sh` — `review_report`: a workstream whose `plan:` names a
@@ -30,7 +34,7 @@ planning pass's reviewers at opus.
 - `.agents/harness/selftest/review.sh` — cases: planning pass at fable
   reads opus with the bound; a fable plan's build stays fable.
 - `joharness.sh` KNOBS — `JOHARNESS_PLANNING_REVIEW_ROUNDS`, default 12
-  (the human's number), 0 = no cap; `.agents/docs/orchestrated.md` table row.
+  (chosen by this session on the human's delegation, 2026-11-14), 0 = no cap; `.agents/docs/orchestrated.md` table row.
 - `.agents/docs/manager-reference.md` § Challenge — the cap: at most that
   many review rounds a pass (plan-checker spawns and verifier passes
   together), on top of the per-plan 3 rounds and churn stop; an open

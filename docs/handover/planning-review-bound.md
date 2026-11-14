@@ -35,8 +35,8 @@ chose levers A and B on 2026-11-13 after four gx planning passes cost ~$619.
 
 - Default 12, not 25 (2026-11-14, the human left the number to this
   session: "well proven plans, but costs shouldn't explode"). 25 stopped
-  none of the four measured passes (10, 11, 12, 21); 12 keeps the three
-  that converged and stops the outlier. Per-plan 3 rounds, open findings as
+  none of the four measured passes (10, 12, 21, and at least 11); 12 sits at
+  the passes that converged and stops the outlier. Per-plan 3 rounds, open findings as
   A<n> and the build's plan-check keep plans proven.
 
 ## Review
@@ -53,7 +53,7 @@ chose levers A and B on 2026-11-13 after four gx planning passes cost ~$619.
 - r10: (verifier) cap changed 10 to 25 with no evidence in the checkout (wontfix: the human's number, given in session 2026-11-13; Decisions)
 - r11: (verifier) 0 printed "at most 0" (fixed: prints "no cap on review rounds", selftest case)
 - r12: (verifier) round counts in orchestrated.md and agent-selection.md did not fit (fixed: per-branch counts from the sessions' subagent_stats, maxima named per branch)
-- r13: (verifier) default 25 is above every measured pass (10, 11, 12, 21), so it caps none of them (fixed: default 12, Decisions)
+- r13: (verifier) default 25 is above every measured pass (10, 11, 12, 21), so it caps none of them (wontfix: the human's number, chosen as a ceiling; the saving is the opus tier, PR body)
 - r14: (verifier) per-branch counts not checkable here (wontfix: billed gx sessions' subagent_stats, outside any checkout; invoicing-app's 11 is its verifier passes, its plan-checks fell in an earlier process)
 - r15: (verifier) agent-selection.md said a planning pass's verifier is always opus (fixed: "at fable")
 - r16: (verifier) no case held a cheaper planning pass at its tier (fixed: sonnet case)
@@ -74,3 +74,11 @@ chose levers A and B on 2026-11-13 after four gx planning passes cost ~$619.
 - r31: (verifier) knob row split the churn pair (fixed: moved after JOHARNESS_CHURN_LIMIT in both tables)
 - r32: (verifier) r30's record claimed a raised effort; the plan already says opus/high, so nothing was raised (fixed: record says so)
 - r33: (verifier) "routes open findings by the rule" passed on the phrase alone, not the pointer (fixed: expects the pointer line)
+- r34: (verifier) the plan credited the human with 12 (fixed: says this session chose it on the human's delegation)
+- r35: (verifier) invoicing-app's 11 leaves out its plan-checks, so "keeps the three" is unproven (fixed: "at least 11", "sits at the passes that converged")
+- r36: (verifier) research step ran at no raised tier or effort (no change: this session closed review on the human's cost brief, 2026-11-14; the PR is a draft for the human)
+- r37: (verifier) default 10 -> 25 -> 12 reads as a fix undoing a fix, and r13 was rewritten in place (fixed: r13 restored; each value is a human direction, not a fix: 10 and 25 theirs, 12 delegated, Decisions)
+- r38: (verifier) the plan's Goal named no effort change (fixed: Goal records the human's 2026-11-14 additions)
+- r39: (verifier) agent-selection defined a planning pass by effort high (fixed: by what it is, not its effort)
+- r40: (verifier) effort downgrade needs a human (no change: the human's call, 2026-11-14, Decisions)
+- Review stopped after pass 9 by this session's call on the human's cost brief: findings per pass 7, 5, 4, 2, 2, 4, 2, 7, and pass 9's are record and wording; no code defect since pass 7.
