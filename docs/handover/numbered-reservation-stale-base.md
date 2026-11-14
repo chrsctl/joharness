@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK52NzNeLazs985U5MY
 agent: opus
 updated: 2026-11-14
-next: Settle the research question from the consumer's recorded findings, graduate to plans.md § Numbered artefacts
+next: Open the PR, run finish, merge
 ---
 
 ## Goal
@@ -33,7 +33,14 @@ when nothing measures the reservation merged first? Graduate to
 
 ## Review
 
-- r1: pending verifier (no change)
+- r1: (verifier) spawn prompt carried an item line and the gx clone path beyond subagents.md's fields (no change: the clone path was the only way to re-take the cited readings; noted)
+- r2: (verifier) "building branch whose plan exists adds no registry line" contradicts "a carried plan reserves nothing" (fixed: rule reads "whose plan merged ahead of it"; a carried plan claims in-branch)
+- r3: (verifier) only the plan pull request was told to re-pick; an in-branch claimer merging later had no rule (fixed: every branch holding an unmerged registry line re-picks; later merger loses)
+- r4: (verifier) "stayed open 7h20m" mislabels reservation-commit-to-catch-up span, measured 7h23m (fixed)
+- r5: (verifier) hand-written date in the graduated why (fixed: dropped, commits carry it)
+- r6: (verifier) GROUNDED fixture claim had no recorded command (fixed: fixture steps written inline)
+- r7: (verifier) handover `plan:` names a research stem with no plan file (no change: TEMPLATE.md says a research file is claimed through `plan:` by its stem)
+- r8: (verifier) one 125-character line in plans.md (fixed: rewrapped)
 
 ## Blockers
 
