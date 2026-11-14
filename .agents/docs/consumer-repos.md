@@ -218,32 +218,19 @@ another file) passes a catch-up and lands red; the next `finish` cut from
 that base is what sees it. The bound (20 commits, no shared file) keeps that
 window small; the status quo it replaces merged 172 commits stale with no
 check at all. `JOHARNESS_CATCHUP_COMMITS=0` turns it off. A BEHIND refusal
-prints `OUTRUN` when a green run (full or catch-up) covers the head, base
-merged in at most since, and merging the base in now would pass the bound
-(or no certificate stands); `IN REACH` for the same outrun inside the bound,
-where the next lap is a catch-up or retest; else `NOT OUTRUN`. Only `OUTRUN`
+prints `OUTRUN` when a green run covers the head (base merged in at most
+since) and merging the base in would pass the bound or no certificate
+stands; `IN REACH` when it would not (next lap: catch-up or retest); else
+`NOT OUTRUN`. Only `OUTRUN`
 counts toward STARVED (`.claude/commands/manager.md` §4).
 
-Why the bound counts first-parent commits. It counted every commit until
-2026-11-14, which measures how far the base moved only where a pull request
-is about one commit. A consumer whose pull requests are merge
-commits carrying 5-8 commits each reaches 20 commits in 2.5-4 pull requests:
-chrsctl/gx, 220 commits over 27 first-parent merges in 12 hours, 31 commits in
-4 pull requests inside one 29-minute `finish` (GROUNDED: `git log origin/main
---since=<a> --until=<b> --format=%h | wc -l` and the same with `--first-parent
---merges`, re-run by a second gx session). There the bound refused on ordinary
-traffic, and one manager threw away seven green ~26-minute passes before it
-merged (WEAK: one gx session's reading of manager transcripts, no second
-context has taken it). gx #1696 then ran four full passes outrun 40, 38, 15
-and 26 commits behind and blocked STARVED on the third, with gx `main` at
-46-61 commits in 8 pull requests an hour (2026-11-14 06:00-08:00Z, `git
-rev-list --count` and the same with `--first-parent --merges`). So the bound
-counts `git rev-list --count --first-parent`: one per pull request a merge
-commit lands, one per commit pushed or squashed straight onto the base, which
-is the old count for a consumer that never merges with a merge commit. The
-default fell from 20 to 10: ten pull requests is about one 26-minute pass on
-gx's busiest hour plus a retest lap, and the semantic-clash window below
-grows with pull requests, not with the commits inside them. Renumbering ids after a merge lands in `RETEST`
+Why first-parent commits: one per pull request a merge commit lands, one per
+commit pushed or squashed onto the base. Counting every commit refused
+ordinary traffic where a pull request carries 5-8: chrsctl/gx `main` took
+46-61 commits in 8 pull requests an hour and #1696 ran four full passes to
+STARVED (2026-11-14, `git rev-list --count [--first-parent --merges]`; WEAK:
+a consumer's reading). The semantic-clash window grows with pull requests.
+Renumbering ids after a merge lands in `RETEST`
 when the ids are edited in place (their paths sit inside conflicted ∪ branch
 ∪ base); an edit to a path neither side changed falls to the full run.
 Neither is a cause the bound touches.

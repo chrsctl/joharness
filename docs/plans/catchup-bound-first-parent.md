@@ -1,6 +1,6 @@
 ---
 plan: catchup-bound-first-parent
-urgency: high
+urgency: urgent
 agent: opus
 effort: high
 needs: none
@@ -52,6 +52,9 @@ of minutes, yet it counted toward STARVED.
 - `bash .agents/harness/selftest.sh` — `0 failed`; the new cases
   (`IN REACH`, `inside a bound of 1`) FAIL on the old `joharness.sh`.
 - `./joharness.sh ci` — `ci: pass`; `./joharness.sh verify` — 0 failed.
+- Consumer side, after the sync: `JOHARNESS_CHECKS=local ./joharness.sh finish`
+  on a green head the base outran by at most 10 pull requests prints
+  `IN REACH`, and the next `finish` after merging is `CATCH-UP` or `RETEST`.
 
 ## Where to look
 
