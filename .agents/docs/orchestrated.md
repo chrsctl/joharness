@@ -36,7 +36,7 @@ commit `649b832` — docs only, no text reproduced (`.agents/NOTICE`).
 | --- | --- | --- | --- | --- | --- |
 | orchestrator | low, mechanical on purpose | a session; the keeper starts one | manager sessions; never an orchestrator | the cap, the health pass, the kill handover | dispatch says DRAINED with nothing in flight, or the keeper retires it |
 | keeper | haiku | one session per repo, `🔑 keeper: <owner/repo>`, woken hourly by the heartbeat | the only spawner of orchestrators: one a wake when none is live, or a successor when the live one's wake asks to retire (`create_session`) | nothing but that check | archived at the next REGISTER or replace |
-| manager | the item's `agent:`; fable at xhigh for an unplanned requirement | a session with its own branch, claim and merge | worker subagents (`Agent`) | one item, until its file retires | its pull request merges, or it blocks on a human |
+| manager | the item's `agent:`; fable at high for an unplanned requirement | a session with its own branch, claim and merge | worker subagents (`Agent`) | one item, until its file retires | its pull request merges, or it blocks on a human |
 | worker | at or below the plan's tier, lower by default | a subagent in the manager's container | nothing | the files its sub-task names | it returns |
 | surveyor | sonnet | a session, on the `OVERLAP-BOUND` verdict | nothing (declarations, not code) | the held plans' and holders' `scope:` lines for one holder key | its pull request merges, or `done` with nothing to change |
 | clerk | sonnet, opus verifier | a session, on the `clerk DUE` tail line, or on the human's order (`--ordered`); prelude `./joharness.sh role clerk` | nothing | one plan-only pull request, no workstream file; closes an issue only on DOES NOT HOLD, DUPLICATE or UPSTREAM, opens none but UPSTREAM's on canonical, never writes code, never a core-path-only plan, never plans a scout issue without the reviewer's `approved` label | its pull request merges, no plan to write (pushes `clerk-noop-<UTC stamp>` at `origin/main`), or `TWIN: deferred` |
@@ -210,6 +210,7 @@ Removing the line, on the base first, is the human override.
 | `JOHARNESS_MANAGER_HOURS` | 4 | claim older than this, no pull request = `CEILING?` report; 0 lifts it | one consumer run |
 | `JOHARNESS_CHURN_THRESHOLD` | 5 | one file rewritten this often = warning | `ci`'s knob; honest branches peak at 4 |
 | `JOHARNESS_CHURN_LIMIT` | 2x threshold | one file rewritten this often = `LOOP?` and `ci` red; 0 lifts it | `ci`'s ceiling |
+| `JOHARNESS_PLANNING_REVIEW_ROUNDS` | 12 | plan-checker spawns and verifier passes one planning pass makes at most, counted together; `review` prints it; 0 = no cap | four gx planning passes on 2026-11-12/13 spawned 10, 12, 21 and at least 11 plan-checkers and verifiers (billed sessions' `subagent_stats`; invoicing-app's plan-checks fell in an earlier process, uncounted); 12 sits at the passes that converged and stops the 21 |
 | `JOHARNESS_CURATE_REGISTRY` | 3 | plans declaring one path before `curate` calls it a registry | written number |
 | `JOHARNESS_CURATE_SPLIT` | 8 | `## Scope` bullets before `curate` proposes a decompose | written number |
 | `JOHARNESS_CURATE_LAYERS` | 3 | distinct top-level directories in a plan's `scope:` before `curate` proposes a decompose; 0 = off | written number |

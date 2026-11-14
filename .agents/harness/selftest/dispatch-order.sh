@@ -316,7 +316,7 @@ qoreq needsplans
 qopush "a requirement with no plans"
 out="$(qo)"
 expect "an unplanned requirement is spawned as one planning manager" \
-  "docs/product/needsplans.md — UNPLANNED: one planning manager (agent: fable, effort xhigh) first" "$out"
+  "docs/product/needsplans.md — UNPLANNED: one planning manager (agent: fable, effort high) first" "$out"
 refute "and the queue is not called drained over it" "verdict   : DRAINED" "$out"
 # Both present: the requirement still wins. Ordering is the whole claim here —
 # a fixture with only one of the two cannot tell rank from availability.
@@ -341,7 +341,7 @@ printf -- '---\nplan: forreq\nurgency: normal\nagent: sonnet\neffort: low\nrequi
 qopush "its plan serves no clause"
 out="$(qo)"
 expect "a partly planned requirement is spawned as one planning manager, named so" \
-  "docs/product/needsplans.md — PARTLY PLANNED: one planning manager (agent: fable, effort xhigh) first, for clause 1 unserved" "$out"
+  "docs/product/needsplans.md — PARTLY PLANNED: one planning manager (agent: fable, effort high) first, for clause 1 unserved" "$out"
 fixture_rm "$qowork" "clear the requirement cases" \
   docs/plans/freeone.md docs/plans/forreq.md docs/product/needsplans.md
 git -C "$qowork" push -q origin main

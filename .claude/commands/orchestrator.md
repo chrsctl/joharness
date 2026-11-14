@@ -202,7 +202,7 @@ or command that says nothing to do spawns nothing.
   spawn` is free; add the reconcile line. `CORE ONLY — build it` is free,
   the usual prompt: its manager routes the core edit (manager.md §2).
 - `UNPLANNED` or `PARTLY PLANNED` requirement = ONE planning manager, fable,
-  effort xhigh.
+  effort high.
 - `release DUE: <branches>`: a `needs:` branch at once; a stale or done
   one only after `get_session` reads its session ARCHIVED or not found.
   Run `./joharness.sh release <branch>...` yourself — no session. It

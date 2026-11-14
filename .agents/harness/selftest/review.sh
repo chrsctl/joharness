@@ -491,6 +491,67 @@ commit_all "$rwork" "workstream naming no plan"
 out="$(jr review)"
 expect "tier defaults to sonnet" "docs/handover/t.md [sonnet" "$out"
 
+# A planning pass (plan: names a requirement, no plan file of that stem at
+# the merge base): its reviewers run at opus, not fable, and the line names
+# the round cap. Read from t.md's own block: ws.md's lines say opus too.
+tblock() { awk '/^  docs\/handover\//{f=($1=="docs/handover/t.md")} f'; }
+mkdir -p "${rwork}/docs/product"
+git -C "$rwork" checkout -q main
+printf '# r\n\n## Satisfied when\n\n1. x\n' >"${rwork}/docs/product/req.md"
+commit_all "$rwork" "a requirement on the base"
+git -C "$rwork" push -q origin main
+git -C "$rwork" checkout -q tierfall
+git -C "$rwork" merge -q --no-edit main
+write_ws t.md in-progress none $'plan: req\nagent: fable' "- r1: x (fixed)"
+commit_all "$rwork" "planning pass at fable"
+out="$(jr review | tblock)"
+expect "planning pass reviewers run at opus" "docs/handover/t.md [opus" "$out"
+expect "planning pass verifier spawns at opus" "verifier.md at opus" "$out"
+expect "planning pass names plan-checker's tier" "plan-checker and verifier at opus" "$out"
+expect "planning pass names the round cap" "at most 12 review rounds" "$out"
+expect "planning pass routes open findings by the rule" "are routed by manager-reference.md, Challenge" "$out"
+refute "planning pass sends no plan finding to the PR body" "PR body" "$out"
+refute "planning pass is never reviewed at fable" "fable" "$out"
+out="$(JOHARNESS_PLANNING_REVIEW_ROUNDS=7 jr review | tblock)"
+expect "the round cap is the knob's" "at most 7 review rounds" "$out"
+out="$(JOHARNESS_PLANNING_REVIEW_ROUNDS=0 jr review | tblock)"
+expect "0 prints as no cap" "no cap on review rounds" "$out"
+write_ws t.md in-progress none $'plan: req\nagent: sonnet' "- r1: x (fixed)"
+commit_all "$rwork" "planning pass at sonnet"
+out="$(jr review | tblock)"
+expect "a cheaper planning pass keeps its tier" "docs/handover/t.md [sonnet" "$out"
+write_ws t.md in-progress none $'plan: req\nagent: fable' "- r1: x (fixed)"
+commit_all "$rwork" "planning pass back at fable"
+
+# The pass adds a plan of the requirement's own stem: still a planning pass,
+# since the base has none.
+printf -- '---\nplan: req\nagent: fable\n---\n' >"${rwork}/docs/plans/req.md"
+commit_all "$rwork" "the pass writes a plan of the requirement's stem"
+out="$(jr review | tblock)"
+expect "a plan the pass adds keeps it a planning pass" "docs/handover/t.md [opus" "$out"
+
+# That plan on the base: building it is not a planning pass, even once its
+# retire deletes the plan file.
+git -C "$rwork" checkout -q main
+mkdir -p "${rwork}/docs/plans"
+printf -- '---\nplan: req\nagent: fable\n---\n' >"${rwork}/docs/plans/req.md"
+commit_all "$rwork" "the plan on the base"
+git -C "$rwork" push -q origin main
+git -C "$rwork" checkout -q -b tierbuild main
+write_ws t.md in-progress none $'plan: req\nagent: fable' "- r1: x (fixed)"
+commit_all "$rwork" "build a fable plan"
+out="$(jr review | tblock)"
+expect "a fable plan's build is reviewed at fable" "docs/handover/t.md [fable" "$out"
+refute "no cap line outside a planning pass" "planning pass:" "$out"
+git -C "$rwork" rm -q "docs/plans/req.md"
+commit_all "$rwork" "the build deletes its plan"
+out="$(jr review | tblock)"
+expect "a deleted base plan does not make a planning pass" "docs/handover/t.md [fable" "$out"
+git -C "$rwork" checkout -q main
+git -C "$rwork" rm -q -r "docs/product/req.md" "docs/plans/req.md"
+commit_all "$rwork" "drop the planning fixtures"
+git -C "$rwork" push -q origin main
+
 # Session start says the gate is armed, and says nothing while it is not.
 out="$(JOHARNESS_REVIEW=on jr session-start)"
 expect "session start announces an armed gate" "Review gate: ON" "$out"

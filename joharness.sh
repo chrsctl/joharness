@@ -129,6 +129,7 @@ JOHARNESS_ORCHESTRATOR_PASSES|6|dispatch|Orchestrator passes a session makes bef
 JOHARNESS_MANAGER_HOURS|4|dispatch|Claim older than this with no pull request = CEILING? report; 0 lifts it.
 JOHARNESS_CHURN_THRESHOLD|5|dispatch|One file rewritten this often = warning.
 JOHARNESS_CHURN_LIMIT|computed|dispatch|One file rewritten this often = LOOP? and ci red; default twice the threshold; 0 lifts it.
+JOHARNESS_PLANNING_REVIEW_ROUNDS|12|dispatch|Plan-checker spawns and verifier passes one planning pass makes at most, counted together; 0 = no cap.
 JOHARNESS_CURATE_REGISTRY|3|dispatch|Plans declaring one path before curate calls it a registry.
 JOHARNESS_CURATE_SPLIT|8|dispatch|Scope bullets before curate proposes a decompose.
 JOHARNESS_CURATE_LAYERS|3|dispatch|Distinct top-level directories in a plan scope: line before curate proposes a decompose; 0 = off.
@@ -1845,6 +1846,19 @@ review_tier() {
   printf '%s' "$tier"
 }
 
+# A planning pass: `plan:` names a requirement that, at the merge base, no
+# plan file shares a stem with. Read at the base, never the tree: the pass
+# may add a plan of the requirement's stem, and a build's retire deletes its
+# plan. Its diff is plans, so its review is bounded (manager-reference.md,
+# Challenge) and its reviewers never run at fable.
+review_planning_pass() {
+  local plan base="$2"
+  plan="$(lint_stem "$(printf '%s\n' "$1" | gr_field plan)")"
+  [ -n "$plan" ] && [ "$plan" != "none" ] && [ -n "$base" ] || return 1
+  git -C "$ROOT" cat-file -e "${base}:docs/product/${plan}.md" 2>/dev/null &&
+    ! git -C "$ROOT" cat-file -e "${base}:docs/plans/${plan}.md" 2>/dev/null
+}
+
 # Depth per tier, quoted from the review-depth rule rather than re-invented.
 review_recipe() {
   case "$1" in
@@ -2173,7 +2187,7 @@ review_at_edge() {
 # returns non-zero only when this branch owes a review record.
 review_report() {
   local over="origin/${HANDOVER_BASE_BRANCH:-main}" base head ws doc tier n
-  local edge rc=0 seen=0 marks tagged agent pr status own mine fast
+  local edge rc=0 seen=0 marks tagged agent pr status own mine fast planning cap
   base="$(git -C "$ROOT" merge-base HEAD "$over" 2>/dev/null)"
   head="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)"
   if [ -z "$base" ]; then
@@ -2207,6 +2221,11 @@ review_report() {
       printf '%s\n' "$doc" | gr_fields agent pr status)
     tier="$(review_tier "$doc" "$agent")"
     case $'\n'"${fast}"$'\n' in *$'\n'"${ws}"$'\n'*) tier="haiku" ;; esac
+    planning=0
+    review_planning_pass "$doc" "$base" && planning=1
+    # The human's money decision (agent-selection.md, Review depth): a
+    # planning pass's reviewers run at opus, never fable.
+    [ "$planning" = 1 ] && [ "$tier" = fable ] && tier="opus"
     marks="$(review_marks <"${ROOT}/${ws}")"
     n="${marks%% *}"; tagged="${marks##* }"
     edge="$(review_at_edge "$pr" "$status")" || edge=""
@@ -2215,6 +2234,14 @@ review_report() {
     printf '    verifier: spawn .claude/agents/verifier.md at %s — it did not\n' "$tier"
     printf '    write this diff, which is the whole property. Tag what it\n'
     printf '    returns (verifier).\n'
+    if [ "$planning" = 1 ]; then
+      cap="$(num_knob JOHARNESS_PLANNING_REVIEW_ROUNDS)"
+      if [ "$cap" = 0 ]; then cap="no cap on review rounds"
+      else cap="at most ${cap} review rounds"; fi
+      printf '    planning pass: plan-checker and verifier at %s; %s\n' "$tier" "$cap"
+      printf '    in the pass, per-plan bounds still hold; then stop. Open findings\n'
+      printf '    are routed by manager-reference.md, Challenge\n'
+    fi
     if [ "${n:-0}" -gt 0 ]; then
       printf '    %s finding(s) recorded\n' "$n"
       [ "$tagged" = 1 ] && continue
@@ -10355,10 +10382,10 @@ cmd_dispatch() {
     # manager: decomposition is one session's job, not a fleet's.
     case "$req" in
       *'PARTLY PLANNED: '*)
-        printf '  %s — PARTLY PLANNED: one planning manager (agent: fable, effort xhigh) first, for %s\n' "${req%% *}" \
+        printf '  %s — PARTLY PLANNED: one planning manager (agent: fable, effort high) first, for %s\n' "${req%% *}" \
           "$(printf '%s' "$req" | sed -n 's/.*PARTLY PLANNED: \(clauses* [0-9, ]* unserved\).*/\1/p')" ;;
       *)
-        printf '  %s — UNPLANNED: one planning manager (agent: fable, effort xhigh) first\n' "${req%% *}" ;;
+        printf '  %s — UNPLANNED: one planning manager (agent: fable, effort high) first\n' "${req%% *}" ;;
     esac
     n_free=$((n_free + 1))
   fi
