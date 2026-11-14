@@ -29,6 +29,10 @@ chose levers A and B on 2026-11-13 after four gx planning passes cost ~$619.
   record spelling (r25), and the plan and `review`'s line agree (r26, r29).
   Ran at the plan's own tier and effort (opus, high): neither raised.
 
+- Planning manager effort xhigh to high: the human named the extra effort
+  as a cost, 2026-11-14 (thinking was ~1M tokens a pass at fable output
+  price). A looped session's "Run at effort xhigh" respawn stays.
+
 ## Review
 
 - r1: (verifier) review_planning_pass read the tree, so a pass adding a plan of the requirement's stem lost the opus tier (fixed: read at the merge base)

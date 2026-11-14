@@ -10382,10 +10382,10 @@ cmd_dispatch() {
     # manager: decomposition is one session's job, not a fleet's.
     case "$req" in
       *'PARTLY PLANNED: '*)
-        printf '  %s — PARTLY PLANNED: one planning manager (agent: fable, effort xhigh) first, for %s\n' "${req%% *}" \
+        printf '  %s — PARTLY PLANNED: one planning manager (agent: fable, effort high) first, for %s\n' "${req%% *}" \
           "$(printf '%s' "$req" | sed -n 's/.*PARTLY PLANNED: \(clauses* [0-9, ]* unserved\).*/\1/p')" ;;
       *)
-        printf '  %s — UNPLANNED: one planning manager (agent: fable, effort xhigh) first\n' "${req%% *}" ;;
+        printf '  %s — UNPLANNED: one planning manager (agent: fable, effort high) first\n' "${req%% *}" ;;
     esac
     n_free=$((n_free + 1))
   fi

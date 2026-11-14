@@ -80,7 +80,7 @@ keeps its meaning. `serves:` with no number is red, never `all`.
 The `UNPLANNED` test reads the `requirement:` of every open plan on the base,
 and for PARTLY PLANNED their `serves:`, the clause count and the retired
 plans' `serves:` (Clauses, above). A requirement finished with planning but not satisfied would be
-offered again every pass, each one fable manager at xhigh. So a planning pass
+offered again every pass, each one fable manager at high effort. So a planning pass
 ends in these exits, each a tree change. They COMBINE per clause, and the
 requirement is deleted exactly ONCE, by the LAST PR: any plan or verify plan
 still naming the stem → that plan's PR deletes it, and the satisfied and

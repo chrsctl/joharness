@@ -7,7 +7,7 @@ needs: none
 requirement: none
 serves: all
 issue: none
-scope: joharness.sh, .agents/harness/selftest/review.sh, .agents/docs/manager-reference.md, .agents/docs/agent-selection.md, .agents/docs/orchestrated.md
+scope: joharness.sh, .agents/harness/selftest/review.sh, .agents/harness/selftest/dispatch-order.sh, .claude/commands/orchestrator.md, .agents/docs/product.md, .agents/docs/manager-reference.md, .agents/docs/agent-selection.md, .agents/docs/orchestrated.md
 ---
 
 ## Goal
@@ -38,6 +38,10 @@ planning pass's reviewers at opus.
   goes to the PR body. Reviewers at opus.
 - `.agents/docs/agent-selection.md` — Review depth: the planning-pass
   exception, citing the human's decision.
+
+- Planning manager effort xhigh to high (the human's call, 2026-11-14):
+  `joharness.sh` dispatch line, `orchestrated.md` Roles, `orchestrator.md`,
+  `product.md`, `dispatch-order.sh`. The loop respawn's xhigh stays.
 
 ## Assumptions
 
