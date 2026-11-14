@@ -117,7 +117,7 @@ JOHARNESS_ENV_MD|lazy|conf|lazy = inject a pointer to the layer rules; eager = t
 JOHARNESS_REVIEW|off|conf|off = review reports only; on = ci gates the record at the edge.
 JOHARNESS_CHECKS|github|session|Environment only. github = step 7 waits for GitHub checks; local = finish runs ci, verify and local-check here, red in a consumer with none; a conf line is ignored.
 JOHARNESS_LOCAL_CHECK_MINUTES|30|session|Bound on a declared local-check under JOHARNESS_CHECKS=local; over it = red, never a skip; 0 = one second.
-JOHARNESS_CATCHUP_COMMITS|20|session|Under JOHARNESS_CHECKS=local, base commits a head certified by a full finish may merge in and re-certify on ci alone (CATCH-UP, nothing to retest) or re-run local-check on the paths the merge could have changed (RETEST); 0 = always the full run.
+JOHARNESS_CATCHUP_COMMITS|10|session|Under JOHARNESS_CHECKS=local, first-parent base commits (one per merged pull request) a head certified by a full finish may merge in and re-certify on ci alone (CATCH-UP, nothing to retest) or re-run local-check on the paths the merge could have changed (RETEST); an outrun inside it prints IN REACH, not OUTRUN; 0 = always the full run.
 JOHARNESS_MAX_MANAGERS|4|dispatch|Managers in flight at once; 0 pauses spawning.
 JOHARNESS_STALL_MINUTES|45|dispatch|No push this long = cross-check, nudge.
 JOHARNESS_EDGE_SLOT_HOURS|4|dispatch|A retired edge branch with no claim file and no push this long holds no slot; its items stay withheld; 0 = it holds one until merge.
@@ -6919,6 +6919,24 @@ checks_green_file() {
   printf '%s/joharness-finish-green' "$d"
 }
 
+# checks_in_reach <ref>: true when merging <ref> in now, clean, makes the
+# next finish a CATCH-UP or RETEST: checks_catch_up's own classification,
+# probed against the merge not yet made (every refusal it has, the bound
+# included). Sets CHECKS_REACH_STEPS and CHECKS_REACH_FROM (sha9). Why:
+# chrsctl/gx #1696 blocked STARVED on an outrun inside the bound, where the
+# next lap was a retest; a check of the bound alone let a base that changes
+# local-check on every move loop full runs uncounted (verifier r1). Reads only.
+CHECKS_REACH_STEPS=""
+CHECKS_REACH_FROM=""
+checks_in_reach() {
+  local rs="$CHECKS_RETEST_SET" rf="$CHECKS_RETEST_FROM" rc=1
+  [ "$(num_knob JOHARNESS_CATCHUP_COMMITS)" -gt 0 ] || return 1
+  checks_catch_up "$1" probe && rc=0
+  CHECKS_RETEST_SET="$rs"
+  CHECKS_RETEST_FROM="$rf"
+  return "$rc"
+}
+
 # checks_outrun <ref>: on a BEHIND refusal, one line saying whether a green
 # run covers this head (HEAD is the green head, or that head with only <ref>
 # merged in since) — the one refusal a STARVED count counts (manager.md §4).
@@ -6934,9 +6952,19 @@ checks_outrun() {
          mt="$(git -C "$ROOT" merge-tree --write-tree "$gh" "$mb" 2>/dev/null)" &&
          tree="$(git -C "$ROOT" rev-parse 'HEAD^{tree}' 2>/dev/null)" &&
          [ "${mt%%$'\n'*}" = "$tree" ]; }; }; then
-    printf '  OUTRUN       a green run at %s was outrun by %s: merge it in, finish again\n' \
-      "${gh:0:9}" "$ref"
-    printf '               (counts as finish behind)\n'
+    if checks_in_reach "$ref"; then
+      printf '  IN REACH     a green run at %s was outrun by %s, %s first-parent commit(s)\n' \
+        "${gh:0:9}" "$ref" "$CHECKS_REACH_STEPS"
+      printf '               since certified %s, within JOHARNESS_CATCHUP_COMMITS=%s: merge it\n' \
+        "$CHECKS_REACH_FROM" "$(num_knob JOHARNESS_CATCHUP_COMMITS)"
+      printf '               in, finish again (CATCH-UP or RETEST, not the full run);\n'
+      printf '               not a finish behind\n'
+    else
+      printf '  OUTRUN       a green run at %s was outrun by %s: merge it in, finish again\n' \
+        "${gh:0:9}" "$ref"
+      printf '               (counts as finish behind: the next merge is past\n'
+      printf '               JOHARNESS_CATCHUP_COMMITS or has no certificate, so the full run)\n'
+    fi
   else
     printf '  NOT OUTRUN   no green run covers this head (last run red, unfinished, never\n'
     printf '               ran, or own commits since): fix the red, or merge and finish;\n'
@@ -6991,6 +7019,30 @@ checks_renumbered() {
   return 0
 }
 
+# checks_base_steps <from> <ref>: how many changes landed on <ref> since
+# <from>, counted on its first-parent line — one per merged pull request or
+# per commit pushed straight to it. The JOHARNESS_CATCHUP_COMMITS bound counts
+# these, never every commit: a consumer whose pull requests are merge commits
+# of 5-8 commits reached 20 commits inside one 26-minute local-check, so
+# every catch-up after a full run was refused and the full run repeated until
+# STARVED (chrsctl/gx #1696, 2026-11-14: behind 40, 38, 15 commits; WEAK: a
+# consumer's reading). Non-zero when git cannot say.
+checks_base_steps() {
+  local list oldest p1
+  list="$(git -C "$ROOT" rev-list --first-parent --reverse "${1}..${2}" 2>/dev/null)" || return 1
+  [ -n "$list" ] || { printf '0'; return 0; }
+  oldest="${list%%$'\n'*}"
+  p1="$(git -C "$ROOT" rev-parse "${oldest}^1" 2>/dev/null)" || p1=""
+  # <from> off <ref>'s first-parent line (a fast-forward onto another
+  # line of work): the first-parent count would hide the move, so count
+  # every commit (verifier r3).
+  if [ "$p1" = "$(git -C "$ROOT" rev-parse "$1" 2>/dev/null)" ]; then
+    printf '%s\n' "$list" | wc -l | tr -d ' '
+  else
+    git -C "$ROOT" rev-list --count "${1}..${2}" 2>/dev/null
+  fi
+}
+
 # checks_catch_up <ref>: classifies a head descending from the certified one
 # (.agents/docs/consumer-repos.md § Local checks, "The finish loop").
 # 0 = CATCH-UP: HEAD is that head merged with <ref> and nothing to retest;
@@ -7001,15 +7053,17 @@ checks_renumbered() {
 # and a shared path or a hand resolution sent every lap back to it. Prints
 # one line when this head descends from the certified one; silent otherwise.
 checks_catch_up() {
-  local ref="$1" cf ch cb n m max mt mrc auto reason="" mb
+  local ref="$1" probe="${2:-}" cf ch cb n m f max mt mrc auto reason="" mb tgt
   local branch="" base="" conflicted="" resolved="" known stray rset="" k renum
   CHECKS_RETEST_SET=""
   CHECKS_RETEST_FROM=""
+  CHECKS_REACH_STEPS=""
+  CHECKS_REACH_FROM=""
   cf="$(checks_cert_file)" && [ -r "$cf" ] || return 1
   ch="$(sed -n 's/^head=//p' "$cf" | head -n 1)"
   cb="$(sed -n 's/^base=//p' "$cf" | head -n 1)"
   [[ "$ch" =~ ^[0-9a-f]{40}$ && "$cb" =~ ^[0-9a-f]{40}$ ]] || return 1
-  [ "$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)" != "$ch" ] || return 1
+  [ -n "$probe" ] || [ "$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)" != "$ch" ] || return 1
   # Another line of work's certificate: not this head's business, no line.
   git -C "$ROOT" merge-base --is-ancestor "$ch" HEAD 2>/dev/null || return 1
   max="$(num_knob JOHARNESS_CATCHUP_COMMITS)"
@@ -7019,8 +7073,10 @@ checks_catch_up() {
   elif ! n="$(git -C "$ROOT" rev-list --count "${cb}..${ref}" 2>/dev/null)" ||
        [ "$n" -eq 0 ]; then
     reason="${ref} has not moved since, so this head carries commits of its own"
-  elif [ "$n" -gt "$max" ]; then
-    reason="${n} commit(s) (${m} first-parent merge(s)) of ${ref} since, over JOHARNESS_CATCHUP_COMMITS=${max}"
+  elif ! f="$(checks_base_steps "$cb" "$ref")"; then
+    reason="git could not count the first-parent commits of ${ref} since"
+  elif [ "$f" -gt "$max" ]; then
+    reason="${n} commit(s) (${m} first-parent merge(s)) of ${ref} since: ${f} first-parent commit(s), over JOHARNESS_CATCHUP_COMMITS=${max}"
   # The base side runs from where the certified head left the base, never
   # from the recorded base: a recorded base the head never contained would
   # hide its own changes (chrsctl/gx #1499 verifier r1).
@@ -7043,9 +7099,13 @@ checks_catch_up() {
       [ "$mrc" -eq 0 ] ||
         conflicted="$(printf '%s\n' "$mt" | sed -n '2,${/^$/q;p;}' | LC_ALL=C sort -u)"
       known="$(printf '%s\n' "$conflicted" "$branch" "$base" | grep -v '^$' | LC_ALL=C sort -u)"
-      if ! resolved="$(checks_paths "$auto" 'HEAD^{tree}')"; then
+      # A probe asks about the merge not yet made: HEAD is that merge
+      # resolved as git would, so nothing is resolved by hand.
+      tgt='HEAD^{tree}'
+      [ -z "$probe" ] || tgt="$auto"
+      if ! resolved="$(checks_paths "$auto" "$tgt")"; then
         reason="git could not compare HEAD with the merge of it and ${ref}"
-      elif ! renum="$(checks_renumbered "$auto" 'HEAD^{tree}' "$known")"; then
+      elif ! renum="$(checks_renumbered "$auto" "$tgt" "$known")"; then
         reason="git could not list the renames between HEAD and the merge of it and ${ref}"
       else
         known="$(printf '%s\n' "$known" "$renum" | grep -v '^$' | LC_ALL=C sort -u)"
@@ -7062,6 +7122,12 @@ checks_catch_up() {
         fi
       fi
     fi
+  fi
+  if [ -n "$probe" ]; then
+    [ -z "$reason" ] || return 1
+    CHECKS_REACH_STEPS="$f"
+    CHECKS_REACH_FROM="${ch:0:9}"
+    return 0
   fi
   if [ -n "$reason" ]; then
     printf '  full run     certified %s found, no catch-up: %s\n' "${ch:0:9}" "$reason"
