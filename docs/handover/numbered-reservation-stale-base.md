@@ -20,11 +20,20 @@ when nothing measures the reservation merged first? Graduate to
 
 ## Decisions
 
-- None yet.
+- Settled YES: the rule moves the race, does not remove it. Evidence:
+  consumer findings re-read in a blobless clone of chrsctl/gx (commits
+  14d9f4d2c, 2f6778a61, badaa2e0d, 402e4b972; PR #1686, #1678 merge times);
+  plus a scratch git fixture: two plan branches off one base append the next
+  free block, catch-up merge conflicts; inserting at different lines merges
+  clean with the block twice.
+- Wording change, not a harness check: the harness names no registry format;
+  the repository's own `local-check` registry check is what catches it
+  (gx's `tools/criteria/index.py` already fails on overlap).
+- `upstream` not routing clerk edges is another item: PR body + lead, not here.
 
 ## Review
 
-- None yet.
+- r1: pending verifier (no change)
 
 ## Blockers
 
