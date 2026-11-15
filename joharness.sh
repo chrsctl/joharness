@@ -114,6 +114,7 @@ is_canonical() { [ "$(conf_get JOHARNESS_CANONICAL)" = 1 ]; }
 KNOBS='JOHARNESS_ENV|none|conf|Directory under .agents/env/ this repo provisions; none = harness only.
 JOHARNESS_ENV_SETUP|lazy|conf|lazy = provision on demand; eager = at session start; background = detached at session start, setup waits for it.
 JOHARNESS_SETUP_TIMEOUT|600|session|Seconds a background provisioning run may take before it is killed.
+JOHARNESS_SETUP_LOCK_FD||session|Internal: the open provisioning-lock descriptor a background launch hands to its run; never set by hand.
 JOHARNESS_ENV_MD|lazy|conf|lazy = inject a pointer to the layer rules; eager = the file whole.
 JOHARNESS_REVIEW|off|conf|off = review reports only; on = ci gates the record at the edge.
 JOHARNESS_CHECKS|github|session|Environment only. github = step 7 waits for GitHub checks; local = finish runs ci, verify and local-check here, red in a consumer with none; a conf line is ignored.
