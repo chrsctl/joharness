@@ -19,11 +19,9 @@ set -euo pipefail
 
 LAYER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-"${LAYER_DIR}/devenv.sh" up
-
-if [ "${DEVENV_START_CLUSTER:-1}" = "1" ]; then
-  "${LAYER_DIR}/devenv.sh" cluster-up
-fi
+# One `up`, cluster included: up overlaps the cluster's image pulls with the
+# CLI downloads only when it knows a cluster follows (DEVENV_START_CLUSTER=1).
+DEVENV_START_CLUSTER="${DEVENV_START_CLUSTER:-1}" "${LAYER_DIR}/devenv.sh" up
 
 # Persist for the rest of the session so kubectl works without extra flags.
 # %q, not a bare double-quoted echo: this file is sourced by a later shell, so
