@@ -2,7 +2,7 @@
 #
 # Provision the Docker + Kubernetes environment layer.
 #
-# Starts Docker, installs kubectl/k3d/helm, and creates the cluster. Running
+# Starts Docker, installs kubectl/k3s/helm, and starts the cluster. Running
 # this at all is the "I need Kubernetes" signal -- the layer is lazy precisely
 # so that nothing gets started until someone says that -- so it provisions the
 # whole environment rather than leaving the caller to find cluster-up.
@@ -19,8 +19,8 @@ set -euo pipefail
 
 LAYER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# One `up`, cluster included: up overlaps the cluster's image pulls with the
-# CLI downloads only when it knows a cluster follows (DEVENV_START_CLUSTER=1).
+# One `up`, cluster included: `up` alone stops after the CLI tools, so it is
+# told a cluster follows (DEVENV_START_CLUSTER=1).
 DEVENV_START_CLUSTER="${DEVENV_START_CLUSTER:-1}" "${LAYER_DIR}/devenv.sh" up
 
 # Persist for the rest of the session so kubectl works without extra flags.

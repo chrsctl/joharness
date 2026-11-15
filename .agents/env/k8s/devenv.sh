@@ -359,9 +359,10 @@ EOF
 cluster_exists() { [ -d "${K3S_DATA_DIR}/server" ]; }
 
 # PID of the running k3s server, or nothing. k3s retitles its process to
-# "<binary> server ...", so `pgrep -x k3s` never matches; the pattern is
-# anchored at the start of the command line so a shell whose own command line
-# carries it (a `bash -c "... pgrep ..."`) is not mistaken for the server.
+# "${K3S_BIN} server" (flags dropped; measured 2026-11-15), so `pgrep -x k3s`
+# never matches. Anchored at the start of the command line so a shell whose
+# own command line carries the pattern (a `bash -c "... pgrep ..."`) is not
+# mistaken for the server. Not a liveness probe during start: see start_k3s.
 k3s_server_pid() {
   pgrep -o -f "^${K3S_BIN} server" 2>/dev/null || true
 }
@@ -387,8 +388,9 @@ k3s_started_at() {
 #
 # The paths that only DESCRIBE the cluster pass a bound instead. A wedged
 # apiserver accepts the TCP connection and then never answers, so an unbounded
-# probe hangs rather than failing: measured at 10s against a paused k3d node,
-# which is kubectl's own default request timeout doing the work.
+# probe hangs rather than failing: measured at 10.0s against a SIGSTOPped k3s
+# server (2026-11-15), which is kubectl's own default request timeout doing
+# the work.
 cluster_responsive() {
   local t="${1:-}"
   if [ -n "$t" ]; then
@@ -503,7 +505,7 @@ system_pods_ready() {
 # flannel writes /run/flannel/subnet.env. A pod whose sandbox lands in that gap
 # fails "failed to load flannel 'subnet.env' file", and the kubelet's pod
 # worker backs off ~10-14s before retrying, with nothing wrong any more.
-# Measured 2026-11-15, 6 creates on this host under k3d: 3 hit it, CoreDNS
+# Measured 2026-11-15, 6 creates on this host in a node container: 3 hit it, CoreDNS
 # Ready 22-23s after node creation against 10-11s; the host-process spike hit
 # it too (CoreDNS Ready 32.7s against 17.7-18.5s).
 #
@@ -578,15 +580,21 @@ start_k3s() {
       --disable=traefik,servicelb,metrics-server \
       --write-kubeconfig-mode 644 \
       >>"$K3S_LOG" 2>&1 </dev/null &
+  # Liveness by this pid, not by k3s_server_pid: k3s execs the copy it
+  # unpacks into its data dir, then rewrites its own command line, and a
+  # pgrep in that window misses a live server (measured 2026-11-15: one cold
+  # start in four died "k3s server exited" while the server came up fine).
+  # exec keeps the pid; setsid in a non-interactive shell's background job
+  # is no group leader, so it does not fork either.
+  local pid=$!
   disown || true
 
   # The kubeconfig appears once the server has generated its certificates;
-  # it is rewritten on every start, so a stale one from a restored container
-  # is gone before this sees it only if the server got that far — wait on
-  # the apiserver answering through it instead.
+  # a restored container still holds the one from the last start, so wait on
+  # the apiserver answering through it, not on the file.
   local deadline=$((SECONDS + CLUSTER_WAIT_SECS))
   until [ -r "$K3S_KUBECONFIG" ] && export_kubeconfig && cluster_responsive "$STATUS_PROBE_TIMEOUT"; do
-    if [ -z "$(k3s_server_pid)" ]; then
+    if ! kill -0 "$pid" 2>/dev/null; then
       warn "k3s server exited; last log lines:"
       tail -n 20 "$K3S_LOG" >&2 || true
       return 1
@@ -727,8 +735,9 @@ cmd_status() {
   # kubectl is the odd one in this loop: without --client it negotiates with
   # the apiserver, so the version probe waits out kubectl's own 10s request
   # timeout whenever the kubeconfig points at a wedged cluster. Measured
-  # against a paused k3d node: 10.05s without --client, 0.046s with it, for
-  # the same answer. install_kubectl's own check already passes it.
+  # against a SIGSTOPped k3s server (2026-11-15): 10.05s without --client,
+  # 0.035s with it, for the same answer. install_kubectl's own check already
+  # passes it.
   local t pid
   for t in kubectl k3s helm; do
     if [ "$t" = k3s ]; then

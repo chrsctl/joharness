@@ -40,8 +40,11 @@ starts, keeps Docker for builds, and keeps the same commands and smoke test.
   --disable=traefik,servicelb,metrics-server --write-kubeconfig-mode 644`
   with the six proxy variables unset, log to `${LOG_DIR}/k3s.log`;
   kubeconfig = `/etc/rancher/k3s/k3s.yaml` merged into `~/.kube/config`
-  with its context renamed `claude-dev` and made current (`KUBE_CONTEXT`
-  becomes `claude-dev`). Restart = the same start on an existing data dir.
+  with its context renamed to `${CLUSTER_NAME}` (default `claude-dev`) and
+  made current (`KUBE_CONTEXT="${CLUSTER_NAME}"`; `DEVENV_CLUSTER_NAME` now
+  names only the context, the data dir is fixed). Restart = kill what is
+  left (server, shims, pod processes), then the same start on the existing
+  data dir. A restart that fails = full `cluster-down` teardown, then create.
   `cluster-down` = stop the server, kill shims and pod processes, unmount
   what k3s mounted, remove `/var/lib/rancher/k3s`, `/var/lib/kubelet`,
   `/run/k3s`, `/run/flannel`, `/etc/rancher/k3s`, `/var/lib/cni`, and delete
@@ -50,7 +53,7 @@ starts, keeps Docker for builds, and keeps the same commands and smoke test.
   server process's start time instead of the container's `StartedAt`.
   `status` and `doctor` report the k3s process and its log tail instead of
   k3d containers. Docker stays: `up` still starts dockerd for builds.
-- `.agents/env/k8s/smoke-test.sh` — `KUBE_CONTEXT` becomes `claude-dev`;
+- `.agents/env/k8s/smoke-test.sh` — `KUBE_CONTEXT` becomes `${CLUSTER_NAME}`;
   checks unchanged in number (8).
 - `.agents/env/k8s/setup.sh` — only what the rewrite forces (it calls
   `devenv.sh up`; the env-file lines stay).
@@ -60,8 +63,8 @@ starts, keeps Docker for builds, and keeps the same commands and smoke test.
   (1 and 2 stay; 3 and 4 change: the proxy on `127.0.0.1` is the host's own,
   and k3s's containerd uses the host trust store — keep the text only for
   what is still true, measured).
-- `.agents/env/docker/README.md` — the line calling the k8s layer
-  "Docker plus k3d".
+- `.agents/env/docker/README.md` — the two lines naming k3d (the layer
+  called "Docker plus k3d"; k3d passed `registries.yaml`).
 
 ## Assumptions
 
@@ -93,23 +96,30 @@ starts, keeps Docker for builds, and keeps the same commands and smoke test.
 
 ## Acceptance
 
-- `shellcheck -x .agents/env/k8s/*.sh` — no output, exit 0.
+- `shellcheck -x .agents/env/k8s/*.sh` — no output, exit 0 (no shellcheck:
+  `apt-get install -y shellcheck` first; any finding = red).
 - `grep -n 'k3d' .agents/env/k8s/*.sh` — no output.
 - `JOHARNESS_ENV=k8s ./joharness.sh verify` from a container with no
   cluster and no `/usr/local/bin/{kubectl,helm,k3s}` — `8 passed, 0 failed`.
 - Same, a second time on the running cluster — `8 passed, 0 failed`.
-- Restart: kill the k3s server, every shim and every process in the
-  `kubepods` cgroups, then `./joharness.sh setup` — exit 0, and
+- Restart: `pkill -9 -f '^/usr/local/bin/[k]3s server'`,
+  `pkill -9 -f '^/var/lib/rancher/k3s/data/[^ ]*/[c]ontainerd-shim'`, and
+  `kill -9` every pid in `find /sys/fs/cgroup -path '*kubepods*' -name cgroup.procs`
+  (every controller); `T0=$(date -u +%FT%TZ)`; then `./joharness.sh setup` —
+  exit 0, and
   `kubectl -n kube-system get pod -l k8s-app=kube-dns -o jsonpath='{.items[0].status.containerStatuses[0].state.running.startedAt}'`
-  is later than the setup's start (a stale Ready is not a restart).
-- `.agents/env/k8s/devenv.sh cluster-down`, then `pgrep -f 'k3s server'` —
-  no output, and `/var/lib/rancher/k3s` absent.
+  is later than `$T0` (a stale Ready is not a restart; earlier = red).
+- `.agents/env/k8s/devenv.sh cluster-down`, then
+  `pgrep -f '^/usr/local/bin/[k]3s server'` — no output, and
+  `/var/lib/rancher/k3s` absent (either present = red).
 - README § Startup cost: cold, fresh (binary on disk), restart, already up,
   each with run count, command and date, measured on this head; the PR body
-  repeats the before/after table.
+  repeats the before/after table. Checked by reading: a row without run
+  count, command or date = red.
 - `./joharness.sh ci` — `ci: pass` (its selftest's k8s `setup.sh` env-file
   quoting block copies only `setup.sh`; it must pass untouched).
-- Consumer-side check, at each consumer's next sync (this plan SHIPS):
+- Consumer-side check, at each consumer's next sync (this plan SHIPS; not
+  runnable in this repo, not a merge gate here):
   `JOHARNESS_ENV=k8s ./joharness.sh verify` — `8 passed, 0 failed`; in gx,
   `eval "$(scripts/minio-dev.sh --k8s --export)"` exits 0 against the new
   cluster.
@@ -118,16 +128,17 @@ starts, keeps Docker for builds, and keeps the same commands and smoke test.
 
 - `.agents/env/k8s/devenv.sh:create_cluster` — the k3d invocation to replace; the flag set to keep.
 - `.agents/env/k8s/devenv.sh:kick_cni_raced_pods` — reads the node via `docker exec` today.
-- `.agents/env/k8s/devenv.sh:wait_for_system_ready` — lease plus CoreDNS; the restart case needs the container start time too.
+- `.agents/env/k8s/devenv.sh:wait_for_system_ready` — lease plus CoreDNS; the restart case needs a start time too (only `kick_cni_raced_pods` reads one today).
 - `.agents/env/k8s/devenv.sh:verify_download` — digest doctrine for the new pin.
 - `.agents/env/k8s/smoke-test.sh:KUBE_CONTEXT` — the context name.
 - `.agents/env/k8s/README.md:Sandbox constraints this works around` — what stays true.
 
 ## Traps
 
-- k3s retitles its process to `k3s server`: `pgrep -x k3s` finds nothing
-  (measured in the spike — the first restart timings were void because of
-  it). Match `pgrep -f '^<bin> server'`, never a pattern your own command
+- k3s retitles its process to `/usr/local/bin/k3s server` (`${BIN_DIR}/k3s`,
+  flags dropped): `pgrep -x k3s` finds nothing (measured in the spike — the
+  first restart timings were void because of it). Match
+  `pgrep -f '^/usr/local/bin/k3s server'`, never a pattern your own command
   line carries.
 - Stopping `k3s server` leaves shims and pod processes running; a restart
   then reads Ready in ~4s off containers that never stopped. A restored
