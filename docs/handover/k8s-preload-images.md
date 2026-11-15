@@ -1,6 +1,6 @@
 ---
 workstream: k8s-preload-images
-status: in-progress
+status: review
 branch: k8s-preload-images
 pr: none
 plan: k8s-preload-images
@@ -17,7 +17,14 @@ Preload the three images k3s pulls at boot (plan `docs/plans/k8s-preload-images.
 
 ## Decisions
 
+- A1 confirmed: `k3s crictl images` listed the three images, no `Pulling` event. A2 confirmed (same events). A3 confirmed in kind: gain lost in noise.
+- Built the cache (devenv.sh), paired 3 runs each: median 19s base vs 20s cached. Below the 1s bar, code removed, measurement in README (not in branch history; reverted before commit).
+
 ## Review
+
+- r1: README section split the startup-cost paragraph from its table (verifier) (fixed)
+- r2: measurement method differed from plan wording; README now names `devenv.sh up`, cluster-down wipe, base copy (verifier) (fixed)
+- r3: handover stale, plan file undeleted (verifier) (fixed: retire commit deletes both)
 
 ## Blockers
 
