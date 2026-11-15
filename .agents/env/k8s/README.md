@@ -13,10 +13,9 @@ Kubernetes" step — see [Startup cost](#startup-cost).
 
 | Component  | Version    | Notes                                        |
 | ---------- | ---------- | -------------------------------------------- |
-| Docker     | preinstalled | daemon started by `setup`                  |
-| k3d        | v5.9.0     | runs k3s on Docker                            |
-| Kubernetes | v1.36.3 (k3s) | single-node cluster named `claude-dev`    |
-| kubectl    | v1.36.4    | context `k3d-claude-dev`, set as current      |
+| Docker     | preinstalled | daemon started by `setup`, for builds      |
+| Kubernetes | v1.36.3+k3s1 | single-node k3s, a host process            |
+| kubectl    | v1.36.4    | context `claude-dev`, set as current          |
 | Helm       | v3.21.4    |                                               |
 
 Downloaded binaries are verified: each pinned version's linux-amd64 sha256
@@ -24,33 +23,40 @@ lives in `devenv.sh` beside the version pin, checked before install; a
 mismatch refuses loudly. Version bump = update version AND digest, one
 edit — digests from the publisher's own checksum files:
 `dl.k8s.io/release/<v>/bin/linux/amd64/kubectl.sha256`,
-`get.helm.sh/helm-<v>-linux-amd64.tar.gz.sha256sum`, the k3d release's
-`checksums.txt`. Overriding a version for an experiment
-(`KUBECTL_VERSION=… `): set `KUBECTL_SHA256` / `K3D_SHA256` /
+`get.helm.sh/helm-<v>-linux-amd64.tar.gz.sha256sum`, the k3s release's
+`sha256sum-amd64.txt` (the `k3s` line). Overriding a version for an
+experiment (`KUBECTL_VERSION=… `): set `KUBECTL_SHA256` / `K3S_SHA256` /
 `HELM_SHA256` alongside, or the install warns and skips verification.
 
-## Why k3s
+## Why k3s, run directly
 
-[k3s](https://k3s.io) on Docker via [k3d](https://k3d.io), not full kubeadm.
-Small footprint:
+[k3s](https://k3s.io), not full kubeadm: one 82 MB binary that is the
+apiserver, scheduler, controller manager, kubelet, kube-proxy, flannel and
+containerd. `devenv.sh` starts it as a host process (`k3s server`, log
+`/var/log/devenv/k3s.log`, state `/var/lib/rancher/k3s`). Docker stays, for
+`docker build` and `docker run`; the cluster does not use it.
 
-| | k3s (current) | kind (kubeadm) |
-| --- | --- | --- |
-| Node image | **347 MB** | 1.45 GB |
-| Memory at idle | **~410 MB** | ~550 MB |
-| Containers | **1** | 1 |
-| Create cluster | **~22s** | ~45s |
-| Restart cluster | **~16s** | ~50s |
+Until 2026-11-15 the layer ran the same k3s inside a Docker container via
+k3d. Running it directly drops the 347 MB node image pull and the node
+container, and the cluster gets the host's trust store and network as they
+are. The gain is the cold start (no image pull); a create with the binary
+already on disk and a restart measure about even
+([Startup cost](#startup-cost)).
 
-Trimmed further: Traefik, ServiceLB, metrics-server disabled; no k3d load
-balancer container. Project needs one? Re-enable in `create_cluster`.
+| | k3s, host process (current) | k3s in k3d | kind (kubeadm) |
+| --- | --- | --- | --- |
+| Download | **82 MB** binary | 347 MB node image + k3d | 1.45 GB node image |
+| Server RSS at idle | ~450 MB | ~410 MB | ~550 MB |
 
-k3s keeps CoreDNS + `local-path` storage class. kube-proxy runs inside agent
-process, not DaemonSet.
+Trimmed further: Traefik, ServiceLB, metrics-server disabled. Project needs
+one? Drop it from `--disable` in `start_k3s`.
+
+k3s keeps CoreDNS + `local-path` storage class. kube-proxy runs inside the
+server process, not as a DaemonSet.
 
 ## Usage
 
-Everything, once per session (~20-35s):
+Everything, once per session (~20-30s cold):
 
 ```bash
 ./joharness.sh setup
@@ -64,60 +70,60 @@ Finer grained:
 ```bash
 .agents/env/k8s/devenv.sh status         # what is running
 .agents/env/k8s/devenv.sh up             # Docker + CLI tools, no cluster
-.agents/env/k8s/devenv.sh cluster-up     # create/restart/repair the cluster
-.agents/env/k8s/devenv.sh cluster-down   # delete the cluster
+.agents/env/k8s/devenv.sh cluster-up     # start/restart/repair the cluster
+.agents/env/k8s/devenv.sh cluster-down   # stop the cluster, delete its state
 .agents/env/k8s/devenv.sh doctor         # diagnostics when something is wrong
 ./joharness.sh verify            # provision, then verify end to end
 ```
 
 `DEVENV_START_CLUSTER=0 ./joharness.sh setup` stops after the CLI tools.
 
-Local image into cluster (cluster has own image store, separate from host
-Docker):
+Local image into cluster (the cluster's containerd has its own image store,
+separate from Docker's):
 
 ```bash
 docker build -t my-app:dev .
-k3d image import my-app:dev -c claude-dev
+docker save my-app:dev | k3s ctr images import -
+kubectl run my-app --image=my-app:dev --image-pull-policy=IfNotPresent
 ```
 
 Imported images need `--image-pull-policy=IfNotPresent` (or `Never`), else
-cluster tries registry pull.
+cluster tries registry pull. (Measured 2026-11-15: a busybox-based image
+built, imported and run this way logged its output.)
 
 ## Startup cost
 
 Session start costs **nothing**: the entrypoint reads `AGENTS.md` and stops.
 A session that never touches Kubernetes never pays for it.
 
-`./joharness.sh setup` is where the cost lands. Docker + CLI tools:
+`./joharness.sh setup` is where the cost lands. It downloads kubectl, k3s
+and helm concurrently and starts dockerd under the downloads, then starts
+the cluster. Each step is self-contained — `cluster-up` installs tools and
+starts Docker itself if `setup` never ran.
 
-| Situation                                   | Time |
-| ------------------------------------------- | ---- |
-| Cold container                               | ~9s  |
-| Tools already installed                      | <1s  |
+Measured 2026-11-15 on a 4-core container (`nproc`): `bash
+.agents/env/k8s/setup.sh` timed end to end. Cold = after `devenv.sh
+cluster-down` and `rm /usr/local/bin/{kubectl,k3s,helm}`; binary on disk =
+after `devenv.sh cluster-down`; restart = after killing the k3s server,
+every k3s containerd shim and every process in a `kubepods` cgroup (what a
+restored container holds: the data dir, no processes). "k3d" = the k3d
+backend's numbers this README carried before the switch (measured
+2026-11-15, same container size, same `setup.sh` timing; its "no cluster"
+row had the node images cached):
 
-Cold path downloads kubectl, k3d, helm concurrently, starts dockerd under
-downloads. Wall clock = one download, not three plus docker wait. When a
-cluster follows (`setup`), the node image (347 MB) and k3d's tools image pull
-under the downloads too, so `k3d cluster create` finds them local.
-
-Then the cluster. Each step is self-contained — `cluster-up` installs tools
-and starts Docker itself if `setup` never ran. Measured 2026-11-15 on a
-4-core container (`nproc`): `bash .agents/env/k8s/setup.sh` timed end to
-end, after `k3d cluster delete claude-dev` (cold also `docker rmi` of
-both images and `rm /usr/local/bin/{kubectl,k3d,helm}`) or
-`k3d cluster stop claude-dev` (restart). "before" = the same runs on the
-code before 1s polls, prepull and the race kick:
-
-| Situation                                   | Now | Before |
+| Situation                                   | k3s direct | k3d |
 | ------------------------------------------- | --- | ------ |
-| Cold: no tools, no images, no cluster        | 28-33s (6 runs) | 30-34s (4 runs) |
-| Images cached, no cluster                    | 18-21s (10 runs) | 19-20s, or 30-31s when raced (6 runs) |
-| Restart a cluster from restored state        | 7-12s (4 runs) | 12.5s (1 run) |
-| Cluster already running                      | <2s  | <2s |
+| Cold: no tools, no cluster                   | 23-28s (5 runs) | 28-33s (6 runs) |
+| Binary (k3d: images) on disk, no cluster     | 19-24s (6 runs) | 18-21s (10 runs) |
+| Restart a cluster from restored state        | 7-14s (8 runs) | 7-12s (4 runs) |
+| Cluster already running                      | 1-4s (3 runs) | <2s |
 
-Readiness polls every 1s (`DEVENV_POLL_SECS`). Cold is set by the node image
-pull (~7.5s, now under the downloads) and k3s's own start; the race below
-raced every cold run and costs it little.
+Readiness polls every 1s (`DEVENV_POLL_SECS`). The restart spread is
+CoreDNS's own readiness probe: on the slow runs it answered 503 once and
+the next probe came ~10s later. A restart counts only once every CoreDNS
+container has started since the server did: the datastore keeps the old
+pod statuses, and the kubelet renews its lease before it re-syncs them, so
+Ready alone lies for a second or two after a restart.
 
 ### System pods race flannel on create
 
@@ -125,15 +131,16 @@ k3s schedules CoreDNS and local-path a few seconds before flannel writes
 `/run/flannel/subnet.env`. A pod whose sandbox lands in that gap fails
 `failed to load flannel 'subnet.env' file`, and the kubelet waits out a
 ~10-14s pod-worker backoff before retrying — though nothing is wrong any more.
-Hit 3 of 6 image-cached creates and every cold one (2026-11-15); on a
-cached create each hit cost ~11s (setup 30-31s against 19-20s). The pod's
+Hit 5 of the 11 creates above, and it hit k3d the same way. The pod's
 event says which: `kubectl -n kube-system get events --field-selector
 reason=FailedCreatePodSandBox`. `kick_cni_raced_pods` in `devenv.sh`, each
 poll: once the file exists, a Pending, ReplicaSet-owned kube-system pod with
-that failure, recorded since the node container started, is deleted, and its
+that failure, recorded since the k3s server started, is deleted, and its
 ReplicaSet's replacement starts at once (log line `recreating <pod>: its
-sandbox raced flannel's subnet.env`). Raced cached creates now finish in
-20-21s. Upstream k3s behaviour, not a sandbox constraint.
+sandbox raced flannel's subnet.env`). A kicked create costs ~1-5s more than
+a clean one (binary on disk: 20-24s against 19-20s; cold: 27-28s against
+23s). Upstream k3s behaviour, not a
+sandbox constraint.
 
 Every session uses the cluster? `JOHARNESS_ENV_SETUP=eager` in
 `joharness.conf` provisions at session start instead, and pays the wait there.
@@ -143,9 +150,10 @@ does not fight existing Docker/Kubernetes. `JOHARNESS_FORCE_SETUP=1` overrides.
 
 ## Sandbox constraints this works around
 
-Web sandbox = Firecracker microVM + filtering egress proxy. Four properties
-break stock Docker/Kubernetes. Each workaround load bearing — remove one, get
-the failure described.
+Web sandbox = Firecracker microVM + filtering egress proxy. Two properties
+break stock Kubernetes; each workaround load bearing — remove one, get the
+failure described. Two more (3, 4) broke the k3d backend and no longer bite
+a host process; what is still true about them is kept.
 
 ### 1. Negative `oom_score_adj` is rejected, which stops every pod
 
@@ -168,8 +176,9 @@ docker run --rm --oom-score-adj=0     alpine true  # works
 
 Fix: containerd `restrict_oom_score_adj`, clamps value to one kernel accepts.
 Applied as containerd drop-in written by `render_containerd_dropin` in
-`.agents/env/k8s/devenv.sh`, mounted into node at
-`/var/lib/rancher/k3s/agent/etc/containerd/config-v3.toml.d/`.
+`.agents/env/k8s/devenv.sh` to
+`/var/lib/rancher/k3s/agent/etc/containerd/config-v3.toml.d/` before every
+server start.
 
 Must be drop-in, not `config-v3.toml.tmpl` override: k3s renders own config;
 template including `{{ template "base" . }}` then redefining CRI table fails
@@ -195,8 +204,8 @@ maintenance mode); `false` = supported opt-out. **Config-file only** — no
 `--fail-cgroup-v1` CLI flag, cannot pass via `--kubelet-arg`, attempt fails
 `unknown flag`. k3s runs kubelet with
 `--config-dir=/var/lib/rancher/k3s/agent/etc/kubelet.conf.d`, so
-`render_kubelet_dropin` in `.agents/env/k8s/devenv.sh` writes drop-in there, mounted
-like containerd drop-in:
+`render_kubelet_dropin` in `.agents/env/k8s/devenv.sh` writes drop-in there before
+every server start, like containerd drop-in:
 
 ```yaml
 apiVersion: kubelet.config.k8s.io/v1beta1
@@ -204,9 +213,11 @@ kind: KubeletConfiguration
 failCgroupV1: false
 ```
 
-Without it, creation fails opaque: k3d waits for log line node never prints,
-times out ~4 minutes, rolls cluster back. Kubelet error only visible in
-`docker logs` of server node while still up.
+Without it the kubelet's refusal takes the whole k3s server down within
+seconds of start. `cluster-up` notices the server gone, prints the tail of
+`/var/log/devenv/k3s.log` (the error above is in it) and fails — measured
+2026-11-15 with the drop-in left out: 9s. (Under k3d the same omission
+waited ~4 minutes for a log line and rolled the cluster back.)
 
 v1.36.3+k3s1 validated on this host 2026-08-28: full smoke suite green
 (`.agents/env/k8s/smoke-test.sh`, all checks — pod creation, rollout, Service
@@ -216,44 +227,43 @@ drop-in stays load bearing and any future bump revalidates the full smoke
 suite first. Real fix = cgroup v2 host —
 [Notes and limits](#notes-and-limits) says why not done.
 
-### 3. k3d copies the host proxy into nodes, where it is unreachable
+### 3. The server runs without the proxy variables
 
-Egress proxy listens on host `127.0.0.1`. k3d propagates `HTTPS_PROXY` into
-node containers, where `127.0.0.1` = node itself. containerd fails every pull:
+Egress proxy listens on host `127.0.0.1` and egress is intercepted
+transparently: containerd pulls without being told about the proxy. Under
+k3d the variables had to go — copied into the node container, `127.0.0.1`
+was the node itself and every pull failed `proxyconnect tcp: dial tcp
+127.0.0.1:<port>: connect: connection refused`. As a host process the proxy
+is reachable, and a server started with the variables set passed the full
+smoke suite (2026-11-15, one run, setup 26.7s — no faster). `start_k3s`
+still starts it with the six variables unset: k3s would otherwise hand them
+to containerd and everything it runs, for no measured gain.
 
-```
-proxyconnect tcp: dial tcp 127.0.0.1:34285: connect: connection refused
-```
+### 4. The proxy CA comes from the host trust store
 
-Egress intercepted transparently — nodes need no proxy variables.
-`create_cluster` runs `k3d` with them unset.
-
-### 4. Nodes need the proxy CA or image pulls fail TLS
-
-Proxy re-terminates TLS; containers do not inherit host trust store. Pulls in
-cluster fail `certificate signed by unknown authority`. Node mounts sandbox CA
-bundle (`/root/.ccr/ca-bundle.crt`) over
-`/etc/ssl/certs/ca-certificates.crt`. Bundle = full public trust store + proxy
-CA — nothing lost.
+Proxy re-terminates TLS. Under k3d the node container lacked the proxy CA
+and pulls failed `certificate signed by unknown authority`, so the sandbox
+bundle (`/root/.ccr/ca-bundle.crt`) was mounted into it. k3s as a host
+process uses the host's `/etc/ssl/certs/ca-certificates.crt`, which in this
+sandbox already trusts the proxy: in-cluster pulls (CoreDNS, nginx, busybox)
+worked with no mount and no extra config (2026-11-15). A host whose trust
+store lacks the proxy CA fails pulls with that error again.
 
 ### Blocked and allowed hosts
 
 `github.com` HTML pages return `403` from egress proxy — breaks
 `/releases/latest` redirect most install scripts follow. Release **asset**
-URLs work, so versions pinned explicit, never "latest". Reachable:
-`dl.k8s.io`, `get.helm.sh`, `proxy.golang.org`, `registry.k8s.io`,
-`registry-1.docker.io`, `raw.githubusercontent.com`.
-
-k3d release asset unavailable? `.agents/env/k8s/devenv.sh` falls back to
-`go install github.com/k3d-io/k3d/v5@<version>`.
+URLs work (the k3s binary is one), so versions pinned explicit, never
+"latest". Reachable: `dl.k8s.io`, `get.helm.sh`, `registry.k8s.io`,
+`registry-1.docker.io`, `raw.githubusercontent.com`, `github.com` release
+assets.
 
 ## Notes and limits
 
 - Cluster **single-node**, control plane untainted — ordinary workloads
-  schedule on it.
-- Traefik, ServiceLB, metrics-server disabled; no k3d load balancer
-  container. Re-enable in `create_cluster` if needed. CoreDNS + `local-path`
-  storage class present.
+  schedule on it. The node is named after the container's hostname.
+- Traefik, ServiceLB, metrics-server disabled. Re-enable in `start_k3s` if
+  needed. CoreDNS + `local-path` storage class present.
 - Cluster state lives in sandbox container, reclaimed at session end. Commit
   and push what matters.
 - Not CI-runnable: no `ci-verify` marker — the cluster needs the sandbox
@@ -261,6 +271,13 @@ k3d release asset unavailable? `.agents/env/k8s/devenv.sh` falls back to
   proof this layer works.
 - Restored cluster comes back unhealthy? `cluster-up` deletes and recreates —
   never leaves half-working cluster.
+- `cluster-down` stops the server, kills its shims and pod processes,
+  unmounts what k3s mounted, removes `/var/lib/rancher/k3s`,
+  `/var/lib/kubelet`, `/run/k3s`, `/run/flannel`, `/etc/rancher/k3s`,
+  `/var/lib/cni`, the `cni0`/`flannel.1` links (when `ip` exists) and the
+  KUBE/CNI/flannel iptables rules. Docker's containers, links and rules stay.
+- One cluster per container: k3s's data dir is fixed. `DEVENV_CLUSTER_NAME`
+  names the kubeconfig context only.
 - cgroups v1 (hybrid). Converting host to v2 deliberately avoided: sandbox
   supervisor confines session through v1 `memory` controller; unmounting v1
   controllers risks destabilizing session.

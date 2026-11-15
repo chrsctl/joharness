@@ -7,8 +7,8 @@ layer — no Kubernetes, no cluster, none of either's cost.
 One environment layer under [`../README.md`](../README.md). Select it with
 `./joharness.sh env docker`; provision it with `./joharness.sh setup`.
 
-Need a cluster too? [`.agents/env/k8s`](../k8s/README.md) is Docker *plus* k3d
-Kubernetes; this layer is for repos where Docker alone is the runtime.
+Need a cluster too? [`.agents/env/k8s`](../k8s/README.md) is Docker *plus*
+Kubernetes (k3s); this layer is for repos where Docker alone is the runtime.
 
 ## What you get
 
@@ -113,7 +113,7 @@ Known reachable: `registry-1.docker.io`, `mirror.gcr.io`, `raw.githubusercontent
   a plain `docker pull alpine` goes through it too (a mirror that is down falls
   back to Docker Hub; skipped when `/etc/docker/daemon.json` sets its own, and
   not applied to a dockerd that was already running). The k8s layer does the
-  same for dockerd and passes k3d a `registries.yaml` mirroring `docker.io`.
+  same for dockerd and writes k3s a `registries.yaml` mirroring `docker.io`.
 - The dockerd start logic mirrors `.agents/env/k8s/devenv.sh` rather than calling
   it: layers are self-contained by contract ([`../README.md`](../README.md)),
   so neither layer may reference the other.

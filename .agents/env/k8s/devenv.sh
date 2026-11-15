@@ -435,15 +435,36 @@ case "$POLL_SECS" in
   ''|*[!0-9.]*|*.*.*|.|0|0.|0.0*) POLL_SECS=1 ;;
 esac
 
+# The server died while a wait polled it: say so and stop waiting. Two
+# misses in a row, because a single pgrep can miss a live server while it
+# rewrites its command line (see start_k3s). Without this a dead server is
+# reported as "no node became Ready" after the whole wait: measured
+# 2026-11-15 with the kubelet drop-in left out, the kubelet's cgroup v1
+# refusal took the server down in seconds and the wait ran on to its end.
+SERVER_MISSES=0
+server_gone() {
+  if [ -n "$(k3s_server_pid)" ]; then
+    SERVER_MISSES=0
+    return 1
+  fi
+  SERVER_MISSES=$((SERVER_MISSES + 1))
+  [ "$SERVER_MISSES" -ge 2 ] || return 1
+  warn "k3s server is not running; last log lines:"
+  tail -n 20 "$K3S_LOG" >&2 || true
+  return 0
+}
+
 # Wait until at least one node reports Ready.
 wait_for_node_ready() {
   local deadline=$((SECONDS + $1))
+  SERVER_MISSES=0
   while [ "$SECONDS" -lt "$deadline" ]; do
     if kubectl --context "$KUBE_CONTEXT" get nodes \
          -o 'jsonpath={.items[*].status.conditions[?(@.type=="Ready")].status}' 2>/dev/null \
          | grep -q True; then
       return 0
     fi
+    server_gone && return 1
     sleep "$POLL_SECS"
   done
   return 1
@@ -543,10 +564,12 @@ kick_cni_raced_pods() {
 # kubelet and Ready system pods before declaring the cluster up.
 wait_for_system_ready() {
   local deadline=$((SECONDS + $1))
+  SERVER_MISSES=0
   while [ "$SECONDS" -lt "$deadline" ]; do
     if node_lease_fresh "$LEASE_MAX_AGE_SECS" && system_pods_ready; then
       return 0
     fi
+    server_gone && return 1
     kick_cni_raced_pods
     sleep "$POLL_SECS"
   done

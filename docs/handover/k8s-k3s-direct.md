@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK5GubuFRBHjscHgyZ7
 agent: opus
 updated: 2026-11-15
-next: Fix plan per plan-checker findings, then measure restart, cluster-down, cold timings
+next: Spawn verifier at the tier ./joharness.sh review names, record findings, then finish
 ---
 
 ## Goal
@@ -19,15 +19,50 @@ Docker for builds, the same commands and the 8-check smoke test.
 
 ## Decisions
 
-- None yet.
+- A1: confirmed — cold create with only the two drop-ins, then
+  `JOHARNESS_ENV=k8s ./joharness.sh verify` 8 passed, 0 failed (2026-11-15).
+- A2: confirmed as a choice, not a need — a server with the proxy variables
+  set also passed 8/8 (one run, setup 26.7s, no faster); kept unset per plan.
+- A3: confirmed — 5 of 11 timed creates logged `recreating ...: raced
+  flannel's subnet.env`.
+- A4: confirmed — smoke test's `docker run` passes beside a running cluster;
+  `cluster-down` leaves `docker info` working and Docker's rules intact.
+- A5: confirmed — `gh api search/code q='k3d user:chrsctl'`: in gx and
+  redocted, `k3d` appears only in docs, comments and synced layer files; no
+  script names the `k3d-` context.
+- Restart kills leftover server, shims and pod processes before starting,
+  and readiness needs every CoreDNS container started after the server: the
+  lease alone read Ready off stale statuses.
+- start_k3s watches the pid `$!` gave, not pgrep: one cold start in four
+  died "k3s server exited" while the server came up (pgrep missed it while
+  k3s exec'd/retitled).
+- Waits fail fast when the server dies (two pgrep misses in a row): without
+  the kubelet drop-in, cluster-up waited the whole node timeout on a dead
+  server.
+- Build not split across workers: one script whose every change hung on
+  measurements taken in this session; docs carry those numbers.
+- Restart did not get faster (7-14s against k3d's 7-12s); the README says
+  so. Gain is cold start only (23-28s against 28-33s).
 
 ## Rejected
 
-- None yet.
+- Matching the unpacked data-dir binary in `k3s_server_pid`: sampling the
+  process every 50ms showed argv stays `/usr/local/bin/k3s server`, so the
+  alternative had no evidence.
 
 ## Review
 
-- None yet.
+- r1: (plan-checker) acceptance cluster-down `pgrep -f 'k3s server'` unanchored, against the plan's own trap (fixed: plan names the anchored bracket form)
+- r2: (plan-checker) Traps `<bin>` undefined (fixed: measured title `/usr/local/bin/k3s server`, written into the plan)
+- r3: (plan-checker) restart acceptance has no kill command or start-time operand (fixed: commands and `T0` in the plan)
+- r4: (plan-checker) README startup-cost item is not a command (fixed: plan says checked by reading, what red is)
+- r5: (plan-checker) consumer-side check not runnable here (fixed: plan marks it not a merge gate; A5 checked through code search)
+- r6: (plan-checker) acceptance items name no red form (no change: each expected output is exact, any other output is red; shellcheck and pgrep items now say so)
+- r7: (plan-checker) shellcheck acceptance needs shellcheck installed (fixed: plan names the install)
+- r8: (plan-checker) docker README has two k3d lines, plan named one (fixed: plan scope and both lines)
+- r9: (plan-checker) KUBE_CONTEXT literal or derived ambiguous (fixed: `${CLUSTER_NAME}`; plan says the name now names only the context)
+- r10: (plan-checker) unhealthy-recreate path unspecified (fixed: plan says full teardown then create; code does)
+- r11: (plan-checker) Where to look says wait_for_system_ready reads a start time, it does not (fixed: plan wording)
 
 ## Blockers
 
@@ -35,4 +70,6 @@ None.
 
 ## Where to look
 
-- `.agents/env/k8s/devenv.sh:create_cluster` — the k3d invocation being replaced.
+- `.agents/env/k8s/devenv.sh:start_k3s` — server start, pid liveness.
+- `.agents/env/k8s/devenv.sh:system_pods_ready` — the restart freshness rule.
+- `.agents/env/k8s/devenv.sh:stop_k3s` — what restart and cluster-down kill.
