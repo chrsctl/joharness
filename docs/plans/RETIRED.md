@@ -12,3 +12,4 @@ here. Removing the line, merged to the base branch first, is the human
 override. Protocol:
 `.agents/docs/orchestrated.md`, "A spawn the human orders carries the plan".
 - park-holds-only-on-pr manager/park-holds-only-on-pr
+- k8s-preload-images manager/k8s-preload-images
