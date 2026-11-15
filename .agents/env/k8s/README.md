@@ -118,6 +118,20 @@ row had the node images cached):
 | Restart a cluster from restored state        | 7-11s (4 runs) | 7-12s (4 runs) |
 | Cluster already running                      | 1-2s (3 runs) | <2s |
 
+### Preloading CoreDNS and local-path: tried, no gain
+
+Tried 2026-11-15 (plan `k8s-preload-images`, not kept): a cached `docker save`
+tarball of the three images a fresh cluster pulls (`mirrored-pause:3.10.2`,
+`mirrored-coredns-coredns:1.14.6`, `local-path-provisioner:v0.0.36`), hard-linked
+into `/var/lib/rancher/k3s/agent/images/` before `k3s server`. It worked: `k3s
+crictl images` listed all three and kube-system events showed no `Pulling`.
+Binaries on disk, cluster deleted between runs, `devenv.sh up` with
+`DEVENV_START_CLUSTER=1`, three alternating runs each (4-core container):
+without the cache 20s, 19s, 19s (median 19s); with it 20s, 19s, 20s (median
+20s). The pulls (1.4-1.8s CoreDNS, 3.9s local-path) overlap the flannel wait and
+the CoreDNS probe, so removing them did not show (not isolated further). Below the 1s bar, so the code
+was removed. Revisit if the mirror stops being close.
+
 Readiness polls every 1s (`DEVENV_POLL_SECS`). Restart time spreads with
 CoreDNS's own readiness probe: on an earlier head of this change two of four
 restarts took 13-14s, CoreDNS having answered 503 once with the next probe
