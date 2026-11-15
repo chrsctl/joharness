@@ -184,6 +184,18 @@ else
   fail "bootstrap --review refuses an empty value (got ${rc})"
 fi
 expect "and says what it expected" "invalid review '' (expected: off | on)" "$out"
+# background is the third provisioning mode: written to the conf; a fourth
+# value is refused.
+bootbg="${TMP}/bootbg"
+out="$(boot --env aaa --env-setup background "$bootbg")"; rc=$?
+if [ "$rc" -eq 0 ]; then pass "bootstrap --env-setup background exits 0"
+else fail "bootstrap --env-setup background exits 0 (got ${rc})"; fi
+expect "background reaches the conf" "JOHARNESS_ENV_SETUP=background" \
+  "$(cat "${bootbg}/joharness.conf" 2>/dev/null)"
+out="$(boot --dry-run --env-setup sometimes "${TMP}/bootbg-bad")"; rc=$?
+if [ "$rc" -eq 1 ]; then pass "bootstrap --env-setup refuses a fourth value"
+else fail "bootstrap --env-setup refuses a fourth value (got ${rc})"; fi
+expect "and names the three" "invalid env-setup 'sometimes' (expected: lazy | eager | background)" "$out"
 out="$(boot --env 'bad/../name' "${TMP}/bootenv-walk")"; rc=$?
 if [ "$rc" -eq 1 ]; then
   pass "bootstrap --env refuses a path-walking name"
