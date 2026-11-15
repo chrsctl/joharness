@@ -370,10 +370,22 @@ k3s_server_pid() {
 # The server's start time as RFC 3339 UTC to the second, or nothing. Pod
 # statuses and events in the datastore outlive the server process: anything
 # older than this says nothing about the cluster now running.
+#
+# Read from the stamp start_k3s writes at launch, kept only while its pid is
+# the running server. Not from `ps -o lstart`: that is boot time plus
+# jiffies, and boot time is recomputed from the wall clock, so a clock step
+# (NTP, a VM pause) moves it past a healthy CoreDNS's startedAt and the
+# cluster reads stale forever. A server this script did not start (no
+# matching stamp) falls back to ps.
+K3S_STAMP="${STATE_DIR}/k3s.started"
 k3s_started_at() {
-  local pid lstart
+  local pid lstart spid sts
   pid="$(k3s_server_pid)"
   [ -n "$pid" ] || return 0
+  if read -r spid sts <"$K3S_STAMP" 2>/dev/null && [ "$spid" = "$pid" ] && [ -n "$sts" ]; then
+    printf '%s\n' "$sts"
+    return 0
+  fi
   lstart="$(ps -o lstart= -p "$pid" 2>/dev/null)" || return 0
   [ -n "$lstart" ] || return 0
   date -u -d "$lstart" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || true
@@ -576,15 +588,20 @@ wait_for_system_ready() {
   return 1
 }
 
-# Start the k3s server on whatever data dir exists: none = create, existing =
-# restart. The drop-ins and registries.yaml are rewritten every start, so a
+# start_k3s <wait-secs>. Start the k3s server on whatever data dir exists:
+# none = create, existing = restart. The drop-ins and registries.yaml are rewritten every start, so a
 # restored container runs the current workarounds, not the ones it was
 # created with.
 start_k3s() {
+  local wait_secs="$1"
   render_containerd_dropin "${K3S_DATA_DIR}/agent/etc/containerd/config-v3.toml.d/10-oom-score.toml"
   render_kubelet_dropin "${K3S_DATA_DIR}/agent/etc/kubelet.conf.d/99-cgroupv1.conf"
   render_registries_yaml "${K3S_ETC_DIR}/registries.yaml" || true
-  mkdir -p "$LOG_DIR"
+  mkdir -p "$LOG_DIR" "$STATE_DIR"
+  # Taken before the launch, so it is never later than anything the server
+  # starts.
+  local launched
+  launched="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
   # The proxy variables stay out of the server's environment. Egress is
   # intercepted transparently, so containerd pulls without them, and k3s
@@ -611,18 +628,19 @@ start_k3s() {
   # is no group leader, so it does not fork either.
   local pid=$!
   disown || true
+  printf '%s %s\n' "$pid" "$launched" >"$K3S_STAMP"
 
   # The kubeconfig appears once the server has generated its certificates;
   # a restored container still holds the one from the last start, so wait on
   # the apiserver answering through it, not on the file.
-  local deadline=$((SECONDS + CLUSTER_WAIT_SECS))
+  local deadline=$((SECONDS + wait_secs))
   until [ -r "$K3S_KUBECONFIG" ] && export_kubeconfig && cluster_responsive "$STATUS_PROBE_TIMEOUT"; do
     if ! kill -0 "$pid" 2>/dev/null; then
       warn "k3s server exited; last log lines:"
       tail -n 20 "$K3S_LOG" >&2 || true
       return 1
     fi
-    [ "$SECONDS" -lt "$deadline" ] || { warn "k3s apiserver did not answer in ${CLUSTER_WAIT_SECS}s"; return 1; }
+    [ "$SECONDS" -lt "$deadline" ] || { warn "k3s apiserver did not answer in ${wait_secs}s"; return 1; }
     sleep "$POLL_SECS"
   done
 }
@@ -699,7 +717,7 @@ cmd_cluster_up() {
     # back broken, so a failure falls back to a rebuild.
     log "restarting existing cluster '${CLUSTER_NAME}'"
     stop_k3s
-    if start_k3s \
+    if start_k3s "$RESTART_WAIT_SECS" \
        && wait_for_node_ready "$RESTART_WAIT_SECS" \
        && wait_for_system_ready "$RESTART_WAIT_SECS"; then
       log "cluster '${CLUSTER_NAME}' restarted"
@@ -711,7 +729,7 @@ cmd_cluster_up() {
   fi
 
   log "creating cluster '${CLUSTER_NAME}' (k3s ${K3S_VERSION})"
-  start_k3s || die "cluster '${CLUSTER_NAME}': k3s server did not come up (log: ${K3S_LOG})"
+  start_k3s "$CLUSTER_WAIT_SECS" || die "cluster '${CLUSTER_NAME}': k3s server did not come up (log: ${K3S_LOG})"
   wait_for_node_ready "$CLUSTER_WAIT_SECS" \
     || die "cluster '${CLUSTER_NAME}' created but no node became Ready"
   wait_for_system_ready "$CLUSTER_WAIT_SECS" \
@@ -720,7 +738,7 @@ cmd_cluster_up() {
 }
 
 # Stop everything, then remove every trace: state dirs, the CNI links, the
-# kube-proxy/flannel/CNI iptables rules (Docker's rules are kept).
+# kube-proxy/flannel/CNI iptables and ip6tables rules (Docker's are kept).
 delete_cluster() {
   stop_k3s
   unmount_under "${K3S_STATE_PATHS[@]}"
@@ -729,10 +747,13 @@ delete_cluster() {
     ip link delete cni0 2>/dev/null || true
     ip link delete flannel.1 2>/dev/null || true
   fi
-  if have iptables-save && have iptables-restore; then
-    iptables-save 2>/dev/null | grep -v -e 'KUBE-' -e 'CNI-' -e 'FLANNEL' -e 'flannel' \
-      | iptables-restore 2>/dev/null || true
-  fi
+  local fam
+  for fam in iptables ip6tables; do
+    if ! have "${fam}-save" || ! have "${fam}-restore"; then continue; fi
+    "${fam}-save" 2>/dev/null | grep -v -e 'KUBE-' -e 'CNI-' -e 'FLANNEL' -e 'flannel' \
+      | "${fam}-restore" 2>/dev/null || true
+  done
+  rm -f "$K3S_STAMP"
 }
 
 cmd_cluster_down() {

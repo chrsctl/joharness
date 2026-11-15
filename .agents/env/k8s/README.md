@@ -39,14 +39,14 @@ containerd. `devenv.sh` starts it as a host process (`k3s server`, log
 Until 2026-11-15 the layer ran the same k3s inside a Docker container via
 k3d. Running it directly drops the 347 MB node image pull and the node
 container, and the cluster gets the host's trust store and network as they
-are. The gain is the cold start (no image pull); a create with the binary
+are. The gain is the cold start (no image pull, ~5s); a create with the binary
 already on disk and a restart measure about even
 ([Startup cost](#startup-cost)).
 
 | | k3s, host process (current) | k3s in k3d | kind (kubeadm) |
 | --- | --- | --- | --- |
 | Download | **82 MB** binary | 347 MB node image + k3d | 1.45 GB node image |
-| Server RSS at idle | ~450 MB | ~410 MB | ~550 MB |
+| Server RSS at idle | ~450 MB (`ps -o rss=` on the server, 459-472 MB, 2026-11-15) | ~410 MB | ~550 MB |
 
 Trimmed further: Traefik, ServiceLB, metrics-server disabled. Project needs
 one? Drop it from `--disable` in `start_k3s`.
@@ -113,14 +113,15 @@ row had the node images cached):
 
 | Situation                                   | k3s direct | k3d |
 | ------------------------------------------- | --- | ------ |
-| Cold: no tools, no cluster                   | 23-28s (5 runs) | 28-33s (6 runs) |
-| Binary (k3d: images) on disk, no cluster     | 19-24s (6 runs) | 18-21s (10 runs) |
-| Restart a cluster from restored state        | 7-14s (8 runs) | 7-12s (4 runs) |
-| Cluster already running                      | 1-4s (3 runs) | <2s |
+| Cold: no tools, no cluster                   | 23-25s (5 runs) | 28-33s (6 runs) |
+| Binary (k3d: images) on disk, no cluster     | 17-22s (6 runs) | 18-21s (10 runs) |
+| Restart a cluster from restored state        | 7-11s (4 runs) | 7-12s (4 runs) |
+| Cluster already running                      | 1-2s (3 runs) | <2s |
 
-Readiness polls every 1s (`DEVENV_POLL_SECS`). The restart spread is
-CoreDNS's own readiness probe: on the slow runs it answered 503 once and
-the next probe came ~10s later. A restart counts only once every CoreDNS
+Readiness polls every 1s (`DEVENV_POLL_SECS`). Restart time spreads with
+CoreDNS's own readiness probe: on an earlier head of this change two of four
+restarts took 13-14s, CoreDNS having answered 503 once with the next probe
+~10s later. A restart counts only once every CoreDNS
 container has started since the server did: the datastore keeps the old
 pod statuses, and the kubelet renews its lease before it re-syncs them, so
 Ready alone lies for a second or two after a restart.
@@ -131,14 +132,14 @@ k3s schedules CoreDNS and local-path a few seconds before flannel writes
 `/run/flannel/subnet.env`. A pod whose sandbox lands in that gap fails
 `failed to load flannel 'subnet.env' file`, and the kubelet waits out a
 ~10-14s pod-worker backoff before retrying — though nothing is wrong any more.
-Hit 5 of the 11 creates above, and it hit k3d the same way. The pod's
+Hit 7 of the 11 creates above, and it hit k3d the same way. The pod's
 event says which: `kubectl -n kube-system get events --field-selector
 reason=FailedCreatePodSandBox`. `kick_cni_raced_pods` in `devenv.sh`, each
 poll: once the file exists, a Pending, ReplicaSet-owned kube-system pod with
 that failure, recorded since the k3s server started, is deleted, and its
 ReplicaSet's replacement starts at once (log line `recreating <pod>: its
 sandbox raced flannel's subnet.env`). A kicked create costs ~1-5s more than
-a clean one (binary on disk: 20-24s against 19-20s; cold: 27-28s against
+a clean one (binary on disk: 20-22s against 17-19s; cold: 24-25s against
 23s). Upstream k3s behaviour, not a
 sandbox constraint.
 
@@ -275,7 +276,7 @@ assets.
   unmounts what k3s mounted, removes `/var/lib/rancher/k3s`,
   `/var/lib/kubelet`, `/run/k3s`, `/run/flannel`, `/etc/rancher/k3s`,
   `/var/lib/cni`, the `cni0`/`flannel.1` links (when `ip` exists) and the
-  KUBE/CNI/flannel iptables rules. Docker's containers, links and rules stay.
+  KUBE/CNI/flannel iptables and ip6tables rules. Docker's containers, links and rules stay.
 - One cluster per container: k3s's data dir is fixed. `DEVENV_CLUSTER_NAME`
   names the kubeconfig context only.
 - cgroups v1 (hybrid). Converting host to v2 deliberately avoided: sandbox

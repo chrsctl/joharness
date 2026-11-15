@@ -10,7 +10,7 @@ Once per session. Idempotent: already-ready is a fast no-op, repeat safe.
 Tools but no cluster: `DEVENV_START_CLUSTER=0 ./joharness.sh setup`.
 
 k3s as a host process (`k3s server`, no node container), 82MB binary,
-~450MB RSS. Docker runs beside it for builds. Context `claude-dev` becomes
+~450MB RSS (`ps -o rss=`, 2026-11-15). Docker runs beside it for builds. Context `claude-dev` becomes
 current. Log `/var/log/devenv/k3s.log`, state `/var/lib/rancher/k3s`.
 
 Own image into cluster: cluster has own image store, `docker build` invisible

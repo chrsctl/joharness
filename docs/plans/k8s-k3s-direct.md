@@ -105,7 +105,8 @@ starts, keeps Docker for builds, and keeps the same commands and smoke test.
 - Restart: `pkill -9 -f '^/usr/local/bin/[k]3s server'`,
   `pkill -9 -f '^/var/lib/rancher/k3s/data/[^ ]*/[c]ontainerd-shim'`, and
   `kill -9` every pid in `find /sys/fs/cgroup -path '*kubepods*' -name cgroup.procs`
-  (every controller); `T0=$(date -u +%FT%TZ)`; then `./joharness.sh setup` —
+  (every controller); `T0=$(date -u +%FT%TZ)`; then
+  `JOHARNESS_ENV=k8s ./joharness.sh setup` —
   exit 0, and
   `kubectl -n kube-system get pod -l k8s-app=kube-dns -o jsonpath='{.items[0].status.containerStatuses[0].state.running.startedAt}'`
   is later than `$T0` (a stale Ready is not a restart; earlier = red).
