@@ -3,21 +3,22 @@
 Not provisioned at session start. Costs nothing until asked. Need it:
 
 ```bash
-./joharness.sh setup     # docker, kubectl/k3d/helm, cluster. ~20-45s cold
+./joharness.sh setup     # docker, kubectl/k3s/helm, cluster. ~20-30s cold
 ```
 
 Once per session. Idempotent: already-ready is a fast no-op, repeat safe.
 Tools but no cluster: `DEVENV_START_CLUSTER=0 ./joharness.sh setup`.
 
-k3s on k3d. One container, ~350MB image, ~400MB RAM. Context `k3d-claude-dev`
-becomes current.
+k3s as a host process (`k3s server`, no node container), 82MB binary,
+~450MB RSS (`ps -o rss=`, 2026-11-15). Docker runs beside it for builds. Context `claude-dev` becomes
+current. Log `/var/log/devenv/k3s.log`, state `/var/lib/rancher/k3s`.
 
 Own image into cluster: cluster has own image store, `docker build` invisible
 to it until import:
 
 ```bash
 docker build -t my-app:dev .
-k3d image import my-app:dev -c claude-dev
+docker save my-app:dev | k3s ctr images import -
 kubectl run my-app --image=my-app:dev --image-pull-policy=IfNotPresent
 ```
 
@@ -30,7 +31,7 @@ cluster tries registry pull, fails.
 | --- | --- |
 | `.agents/env/k8s/devenv.sh status` | What runs |
 | `.agents/env/k8s/devenv.sh cluster-up` | Start Kubernetes (create/restart/repair) |
-| `.agents/env/k8s/devenv.sh cluster-down` | Delete cluster |
+| `.agents/env/k8s/devenv.sh cluster-down` | Stop cluster, delete its state |
 | `.agents/env/k8s/devenv.sh doctor` | Diagnostics |
 | `./joharness.sh verify` | Provision, then smoke test end to end |
 
@@ -47,30 +48,35 @@ Sandbox = Firecracker microVM + filtering egress proxy. Workarounds in
 `.agents/env/k8s/devenv.sh` load bearing. NEVER remove. Symptoms + full story:
 [`.agents/env/k8s/README.md`](README.md).
 
-- Stock `kind` / plain k3s fail here. Kernel refuses negative `oom_score_adj`,
+- Stock `kind` / k3s without the drop-ins fail here. Kernel refuses negative `oom_score_adj`,
   every pod stuck `ContainerCreating` forever, cluster looks healthy.
   containerd drop-in fixes.
 - Host = cgroup v1. Kubelet refuses it from v1.35 by default. Kubelet drop-in
   (`failCgroupV1: false`, rendered by devenv.sh) lets the pinned version run — load
-  bearing. Bump `K3S_IMAGE` only with green smoke test after.
-- NO proxy env vars in cluster nodes. Proxy lives on host `127.0.0.1` — wrong
-  address inside container. Egress intercepted transparently; nodes need CA
-  bundle only.
+  bearing. Without it the server dies seconds after start. Bump
+  `K3S_VERSION_DEFAULT` only with green smoke test after.
+- k3s server starts with the proxy env vars unset. Egress intercepted
+  transparently; containerd pulls through the host trust store, which holds
+  the proxy CA. Set vars measured no faster (README § 3).
+- k3s retitles itself `/usr/local/bin/k3s server`: `pgrep -x k3s` finds
+  nothing. Match `pgrep -f '^/usr/local/bin/[k]3s server'`. Stopping the
+  server leaves shims and pods running: `cluster-down`, not `kill`.
 - Pin tool versions. `github.com` HTML 403s, `/releases/latest` broken.
   Direct release asset URLs work.
 - Version pin + sha256 digest = ONE pin, same edit (`devenv.sh`). Bump
   version without digest = install refuses. Procedure:
   `.agents/env/k8s/README.md`.
 - First `verify` after a cold `cluster-up` can fail, and the failures MOVE
-  between runs. Measured, one cold cluster, no edits between: run 1 failed
+  between runs. Measured under k3d, one cold cluster, no edits between: run 1 failed
   the docker pull only, run 2 failed all three cluster checks (node 92s old),
   run 3 was 7/7 (the suite was 7 checks then). Node says `Ready` before
   containerd will serve a pull. Re-run
   once before believing a red verify — a real break stays red in the same
   place. Proper fix = verify waits on a pull succeeding, not on `Ready`.
 - Download 403? Host blocked by egress policy. Do not route around. Known
-  good: `dl.k8s.io`, `get.helm.sh`, `proxy.golang.org`, `registry.k8s.io`,
-  `registry-1.docker.io`, `raw.githubusercontent.com`.
+  good: `dl.k8s.io`, `get.helm.sh`, `registry.k8s.io`,
+  `registry-1.docker.io`, `raw.githubusercontent.com`, `github.com` release
+  assets.
 
 ## Persistence
 

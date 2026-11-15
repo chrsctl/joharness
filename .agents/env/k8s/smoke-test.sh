@@ -32,7 +32,8 @@
 set -euo pipefail
 
 CLUSTER_NAME="${DEVENV_CLUSTER_NAME:-claude-dev}"
-KUBE_CONTEXT="k3d-${CLUSTER_NAME}"
+# devenv.sh merges the k3s kubeconfig under the cluster name as its context.
+KUBE_CONTEXT="${CLUSTER_NAME}"
 # $$ is this run's pid: unique among runs that can overlap on one host, and
 # still a valid DNS-1123 label. Pinned name = the caller's business, honoured
 # verbatim.
