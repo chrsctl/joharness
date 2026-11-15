@@ -50,7 +50,7 @@ process, not DaemonSet.
 
 ## Usage
 
-Everything, once per session (~20-45s):
+Everything, once per session (~20-30s):
 
 ```bash
 ./joharness.sh setup
@@ -96,17 +96,36 @@ A session that never touches Kubernetes never pays for it.
 | Tools already installed                      | <1s  |
 
 Cold path downloads kubectl, k3d, helm concurrently, starts dockerd under
-downloads. Wall clock = one download, not three plus docker wait.
+downloads. Wall clock = one download, not three plus docker wait. When a
+cluster follows (`setup`), the node image (347 MB) and k3d's tools image pull
+under the downloads too, so `k3d cluster create` finds them local.
 
-Then the cluster, 20-45s. Each step is self-contained — `cluster-up` installs
-tools and starts Docker itself if `setup` never ran.
+Then the cluster. Each step is self-contained — `cluster-up` installs tools
+and starts Docker itself if `setup` never ran. Measured 2026-11-15, whole
+`setup.sh`, one 4-core container:
 
 | Situation                                   | Time |
 | ------------------------------------------- | ---- |
-| Create cluster, node image not cached        | ~45s |
-| Create cluster, node image cached            | ~22s |
-| Restart a cluster from restored state        | ~16s |
-| Cluster already running                      | ~2s  |
+| Cold: no tools, no images, no cluster        | 28-31s (4 runs) |
+| Images cached, no cluster                    | 18-25s (6 runs) |
+| Restart a cluster from restored state        | 7-10s (2 runs) |
+| Cluster already running                      | <1s  |
+
+Readiness polls every 1s (`DEVENV_POLL_SECS`). The spread in the first two
+rows is one race, next section.
+
+### System pods race flannel on create
+
+k3s schedules CoreDNS and local-path a few seconds before flannel writes
+`/run/flannel/subnet.env`. A pod whose sandbox lands in that gap fails
+`failed to load flannel 'subnet.env' file`, and the kubelet waits out a
+~10-14s pod-worker backoff before retrying — though nothing is wrong any more.
+Hit 3 of 6 image-cached creates and 4 of 4 cold ones (2026-11-15); each hit
+cost ~11s (setup 30-31s against 19-20s). `kick_cni_raced_pods` in
+`devenv.sh`: once the file exists, a Pending, ReplicaSet-owned kube-system pod
+with exactly that failure is deleted, and its ReplicaSet's replacement starts
+at once (log line `recreating <pod>: its sandbox raced flannel's subnet.env`).
+Upstream k3s behaviour, not a sandbox constraint.
 
 Every session uses the cluster? `JOHARNESS_ENV_SETUP=eager` in
 `joharness.conf` provisions at session start instead, and pays the wait there.

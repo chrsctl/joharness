@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK4JnhGVMZhUXtc4qXk
 agent: sonnet
 updated: 2026-11-15
-next: Implement 1s polling and node-image prepull in .agents/env/k8s/devenv.sh, then measure cold/restart/up
+next: Verifier (haiku) on the branch diff, record in ## Review, then PR and finish
 ---
 
 ## Goal
@@ -24,6 +24,12 @@ after kern was rejected as a k3d replacement (no CRI; not a cluster tool).
   ~22s, script said ready at 30.3s) and ~2.5s to pulling the node image only
   after the tool downloads. Fix both: 1s polls with wall-clock deadlines;
   prepull node + k3d-tools images under the downloads.
+- Bigger cause found while measuring: k3s system pods race flannel's
+  subnet.env (3/6 cached creates, 4/4 cold), each hit ~11s of kubelet backoff.
+  Fix: delete the raced Pending ReplicaSet pod once subnet.env exists
+  (`kick_cni_raced_pods`). After, 2026-11-15: cold 28-31s (all 4 raced and
+  kicked), cached 18-25s, restart 7-10s, up <1s (0.6-0.7s both before/after).
+- setup.sh passes DEVENV_START_CLUSTER to one `up` so `up` knows to prepull.
 
 ## Rejected
 
@@ -32,6 +38,7 @@ after kern was rejected as a k3d replacement (no CRI; not a cluster tool).
 - k3s directly on the host: likely faster, but a backend rewrite — needs a plan.
 
 ## Review
+
 
 ## Blockers
 
