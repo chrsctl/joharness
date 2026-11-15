@@ -328,7 +328,7 @@ launch_background_setup() {
   if ! command -v flock >/dev/null 2>&1; then
     warn "no flock here; setup=background degrades to eager"
     run_setup "$name" || warn "environment '${name}' did not provision; continuing"
-    return 1
+    return 2
   fi
   if ! dir="$(setup_dir)" || ! mkdir -p "$dir"; then
     warn "no place for background provisioning state"
@@ -11002,7 +11002,8 @@ cmd_session_start() {
        { [ "${CLAUDE_CODE_REMOTE:-}" = "true" ] ||
          [ "${JOHARNESS_FORCE_SETUP:-${DEVENV_FORCE:-0}}" = "1" ]; }; then
       if [ "$mode" = "background" ]; then
-        if launch_background_setup "$name"; then bg_started=1; fi
+        launch_background_setup "$name" && bg_started=1
+        [ "$?" -ne 2 ] || bg_started=2
       else
         run_setup "$name" || warn "environment '${name}' did not provision; continuing"
       fi
@@ -11024,7 +11025,7 @@ cmd_session_start() {
     if [ "$bg_started" -eq 1 ]; then
       printf 'Provisioning runs in the background (log: %s/%s.log).\n' "$(setup_dir)" "$name"
       printf './joharness.sh setup waits for it; verify does too.\n\n'
-    elif has_setup "$name" && [ "$mode" != "eager" ]; then
+    elif has_setup "$name" && [ "$mode" != "eager" ] && [ "$bg_started" -ne 2 ]; then
       printf 'Not provisioned at session start (setup=lazy).\n'
       printf 'Need it? Run: ./joharness.sh setup\n'
       printf 'Never need it? It cost nothing.\n'
