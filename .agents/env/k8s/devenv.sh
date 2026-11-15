@@ -4,10 +4,10 @@
 #
 # Subcommands:
 #   up             docker-up + install (no cluster)
-#   install        install kubectl / k3d / helm (idempotent, pinned versions)
+#   install        install kubectl / k3s / helm (idempotent, pinned versions)
 #   docker-up      start dockerd and wait for it to accept connections
-#   cluster-up     create (or restart, or repair) the Kubernetes cluster
-#   cluster-down   delete the Kubernetes cluster
+#   cluster-up     start (or restart, or repair) the Kubernetes cluster
+#   cluster-down   stop the Kubernetes cluster and delete its state
 #   status         print a short summary of the environment
 #   doctor         print diagnostics for debugging a broken environment
 #
@@ -22,53 +22,60 @@ set -euo pipefail
 # returns 403 for github.com HTML pages, which breaks the /releases/latest
 # redirect that most install scripts rely on. Direct release ASSET urls do work,
 # so we ask for exact versions. See .agents/env/k8s/README.md.
+#
+# Kubernetes runs as k3s, a single binary started as a host process: no node
+# image, no node container. This host uses cgroup v1, which the kubelet refuses
+# by default from v1.35 ("kubelet is configured to not run on a host using
+# cgroup v1"). The kubelet drop-in rendered below (failCgroupV1: false) is what
+# lets it start; do not remove that when bumping this. v1.36.3+k3s1 validated
+# on this host: full smoke suite green with the same drop-in (2026-08-28 in a
+# node container, 2026-11-15 as a host process). cgroup v1 in v1.36 is past
+# maintenance mode, so the drop-in stays load bearing; any future bump
+# revalidates the full smoke test first.
 # ---------------------------------------------------------------------------
-K3D_VERSION_DEFAULT="v5.9.0"
+K3S_VERSION_DEFAULT="v1.36.3+k3s1"
 KUBECTL_VERSION_DEFAULT="v1.36.4"
 HELM_VERSION_DEFAULT="v3.21.4"
-K3D_VERSION="${K3D_VERSION:-$K3D_VERSION_DEFAULT}"
+K3S_VERSION="${K3S_VERSION:-$K3S_VERSION_DEFAULT}"
 KUBECTL_VERSION="${KUBECTL_VERSION:-$KUBECTL_VERSION_DEFAULT}"
 HELM_VERSION="${HELM_VERSION:-$HELM_VERSION_DEFAULT}"
 
 # sha256 of each DEFAULT version's linux-amd64 asset, from the publisher's
-# own checksum files (dl.k8s.io .sha256 / get.helm.sh .sha256sum / the k3d
-# release's checksums.txt), cross-checked against the downloaded bytes
-# (2026-08-23; kubectl v1.36.4 on 2026-08-28). Verified before install; a mismatch is a corrupt or tampered
+# own checksum files (dl.k8s.io .sha256 / get.helm.sh .sha256sum / the k3s
+# release's sha256sum-amd64.txt), cross-checked against the downloaded bytes
+# (2026-08-23; kubectl v1.36.4 on 2026-08-28; k3s v1.36.3+k3s1 on
+# 2026-11-15). Verified before install; a mismatch is a corrupt or tampered
 # download and refuses loudly. Bumping a version bumps its digest in the
 # SAME edit — the pair is one pin (procedure: .agents/env/k8s/README.md). An
-# overridden version has no pin here: set KUBECTL_SHA256 / K3D_SHA256 /
+# overridden version has no pin here: set KUBECTL_SHA256 / K3S_SHA256 /
 # HELM_SHA256 alongside it, or the install warns and skips verification —
 # loud skip, never a fake red, so a version experiment (k8s-136-validation
 # style) still runs.
 KUBECTL_SHA256_PIN="8b8f088da2dab964f853b38464033b1be15ede2839eca751482357c45abdd05a"
-K3D_SHA256_PIN="06d8f25bc3a971c4eb29e0ff08429b180402db0f4dec838c9eac427e296800a0"
+K3S_SHA256_PIN="2f98a9f8fe5782479ee2d54e70a1b10a7f6fd4cae8d38ed3098452dc6eed76b5"
 HELM_SHA256_PIN="61f88ab166748cb19604d7884cb100ae9ccb13804ddeb98e08af167eacbb6a14"
 
-# Kubernetes runs as k3s, which is a much smaller footprint than a full kubeadm
-# cluster (~350MB image instead of ~1.5GB).
-#
-# This host uses cgroup v1, which the kubelet refuses by default from v1.35
-# ("kubelet is configured to not run on a host using cgroup v1"). The kubelet
-# drop-in rendered below (failCgroupV1: false) is what lets it start; do not
-# remove that when bumping this. v1.36.3-k3s1 validated on this host
-# 2026-08-28: full smoke suite green with the same drop-in. cgroup v1 in
-# v1.36 is past maintenance mode, so the drop-in stays load bearing; any
-# future bump revalidates the full smoke test first. See
-# .agents/env/k8s/README.md.
-K3S_IMAGE="${K3S_IMAGE:-rancher/k3s:v1.36.3-k3s1}"
-
 CLUSTER_NAME="${DEVENV_CLUSTER_NAME:-claude-dev}"
-KUBE_CONTEXT="k3d-${CLUSTER_NAME}"
+# The kubeconfig context k3s writes is called "default"; export_kubeconfig
+# renames it to the cluster name and makes it current.
+KUBE_CONTEXT="${CLUSTER_NAME}"
 
 BIN_DIR="${DEVENV_BIN_DIR:-/usr/local/bin}"
+K3S_BIN="${BIN_DIR}/k3s"
 STATE_DIR="${DEVENV_STATE_DIR:-/var/lib/devenv}"
 LOG_DIR="${DEVENV_LOG_DIR:-/var/log/devenv}"
 DOCKERD_LOG="${LOG_DIR}/dockerd.log"
+K3S_LOG="${LOG_DIR}/k3s.log"
 
-# The sandbox's egress proxy re-terminates TLS, so anything that makes HTTPS
-# calls needs this bundle. Containers do not inherit the host trust store, so we
-# mount it into the cluster node (see create_cluster).
-CA_BUNDLE="${DEVENV_CA_BUNDLE:-/root/.ccr/ca-bundle.crt}"
+# k3s's own fixed locations. The data dir is the cluster: it exists = a
+# cluster was created on this container (and survives a session restore).
+K3S_DATA_DIR="/var/lib/rancher/k3s"
+K3S_ETC_DIR="/etc/rancher/k3s"
+K3S_KUBECONFIG="${K3S_ETC_DIR}/k3s.yaml"
+# Everything cluster-down removes. /var/lib/rancher/k3s first: it is the
+# marker cluster_exists reads, so a half-finished delete reads as "no cluster"
+# and the next cluster-up starts clean.
+K3S_STATE_PATHS=("$K3S_DATA_DIR" /var/lib/kubelet /run/k3s /run/flannel "$K3S_ETC_DIR" /var/lib/cni)
 
 DOCKER_WAIT_SECS="${DEVENV_DOCKER_WAIT_SECS:-90}"
 CLUSTER_WAIT_SECS="${DEVENV_CLUSTER_WAIT_SECS:-240}"
@@ -98,6 +105,14 @@ installed_version() {
   local bin="$1"; shift
   have "$bin" || return 0
   "$@" 2>/dev/null | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true
+}
+
+# k3s's version carries a "+k3sN" build suffix the vX.Y.Z match above drops,
+# and a bump of only that suffix is a different binary: compare it whole.
+# `k3s --version` prints "k3s version v1.36.3+k3s1 (<commit>)".
+k3s_installed_version() {
+  [ -x "$K3S_BIN" ] || return 0
+  "$K3S_BIN" --version 2>/dev/null | awk 'NR == 1 {print $3}' || true
 }
 
 # Digest for a tool: explicit env override first, the pin when the version
@@ -155,33 +170,23 @@ install_kubectl() {
   mv "${BIN_DIR}/.kubectl.tmp" "${BIN_DIR}/kubectl"
 }
 
-install_k3d() {
-  local want="$K3D_VERSION"
-  if [ "$(installed_version k3d k3d version)" = "$want" ]; then
-    log "k3d ${want} already installed"
+install_k3s() {
+  local want="$K3S_VERSION"
+  if [ "$(k3s_installed_version)" = "$want" ]; then
+    log "k3s ${want} already installed"
     return 0
   fi
-  log "installing k3d ${want}"
+  log "installing k3s ${want}"
   # Direct release asset urls work through the proxy even though the
-  # /releases/latest HTML page is blocked.
-  if curl -fsSL --retry 3 --retry-delay 2 \
-       -o "${BIN_DIR}/.k3d.tmp" \
-       "https://github.com/k3d-io/k3d/releases/download/${want}/k3d-linux-amd64"; then
-    verify_download "${BIN_DIR}/.k3d.tmp" \
-      "$(expected_sha "${K3D_SHA256:-}" "$want" "$K3D_VERSION_DEFAULT" "$K3D_SHA256_PIN")" \
-      "k3d ${want}"
-    chmod 0755 "${BIN_DIR}/.k3d.tmp"
-    mv "${BIN_DIR}/.k3d.tmp" "${BIN_DIR}/k3d"
-  elif have go; then
-    # proxy.golang.org is on the allowed list, so this is a reliable
-    # fallback. No digest to verify on a source build; the Go module
-    # checksum database covers the sources instead.
-    log "release asset unavailable, building k3d from source"
-    rm -f "${BIN_DIR}/.k3d.tmp"
-    GOBIN="$BIN_DIR" go install "github.com/k3d-io/k3d/v5@${want}"
-  else
-    die "could not install k3d ${want}"
-  fi
+  # /releases/latest HTML page is blocked. The tag's "+" is %2B in the url.
+  curl -fsSL --retry 3 --retry-delay 2 \
+    -o "${BIN_DIR}/.k3s.tmp" \
+    "https://github.com/k3s-io/k3s/releases/download/${want//+/%2B}/k3s"
+  verify_download "${BIN_DIR}/.k3s.tmp" \
+    "$(expected_sha "${K3S_SHA256:-}" "$want" "$K3S_VERSION_DEFAULT" "$K3S_SHA256_PIN")" \
+    "k3s ${want}"
+  chmod 0755 "${BIN_DIR}/.k3s.tmp"
+  mv "${BIN_DIR}/.k3s.tmp" "$K3S_BIN"
 }
 
 install_helm() {
@@ -213,17 +218,19 @@ cmd_install() {
   # own temp path and moves it into place, so a failure leaves nothing partial.
   local pids=() names=() rc=0 i
   install_kubectl & pids+=($!); names+=(kubectl)
-  install_k3d     & pids+=($!); names+=(k3d)
+  install_k3s     & pids+=($!); names+=(k3s)
   install_helm    & pids+=($!); names+=(helm)
   for i in "${!pids[@]}"; do
     wait "${pids[$i]}" || { warn "${names[$i]} install failed"; rc=1; }
   done
   [ "$rc" -eq 0 ] || die "tool installation failed"
-  log "tools: kubectl=$(kubectl version --client 2>/dev/null | head -1), k3d=$(k3d version 2>/dev/null | head -1), helm=$(helm version --short 2>/dev/null)"
+  log "tools: kubectl=$(kubectl version --client 2>/dev/null | head -1), k3s=$(k3s_installed_version), helm=$(helm version --short 2>/dev/null)"
 }
 
 # ---------------------------------------------------------------------------
 # Docker
+#
+# Docker is for building and running images; the cluster does not use it.
 # ---------------------------------------------------------------------------
 
 # Docker Hub rate-limits anonymous pulls (429) per egress IP, and a shared
@@ -269,41 +276,6 @@ docker_wait() {
   log "docker ready after ${waited}s"
 }
 
-# The two images `k3d cluster create` pulls before it can start a node: the
-# k3s node image (347 MB) and k3d's tools image. Pulled from cmd_up while the
-# CLI downloads run, so create finds them local (measured 2026-11-15: the node
-# pull ran 5.2s-11.6s into a cold setup, after downloads that ended at 2.8s).
-# Best effort: a failed pull warns and create pulls again itself. Already
-# local = docker image inspect, no registry round trip.
-k3d_tools_image() { printf 'ghcr.io/k3d-io/k3d-tools:%s' "${K3D_VERSION#v}"; }
-
-# Pulls run one after another in this (background) shell, so its only
-# children are `docker pull` clients and stop_prepull can end the lot: tools
-# image first (small), node image second; both finish under the downloads.
-prepull_images() {
-  local deadline=$((SECONDS + DOCKER_WAIT_SECS)) img
-  until docker_ready; do
-    [ "$SECONDS" -lt "$deadline" ] || return 0   # docker_wait reports it
-    sleep 0.2
-  done
-  for img in "$(k3d_tools_image)" "$K3S_IMAGE"; do
-    docker image inspect "$img" >/dev/null 2>&1 && continue
-    docker pull -q "$img" >/dev/null 2>&1 \
-      || warn "prepull of ${img} failed; k3d will pull it itself"
-  done
-  return 0
-}
-
-# EXIT trap of cmd_up: a `die` in the downloads or docker_wait must not leave a
-# pull running behind it — it would hold a captured stdout open and race the
-# retry's own pull. Children first, then the shell.
-PREPULL_PID=""
-stop_prepull() {
-  [ -n "$PREPULL_PID" ] || return 0
-  pkill -P "$PREPULL_PID" 2>/dev/null || true
-  kill "$PREPULL_PID" 2>/dev/null || true
-}
-
 cmd_docker_up() {
   if docker_ready; then
     log "docker already running"
@@ -314,7 +286,7 @@ cmd_docker_up() {
 }
 
 # ---------------------------------------------------------------------------
-# Kubernetes (k3s via k3d)
+# Kubernetes (k3s as a host process)
 # ---------------------------------------------------------------------------
 
 # Required for pods to start in this sandbox.
@@ -329,13 +301,16 @@ cmd_docker_up() {
 # kernel accepts. Without it the cluster comes up but no pod ever starts.
 #
 # k3s reads registries.yaml for containerd's per-registry mirrors. Same
-# JOHARNESS_REGISTRY_MIRROR as dockerd's, here for the cluster's own pulls
-# (k3d passes the file in with --registry-config); k3s falls back to the
-# original registry when the mirror fails. Writes nothing when it is empty.
+# JOHARNESS_REGISTRY_MIRROR as dockerd's, here for the cluster's own pulls;
+# k3s falls back to the original registry when the mirror fails. Writes
+# nothing (and removes a stale file) when it is empty.
 render_registries_yaml() {
   local out="$1" m="${JOHARNESS_REGISTRY_MIRROR-mirror.gcr.io}"
   m="${m#https://}"; m="${m%/}"
-  [ -n "$m" ] || return 1
+  if [ -z "$m" ]; then
+    rm -f "$out"
+    return 1
+  fi
   mkdir -p "$(dirname "$out")"
   cat >"$out" <<EOF
 # Managed by .agents/env/k8s/devenv.sh - see .agents/env/k8s/README.md
@@ -381,8 +356,26 @@ failCgroupV1: false
 EOF
 }
 
-cluster_exists() {
-  k3d cluster list --no-headers 2>/dev/null | awk '{print $1}' | grep -qx "$CLUSTER_NAME"
+cluster_exists() { [ -d "${K3S_DATA_DIR}/server" ]; }
+
+# PID of the running k3s server, or nothing. k3s retitles its process to
+# "<binary> server ...", so `pgrep -x k3s` never matches; the pattern is
+# anchored at the start of the command line so a shell whose own command line
+# carries it (a `bash -c "... pgrep ..."`) is not mistaken for the server.
+k3s_server_pid() {
+  pgrep -o -f "^${K3S_BIN} server" 2>/dev/null || true
+}
+
+# The server's start time as RFC 3339 UTC to the second, or nothing. Pod
+# statuses and events in the datastore outlive the server process: anything
+# older than this says nothing about the cluster now running.
+k3s_started_at() {
+  local pid lstart
+  pid="$(k3s_server_pid)"
+  [ -n "$pid" ] || return 0
+  lstart="$(ps -o lstart= -p "$pid" 2>/dev/null)" || return 0
+  [ -n "$lstart" ] || return 0
+  date -u -d "$lstart" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || true
 }
 
 # cluster_responsive [request-timeout]
@@ -406,16 +399,34 @@ cluster_responsive() {
   fi
 }
 
+# k3s writes its admin kubeconfig with cluster, user and context all named
+# "default". Rename the three to the cluster name and merge it into
+# ~/.kube/config ahead of what is there (the first file wins a name clash, so
+# a stale entry from an earlier cluster is replaced), then make it current.
 export_kubeconfig() {
-  k3d kubeconfig merge "$CLUSTER_NAME" \
-    --kubeconfig-merge-default --kubeconfig-switch-context >/dev/null 2>&1
+  [ -r "$K3S_KUBECONFIG" ] || return 1
+  local kc="${HOME}/.kube/config" tmp merged
+  mkdir -p "$(dirname "$kc")"
+  tmp="$(mktemp)"; merged="$(mktemp)"
+  sed -E "s/^([[:space:]]*(- )?(name|cluster|user|current-context):[[:space:]]*)default\$/\1${CLUSTER_NAME}/" \
+    "$K3S_KUBECONFIG" >"$tmp"
+  if [ -s "$kc" ]; then
+    KUBECONFIG="${tmp}:${kc}" kubectl config view --flatten >"$merged" 2>/dev/null \
+      || { rm -f "$tmp" "$merged"; return 1; }
+  else
+    cp "$tmp" "$merged"
+  fi
+  chmod 0600 "$merged"
+  mv "$merged" "$kc"
+  rm -f "$tmp"
+  kubectl --kubeconfig "$kc" config use-context "$KUBE_CONTEXT" >/dev/null 2>&1
 }
 
 # Readiness polls run every POLL_SECS against a wall-clock deadline. The
 # interval is the cost of every wait below: at 3s/5s a cold create spent ~8s
 # asleep after CoreDNS was already Ready (measured 2026-11-15: Ready at ~22s,
-# declared at 30.3s). A poll is up to three local kubectl calls (lease: two,
-# CoreDNS: one) plus the race check below. Not a positive number = 1: 0 would
+# declared at 30.3s). A poll is up to four local kubectl calls (lease: two,
+# CoreDNS: two) plus the race check below. Not a positive number = 1: 0 would
 # spin kubectl in a tight loop.
 POLL_SECS="${DEVENV_POLL_SECS:-1}"
 case "$POLL_SECS" in
@@ -439,10 +450,10 @@ wait_for_node_ready() {
 # Is the node's kubelet actually alive *right now*?
 #
 # This matters after a restart: the datastore still holds the pod statuses from
-# before the node was stopped, so everything reads as Ready and `kubectl rollout
-# status` returns success immediately while nothing is really running. The node
-# lease is renewed every ~10s by kubelet, so a fresh renewTime is proof that the
-# statuses we are about to read are current rather than left over.
+# before the server was stopped, so everything reads as Ready and `kubectl
+# rollout status` returns success immediately while nothing is really running.
+# The node lease is renewed every ~10s by kubelet, so a fresh renewTime is
+# proof that the kubelet is reporting.
 node_lease_fresh() {
   local max_age="$1" node renew ts now
   node="$(kubectl --context "$KUBE_CONTEXT" get nodes \
@@ -458,40 +469,61 @@ node_lease_fresh() {
 
 # Is CoreDNS Ready? That covers scheduling, CNI, image availability and DNS,
 # which is what makes the cluster actually usable. k3s runs kube-proxy inside
-# the agent process rather than as a DaemonSet, so there is no pod to check.
+# the server process rather than as a DaemonSet, so there is no pod to check.
+#
+# A fresh lease is not enough after a restart: the kubelet renews it within a
+# second or two of starting, before it has re-synced pod statuses, so a
+# CoreDNS that is not running yet still reads Ready from the datastore. Every
+# CoreDNS container must also have started since the server did — after a
+# restart from a restored container, none of the old containers survive.
 system_pods_ready() {
-  local statuses
+  local statuses started since s
   statuses="$(kubectl --context "$KUBE_CONTEXT" -n kube-system get pods \
                 -l k8s-app=kube-dns \
                 -o 'jsonpath={.items[*].status.conditions[?(@.type=="Ready")].status}' 2>/dev/null)"
   [ -n "$statuses" ] || return 1
   case "$statuses" in *False*) return 1 ;; esac
+  since="$(k3s_started_at)"
+  [ -n "$since" ] || return 1
+  started="$(kubectl --context "$KUBE_CONTEXT" -n kube-system get pods \
+               -l k8s-app=kube-dns \
+               -o 'jsonpath={range .items[*]}{.status.containerStatuses[0].state.running.startedAt}{"\n"}{end}' 2>/dev/null)" \
+    || return 1
+  [ -n "$started" ] || return 1
+  while IFS= read -r s; do
+    # Not running (empty), or started before this server: stale. Both RFC
+    # 3339 UTC, compared to the second as strings.
+    [ -n "$s" ] || return 1
+    [[ "${s:0:19}" < "${since:0:19}" ]] && return 1
+  done <<<"$started"
+  return 0
 }
 
 # k3s schedules its system pods (CoreDNS, local-path) a few seconds before
 # flannel writes /run/flannel/subnet.env. A pod whose sandbox lands in that gap
 # fails "failed to load flannel 'subnet.env' file", and the kubelet's pod
 # worker backs off ~10-14s before retrying, with nothing wrong any more.
-# Measured 2026-11-15, 6 creates on this host: 3 hit it, CoreDNS Ready 22-23s
-# after node creation against 10-11s, setup 30-31s against 19-20s.
+# Measured 2026-11-15, 6 creates on this host under k3d: 3 hit it, CoreDNS
+# Ready 22-23s after node creation against 10-11s; the host-process spike hit
+# it too (CoreDNS Ready 32.7s against 17.7-18.5s).
 #
 # Once the file exists, a Pending ReplicaSet pod with that failure is deleted:
 # its ReplicaSet makes a new pod, which a new pod worker starts at once. Only
-# that failure, recorded since the node container last started (events outlive
-# a k3d stop/start, and an older one says nothing about this boot), only
-# kube-system, only Pending, only ReplicaSet-owned — nothing else this cluster
-# runs is touched. Runs every poll until the system is ready: an event the
-# kubelet records late is still caught, and a pod already deleted is gone or
+# that failure, recorded since the k3s server last started (events outlive a
+# restart, and an older one says nothing about this boot), only kube-system,
+# only Pending, only ReplicaSet-owned — nothing else this cluster runs is
+# touched. Runs every poll until the system is ready: an event the kubelet
+# records late is still caught, and a pod already deleted is gone or
 # Terminating by the next poll (a second delete is a no-op).
 kick_cni_raced_pods() {
-  local node="k3d-${CLUSTER_NAME}-server-0" since pod ts state
-  docker exec "$node" test -s /run/flannel/subnet.env 2>/dev/null || return 0
-  since="$(docker inspect -f '{{.State.StartedAt}}' "$node" 2>/dev/null | cut -c1-19)" || return 0
+  local since pod ts state
+  [ -s /run/flannel/subnet.env ] || return 0
+  since="$(k3s_started_at)"
   [ -n "$since" ] || return 0
   while IFS=$'\t' read -r pod ts; do
     [ -n "$pod" ] || continue
     # Both RFC 3339 UTC, compared to the second as strings.
-    [[ "${ts:0:19}" < "$since" ]] && continue
+    [[ "${ts:0:19}" < "${since:0:19}" ]] && continue
     state="$(kubectl --context "$KUBE_CONTEXT" -n kube-system get pod "$pod" \
                -o 'jsonpath={.status.phase} {.metadata.ownerReferences[0].kind}' 2>/dev/null)" || continue
     [ "$state" = "Pending ReplicaSet" ] || continue
@@ -519,90 +551,136 @@ wait_for_system_ready() {
   return 1
 }
 
-create_cluster() {
-  local dropin="${STATE_DIR}/containerd/10-oom-score.toml"
-  render_containerd_dropin "$dropin"
-  local kubelet_dropin="${STATE_DIR}/kubelet/99-cgroupv1.conf"
-  render_kubelet_dropin "$kubelet_dropin"
-  local registries="${STATE_DIR}/containerd/registries.yaml" registry_args=()
-  if render_registries_yaml "$registries"; then
-    registry_args=(--registry-config "$registries")
-  fi
+# Start the k3s server on whatever data dir exists: none = create, existing =
+# restart. The drop-ins and registries.yaml are rewritten every start, so a
+# restored container runs the current workarounds, not the ones it was
+# created with.
+start_k3s() {
+  render_containerd_dropin "${K3S_DATA_DIR}/agent/etc/containerd/config-v3.toml.d/10-oom-score.toml"
+  render_kubelet_dropin "${K3S_DATA_DIR}/agent/etc/kubelet.conf.d/99-cgroupv1.conf"
+  render_registries_yaml "${K3S_ETC_DIR}/registries.yaml" || true
+  mkdir -p "$LOG_DIR"
 
-  local ca_mount=()
-  if [ -r "$CA_BUNDLE" ]; then
-    # The node's containerd needs the proxy CA or every image pull fails TLS
-    # verification ("certificate signed by unknown authority").
-    ca_mount=(--volume "${CA_BUNDLE}:/etc/ssl/certs/ca-certificates.crt@all")
-  else
-    warn "CA bundle ${CA_BUNDLE} not found; in-cluster image pulls may fail TLS verification"
-  fi
-
-  log "creating cluster '${CLUSTER_NAME}' (${K3S_IMAGE})"
-
-  # k3d copies HTTP(S)_PROXY from its own environment into the node. Here the
-  # egress proxy listens on 127.0.0.1 of the *host*, which inside the node
-  # container resolves to the node itself, so containerd fails every image pull
-  # with "proxyconnect tcp: dial tcp 127.0.0.1:<port>: connection refused".
-  # Egress is intercepted transparently anyway, so the node only needs the CA
-  # bundle, not the proxy variables.
+  # The proxy variables stay out of the server's environment. Egress is
+  # intercepted transparently, so containerd pulls without them, and k3s
+  # would otherwise hand them to containerd and every component it runs.
   #
-  # --no-lb and the disabled addons keep the footprint small: one container, no
-  # Traefik ingress, no ServiceLB, no metrics-server. Enable them per project if
-  # something actually needs them.
+  # Traefik, ServiceLB and metrics-server are disabled to keep the footprint
+  # small. Enable them per project if something actually needs them.
+  #
+  # setsid detaches the server from this script's process group so it
+  # survives the hook exiting.
+  log "starting k3s ${K3S_VERSION} (log: ${K3S_LOG})"
   env -u HTTPS_PROXY -u https_proxy \
       -u HTTP_PROXY  -u http_proxy \
       -u NO_PROXY    -u no_proxy \
-    k3d cluster create "$CLUSTER_NAME" \
-      --servers 1 --agents 0 --no-lb \
-      --image "$K3S_IMAGE" \
-      --volume "${dropin}:/var/lib/rancher/k3s/agent/etc/containerd/config-v3.toml.d/10-oom-score.toml@server:*" \
-      --volume "${kubelet_dropin}:/var/lib/rancher/k3s/agent/etc/kubelet.conf.d/99-cgroupv1.conf@server:*" \
-      "${ca_mount[@]}" \
-      "${registry_args[@]}" \
-      --k3s-arg "--disable=traefik@server:*" \
-      --k3s-arg "--disable=servicelb@server:*" \
-      --k3s-arg "--disable=metrics-server@server:*" \
-      --wait --timeout "${CLUSTER_WAIT_SECS}s"
+    setsid "$K3S_BIN" server \
+      --disable=traefik,servicelb,metrics-server \
+      --write-kubeconfig-mode 644 \
+      >>"$K3S_LOG" 2>&1 </dev/null &
+  disown || true
+
+  # The kubeconfig appears once the server has generated its certificates;
+  # it is rewritten on every start, so a stale one from a restored container
+  # is gone before this sees it only if the server got that far — wait on
+  # the apiserver answering through it instead.
+  local deadline=$((SECONDS + CLUSTER_WAIT_SECS))
+  until [ -r "$K3S_KUBECONFIG" ] && export_kubeconfig && cluster_responsive "$STATUS_PROBE_TIMEOUT"; do
+    if [ -z "$(k3s_server_pid)" ]; then
+      warn "k3s server exited; last log lines:"
+      tail -n 20 "$K3S_LOG" >&2 || true
+      return 1
+    fi
+    [ "$SECONDS" -lt "$deadline" ] || { warn "k3s apiserver did not answer in ${CLUSTER_WAIT_SECS}s"; return 1; }
+    sleep "$POLL_SECS"
+  done
 }
 
-# The container filesystem is snapshotted between sessions, so a cluster created
-# in an earlier session comes back stopped. Restarting keeps whatever was
-# deployed, but can also come back broken, so callers fall back to a rebuild.
-restart_cluster() {
-  log "restarting existing cluster '${CLUSTER_NAME}'"
-  k3d cluster start "$CLUSTER_NAME" >/dev/null 2>&1 || return 1
-  export_kubeconfig || return 1
-  wait_for_node_ready "$RESTART_WAIT_SECS" || return 1
-  wait_for_system_ready "$RESTART_WAIT_SECS"
+# Unmount every mount at or under each path given, deepest first.
+unmount_under() {
+  local p m
+  for p in "$@"; do
+    awk -v p="$p" '$2 == p || index($2, p "/") == 1 {print $2}' /proc/self/mounts \
+      | sort -r | while IFS= read -r m; do
+          umount -f "$m" 2>/dev/null || umount -l "$m" 2>/dev/null || true
+        done
+  done
+}
+
+# Stop the server and everything it started. Stopping `k3s server` alone
+# leaves the containerd shims and every pod process running: a restart then
+# reads Ready off containers that never stopped, and a delete leaves them
+# holding mounts. Docker's own containers live in the docker cgroups and
+# run under dockerd's shims (namespace moby), so none of this touches them.
+stop_k3s() {
+  local pid i procs
+  pid="$(k3s_server_pid)"
+  if [ -n "$pid" ]; then
+    log "stopping k3s server (pid ${pid})"
+    kill "$pid" 2>/dev/null || true
+    for i in $(seq 1 20); do
+      [ -n "$(k3s_server_pid)" ] || break
+      sleep 0.5
+    done
+    pid="$(k3s_server_pid)"
+    [ -z "$pid" ] || kill -9 "$pid" 2>/dev/null || true
+  fi
+  # k3s unpacks its shims under the data dir; anchored, so dockerd's shims
+  # (/usr/bin/containerd-shim-runc-v2) never match.
+  pkill -9 -f "^${K3S_DATA_DIR}/data/[^ ]*/containerd-shim" 2>/dev/null || true
+  # Every process in a pod cgroup, any controller.
+  procs="$(find /sys/fs/cgroup -path '*kubepods*' -name cgroup.procs \
+             -exec cat {} + 2>/dev/null | sort -u)" || true
+  if [ -n "$procs" ]; then
+    # shellcheck disable=SC2086 # one pid per word
+    kill -9 $procs 2>/dev/null || true
+  fi
+  unmount_under /run/k3s /var/lib/kubelet/pods /var/lib/kubelet/plugins "$K3S_DATA_DIR"
+  local ns
+  for ns in /run/netns/cni-*; do
+    [ -e "$ns" ] || continue
+    umount -f "$ns" 2>/dev/null || true
+    rm -f "$ns"
+  done
 }
 
 cmd_cluster_up() {
   mkdir -p "$STATE_DIR"
   # cluster-up is the on-demand entry point, so make it work on its own rather
   # than assuming the session hook already ran.
-  have k3d || cmd_install
+  if [ ! -x "$K3S_BIN" ] || ! have kubectl; then cmd_install; fi
+  # The cluster does not use Docker, but the layer promises both: `setup`
+  # leaves dockerd up for builds.
   docker_ready || cmd_docker_up
 
   if cluster_exists; then
-    export_kubeconfig || true
-
-    if cluster_responsive && wait_for_node_ready 15 && wait_for_system_ready 60; then
-      log "cluster '${CLUSTER_NAME}' already up"
-      return 0
+    if [ -n "$(k3s_server_pid)" ]; then
+      export_kubeconfig || true
+      if cluster_responsive && wait_for_node_ready 15 && wait_for_system_ready 60; then
+        log "cluster '${CLUSTER_NAME}' already up"
+        return 0
+      fi
     fi
 
-    if restart_cluster; then
+    # The container filesystem is snapshotted between sessions, so a cluster
+    # created in an earlier session comes back with its data dir and no
+    # processes. Restarting keeps whatever was deployed, but can also come
+    # back broken, so a failure falls back to a rebuild.
+    log "restarting existing cluster '${CLUSTER_NAME}'"
+    stop_k3s
+    if start_k3s \
+       && wait_for_node_ready "$RESTART_WAIT_SECS" \
+       && wait_for_system_ready "$RESTART_WAIT_SECS"; then
       log "cluster '${CLUSTER_NAME}' restarted"
       return 0
     fi
 
     warn "existing cluster '${CLUSTER_NAME}' is unhealthy; recreating it"
-    k3d cluster delete "$CLUSTER_NAME" >/dev/null 2>&1 || true
+    delete_cluster
   fi
 
-  create_cluster
-  export_kubeconfig || true
+  log "creating cluster '${CLUSTER_NAME}' (k3s ${K3S_VERSION})"
+  start_k3s || die "cluster '${CLUSTER_NAME}': k3s server did not come up (log: ${K3S_LOG})"
   wait_for_node_ready "$CLUSTER_WAIT_SECS" \
     || die "cluster '${CLUSTER_NAME}' created but no node became Ready"
   wait_for_system_ready "$CLUSTER_WAIT_SECS" \
@@ -610,11 +688,26 @@ cmd_cluster_up() {
   log "cluster '${CLUSTER_NAME}' ready"
 }
 
+# Stop everything, then remove every trace: state dirs, the CNI links, the
+# kube-proxy/flannel/CNI iptables rules (Docker's rules are kept).
+delete_cluster() {
+  stop_k3s
+  unmount_under "${K3S_STATE_PATHS[@]}"
+  rm -rf "${K3S_STATE_PATHS[@]}"
+  if have ip; then
+    ip link delete cni0 2>/dev/null || true
+    ip link delete flannel.1 2>/dev/null || true
+  fi
+  if have iptables-save && have iptables-restore; then
+    iptables-save 2>/dev/null | grep -v -e 'KUBE-' -e 'CNI-' -e 'FLANNEL' -e 'flannel' \
+      | iptables-restore 2>/dev/null || true
+  fi
+}
+
 cmd_cluster_down() {
-  have k3d || return 0
-  if cluster_exists; then
+  if cluster_exists || [ -n "$(k3s_server_pid)" ]; then
     log "deleting cluster '${CLUSTER_NAME}'"
-    k3d cluster delete "$CLUSTER_NAME"
+    delete_cluster
   else
     log "cluster '${CLUSTER_NAME}' does not exist"
   fi
@@ -636,8 +729,15 @@ cmd_status() {
   # timeout whenever the kubeconfig points at a wedged cluster. Measured
   # against a paused k3d node: 10.05s without --client, 0.046s with it, for
   # the same answer. install_kubectl's own check already passes it.
-  for t in kubectl k3d helm; do
-    if ! have "$t"; then
+  local t pid
+  for t in kubectl k3s helm; do
+    if [ "$t" = k3s ]; then
+      if [ -x "$K3S_BIN" ]; then
+        printf '%-12s: %s\n' "$t" "$(k3s_installed_version)"
+      else
+        printf '%-12s: MISSING\n' "$t"
+      fi
+    elif ! have "$t"; then
       printf '%-12s: MISSING\n' "$t"
     elif [ "$t" = kubectl ]; then
       printf '%-12s: %s\n' "$t" \
@@ -647,7 +747,16 @@ cmd_status() {
     fi
   done
 
-  if have k3d && cluster_exists; then
+  pid="$(k3s_server_pid)"
+  if [ -n "$pid" ]; then
+    printf 'k3s server  : running (pid %s, since %s)\n' "$pid" "$(k3s_started_at)"
+  elif cluster_exists; then
+    printf 'k3s server  : NOT RUNNING (state in %s)\n' "$K3S_DATA_DIR"
+  else
+    printf 'k3s server  : not running\n'
+  fi
+
+  if [ -n "$pid" ]; then
     # Bounded, both of them: status reports on the cluster and must never wait
     # on it. The node listing is bounded too — readyz answering does not
     # promise the next call will, and an unbounded one here would move the
@@ -660,6 +769,8 @@ cmd_status() {
       printf 'cluster     : %s exists but is not responding (try: %s cluster-up)\n' \
         "$CLUSTER_NAME" "$0"
     fi
+  elif cluster_exists; then
+    printf 'cluster     : %s stopped (start it with: %s cluster-up)\n' "$CLUSTER_NAME" "$0"
   else
     printf 'cluster     : not created (start it with: %s cluster-up)\n' "$0"
   fi
@@ -668,14 +779,17 @@ cmd_status() {
 cmd_doctor() {
   cmd_status
   echo
-  echo "--- containers ---"
-  docker ps -a --format '{{.Names}}\t{{.Status}}' 2>&1 || true
+  echo "--- k3s processes ---"
+  pgrep -a -f "^(${K3S_BIN} |${K3S_DATA_DIR}/data/)" 2>&1 | cut -c1-160 || echo "(none)"
   echo
   echo "--- pods ---"
-  kubectl --context "$KUBE_CONTEXT" get pods -A 2>&1 | head -30 || true
+  kubectl --context "$KUBE_CONTEXT" --request-timeout="$STATUS_PROBE_TIMEOUT" get pods -A 2>&1 | head -30 || true
   echo
   echo "--- recent cluster events ---"
-  kubectl --context "$KUBE_CONTEXT" get events -A --sort-by=.lastTimestamp 2>&1 | tail -15 || true
+  kubectl --context "$KUBE_CONTEXT" --request-timeout="$STATUS_PROBE_TIMEOUT" get events -A --sort-by=.lastTimestamp 2>&1 | tail -15 || true
+  echo
+  echo "--- k3s log tail ---"
+  tail -n 15 "$K3S_LOG" 2>/dev/null || echo "(no k3s log at ${K3S_LOG})"
   echo
   echo "--- dockerd log tail ---"
   tail -n 15 "$DOCKERD_LOG" 2>/dev/null || echo "(no dockerd log at ${DOCKERD_LOG})"
@@ -692,18 +806,8 @@ cmd_up() {
   else
     log "docker already running"
   fi
-  # A cluster is coming: pull its images now, under the downloads, instead of
-  # inside `k3d cluster create` after them.
-  if [ "${DEVENV_START_CLUSTER:-0}" = "1" ]; then
-    prepull_images & PREPULL_PID=$!
-    trap stop_prepull EXIT
-  fi
   cmd_install
   [ "$started" -eq 0 ] || docker_wait
-  if [ -n "$PREPULL_PID" ]; then
-    wait "$PREPULL_PID" || true
-    PREPULL_PID=""
-  fi
   # Without DEVENV_START_CLUSTER=1, `up` stops short of the cluster: it is the
   # tools-only entry point. The layer's setup.sh asks for a cluster by passing
   # DEVENV_START_CLUSTER (default 1 there).

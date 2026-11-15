@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK5GubuFRBHjscHgyZ7
 agent: opus
 updated: 2026-11-15
-next: Run plan-checker on docs/plans/k8s-k3s-direct.md, then confirm A1-A5
+next: Fix plan per plan-checker findings, then measure restart, cluster-down, cold timings
 ---
 
 ## Goal
