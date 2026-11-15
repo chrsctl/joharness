@@ -41,7 +41,7 @@
 conf_keys_rows() {
   cat <<'ROWS'
 JOHARNESS_ENV|none|Directory under .agents/env/ this repo provisions. 'none' = harness only.
-JOHARNESS_ENV_SETUP|lazy|lazy = provision on demand; eager = at session start.
+JOHARNESS_ENV_SETUP|lazy|lazy = provision on demand; eager = at session start; background = detached at session start, setup waits for it.
 JOHARNESS_ENV_MD|lazy|lazy = inject a pointer to the layer's rules; eager = the file whole.
 JOHARNESS_REVIEW|off|off = review reports only; on = ci gates the record at the edge.
 JOHARNESS_CLERK_HOURS|24|Hours between clerk passes over the open issues: an issue nobody turns into a plan is never built. 0 switches the cycle off.

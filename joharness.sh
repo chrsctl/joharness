@@ -112,7 +112,9 @@ is_canonical() { [ "$(conf_get JOHARNESS_CANONICAL)" = 1 ]; }
 # with conf-keys.sh and the table. No `|` inside a meaning.
 # KNOBS-BEGIN
 KNOBS='JOHARNESS_ENV|none|conf|Directory under .agents/env/ this repo provisions; none = harness only.
-JOHARNESS_ENV_SETUP|lazy|conf|lazy = provision on demand; eager = at session start.
+JOHARNESS_ENV_SETUP|lazy|conf|lazy = provision on demand; eager = at session start; background = detached at session start, setup waits for it.
+JOHARNESS_SETUP_TIMEOUT|600|session|Seconds a background provisioning run may take before it is killed.
+JOHARNESS_SETUP_LOCK_FD||session|Internal: the open provisioning-lock descriptor a background launch hands to its run; never set by hand.
 JOHARNESS_ENV_MD|lazy|conf|lazy = inject a pointer to the layer rules; eager = the file whole.
 JOHARNESS_REVIEW|off|conf|off = review reports only; on = ci gates the record at the edge.
 JOHARNESS_CHECKS|github|session|Environment only. github = step 7 waits for GitHub checks; local = finish runs ci, verify and local-check here, red in a consumer with none; a conf line is ignored.
@@ -275,6 +277,15 @@ has_setup() { [ -f "${ENV_ROOT}/$1/setup.sh" ]; }
 
 # --- Layer contract: everything under .agents/env/<name>/ is optional. setup.sh
 
+# Where background provisioning keeps its lock, status and log. One directory
+# for every reader, so the banner never restates it.
+setup_dir() {
+  local g
+  g="$(git -C "$ROOT" rev-parse --git-common-dir 2>/dev/null)" || return 1
+  case "$g" in /*) ;; *) g="${ROOT}/${g}" ;; esac
+  printf '%s/joharness-setup' "$g"
+}
+
 run_setup() {
   local name="$1" script="${ENV_ROOT}/$1/setup.sh"
   if ! has_setup "$name"; then
@@ -285,14 +296,82 @@ run_setup() {
     warn ".agents/env/${name}/setup.sh is not executable; nothing provisioned"
     return 1
   fi
+  # One provisioning run at a time per layer: a foreground caller blocks until
+  # a background run ends, then runs setup.sh itself (idempotent, fast no-op).
+  # The background launcher takes the lock BEFORE it forks and hands the open
+  # descriptor down in JOHARNESS_SETUP_LOCK_FD, so there is no window in which
+  # a foreground caller can slip in ahead of a run that was already launched.
+  local dir fd="${JOHARNESS_SETUP_LOCK_FD:-}" rc
+  if [ -z "$fd" ] && command -v flock >/dev/null 2>&1 &&
+     dir="$(setup_dir)" && mkdir -p "$dir" 2>/dev/null &&
+     { exec {fd}>"${dir}/${name}.lock"; } 2>/dev/null; then
+    if ! flock -n "$fd"; then
+      log "waiting for background provisioning (log: ${dir}/${name}.log)"
+      flock "$fd"
+    fi
+  fi
   log "provisioning environment '${name}'"
-  "$script"
+  # The lock fd is closed for the child: a daemon setup.sh leaves behind must
+  # not hold the lock after setup.sh returns.
+  if [ -n "$fd" ]; then
+    JOHARNESS_SETUP_LOCK_FD="" "$script" {fd}>&-; rc=$?
+    [ -n "${JOHARNESS_SETUP_LOCK_FD:-}" ] || exec {fd}>&-
+  else
+    "$script"; rc=$?
+  fi
+  return "$rc"
+}
+
+# Session start: run setup.sh detached, status in <dir>/<layer>.status.
+launch_background_setup() {
+  local name="$1" dir
+  if ! command -v flock >/dev/null 2>&1; then
+    warn "no flock here; setup=background degrades to eager"
+    run_setup "$name" || warn "environment '${name}' did not provision; continuing"
+    return 2
+  fi
+  if ! dir="$(setup_dir)" || ! mkdir -p "$dir"; then
+    warn "no place for background provisioning state"
+    return 1
+  fi
+  local lfd
+  if ! { exec {lfd}>"${dir}/${name}.lock"; } 2>/dev/null; then
+    warn "cannot open the provisioning lock"
+    return 1
+  fi
+  if ! flock -n "$lfd"; then
+    log "background provisioning of '${name}' is already running"
+    exec {lfd}>&-
+    return 0
+  fi
+  printf 'running 0 %s\n' "$(date +%s)" >"${dir}/${name}.status"
+  JOHARNESS_SETUP_LOCK_FD="$lfd" setsid "${BASH_SOURCE[0]}" setup-background "$name" \
+    </dev/null >"${dir}/${name}.log" 2>&1 &
+  exec {lfd}>&-
+  return 0
+}
+
+# Hidden: the detached half of launch_background_setup.
+cmd_setup_background() {
+  local name="$1" dir rc
+  dir="$(setup_dir)" || return 1
+  printf 'running %s %s\n' "$$" "$(date +%s)" >"${dir}/${name}.status"
+  timeout "${JOHARNESS_SETUP_TIMEOUT:-600}" "${BASH_SOURCE[0]}" setup
+  rc=$?
+  if [ "$rc" -eq 0 ]; then
+    printf 'ok %s\n' "$(date +%s)" >"${dir}/${name}.status"
+  else
+    printf 'failed %s %s\n' "$rc" "$(date +%s)" >"${dir}/${name}.status"
+  fi
+  return "$rc"
 }
 
 cmd_setup() {
   local name
   name="$(resolve_env)" || die "no usable environment layer under ${ENV_ROOT}"
-  run_setup "$name" || die "environment '${name}' failed to provision"
+  local rc=0
+  run_setup "$name" || rc=$?
+  [ "$rc" -eq 0 ] || { warn "environment '${name}' failed to provision"; return "$rc"; }
 }
 
 # Consumer route when update.yml cannot sync: clone canonical, run ITS engine here.
@@ -10916,11 +10995,18 @@ cmd_session_start() {
     mode="$(setup_mode)"
     [ -n "$mode" ] || mode="lazy"
 
-    # Eager provisioning is for the remote sandbox this harness builds.
-    if has_setup "$name" && [ "$mode" = "eager" ] &&
+    # Eager and background provisioning are for the remote sandbox this
+    # harness builds.
+    local bg_started=0
+    if has_setup "$name" && { [ "$mode" = "eager" ] || [ "$mode" = "background" ]; } &&
        { [ "${CLAUDE_CODE_REMOTE:-}" = "true" ] ||
          [ "${JOHARNESS_FORCE_SETUP:-${DEVENV_FORCE:-0}}" = "1" ]; }; then
-      run_setup "$name" || warn "environment '${name}' did not provision; continuing"
+      if [ "$mode" = "background" ]; then
+        launch_background_setup "$name" && bg_started=1
+        [ "$?" -ne 2 ] || bg_started=2
+      else
+        run_setup "$name" || warn "environment '${name}' did not provision; continuing"
+      fi
     fi
 
     printf '== Environment: %s (.agents/env/%s) ==\n\n' "$name" "$name"
@@ -10936,7 +11022,10 @@ cmd_session_start() {
       fi
     fi
     # Say it plainly: nothing has been started, and that was the point.
-    if has_setup "$name" && [ "$mode" != "eager" ]; then
+    if [ "$bg_started" -eq 1 ]; then
+      printf 'Provisioning runs in the background (log: %s/%s.log).\n' "$(setup_dir)" "$name"
+      printf './joharness.sh setup waits for it; verify does too.\n\n'
+    elif has_setup "$name" && [ "$mode" != "eager" ] && [ "$bg_started" -ne 2 ]; then
       printf 'Not provisioned at session start (setup=lazy).\n'
       printf 'Need it? Run: ./joharness.sh setup\n'
       printf 'Never need it? It cost nothing.\n'
@@ -10986,6 +11075,7 @@ main() {
     session-start)  cmd_session_start ;;
     env)            cmd_env "${1:-}" ;;
     setup)          cmd_setup ;;
+    setup-background) cmd_setup_background "${1:-}" ;;
     ci)             cmd_ci "$@" ;;
     upgrade)        cmd_upgrade "$@" ;;
     verify)         cmd_verify ;;

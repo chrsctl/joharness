@@ -85,6 +85,16 @@ run happened.
 (`CLAUDE_CODE_REMOTE=true`) unless `JOHARNESS_FORCE_SETUP=1`. Local machines
 have their own tooling; harness does not fight it.
 
+`background` is the third mode: session start launches `setup.sh` detached
+and returns at once (same remote gate). Pays when provisioning is slow (k8s:
+18-33s) and a session may not need it for a while: nothing waits at start, and
+a later `./joharness.sh setup` or `verify` blocks on a per-layer lock until the
+background run ends, then runs `setup.sh` once more (already up = fast no-op).
+State lives under `<git common dir>/joharness-setup/`: `<layer>.log`,
+`<layer>.status` (`running <pid> <epoch>`, `ok <epoch>`, `failed <rc> <epoch>`).
+Bounded by `JOHARNESS_SETUP_TIMEOUT` (default 600s). No `flock` on the host =
+degrades to `eager`. A failed run is retried by the next foreground `setup`.
+
 ## md is lazy too
 
 Same bet for context. Default `JOHARNESS_ENV_MD=lazy`: session start injects

@@ -53,7 +53,7 @@ answers it instead:
 | Question | Flag | Default |
 | --- | --- | --- |
 | environment layer | `--env <layer>` | `none` |
-| provision it when | `--env-setup <lazy\|eager>` | `lazy` |
+| provision it when | `--env-setup <lazy\|eager\|background>` | `lazy` |
 | inject its rules when | `--env-md <lazy\|eager>` | `lazy` |
 | gate the review record | `--review <off\|on>` | `off` |
 
