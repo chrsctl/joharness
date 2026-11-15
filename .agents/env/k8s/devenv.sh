@@ -277,20 +277,31 @@ docker_wait() {
 # local = docker image inspect, no registry round trip.
 k3d_tools_image() { printf 'ghcr.io/k3d-io/k3d-tools:%s' "${K3D_VERSION#v}"; }
 
+# Pulls run one after another in this (background) shell, so its only
+# children are `docker pull` clients and stop_prepull can end the lot: tools
+# image first (small), node image second; both finish under the downloads.
 prepull_images() {
-  local deadline=$((SECONDS + DOCKER_WAIT_SECS)) img pids=()
+  local deadline=$((SECONDS + DOCKER_WAIT_SECS)) img
   until docker_ready; do
     [ "$SECONDS" -lt "$deadline" ] || return 0   # docker_wait reports it
     sleep 0.2
   done
-  for img in "$K3S_IMAGE" "$(k3d_tools_image)"; do
+  for img in "$(k3d_tools_image)" "$K3S_IMAGE"; do
     docker image inspect "$img" >/dev/null 2>&1 && continue
-    { docker pull -q "$img" >/dev/null 2>&1 \
-        || warn "prepull of ${img} failed; k3d will pull it itself"; } &
-    pids+=($!)
+    docker pull -q "$img" >/dev/null 2>&1 \
+      || warn "prepull of ${img} failed; k3d will pull it itself"
   done
-  [ "${#pids[@]}" -eq 0 ] || wait "${pids[@]}"
   return 0
+}
+
+# EXIT trap of cmd_up: a `die` in the downloads or docker_wait must not leave a
+# pull running behind it — it would hold a captured stdout open and race the
+# retry's own pull. Children first, then the shell.
+PREPULL_PID=""
+stop_prepull() {
+  [ -n "$PREPULL_PID" ] || return 0
+  pkill -P "$PREPULL_PID" 2>/dev/null || true
+  kill "$PREPULL_PID" 2>/dev/null || true
 }
 
 cmd_docker_up() {
@@ -403,8 +414,13 @@ export_kubeconfig() {
 # Readiness polls run every POLL_SECS against a wall-clock deadline. The
 # interval is the cost of every wait below: at 3s/5s a cold create spent ~8s
 # asleep after CoreDNS was already Ready (measured 2026-11-15: Ready at ~22s,
-# declared at 30.3s). Each poll is one or two local kubectl calls.
+# declared at 30.3s). A poll is up to three local kubectl calls (lease: two,
+# CoreDNS: one) plus the race check below. Not a positive number = 1: 0 would
+# spin kubectl in a tight loop.
 POLL_SECS="${DEVENV_POLL_SECS:-1}"
+case "$POLL_SECS" in
+  ''|*[!0-9.]*|*.*.*|.|0|0.|0.0*) POLL_SECS=1 ;;
+esac
 
 # Wait until at least one node reports Ready.
 wait_for_node_ready() {
@@ -461,14 +477,21 @@ system_pods_ready() {
 #
 # Once the file exists, a Pending ReplicaSet pod with that failure is deleted:
 # its ReplicaSet makes a new pod, which a new pod worker starts at once. Only
-# that exact failure, only kube-system, only Pending, only ReplicaSet-owned —
-# nothing else this cluster runs is touched. Prints whether it is done:
-# "done" once subnet.env exists (raced pods or not), so it runs once a wait.
+# that failure, recorded since the node container last started (events outlive
+# a k3d stop/start, and an older one says nothing about this boot), only
+# kube-system, only Pending, only ReplicaSet-owned — nothing else this cluster
+# runs is touched. Runs every poll until the system is ready: an event the
+# kubelet records late is still caught, and a pod already deleted is gone or
+# Terminating by the next poll (a second delete is a no-op).
 kick_cni_raced_pods() {
-  local node="k3d-${CLUSTER_NAME}-server-0" pod state
+  local node="k3d-${CLUSTER_NAME}-server-0" since pod ts state
   docker exec "$node" test -s /run/flannel/subnet.env 2>/dev/null || return 0
-  while IFS= read -r pod; do
+  since="$(docker inspect -f '{{.State.StartedAt}}' "$node" 2>/dev/null | cut -c1-19)" || return 0
+  [ -n "$since" ] || return 0
+  while IFS=$'\t' read -r pod ts; do
     [ -n "$pod" ] || continue
+    # Both RFC 3339 UTC, compared to the second as strings.
+    [[ "${ts:0:19}" < "$since" ]] && continue
     state="$(kubectl --context "$KUBE_CONTEXT" -n kube-system get pod "$pod" \
                -o 'jsonpath={.status.phase} {.metadata.ownerReferences[0].kind}' 2>/dev/null)" || continue
     [ "$state" = "Pending ReplicaSet" ] || continue
@@ -477,20 +500,20 @@ kick_cni_raced_pods() {
       --wait=false >/dev/null 2>&1 || true
   done < <(kubectl --context "$KUBE_CONTEXT" -n kube-system get events \
              --field-selector reason=FailedCreatePodSandBox,involvedObject.kind=Pod \
-             -o 'jsonpath={range .items[*]}{.involvedObject.name}{"\t"}{.message}{"\n"}{end}' 2>/dev/null \
-           | grep -F "subnet.env" | cut -f1 | sort -u)
-  printf 'done'
+             -o 'jsonpath={range .items[*]}{.involvedObject.name}{"\t"}{.lastTimestamp}{"\t"}{.message}{"\n"}{end}' 2>/dev/null \
+           | grep -F "subnet.env" | cut -f1,2 | sort -u)
+  return 0
 }
 
 # A Ready node is not the same as a usable cluster, so require both a live
 # kubelet and Ready system pods before declaring the cluster up.
 wait_for_system_ready() {
-  local deadline=$((SECONDS + $1)) kicked=""
+  local deadline=$((SECONDS + $1))
   while [ "$SECONDS" -lt "$deadline" ]; do
     if node_lease_fresh "$LEASE_MAX_AGE_SECS" && system_pods_ready; then
       return 0
     fi
-    [ -n "$kicked" ] || kicked="$(kick_cni_raced_pods)"
+    kick_cni_raced_pods
     sleep "$POLL_SECS"
   done
   return 1
@@ -671,13 +694,16 @@ cmd_up() {
   fi
   # A cluster is coming: pull its images now, under the downloads, instead of
   # inside `k3d cluster create` after them.
-  local prepull_pid=""
   if [ "${DEVENV_START_CLUSTER:-0}" = "1" ]; then
-    prepull_images & prepull_pid=$!
+    prepull_images & PREPULL_PID=$!
+    trap stop_prepull EXIT
   fi
   cmd_install
   [ "$started" -eq 0 ] || docker_wait
-  [ -z "$prepull_pid" ] || wait "$prepull_pid" || true
+  if [ -n "$PREPULL_PID" ]; then
+    wait "$PREPULL_PID" || true
+    PREPULL_PID=""
+  fi
   # Without DEVENV_START_CLUSTER=1, `up` stops short of the cluster: it is the
   # tools-only entry point. The layer's setup.sh asks for a cluster by passing
   # DEVENV_START_CLUSTER (default 1 there).
