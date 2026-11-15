@@ -475,6 +475,59 @@ else
   skip ".agents/env/k8s/setup.sh env-file quoting" "cannot exec a stub script here"
 fi
 
+# --- JOHARNESS_ENV_SETUP=background: detached provisioning, lock, status ------
+step "setup=background launches detached and setup waits for it"
+bg="${TMP}/bgsetup"
+mkdir -p "${bg}/.agents/env/stub"
+git -C "$bg" init -q 2>/dev/null || true
+cat >"${bg}/.agents/env/stub/setup.sh" <<'EOF'
+#!/usr/bin/env bash
+printf 'run %s\n' "$(date +%s)" >>"${STUB_LOG}"
+sleep "${STUB_SLEEP:-3}"
+printf 'end %s\n' "$(date +%s)" >>"${STUB_LOG}"
+exit "${STUB_RC:-0}"
+EOF
+chmod +x "${bg}/.agents/env/stub/setup.sh" 2>/dev/null || true
+bgjo() {
+  CLAUDE_PROJECT_DIR="$bg" JOHARNESS_CONF="${bg}/joharness.conf" JOHARNESS_ENV=stub \
+    STUB_LOG="${TMP}/bgstub.log" "${ROOT}/joharness.sh" "$@" 2>&1
+}
+if ! command -v flock >/dev/null 2>&1 || ! command -v setsid >/dev/null 2>&1 ||
+   [ ! -x "${bg}/.agents/env/stub/setup.sh" ]; then
+  skip "setup=background" "needs flock, setsid and an executable stub"
+else
+  bgstatus="${bg}/.git/joharness-setup/stub.status"
+  # Outside the remote gate nothing launches.
+  CLAUDE_CODE_REMOTE="" JOHARNESS_FORCE_SETUP=0 DEVENV_FORCE=0 JOHARNESS_ENV_SETUP=background bgjo session-start >/dev/null
+  if [ -e "$bgstatus" ]; then fail "outside the remote gate nothing launches"
+  else pass "outside the remote gate nothing launches"; fi
+  t0="$(date +%s)"
+  out="$(JOHARNESS_ENV_SETUP=background CLAUDE_CODE_REMOTE=true bgjo session-start)"
+  t1="$(date +%s)"
+  expect "banner says provisioning runs in the background" "Provisioning runs in the background" "$out"
+  if [ $((t1 - t0)) -lt 3 ]; then pass "session start returns before the stub finishes"
+  else fail "session start returns before the stub finishes (took $((t1 - t0))s)"; fi
+  expect "status is running" "running" "$(cat "$bgstatus" 2>/dev/null)"
+  out="$(bgjo setup)"
+  expect "foreground setup says it waits" "waiting for background provisioning" "$out"
+  expect "status ends ok" "ok " "$(cat "$bgstatus" 2>/dev/null)"
+  runs="$(grep -c '^run' "${TMP}/bgstub.log")"; ends="$(grep -c '^end' "${TMP}/bgstub.log")"
+  if [ "$runs" -eq 2 ] && [ "$ends" -eq 2 ] &&
+     [ "$(sed -n 2p "${TMP}/bgstub.log" | cut -d' ' -f1)" = end ]; then
+    pass "foreground setup ran after the background run ended, stub ran twice"
+  else
+    fail "foreground setup ran after the background run ended, stub ran twice"
+    printf '%s\n' "$(indent "$(cat "${TMP}/bgstub.log")")"
+  fi
+  # A stub that exits 3 leaves failed 3.
+  STUB_SLEEP=0 STUB_RC=3 JOHARNESS_ENV_SETUP=background CLAUDE_CODE_REMOTE=true \
+    bgjo session-start >/dev/null
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    grep -q '^failed' "$bgstatus" 2>/dev/null && break; sleep 1
+  done
+  expect "a failing stub leaves failed 3" "failed 3" "$(cat "$bgstatus" 2>/dev/null)"
+fi
+
 SELFTEST_INLINE_FAILS=""
 
 # --- fixture: origin with main, a rival branch, and this session's branch ---

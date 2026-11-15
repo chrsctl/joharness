@@ -58,7 +58,7 @@
 # so.
 #
 # Usage: .agents/scripts/bootstrap-consumer.sh [--dry-run] [--reconfigure]
-#            [--env <layer>] [--env-setup <lazy|eager>] [--env-md <lazy|eager>]
+#            [--env <layer>] [--env-setup <lazy|eager|background>] [--env-md <lazy|eager>]
 #            [--review <off|on>] <consumer-dir>
 # Exit: 0 bootstrapped clean. 1 refused with nothing written (usage, ROOT
 # not canonical, an unknown layer or switch value, target already a consumer,
@@ -114,7 +114,7 @@ TRAP_TMP=""
 trap 'rm -rf "$SCRATCH"; [ -z "$TRAP_TMP" ] || rm -f "$TRAP_TMP"' EXIT
 
 usage() {
-  die "usage: $0 [--dry-run] [--reconfigure] [--env <layer>] [--env-setup <lazy|eager>] [--env-md <lazy|eager>] [--review <off|on>] <consumer-dir>"
+  die "usage: $0 [--dry-run] [--reconfigure] [--env <layer>] [--env-setup <lazy|eager|background>] [--env-md <lazy|eager>] [--review <off|on>] <consumer-dir>"
 }
 
 DRY=0
@@ -220,7 +220,7 @@ check_choice() {
   [ -n "$c" ] && [ "$value" = "$c" ] && return 0
   die "invalid ${name} '${value}' (expected: ${a} | ${b}${c:+ | ${c}})"
 }
-check_choice "$ENV_SETUP_GIVEN" env-setup "$ENV_SETUP" lazy eager
+check_choice "$ENV_SETUP_GIVEN" env-setup "$ENV_SETUP" lazy eager background
 check_choice "$ENV_MD_GIVEN" env-md "$ENV_MD" lazy eager
 check_choice "$REVIEW_GIVEN" review "$REVIEW" off on
 
@@ -275,10 +275,11 @@ ask_line() {
 # questions over one typo is worse than either — but a run that cannot get an
 # answer must not loop forever, so three tries and then it is an error.
 ask_choice() {
-  local heading="$1" detail="$2" a="$3" b="$4" cur="$5" ans='' tries=0
+  local heading="$1" detail="$2" a="$3" b="$4" cur="$5" c="${6:-}" ans='' tries=0
   while [ "$tries" -lt 3 ]; do
     tries=$((tries + 1))
-    ans="$(ask_line "$heading" "$detail" "  ${a} | ${b}" "$cur")"
+    ans="$(ask_line "$heading" "$detail" "  ${a} | ${b}${c:+ | ${c}}" "$cur")"
+    [ -z "$c" ] || [ "$ans" != "$c" ] || { printf '%s' "$ans"; return 0; }
     case "$ans" in
       '')              printf '%s' "$cur"; return 0 ;;
       "$a"|"$b")       printf '%s' "$ans"; return 0 ;;
@@ -359,8 +360,9 @@ interview() {
       [ -n "$cur" ] || cur="$ENV_SETUP"
       ans="$(ask_choice 'Provision the layer when?' \
         "  lazy  = on demand, ./joharness.sh setup. Session start costs nothing.
-  eager = at session start. Worth it only if every session uses it." \
-        lazy eager "$cur")"
+  eager = at session start, session waits. Worth it only if every session uses it.
+  background = at session start, detached; setup and verify wait for it." \
+        lazy eager "$cur" background)"
       ENV_SETUP="$ans"
       [ "$ans" = "$cur" ] || ENV_SETUP_GIVEN=1
     fi
@@ -432,7 +434,7 @@ write_decided_keys() {
       "Directory under .agents/env/. 'none' = harness only, no environment."
   [ "$ENV_SETUP_GIVEN" -eq 0 ] ||
     set_conf_key "$conf" JOHARNESS_ENV_SETUP "$ENV_SETUP" \
-      "lazy = provision on demand; eager = provision at session start."
+      "lazy = provision on demand; eager = at session start; background = at session start, detached."
   [ "$ENV_MD_GIVEN" -eq 0 ] ||
     set_conf_key "$conf" JOHARNESS_ENV_MD "$ENV_MD" \
       "lazy = inject a pointer to the layer's rules; eager = the file whole."
@@ -695,6 +697,7 @@ JOHARNESS_ENV=${LAYER}
 
 # lazy  = provision on demand (./joharness.sh setup). Session start costs nothing.
 # eager = provision at session start. Only worth it if every session uses it.
+# background = provision at session start, detached; setup/verify wait for it.
 JOHARNESS_ENV_SETUP=${ENV_SETUP}
 
 # lazy  = inject a read-before-touching pointer to
