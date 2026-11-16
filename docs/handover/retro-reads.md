@@ -44,6 +44,7 @@ rows `nothing`. The ledgers here and in gx are almost entirely
 - r6: (verifier) a count wider than bash integers reddened (fixed)
 - r7: (verifier) `(read 0, start)` reds (no change: an empty transcript is the `no transcript:` note)
 - r8: (verifier) a new ledger file not yet staged is invisible to the diff (wontfix: `ci` gates the committed head; the file is committed before the pull request)
+- r10: selftest `no sed uses \t or \| (BSD sed)` red on the stage's sed (fixed in ebfa564f)
 - r9: (verifier) the gx 30-event figure has no command here (no change: read in this session with `list_events` on session_01J1YMK4JLtxU7ax7A1pWsfp, three calls at `limit` 30, each `has_more` true)
 
 ## Blockers
