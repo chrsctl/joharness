@@ -2194,19 +2194,19 @@ lint_retro_reads() {
   fi
   cap="$(num_knob JOHARNESS_RETRO_EVENTS)"
   diff="$(git -C "$ROOT" diff --no-ext-diff -U0 "$base" -- "$RETRO_LEDGER" 2>/dev/null)"
-  rows="$(printf '%s\n' "$diff" | sed -n 's/^+\([ \t]*|.*\)$/\1/p')"
+  rows="$(printf '%s\n' "$diff" | sed -n 's/^+\([[:space:]]*|.*\)$/\1/p')"
   # A row main already carries, edited on this branch, is not this
   # branch's read: its session also stands on a removed line.
-  gone="$(printf '%s\n' "$diff" | sed -n 's/^-\([ \t]*|.*\)$/\1/p' |
+  gone="$(printf '%s\n' "$diff" | sed -n 's/^-\([[:space:]]*|.*\)$/\1/p' |
     awk -F'|' '{ s = $4; gsub(/^[ \t]+|[ \t]+$/, "", s); if (s != "") print s }')"
   while IFS= read -r line; do
     [ -n "$line" ] || continue
     session="$(printf '%s\n' "$line" | awk -F'|' '{ s = $4; gsub(/^[ \t]+|[ \t]+$/, "", s); print s }')"
-    # Everything after the third cell: an outcome may hold `\|` (retro.md §4).
-    outcome="$(printf '%s\n' "$line" | sed -E 's/^[[:space:]]*\|([^|]*\|){3}//; s/[[:space:]]*\|?[[:space:]]*$//; s/^[[:space:]]+//')"
+    # Everything after the third cell: an outcome may hold an escaped pipe (retro.md §4).
+    outcome="$(printf '%s\n' "$line" | sed -E 's/^[[:space:]]*[|]([^|]*[|]){3}//; s/[[:space:]]*[|]?[[:space:]]*$//; s/^[[:space:]]+//')"
     # The header and the separator row only; an empty session cell reds.
     [ "$session" != session ] || continue
-    printf '%s\n' "$line" | grep -Eq '^[[:space:]]*\|[[:space:]]*:?-+:?[[:space:]]*\|' && continue
+    printf '%s\n' "$line" | grep -Eq '^[[:space:]]*[|][[:space:]]*:?-+:?[[:space:]]*[|]' && continue
     case "$session" in concern:*) continue ;; esac
     [ -z "$session" ] || ! printf '%s\n' "$gone" | grep -qxF -- "$session" || continue
     seen=$((seen + 1))
