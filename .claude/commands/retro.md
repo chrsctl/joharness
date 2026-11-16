@@ -147,7 +147,11 @@ merge), `session` = for a CONCERN its key
 
 outcome = `plans: <stem>, <stem>` | `repair: <stem>` | `refs: <#n or stem>, …` | `rule broken:
 <rule>; mechanism?` | `nothing`; several routes for one session joined with
-`; `. A `|` inside a cell is written `\|`. Edit no earlier row. No
+`; `, then how much was read: `(read <n>)`, n at least
+`JOHARNESS_RETRO_EVENTS`, or `(read <n>, start)` when paging back reached the
+first event (`has_more` false); unreadable = the `no transcript:` note.
+`ci` stage `retro reads` reds a row without it. A `|` inside a cell is
+written `\|`. Edit no earlier row. No
 `docs/retro-log.md` on `origin/main`: create it with a title line and
 exactly this header — `retro` finds the session column by name:
 
