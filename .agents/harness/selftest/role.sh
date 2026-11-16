@@ -55,6 +55,36 @@ expect "authority UNVERIFIED stops the prelude" "STOP: authority UNVERIFIED" "$(
 expect "a STOP exits 1" "rc=1" "$out"
 refute "and nothing is fetched or cut" "branch    :" "$out"
 
+# --- a stale origin/main ref: the prelude fetches it before authority ----------
+# A container can start on current main with a remote ref left from an older
+# clone: every rule merged since then read as drift, and the clerk and retro
+# stopped NOT VERIFIABLE on a clean checkout (gx, 2026-11-16). The fetch moves
+# the remote ref only; a rule edited in the checkout still stops the prelude.
+role_so="${TMP}/rolestaleorigin.git"
+role_sw="${TMP}/rolestalework"
+role_sp="${TMP}/rolestalepush"
+git clone -q --bare "$role_origin" "$role_so"
+git clone -q -b main "$role_so" "$role_sw"
+role_old="$(git -C "$role_sw" rev-parse HEAD)"
+git clone -q -b main "$role_so" "$role_sp"
+printf '# clerk, reviewed and merged\n' >"${role_sp}/.claude/commands/clerk.md"
+commit_all "$role_sp" "a rule change, merged"
+git -C "$role_sp" push -q origin main
+git -C "$role_sw" pull -q --ff-only origin main
+git -C "$role_sw" update-ref refs/remotes/origin/main "$role_old"
+role_stale() {
+  ( cd "$role_sw" && env JOHARNESS_CONF="${role_sw}/joharness.conf" "$@" 2>&1; printf 'rc=%s\n' "$?" )
+}
+out="$(role_stale ./joharness.sh role clerk --ordered)"
+refute "a stale origin/main ref is fetched, not read as drift" "STOP: authority" "$out"
+expect "and authority passes" "authority : VERIFIABLE" "$out"
+git -C "$role_sw" checkout -q main
+git -C "$role_sw" reset -q --hard origin/main
+printf '# clerk, edited here\n' >"${role_sw}/.claude/commands/clerk.md"
+out="$(role_stale ./joharness.sh role clerk --ordered)"
+expect "a rule edited in the checkout still stops the prelude" \
+  "STOP: authority NOT VERIFIABLE" "$(role_last "$out")"
+
 # --- audit not due: its plain exit (role conduct is the alias) ----------------
 out="$(role_run ./joharness.sh role conduct)"
 expect "conduct not due stops" "STOP: cadence   : not due" "$(role_last "$out")"

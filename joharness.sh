@@ -6324,7 +6324,18 @@ cmd_role() {
       return 0 ;;
   esac
 
-  # (1) authority; a shallow clone gets one unshallow and a second read.
+  # (1) authority, against a fresh base ref: a container can start on
+  # current main beside a remote ref from an older clone, and every rule
+  # merged since read as drift (gx 2026-11-16: clerk and retro stopped NOT
+  # VERIFIABLE on clean checkouts). Moves origin/<base> only, never the
+  # checkout, so a rule edited here still stops. A failed fetch leaves the
+  # ref as it was and authority reads that. A shallow clone gets one
+  # unshallow and a second read.
+  if have timeout; then
+    timeout 120 git -C "$ROOT" fetch -q origin "+refs/heads/${HANDOVER_BASE_BRANCH:-main}:refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" </dev/null 2>/dev/null || :
+  else
+    git -C "$ROOT" fetch -q origin "+refs/heads/${HANDOVER_BASE_BRANCH:-main}:refs/remotes/origin/${HANDOVER_BASE_BRANCH:-main}" </dev/null 2>/dev/null || :
+  fi
   out="$(cmd_authority 2>&1)"
   if printf '%s\n' "$out" | grep -q '^verdict   : UNVERIFIED' &&
      printf '%s\n' "$out" | grep -q 'shallow clone'; then
