@@ -674,3 +674,11 @@ expect "retro reads: the cap, a reached start, an unreadable note and a CONCERN 
 out="$(rr env JOHARNESS_RETRO_EVENTS=300)"
 expect "retro reads: the cap is the knob, not a constant" "$(rt_url Full4)" "$out"
 refute "retro reads: a reached start passes under any cap" "$(rt_url Brief5)" "$out"
+git -C "$rr_work" checkout -q -- docs/retro-log.md
+sed -i.bak 's/| nothing |$/| nothing, typo fixed |/' "${rr_work}/docs/retro-log.md" && rm -f "${rr_work}/docs/retro-log.md.bak"
+printf '| 2026-01-02 | blank |  | nothing |\n| 2026-01-02 | wide | %s | nothing (read 99999999999999999999999) |\n' \
+  "$(rt_url Wide8)" >>"${rr_work}/docs/retro-log.md"
+out="$(rr)"
+refute "retro reads: an earlier row edited on the branch is not its read" "$(rt_url Old1)" "$out"
+expect "retro reads: an empty session cell is no exemption" "1 row(s) in docs/retro-log.md without a full read" "$out"
+refute "retro reads: a count wider than the cap passes" "$(rt_url Wide8)" "$out"

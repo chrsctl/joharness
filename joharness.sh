@@ -2186,31 +2186,39 @@ lint_finding_routes() {
 # (retro 2026-11-16 on gx: one page of 30 per session, rows `nothing`).
 lint_retro_reads() {
   local over="origin/${HANDOVER_BASE_BRANCH:-main}" base cap rows bad=0 seen=0
-  local line session outcome n
+  local line session outcome n diff gone
   base="$(git -C "$ROOT" merge-base HEAD "$over" 2>/dev/null)"
   if [ -z "$base" ]; then
     printf '  not measurable here (no merge-base with %s; unrelated history)\n' "$over"
     return 0
   fi
   cap="$(num_knob JOHARNESS_RETRO_EVENTS)"
-  rows="$(git -C "$ROOT" diff --no-ext-diff -U0 "$base" -- "$RETRO_LEDGER" 2>/dev/null |
-    sed -n 's/^+\([ \t]*|.*\)$/\1/p')"
+  diff="$(git -C "$ROOT" diff --no-ext-diff -U0 "$base" -- "$RETRO_LEDGER" 2>/dev/null)"
+  rows="$(printf '%s\n' "$diff" | sed -n 's/^+\([ \t]*|.*\)$/\1/p')"
+  # A row main already carries, edited on this branch, is not this
+  # branch's read: its session also stands on a removed line.
+  gone="$(printf '%s\n' "$diff" | sed -n 's/^-\([ \t]*|.*\)$/\1/p' |
+    awk -F'|' '{ s = $4; gsub(/^[ \t]+|[ \t]+$/, "", s); if (s != "") print s }')"
   while IFS= read -r line; do
     [ -n "$line" ] || continue
     session="$(printf '%s\n' "$line" | awk -F'|' '{ s = $4; gsub(/^[ \t]+|[ \t]+$/, "", s); print s }')"
     # Everything after the third cell: an outcome may hold `\|` (retro.md §4).
     outcome="$(printf '%s\n' "$line" | sed -E 's/^[[:space:]]*\|([^|]*\|){3}//; s/[[:space:]]*\|?[[:space:]]*$//; s/^[[:space:]]+//')"
-    case "$session" in
-      session|'') continue ;;
-      -*|:-*) continue ;;
-      concern:*) continue ;;
-    esac
+    # The header and the separator row only; an empty session cell reds.
+    [ "$session" != session ] || continue
+    printf '%s\n' "$line" | grep -Eq '^[[:space:]]*\|[[:space:]]*:?-+:?[[:space:]]*\|' && continue
+    case "$session" in concern:*) continue ;; esac
+    [ -z "$session" ] || ! printf '%s\n' "$gone" | grep -qxF -- "$session" || continue
     seen=$((seen + 1))
     case "$outcome" in *'no transcript:'*) continue ;; esac
     n="$(printf '%s\n' "$outcome" | sed -n 's/.*(read \([0-9][0-9]*\)\(, start\)\{0,1\})$/\1/p')"
+    # Leading zeros off, and a count wider than the cap passes without
+    # an integer test that would overflow.
+    n="$(printf '%s' "$n" | sed 's/^0*//')"
     if [ -n "$n" ]; then
-      case "$outcome" in *', start)') [ "$n" -ge 1 ] && continue ;; esac
-      [ "$n" -ge "$cap" ] && continue
+      case "$outcome" in *', start)') continue ;; esac
+      [ "${#n}" -gt "${#cap}" ] && continue
+      [ "${#n}" -eq "${#cap}" ] && [ "$n" -ge "$cap" ] && continue
     fi
     bad=$((bad + 1))
     printf '  %s\n    %s\n' "$session" "$outcome"
@@ -2224,9 +2232,9 @@ lint_retro_reads() {
     return 0
   fi
   printf '  %d row(s) in %s without a full read. End the outcome cell with\n' "$bad" "$RETRO_LEDGER"
-  printf '  `(read <n>)`, n >= %s (JOHARNESS_RETRO_EVENTS), or `(read <n>, start)`\n' "$cap"
+  printf '  (read <n>), n >= %s (JOHARNESS_RETRO_EVENTS), or (read <n>, start)\n' "$cap"
   printf '  once paging back with before_id reached the first event (has_more\n'
-  printf '  false), or note `no transcript: <error>`. One page of list_events is\n'
+  printf '  false), or note no transcript: <error>. One page of list_events is\n'
   printf '  the session'"'"'s END; read back to the cap before routing (retro.md §2).\n'
   return 1
 }
