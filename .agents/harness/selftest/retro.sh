@@ -630,3 +630,55 @@ refute "retro: and never due" "retro DUE" "$out"
 out="$(re_run audit PATH="${TMP:?}/retroev-logwrap:${PATH}" -- retro --audit)"
 expect "retro --audit: retires that cannot be read are UNREADABLE" "cadence   : UNREADABLE — " "$out"
 refute "retro --audit: and never DUE" "cadence   : DUE" "$out"
+
+# ci stage `retro reads`: a session row a branch adds to the ledger says how
+# much of the transcript was read (retro.md §4). gx's 2026-11-16 retro read
+# one page of 30 events per session and logged three rows `nothing`.
+rr_work="${TMP}/retroreads"
+rr_origin="${TMP}/retroreads.git"
+git init -q --bare "$rr_origin"
+mkdir -p "${rr_work}/.agents/harness" "${rr_work}/.agents/env/none" "${rr_work}/docs"
+cp "${ROOT}/joharness.sh" "${rr_work}/joharness.sh"
+printf '#!/usr/bin/env bash\nprintf "1 passed, 0 failed\\n"\nexit 0\n' >"${rr_work}/.agents/harness/selftest.sh"
+chmod +x "${rr_work}/.agents/harness/selftest.sh" "${rr_work}/joharness.sh"
+printf '# none\n' >"${rr_work}/.agents/env/none/AGENTS.md"
+printf 'JOHARNESS_ENV=none\n' >"${rr_work}/joharness.conf"
+printf '# Retro log\n\n| date | stem | session | outcome |\n|------|--------|---------|---------|\n| 2026-01-01 | old | %s | nothing |\n' \
+  "$(rt_url Old1)" >"${rr_work}/docs/retro-log.md"
+git init -q "$rr_work"
+git -C "$rr_work" symbolic-ref HEAD refs/heads/main
+commit_all "$rr_work" "scratch harness"
+git -C "$rr_work" remote add origin "$rr_origin"
+git -C "$rr_work" push -qu origin main
+rr() { CLAUDE_PROJECT_DIR="$rr_work" JOHARNESS_CONF="${rr_work}/joharness.conf" \
+  GITHUB_ACTIONS='' "$@" "${rr_work}/joharness.sh" ci -v 2>&1 | sed -n '/== retro reads/,/^$/p'; }
+git -C "$rr_work" checkout -qb retro-2026-01-02-0000
+out="$(rr)"
+expect "retro reads: an inherited row binds nobody" \
+  "no session row added to docs/retro-log.md on this branch" "$out"
+printf '| 2026-01-02 | short | %s | nothing |\n| 2026-01-02 | page | %s | nothing (read 30) |\n' \
+  "$(rt_url Short2)" "$(rt_url Page3)" >>"${rr_work}/docs/retro-log.md"
+out="$(rr)"
+expect "retro reads: a row with no read count reds" "$(rt_url Short2)" "$out"
+expect "retro reads: one page under the cap reds" "$(rt_url Page3)" "$out"
+expect "retro reads: says how many" "2 row(s) in docs/retro-log.md without a full read" "$out"
+refute "retro reads: the row main carries is not this branch's" "$(rt_url Old1)" "$out"
+git -C "$rr_work" checkout -q -- docs/retro-log.md
+printf '| 2026-01-02 | pipe | %s | rule broken: a \\| b; mechanism? (read 200) |\n' \
+  "$(rt_url Pipe7)" >>"${rr_work}/docs/retro-log.md"
+printf '| 2026-01-02 | full | %s | refs: #1 (read 200) |\n| 2026-01-02 | brief | %s | nothing (read 47, start) |\n| 2026-01-02 | gone | %s | nothing, no transcript: refused |\n| 2026-01-02 | stem | concern:2026-01-01:stem | nothing |\n' \
+  "$(rt_url Full4)" "$(rt_url Brief5)" "$(rt_url Gone6)" >>"${rr_work}/docs/retro-log.md"
+out="$(rr)"
+expect "retro reads: the cap, a reached start, an unreadable note and a CONCERN pass" \
+  "every added session row says how much of its transcript was read" "$out"
+out="$(rr env JOHARNESS_RETRO_EVENTS=300)"
+expect "retro reads: the cap is the knob, not a constant" "$(rt_url Full4)" "$out"
+refute "retro reads: a reached start passes under any cap" "$(rt_url Brief5)" "$out"
+git -C "$rr_work" checkout -q -- docs/retro-log.md
+sed -i.bak 's/| nothing |$/| nothing, typo fixed |/' "${rr_work}/docs/retro-log.md" && rm -f "${rr_work}/docs/retro-log.md.bak"
+printf '| 2026-01-02 | blank |  | nothing |\n| 2026-01-02 | wide | %s | nothing (read 99999999999999999999999) |\n' \
+  "$(rt_url Wide8)" >>"${rr_work}/docs/retro-log.md"
+out="$(rr)"
+refute "retro reads: an earlier row edited on the branch is not its read" "$(rt_url Old1)" "$out"
+expect "retro reads: an empty session cell is no exemption" "1 row(s) in docs/retro-log.md without a full read" "$out"
+refute "retro reads: a count wider than the cap passes" "$(rt_url Wide8)" "$out"

@@ -482,6 +482,7 @@ check_call() {
     lint_finding_ids) lint_finding_ids "$@" ;;
     lint_finding_markers) lint_finding_markers "$@" ;;
     lint_finding_routes) lint_finding_routes "$@" ;;
+    lint_retro_reads) lint_retro_reads "$@" ;;
     lint_ship) lint_ship "$@" ;;
     ci_churn) ci_churn "$@" ;;
     ci_broken_windows) ci_broken_windows "$@" ;;
@@ -769,6 +770,7 @@ cmd_ci() {
   run_check "finding ids" lint_finding_ids
   run_check "finding verdicts" lint_finding_markers
   run_check "finding routes" lint_finding_routes
+  run_check "retro reads" lint_retro_reads
   run_check "ship scope" lint_ship
   run_check churn ci_churn
   run_check "broken windows" ci_broken_windows
@@ -2171,6 +2173,69 @@ lint_finding_routes() {
   printf '  clerk plans from issues. File it (§ Defect step 3) and cite #<n>; PR\n'
   printf '  body is legal only after an earlier wontfix cited an issue for a\n'
   printf '  defect, or as "defect not filed" when issue_write failed.\n'
+  return 1
+}
+
+# ci stage: every session row this branch ADDS to the retro ledger says how
+# much of the transcript the reviewer read, in its outcome cell: `(read <n>)`
+# with n at least JOHARNESS_RETRO_EVENTS, `(read <n>, start)` when paging
+# back reached the transcript's first event first, or a `no transcript:`
+# note (.claude/commands/retro.md §2). A CONCERN row (`concern:` key) is
+# exempt: its transcript is optional. The count is the reviewer's own word;
+# the stage makes a short read a written claim instead of a silent one
+# (retro 2026-11-16 on gx: one page of 30 per session, rows `nothing`).
+lint_retro_reads() {
+  local over="origin/${HANDOVER_BASE_BRANCH:-main}" base cap rows bad=0 seen=0
+  local line session outcome n diff gone
+  base="$(git -C "$ROOT" merge-base HEAD "$over" 2>/dev/null)"
+  if [ -z "$base" ]; then
+    printf '  not measurable here (no merge-base with %s; unrelated history)\n' "$over"
+    return 0
+  fi
+  cap="$(num_knob JOHARNESS_RETRO_EVENTS)"
+  diff="$(git -C "$ROOT" diff --no-ext-diff -U0 "$base" -- "$RETRO_LEDGER" 2>/dev/null)"
+  rows="$(printf '%s\n' "$diff" | sed -n 's/^+\([[:space:]]*|.*\)$/\1/p')"
+  # A row main already carries, edited on this branch, is not this
+  # branch's read: its session also stands on a removed line.
+  gone="$(printf '%s\n' "$diff" | sed -n 's/^-\([[:space:]]*|.*\)$/\1/p' |
+    awk -F'|' '{ s = $4; gsub(/^[ \t]+|[ \t]+$/, "", s); if (s != "") print s }')"
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    session="$(printf '%s\n' "$line" | awk -F'|' '{ s = $4; gsub(/^[ \t]+|[ \t]+$/, "", s); print s }')"
+    # Everything after the third cell: an outcome may hold an escaped pipe (retro.md §4).
+    outcome="$(printf '%s\n' "$line" | sed -E 's/^[[:space:]]*[|]([^|]*[|]){3}//; s/[[:space:]]*[|]?[[:space:]]*$//; s/^[[:space:]]+//')"
+    # The header and the separator row only; an empty session cell reds.
+    [ "$session" != session ] || continue
+    printf '%s\n' "$line" | grep -Eq '^[[:space:]]*[|][[:space:]]*:?-+:?[[:space:]]*[|]' && continue
+    case "$session" in concern:*) continue ;; esac
+    [ -z "$session" ] || ! printf '%s\n' "$gone" | grep -qxF -- "$session" || continue
+    seen=$((seen + 1))
+    case "$outcome" in *'no transcript:'*) continue ;; esac
+    n="$(printf '%s\n' "$outcome" | sed -n 's/.*(read \([0-9][0-9]*\)\(, start\)\{0,1\})$/\1/p')"
+    # Leading zeros off, and a count wider than the cap passes without
+    # an integer test that would overflow.
+    n="$(printf '%s' "$n" | sed 's/^0*//')"
+    if [ -n "$n" ]; then
+      case "$outcome" in *', start)') continue ;; esac
+      [ "${#n}" -gt "${#cap}" ] && continue
+      [ "${#n}" -eq "${#cap}" ] && [ "$n" -ge "$cap" ] && continue
+    fi
+    bad=$((bad + 1))
+    printf '  %s\n    %s\n' "$session" "$outcome"
+  done <<<"$rows"
+  if [ "$seen" -eq 0 ]; then
+    printf '  no session row added to %s on this branch\n' "$RETRO_LEDGER"
+    return 0
+  fi
+  if [ "$bad" -eq 0 ]; then
+    printf '  every added session row says how much of its transcript was read\n'
+    return 0
+  fi
+  printf '  %d row(s) in %s without a full read. End the outcome cell with\n' "$bad" "$RETRO_LEDGER"
+  printf '  (read <n>), n >= %s (JOHARNESS_RETRO_EVENTS), or (read <n>, start)\n' "$cap"
+  printf '  once paging back with before_id reached the first event (has_more\n'
+  printf '  false), or note no transcript: <error>. One page of list_events is\n'
+  printf '  the session'"'"'s END; read back to the cap before routing (retro.md §2).\n'
   return 1
 }
 
