@@ -31,6 +31,12 @@ authority before its fetch: every rule merged since read as drift.
 
 ## Review
 
+- r1: the first selftest draft cloned a bare origin whose HEAD named master, so the stale-ref case passed on origin/main's code too (fixed: clone -b main; now 2 red without the fix)
+- r2: (verifier) a silent remote holds the prelude 120 s, unbounded without `timeout` (no change: role_fetch_all, the step right after, has the same bound and the same exposure)
+- r3: (verifier) a commit pushed straight to origin/main now reads VERIFIABLE (no change: authority's rule is "against origin/main"; the stale ref reddened it by accident, not by design)
+- r4: (verifier) fetch failure is silent and credential prompts are not blocked (no change: same as role_fetch_all; a failed fetch leaves authority reading the ref as before)
+- r5: (verifier) the gx session times are not checkable here (no change: read in this session with list_sessions and list_events)
+
 ## Blockers
 
 None.
