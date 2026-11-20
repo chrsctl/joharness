@@ -282,12 +282,12 @@ A planning pass's review is bounded on top of that:
 ## Plan issue
 
 Plan names `issue: N`? Decide at pull request open, not from the plan
-alone. Any part of issue N itself left undone — the plan's `## Issue
-remainder` or `## Out of scope` defers it, or the body or `## Review` says it
-was not built (a finding outside issue N's own ask forces nothing) — = body
+alone. Any part of issue N itself left undone — the plan's
+`## Issue remainder` or `## Out of scope` defers it, or the body or the
+workstream file's `## Review` (read before the retire commit) says it was not
+built; a finding outside issue N's own ask forces nothing — = body
 carries `Refs #N`, never `Closes #N`, and § Link the issue's comment names
-each undone part. Otherwise
-`Closes #N` when no other
+each undone part. Otherwise `Closes #N` when no other
 plan on fresh `origin/main` names it (`git grep -l -E '^issue: *(#?[0-9]+, *)*#?N *(,.*|( #.*)?)$'
 origin/main -- docs/plans`, yours excluded), else `Refs #N`, for each
 number of a list. Every issue the pull request closes is in the plan's

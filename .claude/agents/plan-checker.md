@@ -36,8 +36,9 @@ if it were absent.
    undefined term, two readings of one sentence, an order not stated. Each
    finding quotes the plan line and gives both readings.
 9. **Issue remainder**: a plan naming `issue:` whose `## Out of scope` (or
-   any other section) defers part of that issue, with no `## Issue remainder`
-   line for the part. Quote the deferring line.
+   any other section) leaves part of that issue to a human, with no
+   `## Issue remainder` line for the part. Quote the deferring line. A part
+   left to a later plan is no finding.
 10. **Zoom out**: an existing command, file or plan already doing what `## Goal`
    asks (cite it with `grep` output), or a `## Scope` item no `## Goal` clause
    needs.

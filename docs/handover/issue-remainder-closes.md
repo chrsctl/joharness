@@ -44,6 +44,12 @@ their issue at merge, before any fix, through a closing keyword in the body
 - r4: (verifier) clerk.md dropped the no-section sentence (fixed: restored as a claim the plan-checker holds it to)
 - r5: (verifier) no selftest pins the new prose (wontfix: plan-checker check is an agent prompt, the Closes/Refs choice reads GitHub text; no mechanical seam, report's option 3 says the same; routed to PR body)
 - r6: (verifier) consumer figures carry no source (fixed: cites #789's node and its sweep date)
+- r8: (verifier) check 9 reds a deferral to a later plan, which only a fake human question under `## Issue remainder` clears (fixed: check 9 covers parts left to a human; a later plan's part is no finding, the manager rule still forces Refs)
+- r9: (verifier) TEMPLATE.md:25 stale, wants a follow-up item (no change: r3's route, PR body)
+- r10: (verifier) `## Issue remainder` heading split across lines (fixed: one line, ragged wrap evened)
+- r11: (verifier) closing-keyword rule prose only (no change: r5)
+- r12: (verifier) gx counts unverifiable here (no change: sourced to #789's node)
+- r13: (verifier) `## Review` read at PR open but the retire commit deletes it (fixed: read before the retire commit)
 - r7: (verifier) change bigger than typo-sized for the fast lane (no change: prose only, inside lint_fast_lane's bound, lane ordered by the human)
 
 ## Blockers
