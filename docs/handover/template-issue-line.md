@@ -26,6 +26,10 @@ the old Closes/Refs rule (heading only). Point it at § Plan issue.
 
 ## Review
 
+- r1: (verifier) template names `## Issue remainder` but has no such section to fill (fixed: says add the section, one line per part)
+- r2: (verifier) "never Out of scope" reads as a second rule beside § Plan issue reading Out of scope (no change: Plan issue reads Out of scope as a safety net; the checker reds a human part there)
+- r3: (verifier) Goal cites #790 with `issue: none` (no change: #790 is a merged pull request, not an issue to claim)
+
 ## Blockers
 
 None.

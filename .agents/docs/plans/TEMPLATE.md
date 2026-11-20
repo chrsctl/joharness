@@ -23,8 +23,9 @@ serves: which of its `## Satisfied when` clauses this plan builds, numbered
   plan.
 issue: GitHub issue a clerk turned into this plan; manager's PR says Closes #N
   (Refs #N when another plan names it or any part of it is left undone:
-  `manager-reference.md` § Plan issue). A part left to a human goes in
-  `## Issue remainder`, never `## Out of scope`.
+  `manager-reference.md` § Plan issue). A part left to a human: add a
+  `## Issue remainder` section, one line per part naming the question; never
+  `## Out of scope`.
   One defect filed twice: both, bare numbers comma-separated (`12, 13`).
 scope: comma-separated path prefixes; prefix `shared:` for routine reconcile;
   also read by ship-scope.
