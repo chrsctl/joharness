@@ -8,7 +8,7 @@ graduates: .agents/docs/manager-reference.md
 
 ## Question
 
-Does the `Closes #N` / `Refs #N` rule in `manager-reference.md` § Plan issue state a fact ("nothing of this issue is left") that it never measures, so a pull request that leaves part of its issue undone still closes it?
+Do the harness's issue-closing rules state a fact they never measure, so an issue closes while work on it remains: by a manager PR that leaves part undone (`manager-reference.md` § Plan issue), or by a clerk's plan-only PR whose body carries a GitHub closing keyword (`clerk.md`)?
 
 ## Echo
 
@@ -56,7 +56,11 @@ grep -n -i "remainder\|out of scope" .claude/agents/plan-checker.md
   - gx#1446 → #1369: "Not done … for follow-up", stale figures still in ADR 0168 and a phase spec. Re-filed in gx#1994.
 
   Before re-filing, a search of open issues found nothing for any of them (`gh api -X GET search/issues -f q='repo:chrsctl/gx is:issue <terms>'`). I excluded about a dozen hits whose "not done" text named a neighbouring defect rather than part of the closed issue. Rate: 5 of 134 `Closes` PRs in two weeks, 3 of them needing a human.
-- **A related observation, seen once:** gx#1369 was closed by the clerk's plan-only PR #1402 (closed 02:24 on 2026-11-10) before the fix (#1446) merged. Not swept further.
+- **The opposite error: plan-only PRs close issues before any fix exists.** I swept the clerk's plan-only PRs in gx merged 2026-11-01..2026-11-20 (92 PRs with a `clerk`/`plan` title among the 632 merged; search API `is:pr is:merged merged:<range>`). 13 of them closed an issue. In every case the issue's `closed_at` is 1–2 s after the plan PR merged (search API `closed_at`):
+  - 11 PRs from the 2026-11-10 batch (gx#1399–#1416). Their body line `Verifier (opus) findings, fixed: #<N> …` is parsed by GitHub as the closing keyword `fixed:`. The issues closed: #1360, 1362, 1365, 1369, 1373, 1374, 1377, 1380, 1383, 1388, 1390.
+  - 2 PRs wrote the keyword deliberately, meaning it as future tense: gx#1342 "Closes #1341 when built", gx#1738 "Closes #1725 on build".
+
+  Every one was later built by a manager PR (for example #1383 by gx#1606 two days later, #1388 by #1621, #1390 by #1627, three days later). So no work was lost here, but each issue read "completed" for hours to days while unfixed. Had a plan never been built, nothing open would have tracked the defect. gx#1924 (2026-11-19) wrote "Closes nothing: the plan's manager closes #1921", which suggests a session noticed. Canonical has no such rule: `grep -n -iE "closes nothing|closing keyword|fixed:|keyword" .claude/commands/clerk.md .agents/docs/*.md` hits only `manager-reference.md:328`, which is about something else. `clerk.md` says a plan's `issue:` is how the issue closes, but never says the clerk's own PR body must not carry a GitHub closing keyword (`close[sd]`, `fix(e[sd])`, `resolve[sd]`, with or without a colon) before an issue number.
 - **Nothing in canonical measures the heading.** `grep -rln remainder` hits only prose docs and the *Human remainder* (core-path) mechanism in `joharness.sh:10589` and `queue-context.sh:690`, which is a different thing. `plan-checker.md` mentions neither `remainder` nor `out of scope` (empty grep). So `clerk.md`'s "A plan without the section left no human remainder" is an assumption that nothing checks.
 
 Cost: about 10 minutes of a session and one hand-filed issue. The silent failure is the real cost: had nobody read the PR body, the IP-range defect would have had no open record.
@@ -67,6 +71,7 @@ Candidates for canonical to choose from. This report does not choose.
 1. `manager-reference.md` § Plan issue: decide `Closes` vs `Refs` at PR open, from the PR body and the workstream file's `## Review` (`wontfix`, not built, for a human), not only from the plan's heading. Any undone part of the issue → `Refs #N` plus the § Link the issue comment naming it, or a new issue filed and linked. Of the two routes, only this option covers the build-time one (4 of 5 cases).
 2. `plan-checker.md`: a plan with `issue:` whose `## Out of scope` defers part of that issue, but which has no `## Issue remainder`, is a defect.
 3. A mechanical check in `ci` / `dispatch` would need a marker for "deferred to a human", and none exists today. Lower value.
+4. For the plan-only finding: `clerk.md` says the clerk's PR body names issues with `Refs #N` only, and never puts a closing keyword (including `fixed:` in a verifier summary) before `#N`. A cheap check would grep a plan-only PR body before `merge_pull_request`.
 
 ## Verification
 
@@ -74,4 +79,4 @@ Not yet verified from an independent context. The facts above are direct tool ou
 
 ## Graduates to
 
-`.agents/docs/manager-reference.md`, because it holds the rule that turns the heading's absence into `Closes`. `.claude/agents/plan-checker.md` too, if canonical picks option 2.
+`.agents/docs/manager-reference.md`, because it holds the rule that turns the heading's absence into `Closes`; and `.claude/commands/clerk.md` for the plan-only finding. `.claude/agents/plan-checker.md` too, if canonical picks option 2.
