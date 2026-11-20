@@ -7140,6 +7140,48 @@ checks_retest_file() {
   printf '%s/joharness-retest-paths' "$d"
 }
 
+# Where a green SCOPED RETEST is remembered: from=<certified head>,
+# head=<retested head>, base=<its pinned tip>. The next RETEST from the same
+# certificate drops a path whose content both sides still hold as that run
+# retested it (.agents/docs/consumer-repos.md § Local checks, "The finish
+# loop", step 3). The git dir, never the tree.
+checks_retest_green_file() {
+  local d
+  d="$(git -C "$ROOT" rev-parse --absolute-git-dir 2>/dev/null)" && [ -n "$d" ] ||
+    return 1
+  printf '%s/joharness-retest-green' "$d"
+}
+
+# checks_retest_carry <cert head> <ref> <set>: prints the paths of <set> a
+# green retest of the same chain already ran as they stand now: the base
+# has not changed them since that run's pinned tip, and HEAD holds the
+# blob that run's head held (both absent counts as equal). Why: measured
+# from the certificate alone, a path both sides changed once stays in the
+# set every lap; chrsctl/gx #1990 re-ran every CRM suite for one such path
+# on 9 laps of ~23 min, 3 of them with that path untouched since the last
+# green retest. Prints nothing when no such run stands. It runs in a
+# command substitution and sets nothing; checks_catch_up reads the head.
+CHECKS_CARRY_FROM=""
+checks_retest_carry() {
+  local ch="$1" ref="$2" set="$3" gf gfrom gh gb p a b
+  gf="$(checks_retest_green_file)" && [ -r "$gf" ] || return 0
+  gfrom="$(sed -n 's/^from=//p' "$gf" | head -n 1)"
+  gh="$(sed -n 's/^head=//p' "$gf" | head -n 1)"
+  gb="$(sed -n 's/^base=//p' "$gf" | head -n 1)"
+  [[ "$gh" =~ ^[0-9a-f]{40}$ && "$gb" =~ ^[0-9a-f]{40}$ ]] || return 0
+  [ "$gfrom" = "$ch" ] || return 0
+  git -C "$ROOT" merge-base --is-ancestor "$gh" HEAD 2>/dev/null || return 0
+  git -C "$ROOT" merge-base --is-ancestor "$gb" "$ref" 2>/dev/null || return 0
+  while IFS= read -r p; do
+    [ -n "$p" ] || continue
+    [ -z "$(git -C "$ROOT" diff --no-renames --name-only "$gb" "$ref" -- "$p" 2>/dev/null)" ] || continue
+    a="$(git -C "$ROOT" rev-parse -q --verify "HEAD:${p}" 2>/dev/null)" || a=""
+    b="$(git -C "$ROOT" rev-parse -q --verify "${gh}:${p}" 2>/dev/null)" || b=""
+    [ "$a" = "$b" ] || continue
+    printf '%s\n' "$p"
+  done <<<"$set"
+}
+
 # checks_paths <a> <b>: paths changed between two commits or trees, sorted,
 # unquoted where git can leave them so. Non-zero when git cannot say.
 checks_paths() {
@@ -7209,7 +7251,7 @@ checks_base_steps() {
 # one line when this head descends from the certified one; silent otherwise.
 checks_catch_up() {
   local ref="$1" probe="${2:-}" cf ch cb n m f max mt mrc auto reason="" mb tgt
-  local branch="" base="" conflicted="" resolved="" known stray rset="" k renum
+  local branch="" base="" conflicted="" resolved="" known stray rset="" k renum carried="" cf
   CHECKS_RETEST_SET=""
   CHECKS_RETEST_FROM=""
   CHECKS_REACH_STEPS=""
@@ -7288,12 +7330,25 @@ checks_catch_up() {
     printf '  full run     certified %s found, no catch-up: %s\n' "${ch:0:9}" "$reason"
     return 1
   fi
+  carried=""
+  if [ -n "$rset" ]; then
+    carried="$(checks_retest_carry "$ch" "$ref" "$rset")"
+    if [ -n "$carried" ]; then
+      # The carry ran in a command substitution: read its head here.
+      CHECKS_CARRY_FROM=""
+      ! cf="$(checks_retest_green_file)" ||
+        CHECKS_CARRY_FROM="$(sed -n 's/^head=//p' "$cf" | head -n 1)"
+      CHECKS_CARRY_FROM="${CHECKS_CARRY_FROM:0:9}"
+      rset="$(LC_ALL=C comm -23 <(printf '%s\n' "$rset") <(printf '%s\n' "$carried"))"
+      carried=" ($(printf '%s\n' "$carried" | wc -l | tr -d ' ') carried from green retest ${CHECKS_CARRY_FROM})"
+    fi
+  fi
   if [ -n "$rset" ]; then
     k="$(printf '%s\n' "$rset" | wc -l | tr -d ' ')"
     CHECKS_RETEST_SET="$rset"
     CHECKS_RETEST_FROM="$ch"
-    printf '  RETEST       HEAD = certified %s + %s commit(s) (%s first-parent merge(s)) of %s, %s path(s) to retest, first %s\n' \
-      "${ch:0:9}" "$n" "$m" "$ref" "$k" "${rset%%$'\n'*}"
+    printf '  RETEST       HEAD = certified %s + %s commit(s) (%s first-parent merge(s)) of %s, %s path(s) to retest%s, first %s\n' \
+      "${ch:0:9}" "$n" "$m" "$ref" "$k" "$carried" "${rset%%$'\n'*}"
     printf '               ci re-runs, %s runs with JOHARNESS_RETEST_PATHS and may scope\n' \
       "$CHECKS_LOCAL_FILE"
     printf '               to them; the certificate stays at %s (.agents/docs/consumer-repos.md\n' \
@@ -7303,6 +7358,8 @@ checks_catch_up() {
   fi
   printf '  CATCH-UP     HEAD = certified %s + %s commit(s) (%s first-parent merge(s)) of %s, merged clean,\n' \
     "${ch:0:9}" "$n" "$m" "$ref"
+  [ -z "$carried" ] ||
+    printf '               every shared path%s\n' "$carried"
   printf '               no path changed on both sides: ci re-runs, %s carries\n' \
     "$CHECKS_LOCAL_FILE"
   printf '               from %s (.agents/docs/consumer-repos.md § Local checks)\n' \
@@ -7451,6 +7508,8 @@ checks_gate() {
     # A full run supersedes any certificate; written again only on its green,
     # so a write that fails leaves none and the verdict reads a full run.
     rm -f "$cf"
+    # And every retest green of the chain that certificate rooted.
+    if cf="$(checks_retest_green_file)"; then rm -f "$cf"; fi
   fi
   printf '\n  == %s ci\n' "$0"
   if "${ROOT}/joharness.sh" ci; then
@@ -7515,6 +7574,14 @@ checks_gate() {
      [ "$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)" = "$pin" ] &&
      cf="$(checks_green_file)"; then
     printf 'head=%s\n' "$pin" >"$cf" 2>/dev/null || :
+  fi
+  # A green SCOPED RETEST: what the next retest of this chain may carry
+  # from (checks_retest_carry). Pinned like the certificate.
+  if [ "$rc" -eq 0 ] && [ "$cu" -eq 2 ] && [ "$CHECKS_SCOPED" = 1 ] &&
+     [ -n "$tip" ] && [ -n "$pin" ] && [ -n "$CHECKS_RETEST_FROM" ] &&
+     [ "$(git -C "$ROOT" rev-parse HEAD 2>/dev/null)" = "$pin" ] &&
+     cf="$(checks_retest_green_file)"; then
+    printf 'from=%s\nhead=%s\nbase=%s\n' "$CHECKS_RETEST_FROM" "$pin" "$tip" >"$cf" 2>/dev/null || :
   fi
   # Level again at the END, after the green above, so checks_outrun reads
   # this run's green: a long run leaves a window the base moves in unseen
