@@ -133,8 +133,8 @@ the pull request body with the evidence, one line each:
   After the comment, apply `human-review` to the issue (visibility only;
   the manager does not read it). When any part needs a human, the plan carries a
   `## Issue remainder` section: one line per such part, naming the question.
-  Never park such a part in `## Out of scope` instead: the plan-checker
-  reds it. NARROWER never
+  A plan without the section claims no human remainder; never park such a
+  part in `## Out of scope` instead: the plan-checker reds it. NARROWER never
   closes the issue: its plan's pull request does (`Closes`/`Refs`, below).
 - **DOES NOT HOLD** — comment with the evidence: the command, its output,
   the line read. Then close the issue (`issue_write` `update`,

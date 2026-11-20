@@ -282,11 +282,11 @@ A planning pass's review is bounded on top of that:
 ## Plan issue
 
 Plan names `issue: N`? Decide at pull request open, not from the plan
-alone. Any part of issue N left undone — the plan's `## Issue remainder` or
-`## Out of scope` defers one, or the body or `## Review` names one (`wontfix`,
-not built, for a human, follow-up) — = body
+alone. Any part of issue N itself left undone — the plan's `## Issue
+remainder` or `## Out of scope` defers it, or the body or `## Review` says it
+was not built (a finding outside issue N's own ask forces nothing) — = body
 carries `Refs #N`, never `Closes #N`, and § Link the issue's comment names
-each undone part (or files a new issue for it and links it). Otherwise
+each undone part. Otherwise
 `Closes #N` when no other
 plan on fresh `origin/main` names it (`git grep -l -E '^issue: *(#?[0-9]+, *)*#?N *(,.*|( #.*)?)$'
 origin/main -- docs/plans`, yours excluded), else `Refs #N`, for each
@@ -305,7 +305,9 @@ file marks it.
 
 Right after the pull request opens, for EACH issue its body names with
 `Closes #N` or `Refs #N`: post ONE comment on that issue (`add_issue_comment`):
-`PR #<M> <what it does for this issue, one line>: <PR url>`, ending with the
+`PR #<M> <what it does for this issue, one line>: <PR url>`, then for a
+`Refs #N` under § Plan issue's undone rule one line per undone part,
+`not done: <part>`, ending with the
 attribution footer the session's system prompt names. One per issue per pull
 request; never edit the issue's body or labels for it. A comment fails = name
 the call in your final report line; never block or retry.
