@@ -228,10 +228,7 @@ counts toward STARVED (`.claude/commands/manager.md` §4).
 
 Why first-parent commits: one per pull request a merge commit lands, one per
 commit pushed or squashed onto the base. Counting every commit refused
-ordinary traffic where a pull request carries 5-8: chrsctl/gx `main` took
-46-61 commits in 8 pull requests an hour and #1696 ran four full passes to
-STARVED (2026-11-14, `git rev-list --count [--first-parent --merges]`; WEAK:
-a consumer's reading). The semantic-clash window grows with pull requests.
+ordinary traffic where a pull request carries 5-8 (chrsctl/gx #1696). The semantic-clash window grows with pull requests.
 Renumbering ids after a merge lands in `RETEST`
 when the ids are edited in place (their paths sit inside conflicted ∪ branch
 ∪ base); an edit to a path neither side changed falls to the full run.
@@ -245,8 +242,7 @@ retested, not stray; `resolved` alone (`--no-renames`) would name the new path
 stray (GROUNDED: step 3's commands replayed on a fixture). Any other new path
 still runs in full. Cheaper, no rename: reserve the number in the plan's own
 pull request when it merges ahead of the build (plan
-`reserve-numbered-artefact`). Cost before: six renames, each a ~24-minute
-full run (chrsctl/gx #1557, ADR 0413; WEAK: a consumer's reading).
+`reserve-numbered-artefact`).
 
 **The finish loop.** One protocol: test a head in full once; after each
 merge of the base, retest only what that merge could have changed; merge when
@@ -256,8 +252,8 @@ green and level.
    `C = (H0, B0)`.
 2. **Merge.** Behind at the end: merge `origin/main` in (never rebase),
    resolving conflicts by hand if needed. New head `Hk` = the merge.
-3. **Retest.** `finish` on `Hk` measures from `C`, never from the previous
-   retest. `H0` not an ancestor of HEAD = another line of work, no line.
+3. **Retest.** `finish` on `Hk` measures from `C`, never from a retest
+   (Carried, below, only narrows). `H0` not an ancestor of HEAD = another line of work, no line.
    Refusals: its base not an ancestor of the base, base unmoved (`n = 0`), base changed `local-check`, `f` (its first-parent commits since `C`'s base) over
    `JOHARNESS_CATCHUP_COMMITS`, any other non-zero `merge-tree` exit, a path
    git quotes: full run, naming why. Else, with `mb = merge-base(H0, base)`:
@@ -273,6 +269,10 @@ green and level.
    a path the branch or base already changed is `resolved` too, so it is
    retested, not run in full; with the base unmoved since `C` it is the full
    run (`n = 0`).
+   - **Carried.** A path of `R` the last green SCOPED retest from this `C`
+     ran as both sides still hold it (base unchanged since, same blob) leaves
+     `R`: `(<d> carried from green retest <sha9>)`. Record
+     `<git-dir>/joharness-retest-green`; a full run removes it (gx #1990).
    - `R` empty: `CATCH-UP     HEAD = certified ...`; `ci` re-runs,
      `local-check` carries.
    - `R` non-empty: `RETEST       HEAD = certified <sha9> + <n> commit(s) (<m>

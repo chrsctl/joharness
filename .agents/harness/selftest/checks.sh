@@ -1165,7 +1165,8 @@ kr_run() { # finish, with the record of the check's last run cleared first
 }
 kr_paths() { { tr '\n' ' ' <"${kr_rec}.paths"; } 2>/dev/null; }
 kr_certhead() { sed -n 's/^head=//p' "$kr_cert" 2>/dev/null; }
-rm -f "$kr_cert" "${kr_gitdir}/joharness-finish-green" "$kr_file"
+kr_green="${kr_gitdir}/joharness-retest-green"
+rm -f "$kr_cert" "${kr_gitdir}/joharness-finish-green" "$kr_file" "$kr_green"
 printf '0\n' >"$kr_flag"
 git -C "$kcwork" checkout -q main
 git -C "$kcwork" merge -q --ff-only origin/main 2>/dev/null
@@ -1201,16 +1202,41 @@ expect "retest: 1. a scoped retest green says so" \
 # 10. A scoped RETEST keeps the certificate: the chain stands on it.
 expect "retest: 10. the certificate still names the certified head" "$kr_h0" "$(kr_certhead)"
 
-# 7. A second RETEST still measures from the certified head: its set is the
-# union of both merges' sets, never the second merge's alone.
+# 11. A green scoped RETEST is remembered for its chain.
+kr_h1r="$(git -C "$kcwork" rev-parse HEAD)"
+expect "retest: 11. a green scoped retest records its head" \
+  "head=${kr_h1r}" "$(cat "$kr_green" 2>/dev/null)"
+expect "retest: 11. and the certified head it chains from" \
+  "from=${kr_h0}" "$(cat "$kr_green" 2>/dev/null)"
+
+# 7. A second RETEST still measures from the certified head, but a shared
+# path the last green retest ran as both sides still hold it is carried:
+# kr-a.txt is unchanged on the base since and on HEAD since (chrsctl/gx
+# #1990: one such path re-ran every suite, lap after lap).
 kr_main kr-b.txt 10 TEN kcr
 kr_sync
 out="$(kr_run)"
 expect "retest: 7. a second merge is a RETEST from the same head" \
   "RETEST       HEAD = certified ${kr_h0:0:9} + 2 commit(s)" "$out"
-expect "retest: 7. its set is both merges' paths" "kr-a.txt kr-b.txt " "$(kr_paths)"
+expect "retest: 7. it names what it carried, and from where" \
+  "1 path(s) to retest (1 carried from green retest ${kr_h1r:0:9})" "$out"
+expect "retest: 7. its set is the new shared path alone" "kr-b.txt " "$(kr_paths)"
 expect "retest: 7. FROM is still the certified head" "from=${kr_h0}" "$(cat "$kr_rec" 2>/dev/null)"
 expect "retest: 7. and the certificate still names it" "$kr_h0" "$(kr_certhead)"
+
+# 12. The base changes a carried path again: it is retested.
+kr_main kr-a.txt 9 NINE kcr
+kr_sync
+out="$(kr_run)"
+expect "retest: 12. a path the base changed again is back in the set" \
+  "kr-a.txt " "$(kr_paths)"
+refute "retest: 12. and kr-b.txt, untouched since the last green, is carried" \
+  "kr-b.txt" "$(kr_paths)"
+
+# 13. Each green scoped retest moves the record to its own head.
+kr_h12="$(git -C "$kcwork" rev-parse HEAD)"
+expect "retest: 13. the green file names the last green retest" \
+  "head=${kr_h12}" "$(cat "$kr_green" 2>/dev/null)"
 
 # 2. A conflicted merge resolved by hand in the conflicted file only: a
 # renumber's shape.
@@ -1229,11 +1255,16 @@ git -C "$kcwork" commit -qm "kcr: merge origin/main, renumbered by hand" --no-ed
 git -C "$kcwork" push -q origin HEAD 2>/dev/null
 out="$(kr_run)"
 expect "retest: 2. a hand-resolved conflict is a RETEST" \
-  "RETEST       HEAD = certified ${kr_h0:0:9} + 3 commit(s)" "$out"
+  "RETEST       HEAD = certified ${kr_h0:0:9} + 4 commit(s)" "$out"
 expect "retest: 2. the resolved file is in the set" "kr-a.txt" "$(kr_paths)"
 expect "retest: 2. a branch-only path the resolution edited is in the set" \
   "kr-e.txt" "$(kr_paths)"
 
+if [ -e "$kr_green" ]; then
+  pass "retest: 14. the green-retest record stands before the full run"
+else
+  fail "retest: 14. the green-retest record stands before the full run"
+fi
 # 3. The same, plus an edit to a path neither side changed: the full run,
 # naming it. Neither variable reaches the check, not even one the caller set.
 printf '0\n' >"$kr_flag"
@@ -1251,6 +1282,11 @@ expect "retest: 3. PATHS is unset on a full run" "paths=unset" "$(cat "$kr_rec" 
 expect "retest: 3. FROM is unset on a full run" "from=unset" "$(cat "$kr_rec" 2>/dev/null)"
 kr_h1="$(git -C "$kcwork" rev-parse HEAD)"
 expect "retest: 3. the full green certifies the new head" "$kr_h1" "$(kr_certhead)"
+if [ -e "$kr_green" ]; then
+  fail "retest: 14. a full run removes the chain's green-retest record"
+else
+  pass "retest: 14. a full run removes the chain's green-retest record"
+fi
 
 # 6. A RETEST whose check ignores the variables runs in full: its green
 # certifies the merged head.
