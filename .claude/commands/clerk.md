@@ -133,7 +133,8 @@ the pull request body with the evidence, one line each:
   After the comment, apply `human-review` to the issue (visibility only;
   the manager does not read it). When any part needs a human, the plan carries a
   `## Issue remainder` section: one line per such part, naming the question.
-  A plan without the section left no human remainder. NARROWER never
+  A plan without the section claims no human remainder; never park such a
+  part in `## Out of scope` instead: the plan-checker reds it. NARROWER never
   closes the issue: its plan's pull request does (`Closes`/`Refs`, below).
 - **DOES NOT HOLD** — comment with the evidence: the command, its output,
   the line read. Then close the issue (`issue_write` `update`,
@@ -189,8 +190,8 @@ duplicate of an issue a queued plan names goes into that plan's `issue:`
 when it retires (`.agents/docs/orchestrated.md`, The one stop). Comment
 `clerk: HOLDS — duplicate of #<N>, plan <stem> in PR #<M>` on the twin.
 A plan's `issue:` is how the issue closes: the manager's pull request says
-`Closes #<N>` when no other queued plan names that issue and the plan has no
-`## Issue remainder` section, `Refs #<N>` otherwise (`manager.md` §4).
+`Closes #<N>` when no other queued plan names that issue and no part of it
+is left undone at pull request open, `Refs #<N>` otherwise (`manager.md` §4).
 
 Every comment opens `clerk: <VERDICT>` (§2 reads that prefix) and ends with
 the attribution footer this session's system prompt names. One comment per
@@ -216,7 +217,12 @@ nothing else. Before opening it: `./joharness.sh curate --apply`, then
 `./joharness.sh curate` and fix by hand what it names on your new plans,
 then `./joharness.sh ci`. Spawn `.claude/agents/verifier.md` at opus on the
 diff; its findings and your fixes go in the pull request body. The body lists every issue read with its
-verdict and, for a plan, the plan's stem. A plan from a scout proposal (§2)?
+verdict and, for a plan, the plan's stem. It names an issue only as
+`Refs #N` or `#N` bare: no GitHub closing keyword (`close`, `fix`,
+`resolve`, any tense, a colon after it included, as in a verifier line
+`fixed: #N`) directly before `#N`, or the merge closes the issue before its
+plan is built. Read the body for one before `merge_pull_request`.
+A plan from a scout proposal (§2)?
 Title `scout: plan <stems>` (every stem in the pull request) and label
 `scout` on the pull request (`issue_write` update, labels).
 
