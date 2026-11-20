@@ -8,7 +8,7 @@ issue: none
 session: https://claude.ai/code/session_01J1YMK5fH2288GR1soijKET
 agent: haiku
 updated: 2026-11-20
-next: Run ci and verify, review, open PR
+next: Re-run ci, verify and verifier on this head (first runs saw the pre-rewrap tree), then PR
 ---
 
 ## Goal
