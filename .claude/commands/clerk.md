@@ -217,7 +217,12 @@ nothing else. Before opening it: `./joharness.sh curate --apply`, then
 `./joharness.sh curate` and fix by hand what it names on your new plans,
 then `./joharness.sh ci`. Spawn `.claude/agents/verifier.md` at opus on the
 diff; its findings and your fixes go in the pull request body. The body lists every issue read with its
-verdict and, for a plan, the plan's stem. A plan from a scout proposal (§2)?
+verdict and, for a plan, the plan's stem. It names an issue only as
+`Refs #N` or `#N` bare: no GitHub closing keyword (`close`, `fix`,
+`resolve`, any tense, a colon after it included, as in a verifier line
+`fixed: #N`) directly before `#N`, or the merge closes the issue before its
+plan is built. Read the body for one before `merge_pull_request`.
+A plan from a scout proposal (§2)?
 Title `scout: plan <stems>` (every stem in the pull request) and label
 `scout` on the pull request (`issue_write` update, labels).
 
