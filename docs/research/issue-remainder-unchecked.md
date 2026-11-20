@@ -8,7 +8,7 @@ graduates: .agents/docs/manager-reference.md
 
 ## Question
 
-Does the `Closes #N` / `Refs #N` rule in `manager-reference.md` § Plan issue state a fact ("the plan left no human remainder") that it never measures, so a plan that defers part of its issue to a human under another heading closes that issue?
+Does the `Closes #N` / `Refs #N` rule in `manager-reference.md` § Plan issue state a fact ("nothing of this issue is left") that it never measures, so a pull request that leaves part of its issue undone still closes it?
 
 ## Echo
 
@@ -49,6 +49,14 @@ grep -n -i "remainder\|out of scope" .claude/agents/plan-checker.md
 - **The manager followed the rule as written and closed the issue.** PR #1985's body opens `Closes #1966` and also says "**For a human (out of scope):** the issue's second finding … Not done here." Issue #1966 ended `state: closed`, `state_reason: completed`, `closed_by_pull_requests: #1985` (source: `issue_read`, `pull_request_read`).
 - **The clerk's NARROWER visibility step was skipped too.** `clerk.md` §3 NARROWER says to apply `human-review` to the issue. `get_labels` on #1966 returned `{"labels":[],"totalCount":0}`.
 - **Afterwards nothing tracked the remainder.** Both open-issue searches returned no items. A human noticed it by reading the PR body, and the consumer opened a new issue for it (chrsctl/gx#1991) by hand.
+- **A second route to the same outcome: the remainder appears during the build.** I swept every gx PR merged 2026-11-06..2026-11-20 whose body says `Closes` (134 PRs) and grepped them for deferral wording. I also checked all 10 plans retired in that window that named an `issue:`. Only #1985's plan had the remainder under the wrong heading. Four more PRs closed their issue while their own body named an undone part of that same issue. None of those remainders could have been in the plan, because the manager or verifier found them while building. `## Issue remainder` is a heading the clerk writes, so it cannot catch these:
+  - gx#1459 → #1384: "Backfill question (for a human, not built here)". Workflows that existed before the merge stay broken. Re-filed as gx#1992.
+  - gx#1436 → #1353: "Open question (r5, not built)", a two-step version of the same disclosure. Re-filed as gx#1993 (security).
+  - gx#1798 → #1775: "Not done (verifier r15)", against the issue's own done-when. Re-filed in gx#1994.
+  - gx#1446 → #1369: "Not done … for follow-up", stale figures still in ADR 0168 and a phase spec. Re-filed in gx#1994.
+
+  Before re-filing, a search of open issues found nothing for any of them (`gh api -X GET search/issues -f q='repo:chrsctl/gx is:issue <terms>'`). I excluded about a dozen hits whose "not done" text named a neighbouring defect rather than part of the closed issue. Rate: 5 of 134 `Closes` PRs in two weeks, 3 of them needing a human.
+- **A related observation, seen once:** gx#1369 was closed by the clerk's plan-only PR #1402 (closed 02:24 on 2026-11-10) before the fix (#1446) merged. Not swept further.
 - **Nothing in canonical measures the heading.** `grep -rln remainder` hits only prose docs and the *Human remainder* (core-path) mechanism in `joharness.sh:10589` and `queue-context.sh:690`, which is a different thing. `plan-checker.md` mentions neither `remainder` nor `out of scope` (empty grep). So `clerk.md`'s "A plan without the section left no human remainder" is an assumption that nothing checks.
 
 Cost: about 10 minutes of a session and one hand-filed issue. The silent failure is the real cost: had nobody read the PR body, the IP-range defect would have had no open record.
@@ -56,7 +64,7 @@ Cost: about 10 minutes of a session and one hand-filed issue. The silent failure
 ## Consequence for the queue
 
 Candidates for canonical to choose from. This report does not choose.
-1. `manager-reference.md` § Plan issue: before writing `Closes #N`, the manager also checks its own PR body and `## Out of scope` for any part deferred to a human. If one exists, write `Refs #N` and add a comment on the issue naming the open part.
+1. `manager-reference.md` § Plan issue: decide `Closes` vs `Refs` at PR open, from the PR body and the workstream file's `## Review` (`wontfix`, not built, for a human), not only from the plan's heading. Any undone part of the issue → `Refs #N` plus the § Link the issue comment naming it, or a new issue filed and linked. Of the two routes, only this option covers the build-time one (4 of 5 cases).
 2. `plan-checker.md`: a plan with `issue:` whose `## Out of scope` defers part of that issue, but which has no `## Issue remainder`, is a defect.
 3. A mechanical check in `ci` / `dispatch` would need a marker for "deferred to a human", and none exists today. Lower value.
 
