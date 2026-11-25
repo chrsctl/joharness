@@ -249,22 +249,39 @@ fi
 # farm is then checked both ways: shellcheck gone, and the tools `ci` needs
 # still there. A case that cannot build the environment it is about skips
 # rather than asserting something else. ~2s, once.
+# Every occurrence of a name is kept, in PATH order, one farm layer per
+# occurrence: a wrapper that execs the next copy on PATH (a hosted session's
+# `rm` guard) finds it in the next layer, where one layer gave it none and
+# `finish` died on `rm: command not found`.
 git -C "$kcwork" checkout -q kcdocs
 mkdir -p "${TMP}/nosc"
 printf '#!/bin/sh\nexit 1\n' >"${TMP}/nosc/apt-get"
 printf '#!/bin/sh\nexit 1\n' >"${TMP}/nosc/brew"
 chmod +x "${TMP}/nosc/apt-get" "${TMP}/nosc/brew"
-mkdir -p "${TMP}/scfree"
+kc_layers=0
 while IFS= read -r kc_dir; do
   [ -d "$kc_dir" ] || continue
   for kc_exe in "$kc_dir"/*; do
     kc_base="${kc_exe##*/}"
     [ "$kc_base" = shellcheck ] && continue
-    [ -e "${TMP}/scfree/${kc_base}" ] && continue
-    ln -s "$kc_exe" "${TMP}/scfree/${kc_base}" 2>/dev/null
+    kc_l=1
+    while [ -e "${TMP}/scfree${kc_l}/${kc_base}" ] ||
+          [ -L "${TMP}/scfree${kc_l}/${kc_base}" ]; do
+      kc_l=$((kc_l + 1))
+    done
+    if [ "$kc_l" -gt "$kc_layers" ]; then
+      mkdir -p "${TMP}/scfree${kc_l}"
+      kc_layers="$kc_l"
+    fi
+    ln -s "$kc_exe" "${TMP}/scfree${kc_l}/${kc_base}" 2>/dev/null
   done
 done < <(printf '%s' "$PATH" | tr ':' '\n')
-kc_nopath="${TMP}/nosc:${TMP}/scfree"
+kc_nopath="${TMP}/nosc"
+kc_l=1
+while [ "$kc_l" -le "$kc_layers" ]; do
+  kc_nopath="${kc_nopath}:${TMP}/scfree${kc_l}"
+  kc_l=$((kc_l + 1))
+done
 kc_usable=1
 PATH="$kc_nopath" command -v shellcheck >/dev/null 2>&1 && kc_usable=0
 for kc_tool in git bash awk sed grep find sort mktemp tr; do
