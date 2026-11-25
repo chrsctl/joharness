@@ -44,10 +44,10 @@ rb_bound handover.md 18979
 rb_bound consumer-repos.md 24986
 # manager.md loads whole into every manager session; its rare branches
 # live in manager-reference.md. Counted `wc -c` on the diet commit,
-# 2026-10-23 (16234 before it). +86 on 2026-11-25: § 4's pointers to ref §
-# Waiting on finish, rules that have to live where finish and the GitHub-lost
-# rule are read (the rest went to the reference).
-rb_bound manager.md 9334 "${ROOT}/.claude/commands"
+# 2026-10-23 (16234 before it). +97 on 2026-11-25 (`wc -c` 10169 -> 10266):
+# § 4's pointers to ref § Waiting on finish, rules that have to live where
+# finish and the GitHub-lost rule are read (the rest went to the reference).
+rb_bound manager.md 9345 "${ROOT}/.claude/commands"
 # The orchestrator's command file, counted 21480 on origin/main after the
 # split into orchestrator-reference.md: it stays a table of pointers.
 rb_bound orchestrator.md 21480 "${ROOT}/.claude/commands"

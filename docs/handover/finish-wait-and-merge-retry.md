@@ -28,3 +28,8 @@ manager exit by rule (about 2 h idle, then a fresh full run), and waits on
   local-check costs.
 
 ## Review
+- r1: (verifier) re-run rule overrode a red in the diff; scoped to reds outside it (fixed)
+- r2: (verifier) merge retry had no not-level branch; re-measures all of step 7, behind goes to § 4 (fixed)
+- r3: (verifier) dated stories in a rule doc; moved to the commit message (fixed)
+- r4: (verifier) budget raise said +86, counted +97; recounted (fixed)
+- r5: (verifier) bound named local-check only; now plus ci and verify (fixed)
