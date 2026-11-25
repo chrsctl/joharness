@@ -133,8 +133,9 @@ Your `$ARGUMENTS` carries the `rescope` block. ref § Surveyor.
 ## 4. Finish
 
 Loop step 5 at your tier (`.claude/agents/verifier.md`, findings tagged
-`(verifier)`; prompt: `.agents/docs/subagents.md`), Loop step 7, exit. The orchestrator reads your merge from
-git; send nothing for it.
+`(verifier)`; prompt: `.agents/docs/subagents.md`), Loop step 7, exit. `finish` is waited
+on by its exit: ref § Waiting on finish. The orchestrator reads your merge from git;
+send nothing for it.
 
 `human-review` at merge (Loop step 7) = do not merge: ref § Label at merge.
 
@@ -161,8 +162,8 @@ GitHub lost at step 7:
   (§2), then one GitHub MCP read (`get_me`, or `list_pull_requests` on your
   head branch). Fails? Do not retire. `status: blocked`, `next:` =
   `github: GitHub MCP lost before PR: <error, 40 chars>`, push, exit. No retry.
-- **After it:** a GitHub call fails = keep the retire, push it, end with one
-  line naming the failed call, exit.
+- **After it:** a GitHub call fails = keep the retire, push, name the call
+  in one line, exit. A merge call retries first: ref § Waiting on finish.
 
 **A DEFECT outside your item**, blocking or not: ref § Defect.
 
