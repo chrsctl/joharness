@@ -247,6 +247,23 @@ Why: a count of BEHIND refusals also counts red runs. chrsctl/gx, 2026-11-11
 - gx #1488: three runs outrun as written; the relayed human answer was the
   same merge-and-finish loop with the counter reset.
 
+## Waiting on finish
+
+1. Run `finish` as a background command bounded past
+   `JOHARNESS_LOCAL_CHECK_MINUTES` plus `ci` and `verify`, so its exit wakes
+   you. No sleep loop, Monitor or wakeup sized to the run's expected length:
+   a wake past the end idles a green while the base moves.
+2. Before `finish`, no hand run of a suite the repo's `local-check` runs:
+   `finish` runs it again on the same head. A red outside the diff that
+   `local-check` already re-ran alone goes to the paired run on
+   `origin/main` (Loop step 5), never a third run alone. A red in the
+   diff: fix it, as Loop step 5 says.
+3. A merge call that fails (5xx, timeout, reset): read the pull request
+   first; merged = done. Still open: re-measure every Loop step 7
+   condition, the pull request's head = your pushed head included. All hold
+   = call again; three tries, a minute apart, then § 4's GitHub-lost rule.
+   Behind = § 4's "Behind at merge?", never a retry.
+
 ## Challenge
 
 Before `/plan` on a requirement, spawn `.claude/agents/challenger.md` four
