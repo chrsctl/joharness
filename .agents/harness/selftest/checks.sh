@@ -275,7 +275,7 @@ while IFS= read -r kc_dir; do
     fi
     ln -s "$kc_exe" "${TMP}/scfree${kc_l}/${kc_base}" 2>/dev/null
   done
-done < <(printf '%s' "$PATH" | tr ':' '\n')
+done < <(printf '%s\n' "$PATH" | tr ':' '\n')
 kc_nopath="${TMP}/nosc"
 kc_l=1
 while [ "$kc_l" -le "$kc_layers" ]; do

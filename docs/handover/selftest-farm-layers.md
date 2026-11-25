@@ -28,3 +28,6 @@ finds no next one and `finish` dies on `rm: command not found`. Local-mode
   container.
 
 ## Review
+- r1: (verifier) the last PATH entry never reached the farm (no trailing newline for `read`); `printf '%s\n'` (fixed)
+- r2: (verifier) no case pins the layering; the existing case is the pin: red on 815fd865 in a guarded session, green with the fix (no change)
+- r3: (verifier) a dangling `*` link for an empty PATH dir, pre-existing and harmless (no change)
