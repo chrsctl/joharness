@@ -52,10 +52,7 @@ orchestrator spawns a second manager onto your item.
 
 Loop step 4, plus every `A<n>` of the plan's `## Assumptions`: record `- A<n>:
 confirmed|refuted — <evidence>` in `## Decisions` (refuted = fix the plan on
-the branch first). Refuted as ABSENT ("nothing holds X") = evidence is the
-command that would find X on the branch's base, quoted with its empty output;
-a comment or doc saying X is missing is not evidence. A block resting on it
-quotes that command. Then split the build into sub-tasks, each written for a
+the branch first). Then split the build into sub-tasks, each written for a
 literal reader:
 
 - files it may touch — disjoint from every concurrent worker; a shared file

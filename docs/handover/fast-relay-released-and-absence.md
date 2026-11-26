@@ -21,7 +21,9 @@ the finding command) through the fast lane, merge, and sync back.
 
 - Relay rule widened in prose (orchestrator-reference.md § Relay); the
   orchestrator applies it, so no script change.
-- Absence rule in manager.md §2, where `A<n>: refuted` is recorded.
+- Absence rule in plans.md § Shape, Assumptions: manager.md §2 is at its
+  reading budget (ci: 10497 bytes, bound 10279), and plans.md defines the
+  `A<n>` line the manager confirms or refutes.
 
 ## Review
 
