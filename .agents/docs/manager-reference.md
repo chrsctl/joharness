@@ -94,7 +94,8 @@ request and the plan's `issue:`, so neither reads as a freeze. An item
 already carrying `human-review` (a freeze, or another's question) gets
 nothing; say so in `next:`. A block whose decision is a `defect:` issue
 you file for a human (§ Defect, "Yes, nothing found"; step 3): that issue
-is the one item, the steps run at filing.
+is the one item, the steps run at filing. A block resting on a refuted
+absence quotes the command that would find it (`plans.md` § Shape).
 
 1. `approved` on the item: remove it (`issue_write` `update`, labels =
    the existing minus it).

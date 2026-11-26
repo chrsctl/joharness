@@ -24,7 +24,10 @@ Copy [`TEMPLATE.md`](plans/TEMPLATE.md). Sections:
 - **Assumptions** — one bullet each: `A<n>: <claim> — evidence: <path:symbol
   or command> — confidence: high|medium|low`; none = one line saying so. A plan
   added on a branch without the heading reds `ci`. The manager confirms or
-  refutes each before the build, into `## Decisions`.
+  refutes each before the build, into `## Decisions`. Refuted as ABSENT
+  ("nothing holds X"): the evidence is the command that would find X, run on
+  the branch's base, quoted with its empty output; a comment or doc saying X
+  is missing is not evidence. A block resting on it quotes that command.
 - **Out of scope** — what a helpful agent would wrongly add. Named so it
   never happens.
 - **Acceptance** — commands with expected output. All pass or not done.
